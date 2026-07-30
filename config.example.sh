@@ -35,3 +35,7 @@
 # Extra cache directory GLOBS for the scheduled storage auto-clean (removed
 # only when not written for >7 days). For app-generated per-project caches.
 #ANALYZERS_EXTRA_CACHE_GLOBS=( "$HOME/.someapp/cache/.next-*" )
+
+# Roots spotlight-audit.sh scans for dev directories (node_modules, .next,
+# build trees) that Spotlight wastefully indexes. Space-separated.
+#ANALYZERS_SPOTLIGHT_ROOTS="$HOME/Projects $HOME/Work"

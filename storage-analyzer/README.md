@@ -12,6 +12,7 @@ cd ~/scripts/storage-analyzer    # run the ./ commands below from here
 | `cleanup.sh` | Interactive deep-clean: caches, logs, **+ granular per-app uninstall** | dry-run |
 | `storage-auto-clean.sh` | Automation-safe sweep for scheduling (protects active work) | dry-run |
 | `login-items-audit.sh` | Find + remove login items/agents whose app was uninstalled | dry-run |
+| `spotlight-audit.sh` | Spotlight status, stuck-vs-progressing verdict, dev-dir index fencing | dry-run |
 | `tm-reclaim.sh` | Release snapshot-pinned space NOW + start a fresh TM backup | acts (no files touched) |
 | `storage-manage-agents.sh` | Install / remove the scheduled LaunchAgents | — |
 
