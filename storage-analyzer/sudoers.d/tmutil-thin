@@ -1,0 +1,12 @@
+# /etc/sudoers.d/tmutil-thin   (mode 0440, owner root:wheel)
+#
+# Lets the storage auto-clean agent reclaim Time Machine LOCAL-snapshot space
+# without a password — scoped to ONE EXACT command. This rule CANNOT:
+#   - delete real backups        (tmutil delete / destinationinfo not allowed)
+#   - disable Time Machine       (tmutil disable not allowed)
+#   - run any other binary       (only /usr/bin/tmutil thinlocalsnapshots, exact args)
+# Local snapshots are ephemeral (regenerate hourly; macOS auto-purges them under
+# disk pressure), so the blast radius is intentionally tiny.
+#
+# Install with:  ./manage-agents.sh sudoers-install   (validates via visudo first)
+__USERNAME__ ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4

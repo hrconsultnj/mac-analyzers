@@ -1,0 +1,7 @@
+.DS_Store
+*.zip
+.claude/
+*.log
+config.local.sh
+.composure/
+tasks-plans/

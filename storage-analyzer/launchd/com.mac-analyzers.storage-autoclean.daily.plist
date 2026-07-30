@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mac-analyzers.storage-autoclean.daily</string>
+
+    <!-- LIGHT daily pass: regenerable build caches not written in >3 days. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__SUITE_DIR__/storage-auto-clean.sh</string>
+        <string>--mode</string>
+        <string>daily</string>
+        <string>--apply</string>
+        <string>--docker-running-only</string>
+    </array>
+
+    <!-- Every day at 08:00 local time (machine TZ = America/New_York, i.e. 8 AM
+         EST/EDT). launchd uses local wall-clock and tracks DST automatically.
+         Missed runs (machine asleep) fire on next wake. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>8</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:__HOME__/.local/bin</string>
+        <key>HOME</key>
+        <string>__HOME__</string>
+    </dict>
+
+    <!-- Run politely in the background; don't compete with foreground work. -->
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>Nice</key>
+    <integer>10</integer>
+    <key>LowPriorityIO</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/system-reports/storage/auto-clean.daily.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/system-reports/storage/auto-clean.daily.err.log</string>
+</dict>
+</plist>

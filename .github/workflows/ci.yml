@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [development, main]
+  pull_request:
+    branches: [development]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: bash -n (syntax, every script)
+        run: |
+          git ls-files -z -- '*.sh' | xargs -0 -n1 bash -n
+          echo "syntax OK"
+
+      - name: shellcheck (gate on errors; warnings shown, non-blocking)
+        run: |
+          git ls-files -z -- '*.sh' | xargs -0 shellcheck -S warning || true
+          git ls-files -z -- '*.sh' | xargs -0 shellcheck -S error
+          echo "no error-severity findings"
+
+      - name: secrets sweep (curated baseline)
+        run: |
+          # Pattern prefixes are split so this workflow never contains a
+          # contiguous secret-shaped literal (which trips secret scanners).
+          S1='sk_'; S2='rk_'; G1='ghp_'; G2='gho_'; A1='AKIA'; X1='xox'
+          if git ls-files -z | xargs -0 grep -nEI \
+            -e "${A1}[0-9A-Z]{16}" \
+            -e "${G1}[A-Za-z0-9]{36}|${G2}[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}" \
+            -e '\-\-\-\-\-BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY' \
+            -e "${S1}live_[A-Za-z0-9]{20,}|${S2}live_[A-Za-z0-9]{20,}" \
+            -e "${X1}[baprs]-[A-Za-z0-9-]{10,}" \
+            -e '(postgres|postgresql|mysql|mongodb(\+srv)?|redis|amqp)://[^ "]*:[^ "]*@' \
+            -e 'AIza[0-9A-Za-z_-]{35}' \
+            -e 'https://hooks\.slack\.com/services/T[A-Za-z0-9_/]+' \
+            | grep -vE '^\.github/workflows/ci\.yml|^[^:]+:[0-9]+:[[:space:]]*#'; then
+            echo "::error::possible secret found — see grep output above"
+            exit 1
+          fi
+          echo "no secrets detected"

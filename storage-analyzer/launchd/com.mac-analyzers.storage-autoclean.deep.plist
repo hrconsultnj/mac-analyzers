@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mac-analyzers.storage-autoclean.deep</string>
+
+    <!-- DEEP pass every 3 days: build caches + node_modules of idle/clean repos
+         + package-manager prune + Time Machine snapshot ALERT.
+         To auto-thin TM snapshots instead of just alerting, add:
+             <string>- -prune-snapshots</string>   (without the space)
+         as another array entry below. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__SUITE_DIR__/storage-auto-clean.sh</string>
+        <string>--mode</string>
+        <string>deep</string>
+        <string>--apply</string>
+        <string>--docker-images</string>
+        <string>--prune-snapshots</string>
+    </array>
+
+    <!-- Every 3 days (259200s), measured from load / last run. Fires on wake if
+         the interval elapsed while asleep. -->
+    <key>StartInterval</key>
+    <integer>259200</integer>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:__HOME__/.local/bin</string>
+        <key>HOME</key>
+        <string>__HOME__</string>
+    </dict>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>Nice</key>
+    <integer>10</integer>
+    <key>LowPriorityIO</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/system-reports/storage/auto-clean.deep.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/system-reports/storage/auto-clean.deep.err.log</string>
+</dict>
+</plist>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mac-analyzers.memory-guard</string>
+
+    <!-- RAM spike listener: alerts on pressure WARNING, kills the biggest
+         safelisted dev process on CRITICAL or past the hard cap.
+         Pause without unloading: touch ~/memory-reports/.guard-paused -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__SUITE_DIR__/memory-guard.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <!-- if it crashes, wait 30s before relaunch (avoid rapid respawn) -->
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:__HOME__/.local/bin</string>
+        <key>HOME</key>
+        <string>__HOME__</string>
+    </dict>
+
+    <!-- Deliberately NOT ProcessType=Background: under memory pressure,
+         background-QoS work is throttled hardest — exactly when the guard
+         must react. Default QoS keeps it responsive; its per-tick cost is
+         a single ps + sysctl, negligible. -->
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/system-reports/memory/guard.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/system-reports/memory/guard.err.log</string>
+</dict>
+</plist>
