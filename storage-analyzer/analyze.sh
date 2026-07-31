@@ -10,7 +10,7 @@ set -u
 shopt -s nullglob
 
 HOME_DIR="${HOME}"
-OUT_DIR="${1:-${HOME_DIR}/system-reports/storage}"
+OUT_DIR="${1:-${HOME_DIR}/mac-analyzers/reports/storage}"
 DATE_DIR="${OUT_DIR}/$(date +%Y-%m-%d)"
 REPORT="${DATE_DIR}/report-$(date +%H%M).md"
 LATEST="${OUT_DIR}/latest.md"

@@ -58,7 +58,7 @@ CACHE_AGE_DAYS=3             # build cache untouched for >N days -> removable
 NM_AGE_DAYS=14              # repo idle for >N days -> node_modules removable
 SNAPSHOT_KEEP_DAYS=5        # keep TM local snapshots newer than N days
 ROOTS="${HOME_DIR}/Projects"
-LOG_DIR="${HOME_DIR}/system-reports/storage"
+LOG_DIR="${HOME_DIR}/mac-analyzers/reports/storage"
 
 # optional per-machine config (gitignored) — see config.example.sh at repo root
 ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -144,10 +144,16 @@ human() {  # KB -> human
 
 log() { echo "$*" | tee -a "$LOG_FILE"; }
 
-notify() {  # title, message  (no-op if osascript missing / headless)
-  command -v osascript >/dev/null 2>&1 || return 0
-  osascript -e "display notification \"${2//\"/\'}\" with title \"${1//\"/\'}\" sound name \"Glass\"" >/dev/null 2>&1 || true
-}
+# shared notifier — with alerter installed, clicking the notification opens
+# this script's log (see lib/notify.sh); inline fallback keeps it standalone.
+if [[ -f "${ANALYZERS_ROOT}/lib/notify.sh" ]]; then
+  source "${ANALYZERS_ROOT}/lib/notify.sh"
+else
+  notify() {  # title, message  (no-op if osascript missing / headless)
+    command -v osascript >/dev/null 2>&1 || return 0
+    osascript -e "display notification \"${2//\"/\'}\" with title \"${1//\"/\'}\" sound name \"Glass\"" >/dev/null 2>&1 || true
+  }
+fi
 
 group() { log ""; log "### $1"; }
 

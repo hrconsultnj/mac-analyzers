@@ -5,6 +5,14 @@
     <key>Label</key>
     <string>com.mac-analyzers.memory-guard</string>
 
+    <!-- Attribute this background item to the Mac Analyzers menu-bar app in
+         System Settings → Login Items & Extensions, instead of showing an
+         "item from an unidentified developer" script row. -->
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+        <string>com.mac-analyzers.app</string>
+    </array>
+
     <!-- RAM spike listener: alerts on pressure WARNING, kills the biggest
          safelisted dev process on CRITICAL or past the hard cap.
          Pause without unloading: touch ~/memory-reports/.guard-paused -->
@@ -34,9 +42,15 @@
          must react. Default QoS keeps it responsive; its per-tick cost is
          a single ps + sysctl, negligible. -->
 
+    <!-- notify() detaches an alerter click-handler that outlives a run; by
+         default launchd kills the job's process group on exit, which would
+         kill the handler before the user can click "Open Log". -->
+    <key>AbandonProcessGroup</key>
+    <true/>
+
     <key>StandardOutPath</key>
-    <string>__HOME__/system-reports/memory/guard.out.log</string>
+    <string>__HOME__/mac-analyzers/reports/memory/guard.out.log</string>
     <key>StandardErrorPath</key>
-    <string>__HOME__/system-reports/memory/guard.err.log</string>
+    <string>__HOME__/mac-analyzers/reports/memory/guard.err.log</string>
 </dict>
 </plist>

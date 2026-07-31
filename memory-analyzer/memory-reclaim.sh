@@ -35,7 +35,7 @@ set -u
 HOME_DIR="${HOME}"
 DRY_RUN=1
 QUIT_APPS=0
-LOG_DIR="${HOME_DIR}/system-reports/memory"
+LOG_DIR="${HOME_DIR}/mac-analyzers/reports/memory"
 LOG_FILE="${LOG_DIR}/reclaim.log"
 
 # optional per-machine config (gitignored) — see config.example.sh at repo root
@@ -97,10 +97,16 @@ KILL_COUNT=0
 log() { echo "$*" | tee -a "$LOG_FILE"; }
 group() { log ""; log "### $1"; }
 
-notify() {
-  command -v osascript >/dev/null 2>&1 || return 0
-  osascript -e "display notification \"${2//\"/\'}\" with title \"${1//\"/\'}\" sound name \"Glass\"" >/dev/null 2>&1 || true
-}
+# shared notifier — with alerter installed, clicking the notification opens
+# this script's log (see lib/notify.sh); inline fallback keeps it standalone.
+if [[ -f "${ANALYZERS_ROOT}/lib/notify.sh" ]]; then
+  source "${ANALYZERS_ROOT}/lib/notify.sh"
+else
+  notify() {
+    command -v osascript >/dev/null 2>&1 || return 0
+    osascript -e "display notification \"${2//\"/\'}\" with title \"${1//\"/\'}\" sound name \"Glass\"" >/dev/null 2>&1 || true
+  }
+fi
 
 # ---------- live-session protection ----------
 # Exempt every process descending from a LIVE AI coding session, no matter how

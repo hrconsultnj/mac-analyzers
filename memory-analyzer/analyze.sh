@@ -11,7 +11,7 @@
 set -u
 
 HOME_DIR="${HOME}"
-OUT_DIR="${1:-${HOME_DIR}/system-reports/memory}"
+OUT_DIR="${1:-${HOME_DIR}/mac-analyzers/reports/memory}"
 DATE_DIR="${OUT_DIR}/$(date +%Y-%m-%d)"
 REPORT="${DATE_DIR}/report-$(date +%H%M).md"
 LATEST="${OUT_DIR}/latest.md"

@@ -1,8 +1,11 @@
 # memory-analyzer
 
 RAM suite for macOS — the sibling of `../storage-analyzer`, but for memory.
-Scripts and launchd labels are prefixed `memory-` so Login Items / background
-tasks in System Settings are identifiable at a glance.
+Scripts and launchd labels are prefixed `memory-` (`com.mac-analyzers.*`) so
+Login Items / background tasks in System Settings are identifiable at a
+glance; the plists also set `AssociatedBundleIdentifiers` =
+`com.mac-analyzers.app`, so with the Mac Analyzers menu-bar app installed the
+agents group under the app's identity there.
 
 | Tool | Role | Mutates? |
 |------|------|----------|
@@ -12,9 +15,14 @@ tasks in System Settings are identifiable at a glance.
 | `memory-reclaim.sh` | **manual "free my RAM now" button** — reboot effect, no reboot | with `--apply` |
 | `memory-manage-agents.sh` | install / remove / status / pause the LaunchAgents | — |
 
-Reports live in `~/system-reports/memory/<YYYY-MM-DD>/report-<HHMM>.md`, with
-`latest.md` and the logs at `~/system-reports/memory/` root. (Storage suite
-mirrors this at `~/system-reports/storage/`.)
+Reports live in `~/mac-analyzers/reports/memory/<YYYY-MM-DD>/report-<HHMM>.md`, with
+`latest.md` and the logs at `~/mac-analyzers/reports/memory/` root. (Storage suite
+mirrors this at `~/mac-analyzers/reports/storage/`.)
+
+Notifications (spikes, warnings, kills, clean summaries) go through
+`../lib/notify.sh` — the Mac Analyzers menu-bar app's native path when built,
+`alerter` if installed, else a plain banner; clicking one opens the matching
+log. See the root README's Notifications section.
 
 ## Which one do I run?
 
@@ -44,7 +52,7 @@ Polls kernel memory-pressure every 15s. Escalation ladder:
 1. **Process spiking** (>400 MB growth/tick, ≥1 GB): notification, no action.
 2. **Pressure WARNING** (level 2): notification naming top consumers.
 3. **Hard cap** (single safelisted process >6 GB, any pressure): forensic
-   snapshot to `~/system-reports/memory/<date>/guard-critical-*.log`, then
+   snapshot to `~/mac-analyzers/reports/memory/<date>/guard-critical-*.log`, then
    SIGTERM→SIGKILL.
 4. **Pressure CRITICAL** (level 4): forensic snapshot + kill the biggest
    safelisted offender (>500 MB only).
@@ -56,7 +64,10 @@ vitest/jest, playwright + headless Chromium.
 **Never killed:** Zoom, all browsers, VS Code, Docker, Claude sessions, screen
 recording, anything system — plus whatever ANALYZERS_PROTECT_EXTRA adds in config.local.sh.
 
-Pause during a heavy legit build: `./memory-manage-agents.sh pause` / `resume`.
+Pause during a heavy legit build: `./memory-manage-agents.sh pause` / `resume`,
+or the Pause/Resume button in the menu-bar app. The app's Memory settings tab
+edits the guard tunables (hard cap, spike thresholds) in `config.local.sh` and
+restarts the guard so they apply immediately.
 
 ## memory-auto-clean.sh — the daily reaper (08:30)
 

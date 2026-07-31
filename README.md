@@ -27,10 +27,30 @@ reports.
 | ⏪ | `storage-analyzer/tm-reclaim.sh` | releases the Time Machine local snapshots that pin just-deleted blocks (the "I freed 40 GB but df didn't move" fix) | snapshots only |
 | 🔎 | `storage-analyzer/login-items-audit.sh` | finds login items / launch agents whose app was uninstalled — mechanically verified, two confidence classes | dry-run default |
 | 💡 | `storage-analyzer/spotlight-audit.sh` | Spotlight sanity: is the reindex expected or stuck, and which dev dirs (node_modules, build trees) is it wastefully indexing — fences them reversibly | dry-run default |
+| 🖥️ | `app/` — **Mac Analyzers** menu-bar app | optional native face for the suite: glance menu, real notifications with click-to-open-log, Settings for the tunables | writes only its own marked block in `config.local.sh` |
 
 Every script double-clicked in Finder opens an **interactive menu**
 (preview → confirm). Flags skip the menu — that's how the launchd agents run.
 Every run logs exactly how it was invoked.
+
+## Layout
+
+```
+~/mac-analyzers/
+├── memory-analyzer/           RAM suite + its launchd templates (own README)
+├── storage-analyzer/          disk suite + its launchd templates (own README)
+├── lib/notify.sh              shared notifier every script sources (below)
+├── app/                       "Mac Analyzers" menu-bar app — optional (below)
+├── extras/swiftbar-plugin/    SwiftBar surface for script-only setups — optional
+├── config.example.sh          → copy to config.local.sh (gitignored)
+└── reports/{memory,storage}/  every report + log the suite writes (gitignored)
+```
+
+Reports and logs live **inside the repo** at
+`~/mac-analyzers/reports/{memory,storage}/` — dated report folders, a
+`latest.md` symlink, and the run logs, all gitignored. (The repo formerly
+lived at `~/scripts` with reports at `~/system-reports`; those paths are
+retired.)
 
 ## See it work
 
@@ -51,12 +71,13 @@ every login. More: [the sick-machine report](examples/memory-report-sick.md) ·
 ## Install
 
 ```bash
-git clone https://github.com/hrconsultnj/mac-analyzers.git ~/scripts/mac-analyzers
-cd ~/scripts/mac-analyzers
+git clone https://github.com/hrconsultnj/mac-analyzers.git ~/mac-analyzers
+cd ~/mac-analyzers
 cp config.example.sh config.local.sh        # fill in YOUR apps (optional but recommended)
 ./memory-analyzer/analyze.sh                # read-only — see your machine first
 ./memory-analyzer/memory-manage-agents.sh install    # guard + daily reaper
 ./storage-analyzer/storage-manage-agents.sh install  # scheduled disk hygiene
+./app/build.sh                              # optional — menu-bar app (CLT only, no Xcode)
 ```
 
 **Using Claude Code (or another agent)?** Point it at `PORT-TO-YOUR-MAC.md` —
@@ -81,15 +102,67 @@ Login Items never shows you a mystery entry from this toolkit.
 - The single sudo touchpoint is a sudoers rule scoped to **one exact command**
   (Time Machine local-snapshot thinning) — installed only if you opt in, and
   it cannot touch real backups.
-- Reports and logs live in `~/system-reports/{memory,storage}/<date>/` —
+- Reports and logs live in `~/mac-analyzers/reports/{memory,storage}/<date>/` —
   every deletion and kill is written down.
+
+## Notifications
+
+Every alert — guard kills, pressure warnings, auto-clean summaries — goes
+through `lib/notify.sh`, which picks the best backend present:
+
+1. **The menu-bar app's bundled CLI**
+   (`app/MacAnalyzers.app/Contents/MacOS/notify`) — posts over
+   `DistributedNotificationCenter` to the persistent app, which shows a real
+   native notification under the app's identity; clicking it opens that run's
+   log.
+2. **`alerter`** (`brew install vjeantet/tap/alerter`) — banner with an
+   "Open Log" button.
+3. **Plain `osascript` banner** — always available, no click action.
+
+Knobs in `config.local.sh` (all optional):
+`ANALYZERS_NOTIFIER=native|alerter|osascript` forces a backend,
+`ANALYZERS_LOG_VIEWER` picks the app that opens logs on the alerter path, and
+`ANALYZERS_NOTIFY_TIMEOUT` is how many seconds an unclicked alerter alert
+lives.
+
+## The menu-bar app (optional)
+
+`app/` is **Mac Analyzers**, a native SwiftUI menu-bar app (SPM package,
+Swift 6, macOS 26) that gives the suite a face. The scripts run standalone
+without it — with it you get:
+
+- **Glance + control** — today's kill count on the menu-bar icon, recent guard
+  events, auto-clean status, pause/resume guard, one-click log access.
+- **Settings** (Memory / Storage / Notifications tabs) that write a
+  clearly-marked managed block into `config.local.sh`; anything you wrote
+  outside the markers is never touched, and saving memory tunables restarts
+  the guard agent so they take effect immediately.
+- **Launchd attribution** — every plist carries
+  `AssociatedBundleIdentifiers` = `com.mac-analyzers.app`, so System Settings →
+  Login Items & Extensions shows the background agents under the app's
+  identity instead of anonymous script rows. The app registers itself as a
+  login item (`SMAppService`) on first launch.
+- **Built without Xcode** — `./app/build.sh` (Command Line Tools only) runs
+  `swift build` and hand-assembles the ad-hoc-signed bundle, including the
+  `notify` CLI shim the scripts call. Icons regenerate with `app/make-icon.sh`
+  (colored .icns) and `app/make-menubar-icon.sh` (monochrome template PNG).
+
+No app, no Xcode, still want a menu-bar surface? `extras/swiftbar-plugin/`
+ships a [SwiftBar](https://swiftbar.app) plugin with the same glance data —
+kills today, recent events, click-to-open logs.
 
 ## Configuration
 
 Personal/machine values live in `config.local.sh` (gitignored) — copy
 `config.example.sh` and fill in your never-kill apps, stale-app list,
 deprecated-app leftovers, recordings dir, extra cache globs. Everything runs
-with neutral defaults without it.
+with neutral defaults without it. If you use the menu-bar app, its Settings
+own only the marked managed block in that file — your hand-written config
+coexists untouched.
+
+Developing this repo? `CONTRIBUTING.md` and `AGENTS.md` carry the hard rules;
+`.composure/` is local state for the Composure dev plugin used while building
+it (gitignored, not part of the product).
 
 ## License
 

@@ -5,6 +5,14 @@
     <key>Label</key>
     <string>com.mac-analyzers.storage-autoclean.daily</string>
 
+    <!-- Attribute this background item to the Mac Analyzers menu-bar app in
+         System Settings → Login Items & Extensions, instead of showing an
+         "item from an unidentified developer" script row. -->
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+        <string>com.mac-analyzers.app</string>
+    </array>
+
     <!-- LIGHT daily pass: regenerable build caches not written in >3 days. -->
     <key>ProgramArguments</key>
     <array>
@@ -43,9 +51,15 @@
     <key>LowPriorityIO</key>
     <true/>
 
+    <!-- notify() detaches an alerter click-handler that outlives the run; by
+         default launchd kills the job's process group on exit, which would
+         kill the handler before the user can click "Open Log". -->
+    <key>AbandonProcessGroup</key>
+    <true/>
+
     <key>StandardOutPath</key>
-    <string>__HOME__/system-reports/storage/auto-clean.daily.out.log</string>
+    <string>__HOME__/mac-analyzers/reports/storage/auto-clean.daily.out.log</string>
     <key>StandardErrorPath</key>
-    <string>__HOME__/system-reports/storage/auto-clean.daily.err.log</string>
+    <string>__HOME__/mac-analyzers/reports/storage/auto-clean.daily.err.log</string>
 </dict>
 </plist>

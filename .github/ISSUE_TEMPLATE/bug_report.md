@@ -9,7 +9,7 @@ labels: bug
 **What happened vs what you expected:**
 
 **Redacted output** (paste the relevant log/report excerpt — strip usernames,
-hostnames, and anything personal; reports live in `~/system-reports/`):
+hostnames, and anything personal; reports live in `~/mac-analyzers/reports/`):
 
 ```
 (paste here)

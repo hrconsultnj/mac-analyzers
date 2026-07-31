@@ -22,14 +22,14 @@
 #   ./memory-guard.sh --once --verbose
 #
 # Pause/resume WITHOUT unloading the agent (e.g. during a heavy legit build):
-#   touch ~/system-reports/memory/.guard-paused
-#   rm    ~/system-reports/memory/.guard-paused
+#   touch ~/mac-analyzers/reports/memory/.guard-paused
+#   rm    ~/mac-analyzers/reports/memory/.guard-paused
 # ---------------------------------------------------------------------------
 
 set -u
 
 HOME_DIR="${HOME}"
-LOG_DIR="${HOME_DIR}/system-reports/memory"
+LOG_DIR="${HOME_DIR}/mac-analyzers/reports/memory"
 LOG_FILE="${LOG_DIR}/guard.log"
 STATE_FILE="${LOG_DIR}/.guard-prev-snapshot"
 CPU_STATE_FILE="${LOG_DIR}/.guard-cpu-hits"
@@ -128,10 +128,16 @@ log() {
   [[ "$VERBOSE" -eq 1 ]] && echo "$*"
 }
 
-notify() {  # title, message, [sound]
-  command -v osascript >/dev/null 2>&1 || return 0
-  osascript -e "display notification \"${2//\"/\'}\" with title \"${1//\"/\'}\" sound name \"${3:-Glass}\"" >/dev/null 2>&1 || true
-}
+# shared notifier — with alerter installed, clicking the notification opens
+# this script's log (see lib/notify.sh); inline fallback keeps it standalone.
+if [[ -f "${ANALYZERS_ROOT}/lib/notify.sh" ]]; then
+  source "${ANALYZERS_ROOT}/lib/notify.sh"
+else
+  notify() {  # title, message, [sound]
+    command -v osascript >/dev/null 2>&1 || return 0
+    osascript -e "display notification \"${2//\"/\'}\" with title \"${1//\"/\'}\" sound name \"${3:-Glass}\"" >/dev/null 2>&1 || true
+  }
+fi
 
 # short human label for a ps args string
 short_name() {

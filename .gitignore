@@ -5,3 +5,13 @@
 config.local.sh
 .composure/
 tasks-plans/
+
+# built app + icon artifacts (rebuild with app/build.sh / app/make-icon.sh)
+app/MacAnalyzers.app/
+app/.build/
+app/AppIcon.icns
+app/icon_1024.png
+
+# run reports/logs live inside the repo now (moved from ~/system-reports)
+reports/
+app/MenuBarIcon.png

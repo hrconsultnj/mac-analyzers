@@ -37,7 +37,7 @@ DRY_RUN=1
 ORPHANS_ALL=0
 DEV_AGE_HOURS=24
 PW_AGE_HOURS=2
-LOG_DIR="${HOME_DIR}/system-reports/memory"
+LOG_DIR="${HOME_DIR}/mac-analyzers/reports/memory"
 LOG_FILE="${LOG_DIR}/auto-clean.log"
 LOCK_FILE="${LOG_DIR}/.auto-clean.lock"
 
@@ -110,10 +110,16 @@ TS_NOW="$(date '+%Y-%m-%d %H:%M:%S')"
 log() { echo "$*" | tee -a "$LOG_FILE"; }
 group() { log ""; log "### $1"; }
 
-notify() {
-  command -v osascript >/dev/null 2>&1 || return 0
-  osascript -e "display notification \"${2//\"/\'}\" with title \"${1//\"/\'}\" sound name \"Glass\"" >/dev/null 2>&1 || true
-}
+# shared notifier — with alerter installed, clicking the notification opens
+# this script's log (see lib/notify.sh); inline fallback keeps it standalone.
+if [[ -f "${ANALYZERS_ROOT}/lib/notify.sh" ]]; then
+  source "${ANALYZERS_ROOT}/lib/notify.sh"
+else
+  notify() {
+    command -v osascript >/dev/null 2>&1 || return 0
+    osascript -e "display notification \"${2//\"/\'}\" with title \"${1//\"/\'}\" sound name \"Glass\"" >/dev/null 2>&1 || true
+  }
+fi
 
 # reap <pid> <rss_kb> <desc> — dry-run-aware kill with accounting
 reap() {

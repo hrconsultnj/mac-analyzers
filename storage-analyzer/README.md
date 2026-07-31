@@ -1,9 +1,9 @@
 # Storage Toolkit — command reference
 
-Five scripts in `~/scripts/storage-analyzer/`. **Everything that deletes files is dry-run / read-only by default** — nothing deletes until you add `--execute` (or `--apply`). (`tm-reclaim.sh` acts immediately because it touches no files — only ephemeral local snapshots.)
+The disk suite, in `~/mac-analyzers/storage-analyzer/`. **Everything that deletes files is dry-run / read-only by default** — nothing deletes until you add `--execute` (or `--apply`). (`tm-reclaim.sh` acts immediately because it touches no files — only ephemeral local snapshots.)
 
 ```bash
-cd ~/scripts/storage-analyzer    # run the ./ commands below from here
+cd ~/mac-analyzers/storage-analyzer    # run the ./ commands below from here
 ```
 
 | Script | Job | Default |
@@ -26,8 +26,8 @@ scheduled agents run. Every run logs the input used.
 
 ### …see what's eating my disk
 ```bash
-./analyze.sh                       # writes ~/system-reports/storage/<date>/report-<time>.md
-open "$(ls -t ~/system-reports/storage/*/report-*.md | head -1)"
+./analyze.sh                       # writes ~/mac-analyzers/reports/storage/<date>/report-<time>.md
+open "$(ls -t ~/mac-analyzers/reports/storage/*/report-*.md | head -1)"
 ```
 The report ends with the decision tables: **§24 Apps** (by last opened), **§25 Downloads**, **§26 Projects**, **§27 Documents/Desktop** — all oldest-first so dead weight floats to the top.
 
@@ -80,7 +80,7 @@ OS-update snapshots are left alone. Passwordless with the sudoers rule below.
 ## Scheduled auto-clean
 
 Two LaunchAgents (installed & loaded):
-- **daily 13:00** → `--mode daily --apply --docker-running-only` — build caches idle >3 days (incl. any ANALYZERS_EXTRA_CACHE_GLOBS from config.local.sh), + a quick Docker prune **only if Docker is already running** (never boots it)
+- **daily 08:00** → `--mode daily --apply --docker-running-only` — build caches idle >3 days (incl. any ANALYZERS_EXTRA_CACHE_GLOBS from config.local.sh), + a quick Docker prune **only if Docker is already running** (never boots it)
 - **every 3 days** → `--mode deep --apply --docker-images --prune-snapshots` — caches + node_modules of *idle, git-clean* repos; removes **all unused Docker images** (boots Docker if off, then shuts it back down); **thins TM snapshots** so freed space lands immediately
 
 ```bash
@@ -88,6 +88,11 @@ Two LaunchAgents (installed & loaded):
 ./storage-manage-agents.sh install         # (re)install + load
 ./storage-manage-agents.sh uninstall       # stop + remove
 ```
+
+Labels are `com.mac-analyzers.storage-autoclean.{daily,deep}`; the plists set
+`AbandonProcessGroup` (notification click-handlers survive the run) and
+`AssociatedBundleIdentifiers` = `com.mac-analyzers.app`, so Login Items &
+Extensions attributes the agents to the Mac Analyzers app.
 
 ### Make freed space land immediately (one-time setup)
 The deep agent's `--prune-snapshots` needs a **scoped, passwordless** sudo rule for
@@ -110,7 +115,10 @@ The rule **cannot** delete real backups or run anything but that one command.
 ./storage-auto-clean.sh --apply --docker-volumes    # + prune volumes — ⚠ DATA loss, manual only
 ```
 Tunables: `--cache-age-days N` (default 3) · `--nm-age-days N` (default 14).
-Logs to `~/system-reports/storage/auto-clean.log`. Fires a macOS notification each run.
+Logs to `~/mac-analyzers/reports/storage/auto-clean.log`. Fires a macOS
+notification each run via `../lib/notify.sh` (menu-bar app → alerter →
+osascript — see the root README's Notifications section; clicking one opens
+the log).
 
 **Docker lifecycle:** prunes if running; if stopped, the deep job starts Docker
 Desktop, prunes, then quits it again — but **only quits if the script started it**
@@ -134,4 +142,4 @@ sudo tmutil thinlocalsnapshots / 999999999999 4     # raw one-liner equivalent
   To shrink the `Docker.raw` file itself: Docker Desktop → Troubleshoot → "Clean / Purge data".
 
 ---
-_Report output: `~/system-reports/storage/` · scripts: `~/scripts/storage-analyzer/`_
+_Report output: `~/mac-analyzers/reports/storage/` · scripts: `~/mac-analyzers/storage-analyzer/`_

@@ -31,7 +31,7 @@ shopt -s nullglob
 
 HOME_DIR="${HOME}"
 DRY_RUN=1
-LOG_DIR="${HOME_DIR}/system-reports/storage"
+LOG_DIR="${HOME_DIR}/mac-analyzers/reports/storage"
 LOG_FILE="${LOG_DIR}/login-items-audit.log"
 
 ORIG_ARGS="$*"

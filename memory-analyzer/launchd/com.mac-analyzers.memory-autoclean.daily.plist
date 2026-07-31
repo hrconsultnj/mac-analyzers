@@ -5,6 +5,14 @@
     <key>Label</key>
     <string>com.mac-analyzers.memory-autoclean.daily</string>
 
+    <!-- Attribute this background item to the Mac Analyzers menu-bar app in
+         System Settings → Login Items & Extensions, instead of showing an
+         "item from an unidentified developer" script row. -->
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+        <string>com.mac-analyzers.app</string>
+    </array>
+
     <!-- Daily RAM reaper: orphaned MCP servers, dev servers >24h old,
          stale playwright/headless browsers. Report-only categories stay
          report-only even under --apply. -->
@@ -38,9 +46,15 @@
     <key>Nice</key>
     <integer>10</integer>
 
+    <!-- notify() detaches an alerter click-handler that outlives the run; by
+         default launchd kills the job's process group on exit, which would
+         kill the handler before the user can click "Open Log". -->
+    <key>AbandonProcessGroup</key>
+    <true/>
+
     <key>StandardOutPath</key>
-    <string>__HOME__/system-reports/memory/auto-clean.daily.out.log</string>
+    <string>__HOME__/mac-analyzers/reports/memory/auto-clean.daily.out.log</string>
     <key>StandardErrorPath</key>
-    <string>__HOME__/system-reports/memory/auto-clean.daily.err.log</string>
+    <string>__HOME__/mac-analyzers/reports/memory/auto-clean.daily.err.log</string>
 </dict>
 </plist>

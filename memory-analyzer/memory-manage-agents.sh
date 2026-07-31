@@ -18,7 +18,7 @@ SRC="${HERE}/launchd"
 DEST="${HOME}/Library/LaunchAgents"
 AGENTS=( com.mac-analyzers.memory-guard com.mac-analyzers.memory-autoclean.daily )
 DOMAIN="gui/$(id -u)"
-PAUSE_FLAG="${HOME}/system-reports/memory/.guard-paused"
+PAUSE_FLAG="${HOME}/mac-analyzers/reports/memory/.guard-paused"
 
 cmd="${1:-status}"
 

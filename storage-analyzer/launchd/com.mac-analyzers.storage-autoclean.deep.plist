@@ -5,6 +5,14 @@
     <key>Label</key>
     <string>com.mac-analyzers.storage-autoclean.deep</string>
 
+    <!-- Attribute this background item to the Mac Analyzers menu-bar app in
+         System Settings → Login Items & Extensions, instead of showing an
+         "item from an unidentified developer" script row. -->
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+        <string>com.mac-analyzers.app</string>
+    </array>
+
     <!-- DEEP pass every 3 days: build caches + node_modules of idle/clean repos
          + package-manager prune + Time Machine snapshot ALERT.
          To auto-thin TM snapshots instead of just alerting, add:
@@ -43,9 +51,15 @@
     <key>LowPriorityIO</key>
     <true/>
 
+    <!-- notify() detaches an alerter click-handler that outlives the run; by
+         default launchd kills the job's process group on exit, which would
+         kill the handler before the user can click "Open Log". -->
+    <key>AbandonProcessGroup</key>
+    <true/>
+
     <key>StandardOutPath</key>
-    <string>__HOME__/system-reports/storage/auto-clean.deep.out.log</string>
+    <string>__HOME__/mac-analyzers/reports/storage/auto-clean.deep.out.log</string>
     <key>StandardErrorPath</key>
-    <string>__HOME__/system-reports/storage/auto-clean.deep.err.log</string>
+    <string>__HOME__/mac-analyzers/reports/storage/auto-clean.deep.err.log</string>
 </dict>
 </plist>
