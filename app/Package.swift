@@ -29,6 +29,7 @@ let package = Package(
         // notifications (UN center, delegate, distributed bridge)
         .target(name: "NotifierKit", dependencies: ["AnalyzersKit"]),
         // shared kernel ("packages/shared"): models, parser, config bridge, launchd
-        .target(name: "AnalyzersKit"),
+        .target(name: "AnalyzersKit", dependencies: ["CLibProc"]),
+        .target(name: "CLibProc"),
     ]
 )

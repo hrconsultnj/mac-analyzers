@@ -6,7 +6,11 @@ import UIComponents
 /// search, the same live pressure signal and Stop/Quit actions.
 struct MonitorSettingsView: View {
 
+    enum Lens: Hashable { case memory, energy }
+
+    @State private var lens: Lens = .memory
     @State private var groups: [ProcessGroup] = []
+    @State private var energy: [EnergyEntry] = []
     @State private var pressure: LiveStats.Pressure = .normal
     /// Same instance the delegate keeps alive — one watcher, many surfaces.
     private var thermal: ThermalWatcher { ThermalWatcher.shared }
@@ -57,11 +61,17 @@ struct MonitorSettingsView: View {
                     .labelsHidden()
                     .frame(width: 170)
                 }
+                FullWidthSegments(
+                    options: [(Lens.memory, "Memory"), (Lens.energy, "Energy")],
+                    selection: $lens
+                )
                 TextField("Filter by name…", text: $search)
                     .textFieldStyle(.roundedBorder)
             }
 
-            if !filtered.isEmpty {
+            if lens == .energy {
+                energySections
+            } else if !filtered.isEmpty {
                 Section("Processes") {
                     ForEach(filtered) { group in
                         if group.children.isEmpty {
@@ -79,7 +89,7 @@ struct MonitorSettingsView: View {
                     }
                 }
             }
-            if filtered.isEmpty {
+            if lens == .memory, filtered.isEmpty {
                 Section {
                     Text(search.isEmpty
                          ? "No process is holding more than 128 MB right now."
@@ -88,6 +98,7 @@ struct MonitorSettingsView: View {
                 }
             }
         }
+        .onChange(of: lens) { load() }
         .onAppear(perform: load)
         .task(id: refresh) {
             guard refresh > 0 else { return }
@@ -123,8 +134,38 @@ struct MonitorSettingsView: View {
         .padding(.vertical, 2)
     }
 
+    /// Battery blame, kernel-accounted: cumulative energy per live process.
+    @ViewBuilder private var energySections: some View {
+        let rows = search.isEmpty ? energy : energy.filter {
+            $0.name.lowercased().contains(search.lowercased())
+        }
+        Section("Energy since launch (kernel accounting — who drained the battery)") {
+            if rows.isEmpty {
+                Text("No energy accounting available yet.")
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(rows) { entry in
+                if let app = NSRunningApplication(processIdentifier: pid_t(entry.pid)),
+                   let icon = app.icon {
+                    DataCard(appIcon: icon, title: app.localizedName ?? entry.name,
+                             subtitle: "pid \(entry.pid)",
+                             trailing: entry.energyText)
+                } else {
+                    DataCard(symbol: "bolt.fill", color: .yellow,
+                             title: entry.name,
+                             subtitle: "pid \(entry.pid)",
+                             trailing: entry.energyText)
+                }
+            }
+        }
+    }
+
     private func load() {
-        groups = LiveStats.groupedSnapshot(limit: 30, minimumMB: 128)
+        if lens == .energy {
+            energy = EnergyStats.snapshot(limit: 30)
+        } else {
+            groups = LiveStats.groupedSnapshot(limit: 30, minimumMB: 128)
+        }
         pressure = LiveStats.memoryPressure()
     }
 }
