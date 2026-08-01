@@ -9,8 +9,8 @@ import UIComponents
 public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
-        case home, memory, storage, notifications, schedule, monitor, trends,
-             actions, activity, logs, log(LogKind), about, update
+        case home, memory, storage, notifications, schedule, monitor, network,
+             trends, actions, activity, logs, log(LogKind), about, update
     }
 
     /// Settings opens on the Overview dashboard — the SaaS-home pattern;
@@ -226,6 +226,7 @@ public struct SettingsTabsView: View {
                 case "logs": pane = .logs; logsPath = []
                 case "activity": pane = .activity
                 case "monitor": pane = .monitor
+                case "network": pane = .network
                 case "trends": pane = .trends
                 case "actions": pane = .actions
                 case "schedule": pane = .schedule
@@ -283,6 +284,7 @@ public struct SettingsTabsView: View {
             }
             Section {
                 sidebarRow("Monitor", "gauge.with.dots.needle.67percent", .orange, .monitor)
+                sidebarRow("Network", "network", .purple, .network)
                 sidebarRow("Activity", "list.bullet.rectangle.fill", .orange, .activity)
                 // both worlds: the Logs ROW opens the nested landing
                 // screen; the disclosure children jump straight to a log
@@ -356,6 +358,7 @@ public struct SettingsTabsView: View {
         case .notifications: NotifySettingsView()
         case .schedule: ScheduleSettingsView()
         case .monitor: MonitorSettingsView()
+        case .network: NetworkSettingsView()
         case .actions: ActionsSettingsView()
         case .trends:
             NavigationStack(path: $trendsPath) {

@@ -39,6 +39,24 @@ public enum ProcessLiveness {
     }
 }
 
+public extension ProcessLiveness {
+    /// The kernel's 16-char command name for a live pid — the truth behind
+    /// truncated names from tools like nettop. nil when the pid is gone.
+    static func commandName(pid: Int) -> String? {
+        guard pid > 0, pid <= Int(Int32.max) else { return nil }
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, Int32(pid)]
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0,
+              size >= MemoryLayout<kinfo_proc>.stride,
+              info.kp_proc.p_pid == Int32(pid) else { return nil }
+        let comm = withUnsafeBytes(of: info.kp_proc.p_comm) { raw in
+            String(decoding: raw.prefix(while: { $0 != 0 }), as: UTF8.self)
+        }
+        return comm.isEmpty ? nil : comm
+    }
+}
+
 public extension GuardEvent {
     /// nil when the event has no process to check (pressure, forensics, …).
     var isProcessStillRunning: Bool? {

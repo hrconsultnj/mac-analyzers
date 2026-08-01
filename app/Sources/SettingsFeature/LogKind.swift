@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The suite's logs — sidebar children of the Logs item.
 enum LogKind: String, CaseIterable, Identifiable {
-    case guardLog, memoryClean, reclaim, storageClean, loginItems, forensics
+    case guardLog, memoryClean, reclaim, storageClean, network, loginItems, forensics
     var id: String { rawValue }
 
     var title: String {
@@ -13,6 +13,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .memoryClean: "Memory Auto-Clean"
         case .reclaim: "Memory Reclaim"
         case .storageClean: "Storage Auto-Clean"
+        case .network: "Network Snapshots"
         case .loginItems: "Login-Items Audit"
         case .forensics: "Forensics"
         }
@@ -24,6 +25,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .memoryClean: "memorychip"
         case .reclaim: "arrow.counterclockwise.circle"
         case .storageClean: "internaldrive"
+        case .network: "network"
         case .loginItems: "person.crop.circle.badge.questionmark"
         case .forensics: "stethoscope"
         }
@@ -35,6 +37,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .memoryClean: .teal
         case .reclaim: .cyan
         case .storageClean: .indigo
+        case .network: .purple
         case .loginItems: .brown
         case .forensics: .purple
         }
@@ -46,6 +49,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .memoryClean: AnalyzersPaths.memoryAutoCleanLog
         case .reclaim: AnalyzersPaths.reclaimLog
         case .storageClean: AnalyzersPaths.storageAutoCleanLog
+        case .network: AnalyzersPaths.networkLog
         case .loginItems: AnalyzersPaths.loginItemsAuditLog
         case .forensics: AnalyzersPaths.latestForensics()
         }
