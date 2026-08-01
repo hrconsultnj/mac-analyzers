@@ -17,6 +17,7 @@ struct LogsSettingsView: View {
         case .loginItems: LoginItemsView()
         case .storageClean: StorageCleanView()
         case .memoryClean, .reclaim: ReapLogView(kind: kind)
+        case .janitor: StorageCleanView(kind: .janitor)
         default: genericRunList
         }
     }

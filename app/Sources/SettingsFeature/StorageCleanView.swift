@@ -13,21 +13,35 @@ struct StorageCleanView: View {
         case raw = "Tool Output"
     }
 
-    let kind: LogKind = .storageClean
+    let kind: LogKind
     @State private var run: StorageCleanRun?
     @State private var filter: Filter = .all
 
+    /// One pane, two storage-shaped logs: the auto-clean (zones + raw
+    /// passthrough) and the janitor (Downloads/Screenshots by folder).
+    init(kind: LogKind = .storageClean) {
+        self.kind = kind
+    }
+
+    private var caption: String {
+        kind == .janitor
+            ? "Latest tidy, parsed — what moved (or would move) to the Trash, by folder."
+            : "Latest run, parsed — biggest reclaimable space first."
+    }
+
     var body: some View {
-        PaneScaffold(symbol: kind.symbol, color: kind.tileColor, title: "Storage Auto-Clean",
-                     caption: "Latest run, parsed — biggest reclaimable space first.") {
+        PaneScaffold(symbol: kind.symbol, color: kind.tileColor, title: kind.title,
+                     caption: caption) {
             Section {
                 HStack {
-                    FilterChipsBar(
-                        chips: Filter.allCases.map { f in
-                            .init(f, chipLabel(f), count: 0, color: chipColor(f))
-                        },
-                        selection: $filter
-                    )
+                    if kind == .storageClean {
+                        FilterChipsBar(
+                            chips: Filter.allCases.map { f in
+                                .init(f, chipLabel(f), count: 0, color: chipColor(f))
+                            },
+                            selection: $filter
+                        )
+                    }
                     Spacer(minLength: 8)
                     if let url = kind.url {
                         Button("Open in TextEdit") { GuardControl.openLog(url) }
@@ -39,7 +53,9 @@ struct StorageCleanView: View {
                 }
                 if let run {
                     HStack(spacing: 6) {
-                        BadgeCapsule(text: run.mode.uppercased(), color: .indigo)
+                        if kind == .storageClean {
+                            BadgeCapsule(text: run.mode.uppercased(), color: .indigo)
+                        }
                         BadgeCapsule(text: run.dryRun ? "DRY RUN" : "APPLIED",
                                      color: run.dryRun ? .blue : .green)
                         Text(run.summary ?? run.header)
