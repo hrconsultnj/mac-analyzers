@@ -39,6 +39,14 @@ cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"
 [[ -f AppIcon.icns ]] || ./make-icon.sh
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
+# Bundled changelog: release-note commits (subjects starting vN.N) ARE the
+# notes — newest 20, attribution footers stripped.
+git -C .. log --first-parent -E --grep='^v[0-9]+\.[0-9]+' -n 60 \
+    --format='## %s%n%n%b%n' development 2>/dev/null \
+  | grep -vE '^(Co-Authored-By:|Claude-Session:)' \
+  | awk '/^## v[0-9]/{count++} count>20{exit} {print}' \
+  > "$APP/Contents/Resources/CHANGELOG.md" || true
+
 [[ -f MenuBarIcon.png ]] || ./make-menubar-icon.sh
 cp MenuBarIcon.png "$APP/Contents/Resources/MenuBarIcon.png"
 
