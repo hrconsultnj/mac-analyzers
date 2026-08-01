@@ -80,29 +80,41 @@ struct MemorySettingsView: View {
                 }
             }
 
-            Section("Process Lists") {
+            Section {
                 Picker("", selection: $processListTab) {
                     ForEach(ProcessListTab.allCases, id: \.self) { Text($0.rawValue) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                .frame(maxWidth: .infinity)
+
+                Text(processListTab == .protected
+                     ? "Never stopped by the guard or the reapers — matched against process names."
+                     : "Quit gracefully (same as ⌘Q, save dialogs appear) when memory-reclaim runs with apps enabled.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center)
 
                 switch processListTab {
                 case .protected:
                     AppListEditor(
-                        title: "Protected processes (never stopped)",
+                        title: "Protected processes",
                         mode: .processFragments,
                         items: $config.memory.protectExtra,
-                        minHeight: 170, maxHeight: 260
+                        height: 220
                     )
                 case .reclaim:
                     AppListEditor(
-                        title: "Apps memory-reclaim may quit gracefully",
+                        title: "Reclaim may quit",
                         mode: .installedApps,
                         items: $config.memory.reclaimApps,
-                        minHeight: 170, maxHeight: 260
+                        height: 220
                     )
                 }
+            } header: {
+                Text("Process Lists")
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
 
             Section {

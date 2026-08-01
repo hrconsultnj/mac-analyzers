@@ -19,7 +19,8 @@ struct StorageSettingsView: View {
                 AppListEditor(
                     title: "Stale apps (cleanup offers to remove, per app)",
                     mode: .installedApps,
-                    items: $config.storage.staleApps
+                    items: $config.storage.staleApps,
+                    height: 140
                 )
                 LabeledContent("Recordings folder") {
                     TextField("empty = feature disabled", text: $config.storage.recordingsDir)

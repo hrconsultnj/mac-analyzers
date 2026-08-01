@@ -15,18 +15,16 @@ public struct AppListEditor: View {
 
     let title: String
     let mode: Mode
-    let minHeight: CGFloat
-    let maxHeight: CGFloat
+    let height: CGFloat
     @Binding var items: [String]
     @State private var selection: String?
     @State private var showPicker = false
 
     public init(title: String, mode: Mode, items: Binding<[String]>,
-                minHeight: CGFloat = 76, maxHeight: CGFloat = 120) {
+                height: CGFloat = 120) {
         self.title = title
         self.mode = mode
-        self.minHeight = minHeight
-        self.maxHeight = maxHeight
+        self.height = height
         self._items = items
     }
 
@@ -42,7 +40,9 @@ public struct AppListEditor: View {
                     .tag(item)
                 }
             }
-            .frame(minHeight: minHeight, maxHeight: maxHeight)
+            // FIXED height: the list scrolls WITHIN itself instead of
+            // growing (predictable card size; wheel targets the inner list)
+            .frame(height: height)
             .border(.separator)
             HStack {
                 Button {
