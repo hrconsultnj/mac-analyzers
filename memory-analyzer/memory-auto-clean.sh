@@ -46,8 +46,9 @@ ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Settings live in the user folder. When the engine runs from inside the
 # app bundle, that bundle is replaced wholesale on every update, so the
 # user copy is the one that must win.
-[[ -f "1/config.local.sh" ]] && source "1/config.local.sh"
-[[ -f "/mac-analyzers/config.local.sh" && "1" != "/mac-analyzers" ]] && source "/mac-analyzers/config.local.sh"
+[[ -f "${ANALYZERS_ROOT}/config.local.sh" ]] && source "${ANALYZERS_ROOT}/config.local.sh"
+[[ -f "$HOME/mac-analyzers/config.local.sh" && "${ANALYZERS_ROOT}" != "$HOME/mac-analyzers" ]] \
+  && source "$HOME/mac-analyzers/config.local.sh"
 
 MCP_RE='[Mm]cp'
 [[ -n "${ANALYZERS_MCP_EXTRA_RE:-}" ]] && MCP_RE="${MCP_RE}|${ANALYZERS_MCP_EXTRA_RE}"

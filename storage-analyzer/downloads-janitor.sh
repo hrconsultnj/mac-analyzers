@@ -25,8 +25,9 @@ SUITE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Settings live in the user folder. When the engine runs from inside the
 # app bundle, that bundle is replaced wholesale on every update, so the
 # user copy is the one that must win.
-[[ -f "1/config.local.sh" ]] && source "1/config.local.sh"
-[[ -f "/mac-analyzers/config.local.sh" && "1" != "/mac-analyzers" ]] && source "/mac-analyzers/config.local.sh"
+[[ -f "${SUITE_DIR}/config.local.sh" ]] && source "${SUITE_DIR}/config.local.sh"
+[[ -f "$HOME/mac-analyzers/config.local.sh" && "${SUITE_DIR}" != "$HOME/mac-analyzers" ]] \
+  && source "$HOME/mac-analyzers/config.local.sh"
 
 DRY_RUN=1
 for arg in "$@"; do
