@@ -31,7 +31,7 @@ struct DossierView: View {
             guardSection
             networkSection
         }
-        .onAppear(perform: load)
+        .task { await load() }
     }
 
     // MARK: - live footprint
@@ -127,10 +127,10 @@ struct DossierView: View {
 
     // MARK: - load
 
-    private func load() {
+    private func load() async {
         let name = route.name
         let pid = route.pid
-        detachedLoad({ () -> (LiveProcess?, EnergyEntry?, DiskIOEntry?, [GuardEvent], [NetworkTalker]) in
+        await awaitLoad({ () -> (LiveProcess?, EnergyEntry?, DiskIOEntry?, [GuardEvent], [NetworkTalker]) in
             let needle = name.lowercased()
             let procs = LiveStats.snapshot(limit: 60, minimumMB: 16)
             let liveMatch = procs.first { pid != nil && $0.pid == pid }

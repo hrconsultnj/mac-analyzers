@@ -22,13 +22,18 @@ public actor LoadCoordinator {
     private var cache: [String: (stamp: Date, value: any Sendable)] = [:]
 
     /// Fresh-enough cached value, else produce it here (on the actor, off
-    /// the main thread, one at a time).
+    /// the main thread, one at a time). `nil` means the caller was cancelled
+    /// while it waited — the pane it belonged to is gone.
     public func value<T: Sendable>(key: String, ttl: TimeInterval,
-                                   produce: @Sendable () -> T) -> T {
+                                   produce: @Sendable () -> T) -> T? {
         if let hit = cache[key], Date().timeIntervalSince(hit.stamp) < ttl,
            let typed = hit.value as? T {
             return typed
         }
+        // Callers queue behind whoever is producing. Click through four panes
+        // quickly and the last one used to wait out three sweeps for screens
+        // already off-stage; now the abandoned ones simply never run.
+        guard !Task.isCancelled else { return nil }
         let fresh = produce()
         cache[key] = (Date(), fresh)
         return fresh

@@ -28,8 +28,8 @@ struct ForensicsBrowserView: View {
                 }
             }
         }
-        .onAppear {
-            detachedLoad({ AnalyzersPaths.allForensics() }) { files = $0 }
+        .task {
+            await awaitLoad({ AnalyzersPaths.allForensics() }) { files = $0 }
         }
     }
 }
@@ -96,9 +96,9 @@ struct ForensicsDetailView: View {
                 }
             }
         }
-        .onAppear {
+        .task {
             let path = route.path
-            detachedLoad({ ForensicsParser.parse(fileAt: path) }) { snapshot = $0 }
+            await awaitLoad({ ForensicsParser.parse(fileAt: path) }) { snapshot = $0 }
         }
     }
 }

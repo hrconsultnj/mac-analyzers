@@ -75,9 +75,9 @@ struct UpdateSettingsView: View {
                 }
             }
         }
-        .onAppear {
+        .task {
             UserDefaults.standard.set(installed, forKey: "lastSeenChangelog")
-            detachedLoad({ Self.loadNotes() }) { notes = $0 }
+            await awaitLoad({ Self.loadNotes() }) { notes = $0 }
         }
         .task {
             // always fresh when the pane opens — the cache is for background

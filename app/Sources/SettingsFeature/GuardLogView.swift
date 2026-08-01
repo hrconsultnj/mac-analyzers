@@ -53,7 +53,7 @@ struct GuardLogView: View {
                     Spacer(minLength: 8)
                     Button("Open in TextEdit") { GuardControl.openLog(AnalyzersPaths.guardLog) }
                     Button {
-                        load()
+                        Task { await load() }
                     } label: { Image(systemName: "arrow.clockwise") }
                         .help("Refresh")
                 }
@@ -72,8 +72,8 @@ struct GuardLogView: View {
                 }
             }
         }
-        .onAppear(perform: load)
-        .onChange(of: window) { load() }
+        .task { await load() }
+        .onChange(of: window) { Task { await load() } }
     }
 
     @ViewBuilder private func row(for event: GuardEvent) -> some View {
@@ -149,9 +149,9 @@ struct GuardLogView: View {
         }
     }
 
-    private func load() {
+    private func load() async {
         let span = window.seconds
-        detachedLoad({
+        await awaitLoad({
             GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog, within: span, limit: 500)
         }) { events = $0 }
     }

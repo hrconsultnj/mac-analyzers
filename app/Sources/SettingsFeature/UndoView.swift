@@ -79,7 +79,7 @@ struct UndoView: View {
                 }
             }
         }
-        .onAppear(perform: load)
+        .task { await load() }
     }
 
     private func restore(_ item: TrashedItem) {
@@ -89,11 +89,11 @@ struct UndoView: View {
         } catch {
             restoreError = "Could not restore \(item.basename): \(error.localizedDescription)"
         }
-        load()
+        Task { await load() }
     }
 
-    private func load() {
-        detachedLoad({
+    private func load() async {
+        await awaitLoad({
             (UndoLedger.trashedItems(),
              GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog).filter(\.isKill))
         }) {

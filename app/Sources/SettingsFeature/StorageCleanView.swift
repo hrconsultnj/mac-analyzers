@@ -47,7 +47,7 @@ struct StorageCleanView: View {
                         Button("Open in TextEdit") { GuardControl.openLog(url) }
                     }
                     Button {
-                        load()
+                        Task { await load() }
                     } label: { Image(systemName: "arrow.clockwise") }
                         .help("Refresh")
                 }
@@ -154,7 +154,7 @@ struct StorageCleanView: View {
                 }
             }
         }
-        .onAppear(perform: load)
+        .task { await load() }
     }
 
     /// Third-party CLI output — the one place a collapsed monospaced block is
@@ -173,9 +173,9 @@ struct StorageCleanView: View {
         }
     }
 
-    private func load() {
+    private func load() async {
         let logKind = kind
-        detachedLoad({
+        await awaitLoad({
             LogParser.runs(for: logKind).first.map {
                 StorageCleanParser.parse(runHeader: $0.header, lines: $0.lines)
             }

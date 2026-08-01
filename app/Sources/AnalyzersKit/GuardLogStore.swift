@@ -60,9 +60,7 @@ public final class GuardLogStore {
         let storageDeepSummary: String?
         let latestForensics: URL?
         let pressure: LiveStats.Pressure
-        let topProcesses: [LiveProcess]
-        let monitorProcesses: [LiveProcess]
-        let monitorGroups: [ProcessGroup]
+        let sample: LiveStats.Sample
         let engine: EngineStatus
         let disk: DiskUsage?
         let lastCleanDiskState: String?
@@ -72,11 +70,15 @@ public final class GuardLogStore {
     /// + three log parses + disk). Menu ticks, pane appears and file-watch
     /// events all call it — without this they stacked.
     @ObservationIgnored private var reloading = false
+    @ObservationIgnored private var reloadAgain = false
 
     /// Cached-first: published values stay on screen while the fresh payload
     /// is computed in the background, then apply atomically on main.
     public func reload() {
-        guard !reloading else { return }
+        // Coalesced, not dropped. Asking during a refresh used to be ignored
+        // outright, so quitting an app and refreshing in the same breath could
+        // leave the dead row on screen until the next tick.
+        guard !reloading else { reloadAgain = true; return }
         reloading = true
         let floor = clearedAt
         Task.detached(priority: .userInitiated) { [weak self] in
@@ -90,15 +92,20 @@ public final class GuardLogStore {
                 storageDeepSummary: Self.lastStorageSummary(mode: "deep"),
                 latestForensics: AnalyzersPaths.latestForensics(),
                 pressure: LiveStats.memoryPressure(),
-                topProcesses: LiveStats.topDevProcesses(),
-                monitorProcesses: LiveStats.snapshot(),
-                monitorGroups: LiveStats.groupedSnapshot(limit: 14, minimumMB: 256),
+                // ONE process-table sweep feeds all three lists (they must
+                // agree anyway); this used to be three separate walks.
+                sample: LiveStats.sample(),
                 engine: EngineStatus.probe(),
                 disk: LiveStats.diskUsage(),
                 lastCleanDiskState: Self.lastFreeSpaceLine())
             await MainActor.run { [weak self] in
-                self?.apply(payload)
-                self?.reloading = false
+                guard let self else { return }
+                self.apply(payload)
+                self.reloading = false
+                if self.reloadAgain {
+                    self.reloadAgain = false
+                    self.reload()
+                }
             }
         }
     }
@@ -113,9 +120,9 @@ public final class GuardLogStore {
         storageDeepSummary = p.storageDeepSummary
         latestForensics = p.latestForensics
         pressure = p.pressure
-        topProcesses = p.topProcesses
-        monitorProcesses = p.monitorProcesses
-        monitorGroups = p.monitorGroups
+        topProcesses = p.sample.top
+        monitorProcesses = p.sample.all
+        monitorGroups = p.sample.groups
         engine = p.engine
         disk = p.disk
         lastCleanDiskState = p.lastCleanDiskState
@@ -162,6 +169,19 @@ public final class GuardLogStore {
         guardPaused = actual
     }
 
+    @ObservationIgnored private var watchReloadPending = false
+
+    /// Collapse a burst of log appends into a single refresh.
+    private func scheduleWatchReload() {
+        guard !watchReloadPending else { return }
+        watchReloadPending = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            self?.watchReloadPending = false
+            self?.reload()
+        }
+    }
+
     // MARK: - file watching
 
     private func startWatching() {
@@ -178,7 +198,11 @@ public final class GuardLogStore {
             guard let self else { return }
             let flags = source.data
             MainActor.assumeIsolated {
-                self.reload()
+                // Debounced: while memory pressure is elevated the guard
+                // appends a line every 15 s, and each one used to trigger a
+                // full refresh — permanently, whether or not anything is
+                // on screen. Bursts now collapse into one refresh.
+                self.scheduleWatchReload()
                 // delete/rename invalidates the fd-based source — re-arm on the
                 // (possibly re-created) file
                 if flags.contains(.delete) || flags.contains(.rename) {

@@ -80,7 +80,7 @@ struct MonitorSettingsView: View {
                 Section("Processes") {
                     ForEach(filtered) { group in
                         if group.children.isEmpty {
-                            ProcessRow(proc: group.parent) { load() }
+                            ProcessRow(proc: group.parent) { Task { await load() } }
                                 .contextMenu {
                                     Button("Dossier…") {
                                         dossierPath.append(DossierRoute(
@@ -90,9 +90,9 @@ struct MonitorSettingsView: View {
                                 }
                         } else {
                             DisclosureGroup {
-                                ProcessRow(proc: group.parent) { load() }
+                                ProcessRow(proc: group.parent) { Task { await load() } }
                                 ForEach(group.children) { child in
-                                    ProcessRow(proc: child) { load() }
+                                    ProcessRow(proc: child) { Task { await load() } }
                                 }
                             } label: {
                                 groupLabel(group)
@@ -117,13 +117,13 @@ struct MonitorSettingsView: View {
                 }
             }
         }
-        .onChange(of: lens) { load() }
-        .onAppear(perform: load)
+        .onChange(of: lens) { Task { await load() } }
+        .task { await load() }
         .task(id: refresh) {
             guard refresh > 0 else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Double(refresh)))
-                load()
+                await load()
             }
         }
     }
@@ -205,20 +205,20 @@ struct MonitorSettingsView: View {
         }
     }
 
-    private func load() {
+    private func load() async {
         switch lens {
         case .energy:
-            detachedLoad({ (EnergyStats.snapshot(limit: 30), LiveStats.memoryPressure()) }) {
+            await awaitLoad({ (EnergyStats.snapshot(limit: 30), LiveStats.memoryPressure()) }) {
                 energy = $0.0
                 pressure = $0.1
             }
         case .diskIO:
-            detachedLoad({ (EnergyStats.diskSnapshot(limit: 30), LiveStats.memoryPressure()) }) {
+            await awaitLoad({ (EnergyStats.diskSnapshot(limit: 30), LiveStats.memoryPressure()) }) {
                 diskIO = $0.0
                 pressure = $0.1
             }
         case .memory:
-            detachedLoad({ (LiveStats.groupedSnapshot(limit: 30, minimumMB: 128),
+            await awaitLoad({ (LiveStats.groupedSnapshot(limit: 30, minimumMB: 128),
                             LiveStats.memoryPressure()) }) {
                 groups = $0.0
                 pressure = $0.1

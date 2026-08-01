@@ -147,12 +147,12 @@ struct ActionsSettingsView: View {
         }
         .onChange(of: cleaner) {
             resetToIdle()
-            loadHistory()
+            Task { await loadHistory() }
         }
         .onChange(of: preselect) { consumePreselect() }
-        .onAppear {
+        .task {
             consumePreselect()
-            loadHistory()
+            await loadHistory()
         }
         .confirmationDialog(applyPrompt, isPresented: $confirmingApply, titleVisibility: .visible) {
             Button(applyButtonTitle, role: .destructive) {
@@ -572,10 +572,10 @@ struct ActionsSettingsView: View {
         }
     }
 
-    private func loadHistory() {
+    private func loadHistory() async {
         let logKind = cleaner.logKind
         let storageShaped = cleaner.isStorageShaped
-        detachedLoad({
+        await awaitLoad({
             LogParser.runs(for: logKind).prefix(10).enumerated().map { index, run in
                 HistoryRun(id: index, header: run.header,
                            reap: storageShaped ? nil

@@ -81,8 +81,8 @@ struct TrendsSettingsView: View {
                 }
             }
         }
-        .onAppear(perform: load)
-        .onChange(of: period) { load() }
+        .task { await load() }
+        .onChange(of: period) { Task { await load() } }
     }
 
     @ViewBuilder private func statSections(_ snap: TrendsSnapshot) -> some View {
@@ -169,8 +169,8 @@ struct TrendsSettingsView: View {
         .padding(.vertical, 2)
     }
 
-    private func load() {
+    private func load() async {
         let window = period
-        detachedLoad({ TrendsModel.snapshot(period: window) }) { snapshot = $0 }
+        await awaitLoad({ TrendsModel.snapshot(period: window) }) { snapshot = $0 }
     }
 }

@@ -102,6 +102,30 @@ public enum LiveStats {
     /// Biggest processes RIGHT NOW by resident RAM — every kind, not just dev
     /// tooling (an OrbStack helper at 3.3 GB matters as much as next-server).
     /// `minimumMB` keeps the list to rows worth a decision.
+    /// One sweep, three views. The store used to ask for the top processes,
+    /// the full snapshot and the grouped families separately — three walks
+    /// of the same table per refresh, for data that must agree anyway.
+    public struct Sample: Sendable {
+        public let top: [LiveProcess]
+        public let all: [LiveProcess]
+        public let groups: [ProcessGroup]
+    }
+
+    public static func sample(minimumMB: Int = 128) -> Sample {
+        let raw = ProcTable.sweep(minimumMB: min(minimumMB, 32))
+        let processes = raw.map { entry in
+            LiveProcess(pid: entry.pid, residentMB: entry.residentMB,
+                        rawName: String(entry.command.prefix(100)),
+                        kind: isDevKillable(entry.command) ? .devTool : .app,
+                        ppid: entry.ppid)
+        }.sorted { $0.residentMB > $1.residentMB }
+
+        return Sample(
+            top: processes.filter { $0.isDev && $0.residentMB >= 256 }.prefix(3).map { $0 },
+            all: processes.filter { $0.residentMB >= 512 }.prefix(10).map { $0 },
+            groups: group(raw, limit: 14, minimumMB: 256))
+    }
+
     public static func snapshot(limit: Int = 10, minimumMB: Int = 512) -> [LiveProcess] {
         // fork-free: the kernel answers this directly (see ProcTable)
         let result = ProcTable.sweep(minimumMB: minimumMB).map { raw in
@@ -133,10 +157,15 @@ public enum LiveStats {
         #"(^|/)-?(zsh|bash|sh|fish|login|tmux|screen|launchd)( |$)|iTerm|Apple Terminal|Terminal\.app"#
 
     public static func groupedSnapshot(limit: Int = 30, minimumMB: Int = 128) -> [ProcessGroup] {
+        group(ProcTable.sweep(minimumMB: min(minimumMB, 32)), limit: limit, minimumMB: minimumMB)
+    }
+
+    /// Family grouping over an ALREADY-swept table, so callers that need
+    /// several views of the process list pay for one sweep, not three.
+    public static func group(_ sweep: [RawProc], limit: Int, minimumMB: Int) -> [ProcessGroup] {
         struct Entry { let pid: Int; let ppid: Int; let rssMB: Int; let args: String }
-        // one fork-free sweep; parents of heavy children are pulled in below
         var table: [Int: Entry] = [:]
-        for raw in ProcTable.sweep(minimumMB: min(minimumMB, 32)) {
+        for raw in sweep {
             table[raw.pid] = Entry(pid: raw.pid, ppid: raw.ppid,
                                    rssMB: raw.residentMB, args: raw.command)
         }

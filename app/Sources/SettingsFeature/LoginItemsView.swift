@@ -34,7 +34,7 @@ struct LoginItemsView: View {
                     Spacer(minLength: 8)
                     Button("Open in TextEdit") { GuardControl.openLog(AnalyzersPaths.loginItemsAuditLog) }
                     Button {
-                        load()
+                        Task { await load() }
                     } label: { Image(systemName: "arrow.clockwise") }
                         .help("Refresh")
                 }
@@ -72,7 +72,7 @@ struct LoginItemsView: View {
                 }
             }
         }
-        .onAppear(perform: load)
+        .task { await load() }
     }
 
     // MARK: - rows
@@ -175,8 +175,8 @@ struct LoginItemsView: View {
         }
     }
 
-    private func load() {
-        detachedLoad({
+    private func load() async {
+        await awaitLoad({
             LogParser.runs(for: .loginItems).first.map {
                 LoginItemsParser.parse(runHeader: $0.header, lines: $0.lines)
             }

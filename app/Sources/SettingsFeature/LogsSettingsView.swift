@@ -35,7 +35,7 @@ struct LogsSettingsView: View {
                         Text(mtime(url)).font(.caption).foregroundStyle(.secondary)
                         Button("Open in TextEdit") { GuardControl.openLog(url) }
                         Button {
-                            load()
+                            Task { await load() }
                         } label: { Image(systemName: "arrow.clockwise") }
                             .help("Refresh")
                     }
@@ -77,13 +77,13 @@ struct LogsSettingsView: View {
                 }
             }
         }
-        .onAppear(perform: load)
-        .onChange(of: kind) { load() }
+        .task { await load() }
+        .onChange(of: kind) { Task { await load() } }
     }
 
-    private func load() {
+    private func load() async {
         let logKind = kind
-        detachedLoad({ LogParser.runs(for: logKind) }) { runs = $0 }
+        await awaitLoad({ LogParser.runs(for: logKind) }) { runs = $0 }
     }
 
     private func mtime(_ url: URL) -> String {

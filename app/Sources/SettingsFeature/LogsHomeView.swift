@@ -64,7 +64,7 @@ struct LogsHomeView: View {
                 }
             }
         }
-        .onAppear(perform: loadFacts)
+        .task { await loadFacts() }
     }
 
     // MARK: - rows
@@ -147,8 +147,8 @@ struct LogsHomeView: View {
         }
     }
 
-    private func loadFacts() {
-        detachedLoad({
+    private func loadFacts() async {
+        await awaitLoad({
             var result: [String: LogFact] = [:]
             for kind in LogKind.allCases {
                 let date = kind.url.flatMap(AnalyzersPaths.modificationDate)

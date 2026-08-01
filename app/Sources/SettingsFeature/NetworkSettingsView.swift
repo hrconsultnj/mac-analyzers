@@ -56,8 +56,8 @@ struct NetworkSettingsView: View {
                 }
             }
         }
-        .onAppear {
-            detachedLoad({ NetworkParser.latest(fromLog: AnalyzersPaths.networkLog) }) {
+        .task {
+            await awaitLoad({ NetworkParser.latest(fromLog: AnalyzersPaths.networkLog) }) {
                 snapshot = $0
                 if $0 == nil { Task { await refresh() } }
             }

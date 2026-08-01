@@ -23,10 +23,10 @@ struct HomeSettingsView: View {
             activitySection
             trendsSection
         }
-        .onAppear {
+        .task {
             store.reload()
-            detachedLoad({ TrendsModel.snapshot(period: .day7) }) { trends = $0 }
-            detachedLoad({ ForecastModel.diskRunway() }) { runway = $0 }
+            await awaitLoad({ TrendsModel.snapshot(period: .day7) }) { trends = $0 }
+            await awaitLoad({ ForecastModel.diskRunway() }) { runway = $0 }
             Task {
                 if let latest = await UpdateChecker.latestVersion() {
                     latestRelease = latest

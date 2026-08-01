@@ -35,7 +35,7 @@ struct ReapLogView: View {
                         Button("Open in TextEdit") { GuardControl.openLog(url) }
                     }
                     Button {
-                        load()
+                        Task { await load() }
                     } label: { Image(systemName: "arrow.clockwise") }
                         .help("Refresh")
                 }
@@ -105,13 +105,13 @@ struct ReapLogView: View {
                 }
             }
         }
-        .onAppear(perform: load)
-        .onChange(of: kind) { load() }
+        .task { await load() }
+        .onChange(of: kind) { Task { await load() } }
     }
 
-    private func load() {
+    private func load() async {
         let logKind = kind
-        detachedLoad({
+        await awaitLoad({
             LogParser.runs(for: logKind).first.map {
                 ReapParser.parse(runHeader: $0.header, lines: $0.lines)
             }

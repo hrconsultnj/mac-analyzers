@@ -140,13 +140,13 @@ private struct GuardEventListDetailView: View {
                 }
             }
         }
-        .onAppear(perform: load)
+        .task { await load() }
     }
 
-    private func load() {
+    private func load() async {
         let window = period
         let bucket = category
-        detachedLoad({ TrendsModel.events(period: window, category: bucket) }) { events = $0 }
+        await awaitLoad({ TrendsModel.events(period: window, category: bucket) }) { events = $0 }
     }
 }
 
@@ -172,9 +172,9 @@ private struct MemoryFreedDetailView: View {
                 }
             }
         }
-        .onAppear {
+        .task {
             let window = period
-            detachedLoad({ TrendsModel.memoryFreedByProcess(period: window) }) { entries = $0 }
+            await awaitLoad({ TrendsModel.memoryFreedByProcess(period: window) }) { entries = $0 }
         }
     }
 }
@@ -217,9 +217,9 @@ private struct DiskReclaimedDetailView: View {
                 }
             }
         }
-        .onAppear {
+        .task {
             let window = period
-            detachedLoad({ TrendsModel.diskReclaimedByProject(period: window) }) { groups = $0 }
+            await awaitLoad({ TrendsModel.diskReclaimedByProject(period: window) }) { groups = $0 }
         }
     }
 }
@@ -248,8 +248,8 @@ private struct ReclaimableNowDetailView: View {
                 }
             }
         }
-        .onAppear {
-            detachedLoad({ TrendsModel.reclaimableNow() }) { items = $0 }
+        .task {
+            await awaitLoad({ TrendsModel.reclaimableNow() }) { items = $0 }
         }
     }
 }
@@ -285,10 +285,10 @@ private struct OffenderDetailView: View {
                 }
             }
         }
-        .onAppear {
+        .task {
             let window = period
             let processName = name
-            detachedLoad({ TrendsModel.offenderTimeline(name: processName, period: window) }) { timeline = $0 }
+            await awaitLoad({ TrendsModel.offenderTimeline(name: processName, period: window) }) { timeline = $0 }
         }
     }
 

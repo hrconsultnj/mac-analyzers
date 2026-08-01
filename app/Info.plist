@@ -25,6 +25,19 @@
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <!-- macanalyzers://pane/monitor — deep links that reach a RUNNING app
+         (launch --args never do). Notification clicks and docs use these. -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.mac-analyzers.app</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>macanalyzers</string>
+            </array>
+        </dict>
+    </array>
     <!-- Without these, macOS denies the request with NO prompt: the reclaim's
          polite quit fails silently and the janitor finds nothing. Two
          advertised actions that simply could not work. -->
