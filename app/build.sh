@@ -6,6 +6,13 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# --pro: include the local overlay package (module resolved via MA_PRO_PATH).
+# touch busts SPM's manifest cache, which does not key on environment.
+if [[ "${1:-}" == "--pro" ]]; then
+  export MA_PRO_PATH="${MA_PRO_PATH:-$HOME/mac-analyzers-pro}"
+  touch Package.swift
+fi
+
 APP="MacAnalyzers.app"
 
 swift build -c release

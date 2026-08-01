@@ -2,6 +2,9 @@ import SwiftUI
 import AnalyzersKit
 import os
 import UIComponents
+#if canImport(ProKit)
+import ProKit
+#endif
 
 /// The settings window, System-Settings style: colored-tile sidebar on the
 /// left, flat panes on the right. Logs is the one genuinely nested item —
@@ -167,6 +170,10 @@ public struct SettingsTabsView: View {
                 .padding(.bottom, 8)
 
                 sidebarList
+
+                #if canImport(ProKit)
+                ProBadgeSlot()
+                #endif
             }
             .listStyle(.sidebar)
             // System Settings' sidebar is never collapsible — no toggle

@@ -1,6 +1,9 @@
 import SwiftUI
 import AnalyzersKit
 import UIComponents
+#if canImport(ProKit)
+import ProKit
+#endif
 
 /// About pane: the in-app documentation — how the guard decides, what is
 /// (and deliberately isn't) measured. Same PaneScaffold as every pane.
@@ -26,6 +29,9 @@ struct AboutSettingsView: View {
             section("The engine", [
                 "The watching and cleaning is done by plain shell scripts run by macOS's own scheduler (launchd) — this app is the control surface. Settings write a managed block in config.local.sh; anything you hand-edit outside that block is preserved.",
             ])
+            #if canImport(ProKit)
+            ProAboutSlot()
+            #endif
             Section {
                 HStack {
                     Link("README on GitHub",
