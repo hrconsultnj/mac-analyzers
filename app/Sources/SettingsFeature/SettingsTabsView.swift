@@ -21,38 +21,27 @@ public struct SettingsTabsView: View {
 
     public var body: some View {
         NavigationSplitView {
-            List(selection: $pane) {
-                Section {
-                    sidebarRow("Memory", "memorychip", .blue, .memory)
-                    sidebarRow("Storage", "internaldrive.fill", .indigo, .storage)
-                    sidebarRow("Notifications", "bell.badge.fill", .red, .notifications)
-                } header: {
-                    sectionHeader("CONFIGURE")
-                }
-                Section {
-                    sidebarRow("Schedule", "calendar.badge.clock", .teal, .schedule)
-                } header: {
-                    sectionHeader("SCHEDULE")
-                }
-                Section {
-                    sidebarRow("Monitor", "gauge.with.dots.needle.67percent", .orange, .monitor)
-                    sidebarRow("Activity", "list.bullet.rectangle.fill", .orange, .activity)
-                    // both worlds: the Logs ROW opens the nested landing
-                    // screen; the disclosure children jump straight to a log
-                    DisclosureGroup {
-                        ForEach(LogKind.allCases) { kind in
-                            sidebarRow(kind.title, kind.symbol, kind.tileColor, .log(kind))
-                        }
-                    } label: {
-                        sidebarRow("Logs", "doc.text.magnifyingglass", .gray, .logs)
+            VStack(spacing: 0) {
+                // sticky brand card above the sections — the System-Settings
+                // sidebar-header pattern (icon · name · version)
+                HStack(spacing: 10) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 44, height: 44)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Mac Analyzers")
+                            .font(.headline)
+                        Text("v\(UpdateChecker.installedVersion)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                } header: {
-                    sectionHeader("OBSERVE")
+                    Spacer()
                 }
-                Section {
-                    sidebarRow("About", "questionmark.circle.fill", .gray, .about)
-                    sidebarRow("Update", "arrow.down.circle.fill", .green, .update)
-                }
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+
+                sidebarList
             }
             .listStyle(.sidebar)
             // System Settings' sidebar is never collapsible — no toggle
@@ -89,6 +78,42 @@ public struct SettingsTabsView: View {
             // drop the Dock icon again once Settings closes (the menu-bar
             // Settings button flips us to .regular so the window fronts)
             NSApp.setActivationPolicy(.accessory)
+        }
+    }
+
+    private var sidebarList: some View {
+        List(selection: $pane) {
+            Section {
+                sidebarRow("Memory", "memorychip", .blue, .memory)
+                sidebarRow("Storage", "internaldrive.fill", .indigo, .storage)
+                sidebarRow("Notifications", "bell.badge.fill", .red, .notifications)
+            } header: {
+                sectionHeader("CONFIGURE")
+            }
+            Section {
+                sidebarRow("Schedule", "calendar.badge.clock", .teal, .schedule)
+            } header: {
+                sectionHeader("SCHEDULE")
+            }
+            Section {
+                sidebarRow("Monitor", "gauge.with.dots.needle.67percent", .orange, .monitor)
+                sidebarRow("Activity", "list.bullet.rectangle.fill", .orange, .activity)
+                // both worlds: the Logs ROW opens the nested landing
+                // screen; the disclosure children jump straight to a log
+                DisclosureGroup {
+                    ForEach(LogKind.allCases) { kind in
+                        sidebarRow(kind.title, kind.symbol, kind.tileColor, .log(kind))
+                    }
+                } label: {
+                    sidebarRow("Logs", "doc.text.magnifyingglass", .gray, .logs)
+                }
+            } header: {
+                sectionHeader("OBSERVE")
+            }
+            Section {
+                sidebarRow("About", "questionmark.circle.fill", .gray, .about)
+                sidebarRow("Update", "arrow.down.circle.fill", .green, .update)
+            }
         }
     }
 
