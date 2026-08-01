@@ -10,7 +10,7 @@ public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
         case home, memory, storage, notifications, schedule, monitor, trends,
-             activity, logs, log(LogKind), about, update
+             actions, activity, logs, log(LogKind), about, update
     }
 
     /// Settings opens on the Overview dashboard — the SaaS-home pattern;
@@ -227,6 +227,7 @@ public struct SettingsTabsView: View {
                 case "activity": pane = .activity
                 case "monitor": pane = .monitor
                 case "trends": pane = .trends
+                case "actions": pane = .actions
                 case "schedule": pane = .schedule
                 case "update": pane = .update
                 case "memory": pane = .memory
@@ -300,6 +301,7 @@ public struct SettingsTabsView: View {
             // covers both tenants — reviewing the record (Trends) and the
             // dry-run -> review -> apply flow (Actions).
             Section {
+                sidebarRow("Actions", "checklist", .cyan, .actions)
                 sidebarRow("Trends", "chart.xyaxis.line", .mint, .trends)
             } header: {
                 sectionHeader("REVIEW")
@@ -354,6 +356,7 @@ public struct SettingsTabsView: View {
         case .notifications: NotifySettingsView()
         case .schedule: ScheduleSettingsView()
         case .monitor: MonitorSettingsView()
+        case .actions: ActionsSettingsView()
         case .trends:
             NavigationStack(path: $trendsPath) {
                 TrendsSettingsView()

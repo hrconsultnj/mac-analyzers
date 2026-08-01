@@ -32,6 +32,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         startUpdateWatcher()
 
         registerLoginItem()
+
+        // `open -a "Mac Analyzers" --args --pane <target>` jumps straight to
+        // a settings screen — scripting/testing hook and a power-user door.
+        if let flag = CommandLine.arguments.firstIndex(of: "--pane"),
+           CommandLine.arguments.indices.contains(flag + 1) {
+            let target = CommandLine.arguments[flag + 1]
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                SettingsOpener.open(target: target)
+            }
+        }
     }
 
     /// Checks for a newer release at launch and every 6 hours; notifies ONCE
