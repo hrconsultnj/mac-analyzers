@@ -1,13 +1,16 @@
 import SwiftUI
 import AnalyzersKit
+import UIComponents
 
-/// Storage tab: auto-clean scope lists + recordings folder.
+/// Storage pane: auto-clean scope lists + recordings folder.
 struct StorageSettingsView: View {
     @Environment(ConfigStore.self) private var config
 
     var body: some View {
         @Bindable var config = config
         Form {
+            PaneHeader(symbol: "internaldrive.fill", color: .indigo, title: "Storage",
+                       caption: "What the scheduled cleans may touch. Everything is rebuildable; documents are never in scope.")
             Section("Storage auto-clean") {
                 StringListEditor(
                     title: "Extra cache-directory globs (cleaned when idle > 7 days)",

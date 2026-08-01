@@ -1,13 +1,16 @@
 import SwiftUI
 import AnalyzersKit
+import UIComponents
 
-/// Memory tab: guard tunables + the never-kill / reclaim app lists.
+/// Memory pane: guard tunables + the never-kill / reclaim app lists.
 struct MemorySettingsView: View {
     @Environment(ConfigStore.self) private var config
 
     var body: some View {
         @Bindable var config = config
         Form {
+            PaneHeader(symbol: "memorychip", color: .blue, title: "Memory",
+                       caption: "What the guard is allowed to do, and when it should only warn you.")
             Section("Memory Guard — Limits") {
                 LabeledContent("Hard RAM cap") {
                     VStack(alignment: .trailing, spacing: 2) {

@@ -1,49 +1,12 @@
 import SwiftUI
 import AnalyzersKit
+import UIComponents
 
-/// Logs tab: every suite log behind icon segments (no dropdown), rendered
+/// One log's pane (selected from the Logs sidebar children), rendered
 /// natively — parsed into RUN blocks (newest run first, lines in natural
 /// order inside each run) instead of a raw text dump. TextEdit stays as the
 /// escape hatch for the untouched file.
 struct LogsSettingsView: View {
-
-    private enum LogKind: String, CaseIterable, Identifiable {
-        case guardLog, memoryClean, reclaim, storageClean, loginItems, forensics
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .guardLog: "Memory Guard"
-            case .memoryClean: "Memory Auto-Clean"
-            case .reclaim: "Memory Reclaim"
-            case .storageClean: "Storage Auto-Clean"
-            case .loginItems: "Login-Items Audit"
-            case .forensics: "Forensics"
-            }
-        }
-
-        var symbol: String {
-            switch self {
-            case .guardLog: "shield.lefthalf.filled"
-            case .memoryClean: "memorychip"
-            case .reclaim: "arrow.counterclockwise.circle"
-            case .storageClean: "internaldrive"
-            case .loginItems: "person.crop.circle.badge.questionmark"
-            case .forensics: "stethoscope"
-            }
-        }
-
-        var url: URL? {
-            switch self {
-            case .guardLog: AnalyzersPaths.guardLog
-            case .memoryClean: AnalyzersPaths.memoryAutoCleanLog
-            case .reclaim: AnalyzersPaths.reclaimLog
-            case .storageClean: AnalyzersPaths.storageAutoCleanLog
-            case .loginItems: AnalyzersPaths.loginItemsAuditLog
-            case .forensics: AnalyzersPaths.latestForensics()
-            }
-        }
-    }
 
     private struct LogRun: Identifiable {
         let id: Int
@@ -51,25 +14,15 @@ struct LogsSettingsView: View {
         let lines: [String]
     }
 
-    @State private var kind: LogKind = .guardLog
+    let kind: LogKind
     @State private var runs: [LogRun] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Picker("", selection: $kind) {
-                    ForEach(LogKind.allCases) { k in
-                        Image(systemName: k.symbol).tag(k).help(k.title)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                Spacer()
-            }
-
-            HStack {
-                Label(kind.title, systemImage: kind.symbol)
-                    .font(.headline)
+                IconTile(symbol: kind.symbol, color: kind.tileColor, side: 22)
+                Text(kind.title)
+                    .font(.title3.weight(.semibold))
                 Text("newest first")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -77,11 +30,9 @@ struct LogsSettingsView: View {
                 if let url = kind.url {
                     Text(mtime(url)).font(.caption).foregroundStyle(.secondary)
                     Button("Open in TextEdit") { GuardControl.openLog(url) }
-                        .controlSize(.small)
                     Button {
                         load()
                     } label: { Image(systemName: "arrow.clockwise") }
-                        .controlSize(.small)
                 }
             }
 

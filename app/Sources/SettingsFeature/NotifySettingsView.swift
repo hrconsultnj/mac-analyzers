@@ -1,8 +1,9 @@
 import SwiftUI
 import AnalyzersKit
 import NotifierKit
+import UIComponents
 
-/// Notifications tab: viewer app, fallback-timeout, maintenance actions.
+/// Notifications pane: viewer app, fallback-timeout, maintenance actions.
 struct NotifySettingsView: View {
     @Environment(ConfigStore.self) private var config
     @State private var permissionStatus: String?
@@ -10,6 +11,8 @@ struct NotifySettingsView: View {
     var body: some View {
         @Bindable var config = config
         Form {
+            PaneHeader(symbol: "bell.badge.fill", color: .red, title: "Notifications",
+                       caption: "How alerts behave, and the fix-it levers when they don't.")
             Section("Notification behavior") {
                 Picker("Clicking a notification opens logs in", selection: $config.notify.logViewer) {
                     Text("TextEdit").tag("TextEdit")

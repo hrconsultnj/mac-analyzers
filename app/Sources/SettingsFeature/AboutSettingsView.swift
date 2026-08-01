@@ -1,13 +1,15 @@
 import SwiftUI
 import AnalyzersKit
+import UIComponents
 
-/// About tab: the in-app documentation — how the guard decides, what is (and
-/// deliberately isn't) measured. Moved out of the Memory form so reading it
-/// never fights a disclosure arrow.
+/// About pane: the in-app documentation — how the guard decides, what is
+/// (and deliberately isn't) measured.
 struct AboutSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                PaneHeader(symbol: "questionmark.circle.fill", color: .gray, title: "About",
+                           caption: "How Mac Analyzers decides, measures, and writes everything down.")
                 section("What the guard measures", "gauge.with.needle", [
                     "Resident RAM (rss): the physical memory a process occupies right now. That is the number every size in this app shows, and the one the guard acts on.",
                     "Activity Monitor's \"Memory\" column also counts compressed and swapped-out pages — so a process can show 7+ GB there while its resident size sits under your cap. That is why a big process can survive when memory pressure is low: macOS already compressed it.",

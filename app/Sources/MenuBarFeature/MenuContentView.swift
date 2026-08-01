@@ -1,5 +1,6 @@
 import SwiftUI
 import AnalyzersKit
+import UIComponents
 
 /// The MenuBarExtra(.window) dropdown: Memory | Storage tabs, live system
 /// facts, two-line human-readable events, controls, shared footer.
@@ -44,7 +45,7 @@ public struct MenuContentView: View {
             Spacer()
             if store.killsToday > 0 || !store.events.isEmpty {
                 Button("Clear") { store.clearStats() }
-                    .controlSize(.small)
+                    .controlSize(.regular)
                     .help("Resets the badge and this list. The guard log keeps the full history — nothing is deleted.")
             }
         }
@@ -78,7 +79,7 @@ public struct MenuContentView: View {
                 .foregroundStyle(.secondary)
                 .help("Daily 8:30 AM reaper for orphaned dev/AI servers — memory-auto-clean log")
         }
-        .controlSize(.small)
+        .controlSize(.regular)
     }
 
     private var headline: some View {
@@ -148,7 +149,7 @@ public struct MenuContentView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .controlSize(.mini)
+            .controlSize(.small)
             .frame(width: 150)
             .help("How often this list refreshes while open (like Activity Monitor's update frequency)")
         }
@@ -249,7 +250,7 @@ public struct MenuContentView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .controlSize(.small)
+        .controlSize(.regular)
     }
 
     private func storageRow(title: String, detail: String, sub: String, label: String,
@@ -265,7 +266,7 @@ public struct MenuContentView: View {
             }
             Spacer()
             Button("Run now") { GuardControl.runNow(label) }
-                .controlSize(.small)
+                .controlSize(.regular)
                 .help("Same run the schedule would do — dry-run-safe rules apply")
         }
     }
@@ -290,7 +291,7 @@ public struct MenuContentView: View {
             .help("Restart this app only — nothing else is touched")
             Button("Quit") { NSApp.terminate(nil) }
         }
-        .controlSize(.small)
+        .controlSize(.regular)
     }
 
     private func sectionLabel(_ text: String) -> some View {
@@ -329,21 +330,6 @@ struct CapacityBar: View {
     }
 }
 
-/// System-Settings-style colored icon tile (the visual language of the
-/// Settings sidebar) — used wherever a row deserves a native glyph.
-struct IconTile: View {
-    let symbol: String
-    let color: Color
-
-    var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: 16, height: 16)
-            .background(color.gradient, in: RoundedRectangle(cornerRadius: 4))
-    }
-}
-
 /// Live-process row: real app icon (or a dev-tool tile), size, friendly +
 /// raw identity, and a user-initiated Stop/Quit — the "don't make me open
 /// Activity Monitor" button.
@@ -378,7 +364,7 @@ struct ProcessRow: View {
                     stopping = false
                 }
             }
-            .controlSize(.small)
+            .controlSize(.regular)
             .disabled(stopping)
             .help(proc.isDev
                   ? "Stop this dev process (SIGTERM — it can restart from your next build/session)"

@@ -19,8 +19,10 @@ let package = Package(
             dependencies: ["AnalyzersKit"]
         ),
         // features ("pages/components")
-        .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit"]),
-        .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "NotifierKit"]),
+        .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit", "UIComponents"]),
+        .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "NotifierKit", "UIComponents"]),
+        // shared visual language (System-Settings-style tiles, pane headers)
+        .target(name: "UIComponents"),
         // notifications (UN center, delegate, distributed bridge)
         .target(name: "NotifierKit", dependencies: ["AnalyzersKit"]),
         // shared kernel ("packages/shared"): models, parser, config bridge, launchd

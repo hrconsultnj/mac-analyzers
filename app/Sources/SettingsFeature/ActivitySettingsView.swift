@@ -1,13 +1,16 @@
 import SwiftUI
 import AnalyzersKit
+import UIComponents
 
-/// Activity tab: the bigger logger — the last ~50 guard events over 7 days,
+/// Activity pane: the bigger logger — the last ~50 guard events over 7 days,
 /// with the same human titles the menu uses. Read-only view over guard.log.
 struct ActivitySettingsView: View {
     @State private var events: [GuardEvent] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            PaneHeader(symbol: "list.bullet.rectangle.fill", color: .orange, title: "Activity",
+                       caption: "Everything the memory guard did or flagged in the last 7 days.")
             HStack {
                 Text("\(events.count) event\(events.count == 1 ? "" : "s") in the last 7 days")
                     .font(.callout)
