@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import os
 
 /// Canonical file locations shared by every module. Mirrors the bash suite's
 /// layout (~/mac-analyzers/reports/{memory,storage}, ~/scripts/config.local.sh).
@@ -63,7 +64,11 @@ public enum NotifyChannel {
 /// delayed AppKit fallback when no settings window materialized.
 @MainActor
 public enum SettingsOpener {
+    private static let log = Logger(subsystem: "com.mac-analyzers.app",
+                                    category: "settings-opener")
+
     public static func open(target: String? = nil) {
+        log.info("open(target: \(target ?? "nil", privacy: .public)) — windows before: \(NSApp.windows.count)")
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         NotificationCenter.default.post(name: NotifyChannel.openSettingsInternal, object: nil)
@@ -71,7 +76,9 @@ public enum SettingsOpener {
             let settingsUp = NSApp.windows.contains {
                 $0.isVisible && ($0.identifier?.rawValue.contains("Settings") ?? false)
             }
+            log.info("post-anchor check — settings visible: \(settingsUp, privacy: .public), windows: \(NSApp.windows.count)")
             if !settingsUp {
+                log.info("falling back to showSettingsWindow: selector")
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 NSApp.activate(ignoringOtherApps: true)
             }

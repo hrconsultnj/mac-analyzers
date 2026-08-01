@@ -54,16 +54,12 @@ struct GuardLogView: View {
 
     @ViewBuilder private func row(for event: GuardEvent) -> some View {
         if case .forensics(let path) = event.kind {
-            let exists = FileManager.default.fileExists(atPath: path)
-            HStack {
+            // pushes the in-app forensics screen (stat cards + process table)
+            NavigationLink(value: ForensicsRoute(path: path)) {
                 DataCard(symbol: "stethoscope", color: .purple,
                          title: event.title,
                          subtitle: "\(event.subtitle) · \(time(event))",
                          badge: ("REPORT", .purple))
-                Button("Open") { GuardControl.openLog(URL(fileURLWithPath: path)) }
-                    .disabled(!exists)
-                    .help(exists ? "Open the forensics report"
-                                 : "This forensics file is no longer on disk")
             }
         } else {
             DataCard(symbol: symbol(for: event), color: color(for: event),

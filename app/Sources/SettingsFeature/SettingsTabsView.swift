@@ -170,6 +170,9 @@ public struct SettingsTabsView: View {
                     .navigationDestination(for: RunRoute.self) { route in
                         RunDetailView(route: route)
                     }
+                    .navigationDestination(for: ForensicsRoute.self) { route in
+                        ForensicsDetailView(route: route)
+                    }
             }
         case .log(let kind):
             // sidebar-child entry: its OWN stack ROOTED at the log pane — no
@@ -180,6 +183,9 @@ public struct SettingsTabsView: View {
                 LogsSettingsView(kind: kind)
                     .navigationDestination(for: RunRoute.self) { route in
                         RunDetailView(route: route)
+                    }
+                    .navigationDestination(for: ForensicsRoute.self) { route in
+                        ForensicsDetailView(route: route)
                     }
             }
             .id(kind)

@@ -1,5 +1,6 @@
 import AppKit
 import AnalyzersKit
+import os
 import ServiceManagement
 import UserNotifications
 
@@ -9,11 +10,17 @@ import UserNotifications
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
 
+    private static let log = Logger(subsystem: "com.mac-analyzers.app",
+                                    category: "app-delegate")
+
     /// Dock-tile click while running (LSUIElement apps still get reopen
     /// events from a kept Dock icon) → open Settings. A click when the app
     /// is NOT running simply launches it — macOS handles that part.
+    /// Instrumented: `log show --predicate 'subsystem == "com.mac-analyzers.app"'
+    /// --last 5m` shows whether the event is even delivered on a Dock click.
     public func applicationShouldHandleReopen(_ sender: NSApplication,
                                               hasVisibleWindows flag: Bool) -> Bool {
+        Self.log.info("applicationShouldHandleReopen fired — hasVisibleWindows: \(flag, privacy: .public)")
         SettingsOpener.open()
         return true
     }

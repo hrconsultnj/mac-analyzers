@@ -10,11 +10,13 @@ struct LogsSettingsView: View {
     @State private var runs: [LogRun] = []
 
     var body: some View {
-        // structured panes for the logs with dedicated parsers; the generic
-        // run list remains for the rest (survey phases 3-4)
+        // every log now has a structured pane; the generic run list remains
+        // only for the standalone forensics browser entry
         switch kind {
         case .guardLog: GuardLogView()
         case .loginItems: LoginItemsView()
+        case .storageClean: StorageCleanView()
+        case .memoryClean, .reclaim: ReapLogView(kind: kind)
         default: genericRunList
         }
     }
