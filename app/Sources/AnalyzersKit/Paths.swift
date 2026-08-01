@@ -41,6 +41,26 @@ public enum AnalyzersPaths {
         return newest?.0
     }
 
+    /// Every forensics dump, newest first (dated subdirs, guard-critical-*).
+    public static func allForensics() -> [URL] {
+        let fm = FileManager.default
+        guard let days = try? fm.contentsOfDirectory(
+            at: memoryReports, includingPropertiesForKeys: nil
+        ) else { return [] }
+        var found: [(URL, Date)] = []
+        for day in days where day.hasDirectoryPath {
+            guard let files = try? fm.contentsOfDirectory(
+                at: day, includingPropertiesForKeys: [.contentModificationDateKey]
+            ) else { continue }
+            for f in files where f.lastPathComponent.hasPrefix("guard-critical-") {
+                let mtime = (try? f.resourceValues(forKeys: [.contentModificationDateKey])
+                    .contentModificationDate) ?? .distantPast
+                found.append((f, mtime))
+            }
+        }
+        return found.sorted { $0.1 > $1.1 }.map(\.0)
+    }
+
     public static func modificationDate(of url: URL) -> Date? {
         try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
     }

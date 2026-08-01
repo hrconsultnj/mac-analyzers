@@ -2,6 +2,38 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
+/// Logs › Forensics: every crisis dump, newest first, each pushing the
+/// structured detail screen (stat cards + top-25 table).
+struct ForensicsBrowserView: View {
+
+    @State private var files: [URL] = []
+
+    var body: some View {
+        PaneScaffold(symbol: "stethoscope", color: .purple, title: "Forensics",
+                     caption: "Every moment the guard wrote a crisis report — newest first.") {
+            Section {
+                if files.isEmpty {
+                    Text("No forensics reports — the guard never hit a crisis. Quiet is good.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(files, id: \.absoluteString) { file in
+                    NavigationLink(value: LogRoute.forensics(ForensicsRoute(path: file.path))) {
+                        DataCard(symbol: "stethoscope", color: .purple,
+                                 title: file.lastPathComponent,
+                                 subtitle: AnalyzersPaths.modificationDate(of: file)
+                                     .map { $0.formatted(.dateTime.month(.abbreviated).day().hour().minute()) }
+                                     ?? file.deletingLastPathComponent().lastPathComponent,
+                                 badge: ("REPORT", .purple))
+                    }
+                }
+            }
+        }
+        .onAppear {
+            detachedLoad({ AnalyzersPaths.allForensics() }) { files = $0 }
+        }
+    }
+}
+
 /// Push target for a forensics snapshot from the guard pane.
 struct ForensicsRoute: Hashable {
     let path: String
