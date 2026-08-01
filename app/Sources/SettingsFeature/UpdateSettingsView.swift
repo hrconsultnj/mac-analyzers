@@ -51,8 +51,10 @@ struct UpdateSettingsView: View {
             }
         }
         .task {
+            // always fresh when the pane opens — the cache is for background
+            // polling, not for the screen whose job is showing the truth
             checking = true
-            latest = await UpdateChecker.latestVersion()
+            latest = await UpdateChecker.latestVersion(force: true)
             checking = false
         }
     }

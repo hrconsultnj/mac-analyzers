@@ -10,12 +10,15 @@ public enum UpdateChecker {
     }
 
     /// Latest release version ("2.9.0"), cached for 6 h unless forced.
+    /// A cached value OLDER than the installed build is nonsense (local
+    /// builds outrun the cache) — treated as stale and refetched.
     public static func latestVersion(force: Bool = false) async -> String? {
         let defaults = UserDefaults.standard
         let lastCheck = defaults.double(forKey: "updateCheckAt")
         if !force,
            Date().timeIntervalSince1970 - lastCheck < 6 * 3600,
-           let cached = defaults.string(forKey: "updateLatest") {
+           let cached = defaults.string(forKey: "updateLatest"),
+           !isNewer(installedVersion, than: cached) {
             return cached
         }
         guard let url = URL(string: "https://api.github.com/repos/hrconsultnj/mac-analyzers/releases/latest"),

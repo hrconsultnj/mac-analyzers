@@ -69,7 +69,8 @@ public final class NotificationPoster: NSObject {
     }
 
     public func post(title: String, subtitle: String? = nil, message: String,
-                     sound: String?, logPath: String?, pid: Int? = nil) {
+                     sound: String?, logPath: String?, pid: Int? = nil,
+                     paneTarget: String? = nil) {
         let content = UNMutableNotificationContent()
         content.title = title
         if let subtitle { content.subtitle = subtitle }
@@ -83,6 +84,7 @@ public final class NotificationPoster: NSObject {
         }
         var info: [String: Any] = [:]
         if let logPath { info["log"] = logPath }
+        if let paneTarget { info["pane"] = paneTarget }
         if let pid {
             info["pid"] = pid
             // identity check token so a recycled pid is never killed
@@ -142,6 +144,7 @@ extension NotificationPoster: UNUserNotificationCenterDelegate {
         let logPath = info["log"] as? String
         let pid = info["pid"] as? Int
         let token = info["token"] as? String ?? ""
+        let paneTarget = info["pane"] as? String
         let action = response.actionIdentifier
         Task { @MainActor in
             let poster = NotificationPoster.shared
@@ -151,9 +154,13 @@ extension NotificationPoster: UNUserNotificationCenterDelegate {
             case Self.stopProcessAction:
                 if let pid { poster.stopProcess(pid: pid, token: token) }
             default:
-                // body click or "Open Mac Analyzers" → the app, where the
-                // actionable buttons live
-                poster.openApp()
+                // body click or "Open Mac Analyzers" → the app; a pane
+                // target (e.g. update notifications) deep-links to its screen
+                if let paneTarget {
+                    SettingsOpener.open(target: paneTarget)
+                } else {
+                    poster.openApp()
+                }
             }
         }
         done()

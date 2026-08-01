@@ -16,6 +16,7 @@ public struct SettingsTabsView: View {
     /// State-backed path for the Logs stack (NavigationPath: it holds both
     /// LogKind pushes and RunRoute pushes for the nested run screens).
     @State private var logsPath = NavigationPath()
+    @State private var updateAvailable = false
 
     public init() {}
 
@@ -112,7 +113,23 @@ public struct SettingsTabsView: View {
             }
             Section {
                 sidebarRow("About", "questionmark.circle.fill", .gray, .about)
-                sidebarRow("Update", "arrow.down.circle.fill", .green, .update)
+                HStack {
+                    sidebarRow("Update", "arrow.down.circle.fill", .green, .update)
+                    if updateAvailable {
+                        Spacer()
+                        Text("1")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 16, height: 16)
+                            .background(Color.red, in: Circle())
+                    }
+                }
+                .tag(Pane.update)
+            }
+        }
+        .task {
+            if let latest = await UpdateChecker.latestVersion() {
+                updateAvailable = UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion)
             }
         }
     }

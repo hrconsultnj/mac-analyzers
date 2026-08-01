@@ -21,7 +21,32 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public func applicationDidFinishLaunching(_ notification: Notification) {
         NotificationPoster.shared.setup()
         NotifyBridge.start()
+        startUpdateWatcher()
 
+        registerLoginItem()
+    }
+
+    /// Checks for a newer release at launch and every 6 hours; notifies ONCE
+    /// per version — clicking the notification opens the Update pane.
+    private func startUpdateWatcher() {
+        Task { @MainActor in
+            while true {
+                if let latest = await UpdateChecker.latestVersion(),
+                   UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion),
+                   UserDefaults.standard.string(forKey: "updateNotifiedFor") != latest {
+                    NotificationPoster.shared.post(
+                        title: "Mac Analyzers update available",
+                        subtitle: "v\(latest)",
+                        message: "You're on v\(UpdateChecker.installedVersion). Click to open the Update screen and install with one click.",
+                        sound: nil, logPath: nil, paneTarget: "update")
+                    UserDefaults.standard.set(latest, forKey: "updateNotifiedFor")
+                }
+                try? await Task.sleep(for: .seconds(6 * 3600))
+            }
+        }
+    }
+
+    private func registerLoginItem() {
         // Self-register as a Login Item (macOS notifies the user it was
         // added, with a link to System Settings — the transparent, Apple-
         // sanctioned path). Idempotent: skip when already enabled; if the
