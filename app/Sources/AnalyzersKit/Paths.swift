@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 /// Canonical file locations shared by every module. Mirrors the bash suite's
@@ -52,4 +53,32 @@ public enum NotifyChannel {
     /// default action). Posted by AppKit code, observed by the SwiftUI anchor
     /// window, which holds the openSettings environment action.
     public static let openSettingsInternal = Notification.Name("com.mac-analyzers.open-settings")
+    /// In-process signal: "navigate Settings to this pane" — userInfo["target"]
+    /// carries a route string ("activity", "logs", "log:<kind>", "monitor").
+    public static let openPaneInternal = Notification.Name("com.mac-analyzers.open-pane")
+}
+
+/// Opens the Settings window from ANY entry point, optionally deep-linking
+/// to a pane. Belt and braces: SwiftUI route via the anchor window, plus a
+/// delayed AppKit fallback when no settings window materialized.
+@MainActor
+public enum SettingsOpener {
+    public static func open(target: String? = nil) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(name: NotifyChannel.openSettingsInternal, object: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            let settingsUp = NSApp.windows.contains {
+                $0.isVisible && ($0.identifier?.rawValue.contains("Settings") ?? false)
+            }
+            if !settingsUp {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            if let target {
+                NotificationCenter.default.post(name: NotifyChannel.openPaneInternal,
+                                                object: nil, userInfo: ["target": target])
+            }
+        }
+    }
 }

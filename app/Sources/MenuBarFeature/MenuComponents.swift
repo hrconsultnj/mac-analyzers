@@ -34,7 +34,7 @@ struct EventRow: View {
 
     var body: some View {
         Button {
-            GuardControl.openLog(AnalyzersPaths.guardLog)
+            SettingsOpener.open(target: "activity")
         } label: {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: symbol)

@@ -68,6 +68,23 @@ public struct SettingsTabsView: View {
             pane = .logs
             logsPath = NavigationPath()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.openPaneInternal)) { note in
+            // deep links from the menu bar ("Guard log" → the guard-log pane)
+            guard let target = note.userInfo?["target"] as? String else { return }
+            if target.hasPrefix("log:"),
+               let kind = LogKind(rawValue: String(target.dropFirst(4))) {
+                pane = .log(kind)
+            } else {
+                switch target {
+                case "logs": pane = .logs; logsPath = NavigationPath()
+                case "activity": pane = .activity
+                case "monitor": pane = .monitor
+                case "schedule": pane = .schedule
+                case "update": pane = .update
+                default: break
+                }
+            }
+        }
         .onDisappear {
             // drop the Dock icon again once Settings closes (the menu-bar
             // Settings button flips us to .regular so the window fronts)

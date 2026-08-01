@@ -6,29 +6,6 @@ import UserNotifications
 /// Minimal AppKit bridge for the SwiftUI lifecycle: wires the notification
 /// poster + the distributed-notification listener at launch, and registers
 /// the app as a Login Item so the menu bar survives reboots.
-/// Opens the Settings window from ANY entry point (Dock click, notification
-/// tap, menu button) — belt and braces: the SwiftUI route via the anchor
-/// window's openSettings, plus a delayed AppKit fallback for when that
-/// anchor window no longer exists (the failure the user hit: Dock click
-/// activated the app but no Settings appeared).
-@MainActor
-public enum SettingsOpener {
-    public static func open() {
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        NotificationCenter.default.post(name: NotifyChannel.openSettingsInternal, object: nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            let settingsUp = NSApp.windows.contains {
-                $0.isVisible && ($0.identifier?.rawValue.contains("Settings") ?? false)
-            }
-            if !settingsUp {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                NSApp.activate(ignoringOtherApps: true)
-            }
-        }
-    }
-}
-
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
 

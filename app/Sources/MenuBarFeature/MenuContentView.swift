@@ -70,9 +70,9 @@ public struct MenuContentView: View {
             Button(store.guardPaused ? "Resume guard" : "Pause guard") {
                 store.setGuardPaused(!store.guardPaused)
             }
-            Button("Guard log") { GuardControl.openLog(AnalyzersPaths.guardLog) }
-            if let forensics = store.latestForensics {
-                Button("Forensics") { GuardControl.openLog(forensics) }
+            Button("Guard log") { SettingsOpener.open(target: "log:guardLog") }
+            if store.latestForensics != nil {
+                Button("Forensics") { SettingsOpener.open(target: "log:forensics") }
             }
             Spacer()
             Text("Reaper: \(runText(store.lastMemoryCleanRun))")
@@ -244,8 +244,8 @@ public struct MenuContentView: View {
         Divider()
 
         HStack(spacing: 12) {
-            Button("Storage log") { GuardControl.openLog(AnalyzersPaths.storageAutoCleanLog) }
-            Button("Login-items audit") { GuardControl.openLog(AnalyzersPaths.loginItemsAuditLog) }
+            Button("Storage log") { SettingsOpener.open(target: "log:storageClean") }
+            Button("Login-items audit") { SettingsOpener.open(target: "log:loginItems") }
             Spacer()
             Text("Last run \(runText(store.lastStorageCleanRun))")
                 .font(.caption)
