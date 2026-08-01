@@ -6,15 +6,16 @@ port, but calibrate it, don't just install it.
 
 ## What this is
 
-Two sibling suites + shared plumbing + an optional native app:
+Two sibling suites (the engine) + shared plumbing + the native app (the face):
 - `memory-analyzer/` — RAM report (`analyze.sh`), always-on spike guard, daily
   orphan reaper, manual "free RAM now" reclaim. See its README.
 - `storage-analyzer/` — disk report, interactive deep clean, scheduled
   auto-clean, Time Machine local-snapshot reclaim. See its README.
 - `lib/notify.sh` — the notifier every script sources: menu-bar app's CLI →
   `alerter` → plain `osascript` banner, whichever is present.
-- `app/` — the "Mac Analyzers" SwiftUI menu-bar app (optional; step 10).
-  `extras/swiftbar-plugin/` is a SwiftBar alternative for script-only setups.
+- `app/` — the "Mac Analyzers" SwiftUI menu-bar app, the suite's face (built
+  in step 10). `extras/swiftbar-plugin/` is the fallback surface for
+  script-only / headless setups.
 - Reports and logs land inside the repo at `reports/{memory,storage}/`
   (gitignored).
 - The suites' READMEs carry the operating principles (free RAM = wasted RAM;
@@ -63,16 +64,17 @@ Two sibling suites + shared plumbing + an optional native app:
 9. All personal values live in `config.local.sh` (gitignored) — copy
    `config.example.sh` and fill it in for your user as part of steps 3–5.
    The launchd labels are the neutral `com.mac-analyzers.*` namespace.
-10. **Optional: build the menu-bar app** — `./app/build.sh` (Command Line
-    Tools only, no Xcode; needs macOS 26). It adds native notifications with
-    click-to-open-log, a glance menu (kills today, recent events,
-    pause/resume), and Settings that write a marked managed block into
-    `config.local.sh` — hand-written values outside the markers are never
-    touched. It self-registers as a login item, and the plists'
-    `AssociatedBundleIdentifiers` attribute the agents to it in Login Items.
-    The scripts run standalone without it — `lib/notify.sh` falls back to
-    `alerter` (if installed) or a plain `osascript` banner, and
-    `extras/swiftbar-plugin/` gives a no-app menu-bar surface.
+10. **Build the menu-bar app** — `./app/build.sh && open app/MacAnalyzers.app`
+    (Command Line Tools only, no Xcode; needs macOS 26). This is the suite's
+    face for your user: native notifications with click-to-open-log, a glance
+    menu (kills today, recent events, pause/resume), and Settings that write
+    a marked managed block into `config.local.sh` — hand-written values
+    outside the markers are never touched. It self-registers as a login item,
+    and the plists' `AssociatedBundleIdentifiers` attribute the agents to it
+    in Login Items. Skip this only on a headless / script-only setup — the
+    engine runs fine alone: `lib/notify.sh` falls back to `alerter` (if
+    installed) or a plain `osascript` banner, and `extras/swiftbar-plugin/`
+    gives a no-app menu-bar surface.
 
 ## Safety invariants — keep these when you customize
 

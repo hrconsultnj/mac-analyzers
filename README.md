@@ -8,16 +8,94 @@ runaway dev process before your Zoom call freezes, reaps the orphaned servers
 your tools left behind, and finds the login items of apps you deleted years
 ago — with receipts for every action.
 
+## Why your Mac slows down — and what this does about it
+
+You don't have to be a developer to have this problem. If you use AI apps,
+coding assistants, or heavyweight creative tools, your Mac quietly collects
+background processes during the day — helpers some tool started and forgot
+about. Memory fills up, the machine starts compressing and swapping, and by
+mid-afternoon everything feels sticky. Mac Analyzers watches for exactly that
+and handles it on autopilot:
+
+- **It stops runaway processes before they freeze your Mac** — and it will
+  **never touch your real apps**. It only ever acts on development tooling
+  from a narrow allowlist, and a protected list (video calls, browsers,
+  editors, anything you add) **always wins**.
+- **It cleans rebuildable junk on a schedule** — caches, build leftovers,
+  abandoned background servers: things your tools recreate on their own. It
+  **never touches your documents**, photos, or projects.
+- **It tells you what happened** in a normal macOS notification — click it to
+  see exactly what was done and why. **Every action is written down.**
+- **The menu-bar app is how you live with it**: glance at the chip icon to
+  see if anything was stopped today, pause it during heavy work, and change
+  the limits with sliders — **no terminal needed after setup**.
+- **Everything runs locally.** No account, no telemetry — nothing about your
+  machine ever leaves your machine.
+- Anything that deletes is **dry-run by default**: it shows you the plan and
+  does nothing until told to apply.
+
 Born from a real incident: a 32 GB Mac Studio living at 25–28 GB used, swap
 87% full, freezing mid-meeting. Same machine, same day, after this toolkit:
 17 GB working set, zero swap, pressure green — and it stays that way on
 autopilot. The [examples/](examples/) folder shows the actual before/after
 reports.
 
+## Install
+
+The scripts are the **engine**; the menu-bar app is the **face**. The full
+experience is one copy-paste:
+
+```bash
+git clone https://github.com/hrconsultnj/mac-analyzers.git ~/mac-analyzers
+cd ~/mac-analyzers
+./memory-analyzer/memory-manage-agents.sh install    # RAM guard + daily reaper
+./storage-analyzer/storage-manage-agents.sh install  # scheduled disk hygiene
+./app/build.sh && open app/MacAnalyzers.app          # build + launch the app
+```
+
+The app builds from source in a couple of minutes and needs only Apple's
+**free Command Line Tools** (`xcode-select --install`) — no Xcode. On first
+launch it adds itself to Login Items (macOS notifies you it did) and asks for
+notification permission; from then on the chip icon in the menu bar is the
+whole interface — status at a glance, sliders for the limits, click a
+notification to open the log behind it.
+
+Want to see your machine before installing anything? `./memory-analyzer/analyze.sh`
+and `./storage-analyzer/analyze.sh` are read-only reports — always safe.
+
+**Using Claude Code (or another agent)?** Point it at `PORT-TO-YOUR-MAC.md` —
+it's written as instructions for an AI to calibrate thresholds, protect lists,
+and schedules to your machine before installing.
+
+The launchd plists are templates hydrated at install time (paths + username),
+under the identifiable `com.mac-analyzers.*` namespace and attributed to the
+app's identity, so System Settings → Login Items never shows you a mystery
+entry from this toolkit.
+
+### Script-only (advanced / headless)
+
+The engine runs standalone: install the agents as above and skip
+`./app/build.sh`. Notifications fall back to `alerter`
+(`brew install vjeantet/tap/alerter` — banner with an "Open Log" button) or a
+plain `osascript` banner, and `extras/swiftbar-plugin/` gives you a menu-bar
+surface via [SwiftBar](https://swiftbar.app) instead of the app. Configure by
+hand: `cp config.example.sh config.local.sh` and edit — the same knobs the
+app's Settings manage.
+
+### Distribution — where's the DMG?
+
+There deliberately isn't one. A downloaded unsigned app gets quarantined by
+Gatekeeper ("cannot be opened"), while building locally from source carries
+no quarantine at all and takes two commands. If demand appears, a notarized
+DMG (Apple Developer ID) is the future path. Releases ship a source tarball
+(`mac-analyzers-v<version>.tar.gz`) —
+see [Releases](https://github.com/hrconsultnj/mac-analyzers/releases).
+
 ## What's inside
 
 | | Tool | What it does | Touches anything? |
 |---|---|---|---|
+| 🖥️ | `app/` — **Mac Analyzers** menu-bar app | the product's face: glance menu (kills today, recent events), native notifications with click-to-open-log, Settings with sliders for the tunables | writes only its own marked block in `config.local.sh` |
 | 🔍 | `memory-analyzer/analyze.sh` | "Why is RAM at N GB?" — Activity-Monitor-style breakdown, compressor/swap truth, per-app rollup, CPU/energy, diagnosis with verdicts | never — read-only report |
 | 🛡️ | `memory-analyzer/memory-guard.sh` | always-on listener: alerts on memory-pressure, kills a runaway dev process before the machine locks up. Meeting apps, browsers, editors are never touched | kills dev tooling only |
 | 🧹 | `memory-analyzer/memory-auto-clean.sh` | daily reaper: orphaned MCP/agent servers, dev servers forgotten since yesterday, stale headless browsers | with `--apply` |
@@ -27,7 +105,6 @@ reports.
 | ⏪ | `storage-analyzer/tm-reclaim.sh` | releases the Time Machine local snapshots that pin just-deleted blocks (the "I freed 40 GB but df didn't move" fix) | snapshots only |
 | 🔎 | `storage-analyzer/login-items-audit.sh` | finds login items / launch agents whose app was uninstalled — mechanically verified, two confidence classes | dry-run default |
 | 💡 | `storage-analyzer/spotlight-audit.sh` | Spotlight sanity: is the reindex expected or stuck, and which dev dirs (node_modules, build trees) is it wastefully indexing — fences them reversibly | dry-run default |
-| 🖥️ | `app/` — **Mac Analyzers** menu-bar app | optional native face for the suite: glance menu, real notifications with click-to-open-log, Settings for the tunables | writes only its own marked block in `config.local.sh` |
 
 Every script double-clicked in Finder opens an **interactive menu**
 (preview → confirm). Flags skip the menu — that's how the launchd agents run.
@@ -37,11 +114,11 @@ Every run logs exactly how it was invoked.
 
 ```
 ~/mac-analyzers/
+├── app/                       "Mac Analyzers" menu-bar app — the face (below)
 ├── memory-analyzer/           RAM suite + its launchd templates (own README)
 ├── storage-analyzer/          disk suite + its launchd templates (own README)
 ├── lib/notify.sh              shared notifier every script sources (below)
-├── app/                       "Mac Analyzers" menu-bar app — optional (below)
-├── extras/swiftbar-plugin/    SwiftBar surface for script-only setups — optional
+├── extras/swiftbar-plugin/    SwiftBar surface for script-only setups
 ├── config.example.sh          → copy to config.local.sh (gitignored)
 └── reports/{memory,storage}/  every report + log the suite writes (gitignored)
 ```
@@ -67,26 +144,6 @@ TeamViewer had been gone for years; its launchers were still registered at
 every login. More: [the sick-machine report](examples/memory-report-sick.md) ·
 [the healthy report](examples/memory-report.md) ·
 [the reclaim preview](examples/memory-reclaim-dry-run.md).
-
-## Install
-
-```bash
-git clone https://github.com/hrconsultnj/mac-analyzers.git ~/mac-analyzers
-cd ~/mac-analyzers
-cp config.example.sh config.local.sh        # fill in YOUR apps (optional but recommended)
-./memory-analyzer/analyze.sh                # read-only — see your machine first
-./memory-analyzer/memory-manage-agents.sh install    # guard + daily reaper
-./storage-analyzer/storage-manage-agents.sh install  # scheduled disk hygiene
-./app/build.sh                              # optional — menu-bar app (CLT only, no Xcode)
-```
-
-**Using Claude Code (or another agent)?** Point it at `PORT-TO-YOUR-MAC.md` —
-it's written as instructions for an AI to calibrate thresholds, protect lists,
-and schedules to your machine before installing.
-
-The launchd plists are templates hydrated at install time (paths + username),
-under the identifiable `com.mac-analyzers.*` namespace, so System Settings →
-Login Items never shows you a mystery entry from this toolkit.
 
 ## Safety design
 
@@ -119,17 +176,16 @@ through `lib/notify.sh`, which picks the best backend present:
    "Open Log" button.
 3. **Plain `osascript` banner** — always available, no click action.
 
-Knobs in `config.local.sh` (all optional):
+Knobs in `config.local.sh` (each one optional):
 `ANALYZERS_NOTIFIER=native|alerter|osascript` forces a backend,
 `ANALYZERS_LOG_VIEWER` picks the app that opens logs on the alerter path, and
 `ANALYZERS_NOTIFY_TIMEOUT` is how many seconds an unclicked alerter alert
 lives.
 
-## The menu-bar app (optional)
+## The menu-bar app
 
 `app/` is **Mac Analyzers**, a native SwiftUI menu-bar app (SPM package,
-Swift 6, macOS 26) that gives the suite a face. The scripts run standalone
-without it — with it you get:
+Swift 6, macOS 26) — the face on the script engine:
 
 - **Glance + control** — today's kill count on the menu-bar icon, recent guard
   events, auto-clean status, pause/resume guard, one-click log access.
@@ -147,18 +203,18 @@ without it — with it you get:
   `notify` CLI shim the scripts call. Icons regenerate with `app/make-icon.sh`
   (colored .icns) and `app/make-menubar-icon.sh` (monochrome template PNG).
 
-No app, no Xcode, still want a menu-bar surface? `extras/swiftbar-plugin/`
-ships a [SwiftBar](https://swiftbar.app) plugin with the same glance data —
-kills today, recent events, click-to-open logs.
+Running script-only? `extras/swiftbar-plugin/` ships a
+[SwiftBar](https://swiftbar.app) plugin with the same glance data — kills
+today, recent events, click-to-open logs.
 
 ## Configuration
 
-Personal/machine values live in `config.local.sh` (gitignored) — copy
-`config.example.sh` and fill in your never-kill apps, stale-app list,
-deprecated-app leftovers, recordings dir, extra cache globs. Everything runs
-with neutral defaults without it. If you use the menu-bar app, its Settings
-own only the marked managed block in that file — your hand-written config
-coexists untouched.
+Personal/machine values live in `config.local.sh` (gitignored). The app's
+Settings manage their own clearly-marked block in that file; everything else —
+never-kill apps, stale-app list, deprecated-app leftovers, recordings dir,
+extra cache globs — comes from copying `config.example.sh` and filling it in
+by hand. The two coexist: the app never touches what you wrote outside its
+markers. Everything runs with neutral defaults without any of it.
 
 Developing this repo? `CONTRIBUTING.md` and `AGENTS.md` carry the hard rules;
 `.composure/` is local state for the Composure dev plugin used while building

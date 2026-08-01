@@ -20,9 +20,10 @@ Reports live in `~/mac-analyzers/reports/memory/<YYYY-MM-DD>/report-<HHMM>.md`, 
 mirrors this at `~/mac-analyzers/reports/storage/`.)
 
 Notifications (spikes, warnings, kills, clean summaries) go through
-`../lib/notify.sh` — the Mac Analyzers menu-bar app's native path when built,
-`alerter` if installed, else a plain banner; clicking one opens the matching
-log. See the root README's Notifications section.
+`../lib/notify.sh` — the Mac Analyzers menu-bar app's native path by default,
+falling back to `alerter` and then a plain banner on script-only setups;
+clicking one opens the matching log. See the root README's Notifications
+section.
 
 ## Which one do I run?
 
