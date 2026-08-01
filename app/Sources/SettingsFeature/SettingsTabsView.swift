@@ -17,6 +17,8 @@ public struct SettingsTabsView: View {
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
             ActivitySettingsView()
                 .tabItem { Label("Activity", systemImage: "list.bullet.rectangle") }
+            LogsSettingsView()
+                .tabItem { Label("Logs", systemImage: "doc.text.magnifyingglass") }
             AboutSettingsView()
                 .tabItem { Label("About", systemImage: "questionmark.circle") }
         }

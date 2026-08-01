@@ -1,4 +1,5 @@
 import AppKit
+import AnalyzersKit
 import ServiceManagement
 import UserNotifications
 
@@ -7,6 +8,18 @@ import UserNotifications
 /// the app as a Login Item so the menu bar survives reboots.
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
+
+    /// Dock-tile click while running (LSUIElement apps still get reopen
+    /// events from a kept Dock icon) → open Settings. A click when the app
+    /// is NOT running simply launches it — macOS handles that part.
+    public func applicationShouldHandleReopen(_ sender: NSApplication,
+                                              hasVisibleWindows flag: Bool) -> Bool {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(name: NotifyChannel.openSettingsInternal, object: nil)
+        return true
+    }
+
     public func applicationDidFinishLaunching(_ notification: Notification) {
         NotificationPoster.shared.setup()
         NotifyBridge.start()

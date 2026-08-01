@@ -24,10 +24,12 @@ public enum NotifyBridge {
             let message = info?["message"] as? String ?? ""
             let sound = info?["sound"] as? String
             let log = info?["log"] as? String
+            let pid = (info?["pid"] as? String).flatMap(Int.init)
             guard !message.isEmpty else { return }
             Task { @MainActor in
                 NotificationPoster.shared.post(title: title, subtitle: subtitle,
-                                               message: message, sound: sound, logPath: log)
+                                               message: message, sound: sound,
+                                               logPath: log, pid: pid)
             }
         }
     }

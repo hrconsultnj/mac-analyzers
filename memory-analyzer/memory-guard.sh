@@ -218,9 +218,10 @@ tick() {
         # kill disabled in settings → notify-only, never silent
         LAST_WARN_TS=$now
         log "CAP-EXCEEDED (kill disabled) pid=$bpid rss=$((brss/1024))MB  $bargs"
+        # pid attached → the notification carries a "Stop Process" button
         notify "Memory Guard — over the cap" \
           "Using $(awk -v kb="$brss" 'BEGIN{printf "%.1f", kb/1048576}') GB — cap kills are off, so nothing was stopped." \
-          "Glass" "" "$(short_name "$bargs")"
+          "Glass" "" "$(short_name "$bargs")" "$bpid"
       fi
     fi
   fi
@@ -239,12 +240,14 @@ tick() {
         LAST_WARN_TS=$now
         # first spike line: "pid=N +GREWmb now TOTALmb  name…" → human phrasing
         # with the process identity as the notification SUBTITLE
-        local sp_line sp_name sp_body
+        local sp_line sp_name sp_body sp_pid
         sp_line="$(echo "$spikes" | head -1)"
+        sp_pid="$(echo "$sp_line" | awk '{ sub(/^pid=/,"",$1); print $1 }')"
         sp_name="$(echo "$sp_line" | awk '{ $1=$2=$3=$4=""; sub(/^ +/,""); print }' | cut -c1-80)"
         sp_body="$(echo "$sp_line" | awk '{ grew=$2; total=$4; sub(/^\+/,"",grew); sub(/MB$/,"",grew); sub(/MB$/,"",total);
           printf "Grew to %.1f GB (+%.1f GB in the last 15s). Watching — nothing killed yet.", total/1024, grew/1024 }')"
-        notify "Memory Guard — process climbing" "$sp_body" "Glass" "" "$sp_name"
+        # pid attached → the notification carries a "Stop Process" button
+        notify "Memory Guard — process climbing" "$sp_body" "Glass" "" "$sp_name" "$sp_pid"
       fi
     fi
   fi

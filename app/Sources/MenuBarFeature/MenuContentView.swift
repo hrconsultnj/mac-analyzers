@@ -7,6 +7,7 @@ public struct MenuContentView: View {
     @Environment(GuardLogStore.self) private var store
     @Environment(\.openSettings) private var openSettings
     @State private var tab: Tab = .memory
+    @AppStorage("monitorRefreshSeconds") private var monitorRefresh = 5
 
     enum Tab: String, CaseIterable {
         case memory = "Memory", monitor = "Monitor", storage = "Storage"
@@ -134,15 +135,29 @@ public struct MenuContentView: View {
     @ViewBuilder private var monitorTab: some View {
         HStack(spacing: 6) {
             Circle().fill(pressureColor).frame(width: 8, height: 8)
-            Text("Memory pressure: \(store.pressure.label)")
+            Text("Pressure: \(store.pressure.label)")
                 .font(.callout)
                 .foregroundStyle(store.pressure == .normal ? .secondary : .primary)
             Spacer()
-            Button {
+            // Activity-Monitor-style update frequency
+            Picker("", selection: $monitorRefresh) {
+                Text("2s").tag(2)
+                Text("5s").tag(5)
+                Text("10s").tag(10)
+                Text("Off").tag(0)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.mini)
+            .frame(width: 150)
+            .help("How often this list refreshes while open (like Activity Monitor's update frequency)")
+        }
+        .task(id: monitorRefresh) {
+            guard monitorRefresh > 0 else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(Double(monitorRefresh)))
                 store.reload()
-            } label: { Image(systemName: "arrow.clockwise") }
-                .controlSize(.small)
-                .help("Refresh the list")
+            }
         }
 
         let devs = store.monitorProcesses.filter(\.isDev)

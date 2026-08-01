@@ -4,6 +4,22 @@ import NotifierKit
 import MenuBarFeature
 import SettingsFeature
 
+/// Invisible view that turns the internal open-settings signal into an
+/// actual openSettings() call (with the activation dance already done by
+/// the poster of the signal).
+struct SettingsAnchorView: View {
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        Color.clear
+            .frame(width: 1, height: 1)
+            .onReceive(NotificationCenter.default.publisher(
+                for: NotifyChannel.openSettingsInternal)) { _ in
+                openSettings()
+            }
+    }
+}
+
 @main
 struct MacAnalyzersApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -44,9 +60,11 @@ struct MacAnalyzersApp: App {
 
         // Hidden 1×1 anchor window declared BEFORE Settings: gives SwiftUI a
         // live render tree so openSettings() works from a MenuBarExtra-only
-        // app (Steinberger workaround — still required on Tahoe).
+        // app (Steinberger workaround — still required on Tahoe). It also
+        // owns the internal open-settings signal (Dock click, notification
+        // default action) since it holds the environment action.
         WindowGroup(id: "settings-anchor") {
-            Color.clear.frame(width: 1, height: 1)
+            SettingsAnchorView()
         }
         .defaultPosition(.center)
         .windowResizability(.contentSize)
