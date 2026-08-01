@@ -339,6 +339,36 @@ if [[ "$MODE" == "deep" ]]; then
   fi
 fi
 
+# ---------- 3b. Tool caches — expansion pack (opt-in via config, either mode) ----------
+# ANALYZERS_TOOL_CACHES: comma list of enabled ids (brew,pip,uv,cargo,gradle,deriveddata).
+# Everything here is REDOWNLOADABLE/REBUILDABLE cache — never sources, never state.
+TOOL_CACHES="${ANALYZERS_TOOL_CACHES:-}"
+if [[ -n "$TOOL_CACHES" ]]; then
+  group "3b. Tool caches (opt-in expansion pack)"
+  tc_human() { awk -v k="$1" 'BEGIN{ if(k>=1048576) printf "%.1f GB",k/1048576; else if(k>=1024) printf "%.1f MB",k/1024; else printf "%d KB",k }'; }
+  tool_cache() { # id  path  human-cmd-description  (apply command via eval of $4)
+    local id="$1" path="$2" desc="$3" cmd="$4"
+    [[ ",${TOOL_CACHES}," == *",${id},"* ]] || return 0
+    [[ -e "$path" ]] || { log "  (${id}: no cache at ${path})"; return 0; }
+    local kb; kb="$(du -sk "$path" 2>/dev/null | cut -f1)"; [[ -z "$kb" ]] && kb=0
+    local size; size="$(tc_human "$kb")"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      log "  [DRY] ${size}  ${path}"
+    else
+      log "  running: ${desc}"
+      eval "$cmd" >>"$LOG_FILE" 2>&1 || true
+      log "  [DELETED] ${size}  ${path}"
+    fi
+  }
+  BREW_CACHE="$(command -v brew >/dev/null 2>&1 && brew --cache 2>/dev/null || echo "${HOME}/Library/Caches/Homebrew")"
+  tool_cache brew        "$BREW_CACHE"                                        "brew cleanup --prune=all" "brew cleanup --prune=all"
+  tool_cache pip         "${HOME}/Library/Caches/pip"                         "pip3 cache purge"         "pip3 cache purge"
+  tool_cache uv          "${HOME}/.cache/uv"                                  "uv cache prune"           "uv cache prune"
+  tool_cache cargo       "${HOME}/.cargo/registry/cache"                      "remove cargo registry cache" "rm -rf '${HOME}/.cargo/registry/cache'"
+  tool_cache gradle      "${HOME}/.gradle/caches"                             "remove gradle caches"     "rm -rf '${HOME}/.gradle/caches'"
+  tool_cache deriveddata "${HOME}/Library/Developer/Xcode/DerivedData"        "empty Xcode DerivedData"  "rm -rf '${HOME}/Library/Developer/Xcode/DerivedData'"
+fi
+
 # ---------- 3.5 Docker maintenance (when --docker; either mode) ----------
 if [[ "$DOCKER" -eq 1 ]]; then
   group "3.5 Docker prune"

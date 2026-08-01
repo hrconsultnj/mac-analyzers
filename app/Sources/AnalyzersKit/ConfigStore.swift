@@ -21,6 +21,7 @@ public struct StorageTunables: Equatable, Sendable {
     public var extraCacheGlobs: [String] = []  // ANALYZERS_EXTRA_CACHE_GLOBS (array)
     public var staleApps: [String] = []        // ANALYZERS_STALE_APPS (array)
     public var recordingsDir = ""              // ANALYZERS_RECORDINGS_DIR
+    public var toolCaches: [String] = []       // ANALYZERS_TOOL_CACHES (comma ids)
     public init() {}
 }
 
@@ -110,6 +111,10 @@ public final class ConfigStore {
         storage.extraCacheGlobs = arrayValue("ANALYZERS_EXTRA_CACHE_GLOBS").map(Self.expandHome)
         storage.staleApps = arrayValue("ANALYZERS_STALE_APPS")
         if let v = value("ANALYZERS_RECORDINGS_DIR") { storage.recordingsDir = Self.expandHome(v) }
+        if let v = value("ANALYZERS_TOOL_CACHES") {
+            storage.toolCaches = v.split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        }
         if let v = value("ANALYZERS_NOTIFY_TIMEOUT").flatMap({ Int($0) }) { notify.timeoutSeconds = v }
         if let v = value("ANALYZERS_LOG_VIEWER") { notify.logViewer = v }
     }
@@ -160,6 +165,9 @@ public final class ConfigStore {
         }
         if !storage.recordingsDir.isEmpty {
             out += "ANALYZERS_RECORDINGS_DIR=\(shellQuotePath(storage.recordingsDir))\n"
+        }
+        if !storage.toolCaches.isEmpty {
+            out += "ANALYZERS_TOOL_CACHES=\(shellQuote(storage.toolCaches.joined(separator: ",")))\n"
         }
         out += "ANALYZERS_NOTIFY_TIMEOUT=\(notify.timeoutSeconds)\n"
         out += "ANALYZERS_LOG_VIEWER=\(shellQuote(notify.logViewer))\n"

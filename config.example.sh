@@ -39,3 +39,7 @@
 # Roots spotlight-audit.sh scans for dev directories (node_modules, .next,
 # build trees) that Spotlight wastefully indexes. Space-separated.
 #ANALYZERS_SPOTLIGHT_ROOTS="$HOME/Projects $HOME/Work"
+
+# Tool-cache expansion pack (storage-auto-clean): comma list of opt-in ids.
+# Available: brew,pip,uv,cargo,gradle,deriveddata — all redownloadable cache.
+# ANALYZERS_TOOL_CACHES="brew,uv,deriveddata"
