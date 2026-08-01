@@ -55,14 +55,18 @@ open /Applications/MacAnalyzers.app                  # launch it
 ```
 
 The app builds from source in a couple of minutes and needs only Apple's
-**free Command Line Tools** (`xcode-select --install`) — no Xcode. On first
-launch it adds itself to Login Items (macOS notifies you it did) and asks for
-notification permission; from then on the chip icon in the menu bar is the
-whole interface — status at a glance, sliders for the limits, click a
-notification to open the log behind it. The build installs the app to
-`/Applications/MacAnalyzers.app` like any Mac app (the copy under `app/` is
-just the build artifact) — keep it in the Dock if you like: clicking the Dock
-icon launches it when it's stopped and opens Settings when it's running.
+**free Command Line Tools** (`xcode-select --install`) — no Xcode. The build
+auto-signs with an Apple Development certificate if one's in your keychain
+(free with an Apple ID — gives the app a stable permission identity across
+rebuilds) and falls back to an ad-hoc signature otherwise; either way it
+builds and runs fine. On first launch it adds itself to Login Items (macOS
+notifies you it did) and asks for notification permission; from then on the
+chip icon in the menu bar is the whole interface — status at a glance,
+sliders for the limits, click a notification to open the log behind it. The
+build installs the app to `/Applications/MacAnalyzers.app` like any Mac app
+(the copy under `app/` is just the build artifact) — keep it in the Dock if
+you like: clicking the Dock icon launches it when it's stopped and opens
+Settings when it's running.
 
 Want to see your machine before installing anything? `./memory-analyzer/analyze.sh`
 and `./storage-analyzer/analyze.sh` are read-only reports — always safe.
@@ -88,10 +92,12 @@ app's Settings manage.
 
 ### Distribution — where's the DMG?
 
-There deliberately isn't one. A downloaded unsigned app gets quarantined by
-Gatekeeper ("cannot be opened"), while building locally from source carries
-no quarantine at all and takes two commands. If demand appears, a notarized
-DMG (Apple Developer ID) is the future path. Releases ship a source tarball
+There deliberately isn't one. The build auto-signs (an Apple Development
+certificate if you have one, ad-hoc otherwise), but neither is notarization —
+a downloaded copy would still get quarantined by Gatekeeper ("cannot be
+opened"). Building locally from source is what carries no quarantine, and it
+takes two commands. If demand appears, a notarized DMG (Apple Developer ID)
+is the future path. Releases ship a source tarball
 (`mac-analyzers-v<version>.tar.gz`) —
 see [Releases](https://github.com/hrconsultnj/mac-analyzers/releases).
 
@@ -188,7 +194,7 @@ Every alert — guard kills, pressure warnings, auto-clean summaries — goes
 through `lib/notify.sh`, which picks the best backend present:
 
 1. **The menu-bar app's bundled CLI**
-   (`app/MacAnalyzers.app/Contents/MacOS/notify`) — posts over
+   (`/Applications/MacAnalyzers.app/Contents/MacOS/notify`) — posts over
    `DistributedNotificationCenter` to the persistent app, which shows a real
    native notification under the app's identity; clicking it opens that run's
    log.

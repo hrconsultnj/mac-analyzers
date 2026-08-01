@@ -64,15 +64,17 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
 9. All personal values live in `config.local.sh` (gitignored) — copy
    `config.example.sh` and fill it in for your user as part of steps 3–5.
    The launchd labels are the neutral `com.mac-analyzers.*` namespace.
-10. **Build the menu-bar app** — `./app/build.sh && open app/MacAnalyzers.app`
-    (Command Line Tools only, no Xcode; needs macOS 26). This is the suite's
-    face for your user: actionable native notifications (Open Log / Stop
-    Process), a glance menu with Memory/Monitor/Storage tabs and per-process
-    Stop/Quit, and a System-Settings-style Settings window that writes a
-    marked managed block into `config.local.sh` — hand-written values
-    outside the markers are never touched. It self-registers as a login item,
-    and the plists' `AssociatedBundleIdentifiers` attribute the agents to it
-    in Login Items. Skip this only on a headless / script-only setup — the
+10. **Build the menu-bar app** — `./app/build.sh` installs it to
+    `/Applications/MacAnalyzers.app` (Command Line Tools only, no Xcode;
+    needs macOS 26); `open /Applications/MacAnalyzers.app` to launch. This is
+    the suite's face for your user: actionable native notifications (Open
+    Log / Stop Process), a glance menu with Memory/Monitor/Storage tabs and
+    per-process Stop/Quit, and a System-Settings-style Settings window that
+    writes a marked managed block into `config.local.sh` — hand-written
+    values outside the markers are never touched. It self-registers as a
+    login item, and the plists' `AssociatedBundleIdentifiers` attribute the
+    agents to it in Login Items. Skip this only on a headless / script-only
+    setup — the
     engine runs fine alone: `lib/notify.sh` falls back to `alerter` (if
     installed) or a plain `osascript` banner, and `extras/swiftbar-plugin/`
     gives a no-app menu-bar surface.
