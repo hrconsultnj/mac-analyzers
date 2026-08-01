@@ -10,6 +10,16 @@ struct LogsSettingsView: View {
     @State private var runs: [LogRun] = []
 
     var body: some View {
+        // structured panes for the logs with dedicated parsers; the generic
+        // run list remains for the rest (survey phases 3-4)
+        switch kind {
+        case .guardLog: GuardLogView()
+        case .loginItems: LoginItemsView()
+        default: genericRunList
+        }
+    }
+
+    private var genericRunList: some View {
         PaneScaffold(symbol: kind.symbol, color: kind.tileColor, title: kind.title,
                      caption: "Newest runs first — pick one for the full detail. The file itself is never modified.") {
             Section {

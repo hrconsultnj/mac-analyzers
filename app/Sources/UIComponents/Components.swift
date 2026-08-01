@@ -83,6 +83,149 @@ public struct ProcessRow: View {
     }
 }
 
+/// Full-width segmented tabs: equal-width filled pills spanning the whole
+/// row (macOS's native segmented picker sizes to content and won't stretch).
+public struct FullWidthSegments<Option: Hashable>: View {
+    let options: [(Option, String)]
+    @Binding var selection: Option
+
+    public init(options: [(Option, String)], selection: Binding<Option>) {
+        self.options = options
+        self._selection = selection
+    }
+
+    public var body: some View {
+        HStack(spacing: 3) {
+            ForEach(options, id: \.0) { option, label in
+                let selected = option == selection
+                Button {
+                    selection = option
+                } label: {
+                    Text(label)
+                        .font(.callout.weight(selected ? .semibold : .regular))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .background(selected ? Color.accentColor : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 6))
+                        .foregroundStyle(selected ? Color.white : Color.primary)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// Single-select filter chips with live counts ("Killed (4)") — the same
+/// visual language as BadgeCapsule: tinted when idle, filled when selected.
+public struct FilterChipsBar<Option: Hashable>: View {
+    public struct Chip {
+        let option: Option
+        let label: String
+        let count: Int
+        let color: Color
+
+        public init(_ option: Option, _ label: String, count: Int, color: Color) {
+            self.option = option
+            self.label = label
+            self.count = count
+            self.color = color
+        }
+    }
+
+    let chips: [Chip]
+    @Binding var selection: Option
+
+    public init(chips: [Chip], selection: Binding<Option>) {
+        self.chips = chips
+        self._selection = selection
+    }
+
+    public var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(chips, id: \.option) { chip in
+                    let selected = chip.option == selection
+                    Button {
+                        selection = chip.option
+                    } label: {
+                        Text(chip.count > 0 ? "\(chip.label) (\(chip.count))" : chip.label)
+                            .font(.caption.weight(selected ? .bold : .medium))
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 3)
+                            .background(selected ? chip.color : chip.color.opacity(0.15),
+                                        in: Capsule())
+                            .foregroundStyle(selected ? Color.white : chip.color)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+/// Settings-pane-weight data row: leading icon (tile or real app icon),
+/// title/subtitle, trailing value + badge — the "card" anatomy from the
+/// Apple Storage Management reference.
+public struct DataCard: View {
+    let icon: AnyView
+    let title: String
+    let subtitle: String?
+    let trailing: String?
+    let badge: (text: String, color: Color)?
+
+    public init(symbol: String, color: Color, title: String,
+                subtitle: String? = nil, trailing: String? = nil,
+                badge: (text: String, color: Color)? = nil) {
+        self.icon = AnyView(IconTile(symbol: symbol, color: color, side: 20))
+        self.title = title
+        self.subtitle = subtitle
+        self.trailing = trailing
+        self.badge = badge
+    }
+
+    public init(appIcon: NSImage, title: String,
+                subtitle: String? = nil, trailing: String? = nil,
+                badge: (text: String, color: Color)? = nil) {
+        self.icon = AnyView(Image(nsImage: appIcon).resizable().frame(width: 20, height: 20))
+        self.title = title
+        self.subtitle = subtitle
+        self.trailing = trailing
+        self.badge = badge
+    }
+
+    public var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            icon
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.callout)
+                    .lineLimit(1)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            Spacer(minLength: 6)
+            if let trailing {
+                Text(trailing)
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            if let badge {
+                BadgeCapsule(text: badge.text, color: badge.color)
+            }
+        }
+        .padding(.vertical, 3)
+    }
+}
+
 /// System-Settings-style colored icon tile — the visual language of the
 /// Settings sidebar, reused across the menu and the settings window.
 public struct IconTile: View {

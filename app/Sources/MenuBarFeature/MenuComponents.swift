@@ -68,14 +68,20 @@ struct EventRow: View {
         switch event.kind {
         case .killed: "xmark.octagon.fill"
         case .spike: "arrow.up.right"
+        case .capExceeded: "gauge.with.needle"
+        case .pressureWarning, .pressureCritical: "exclamationmark.triangle.fill"
+        case .cpuHog: "cpu"
+        case .forensics: "stethoscope"
         case .warning: "exclamationmark.triangle"
         }
     }
 
     private var color: Color {
         switch event.kind {
-        case .killed: .red
-        case .spike, .warning: .orange
+        case .killed, .pressureCritical: .red
+        case .spike, .capExceeded, .pressureWarning, .warning: .orange
+        case .cpuHog: .purple
+        case .forensics: .purple
         }
     }
 }

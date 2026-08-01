@@ -81,12 +81,10 @@ struct MemorySettingsView: View {
             }
 
             Section {
-                Picker("", selection: $processListTab) {
-                    ForEach(ProcessListTab.allCases, id: \.self) { Text($0.rawValue) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
+                FullWidthSegments(
+                    options: ProcessListTab.allCases.map { ($0, $0.rawValue) },
+                    selection: $processListTab
+                )
 
                 Text(processListTab == .protected
                      ? "Never stopped by the guard or the reapers — matched against process names."

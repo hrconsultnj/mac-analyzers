@@ -5,7 +5,32 @@ public struct GuardEvent: Identifiable, Hashable, Sendable {
     public enum Kind: Hashable, Sendable {
         case killed(reason: String)
         case spike(grewMB: Int)
-        case warning
+        case warning                                        // generic fallback
+        case capExceeded(killDisabled: Bool)                // over cap, kills off
+        case pressureWarning(level: Int)
+        case pressureCritical(level: Int, killDisabled: Bool)
+        case cpuHog(pct: Int, ticks: Int)
+        case forensics(path: String)
+    }
+
+    /// Filter-chip bucket for this event.
+    public enum Category: String, CaseIterable, Sendable {
+        case all = "All"
+        case spikes = "Spikes"
+        case killed = "Killed"
+        case reports = "Reports"
+        case pressure = "Pressure & Cap"
+        case cpu = "CPU Hogs"
+    }
+
+    public var category: Category {
+        switch kind {
+        case .killed: .killed
+        case .spike: .spikes
+        case .forensics: .reports
+        case .cpuHog: .cpu
+        case .capExceeded, .pressureWarning, .pressureCritical, .warning: .pressure
+        }
     }
 
     public let id: String
@@ -42,8 +67,8 @@ public struct GuardEvent: Identifiable, Hashable, Sendable {
         case .spike(let grew):
             let grewText = String(format: "%.1f GB", Double(grew) / 1024)
             return "\(processName) climbing — at \(residentText ?? "?") (+\(grewText))"
-        case .warning:
-            return processName
+        default:
+            return title
         }
     }
 
@@ -61,6 +86,16 @@ public struct GuardEvent: Identifiable, Hashable, Sendable {
         case .spike(let grew):
             let grewText = String(format: "%.1f GB", Double(grew) / 1024)
             return "\(friendlyName) climbing — at \(residentText ?? "?") (+\(grewText))"
+        case .capExceeded(let killDisabled):
+            return "\(friendlyName) over the cap — \(residentText ?? "?")\(killDisabled ? " (kills off — notified only)" : "")"
+        case .pressureWarning(let level):
+            return "Memory pressure warning (level \(level)) — compressing/swapping"
+        case .pressureCritical(let level, let killDisabled):
+            return "Memory pressure CRITICAL (level \(level))\(killDisabled ? " — kills off, notified only" : "")"
+        case .cpuHog(let pct, let ticks):
+            return "\(friendlyName) sustained \(pct)%+ CPU for \(ticks) checks"
+        case .forensics:
+            return "Forensics report written"
         case .warning:
             return processName
         }
@@ -68,9 +103,14 @@ public struct GuardEvent: Identifiable, Hashable, Sendable {
 
     public var subtitle: String {
         var parts: [String] = []
-        if friendlyName != processName { parts.append(processName) }
-        if let pid { parts.append("pid \(pid)") }
-        if case .killed(let reason) = kind { parts.append(reason) }
+        switch kind {
+        case .forensics(let path):
+            parts.append((path as NSString).lastPathComponent)
+        default:
+            if friendlyName != processName { parts.append(processName) }
+            if let pid { parts.append("pid \(pid)") }
+            if case .killed(let reason) = kind { parts.append(reason) }
+        }
         return parts.joined(separator: " · ")
     }
 }
@@ -136,21 +176,69 @@ public enum GuardLogParser {
             return GuardEvent(id: line, date: date, kind: .spike(grewMB: grew),
                               processName: name, pid: pid, residentMB: now, raw: line)
 
-        case "WARNING", "CRITICAL", "PRESSURE", "CAP-EXCEEDED", "CPU-HOG":
-            // real guard tokens: "PRESSURE warning (level 2)" / "PRESSURE
-            // CRITICAL" / "CAP-EXCEEDED (kill disabled) pid=… " / "CPU-HOG
-            // sustained…" — surveyed against actual log output; the previous
-            // WARNING/CRITICAL-only switch silently dropped all of these
+        case "PRESSURE", "PRESSURE-CRITICAL":
+            // "PRESSURE warning (level 2)" · "PRESSURE CRITICAL (level 4)"
+            // · "PRESSURE-CRITICAL (kill disabled)"
             let rest = fields[3...].joined(separator: " ")
-            let label: String
-            switch token {
-            case "PRESSURE": label = "Memory pressure \(rest)"
-            case "CAP-EXCEEDED": label = "Over the cap (kills off) — \(rest)"
-            case "CPU-HOG": label = "Sustained CPU hog — \(rest)"
-            default: label = rest
+            let level = Int(line.range(of: #"level (\d+)"#, options: .regularExpression)
+                .map { String(line[$0]).replacingOccurrences(of: "level ", with: "") } ?? "") ?? 0
+            let kind: GuardEvent.Kind
+            if token == "PRESSURE-CRITICAL" || rest.hasPrefix("CRITICAL") {
+                kind = .pressureCritical(level: max(level, 4),
+                                         killDisabled: line.contains("kill disabled"))
+            } else {
+                kind = .pressureWarning(level: max(level, 2))
             }
+            return GuardEvent(id: line, date: date, kind: kind,
+                              processName: "system memory", pid: nil,
+                              residentMB: nil, raw: line)
+
+        case "CAP-EXCEEDED":
+            // "CAP-EXCEEDED (kill disabled) pid=N rss=NMB  name…"
+            var pid: Int?
+            var rss: Int?
+            var nameStart: Int?
+            for (i, f) in fields.enumerated() {
+                if f.hasPrefix("pid=") { pid = Int(f.dropFirst(4)) }
+                if f.hasPrefix("rss=") {
+                    rss = Int(f.dropFirst(4).replacingOccurrences(of: "MB", with: ""))
+                    nameStart = i + 1
+                }
+            }
+            let name = nameStart.flatMap { $0 < fields.count ? fields[$0...].joined(separator: " ") : nil } ?? "dev process"
+            return GuardEvent(id: line, date: date,
+                              kind: .capExceeded(killDisabled: line.contains("kill disabled")),
+                              processName: name, pid: pid, residentMB: rss, raw: line)
+
+        case "CPU-HOG":
+            // "CPU-HOG sustained >=150% for 3 ticks: pid=N name…; "
+            let pct = Int(line.range(of: #">=(\d+)%"#, options: .regularExpression)
+                .map { String(line[$0]).trimmingCharacters(in: CharacterSet(charactersIn: ">=%")) } ?? "") ?? 0
+            let ticks = Int(line.range(of: #"for (\d+) ticks"#, options: .regularExpression)
+                .map { String(line[$0]).components(separatedBy: " ")[1] } ?? "") ?? 0
+            var pid: Int?
+            var name = "process"
+            if let colon = line.range(of: "ticks: ") {
+                let tail = String(line[colon.upperBound...])
+                let parts = tail.split(separator: " ", maxSplits: 1)
+                if let first = parts.first, first.hasPrefix("pid=") { pid = Int(first.dropFirst(4)) }
+                if parts.count > 1 {
+                    name = String(parts[1]).trimmingCharacters(in: CharacterSet(charactersIn: "; "))
+                }
+            }
+            return GuardEvent(id: line, date: date, kind: .cpuHog(pct: pct, ticks: ticks),
+                              processName: name, pid: pid, residentMB: nil, raw: line)
+
+        case "FORENSICS":
+            // "FORENSICS written: /path/to/guard-critical-HHMMSS.log"
+            let path = fields.count > 4 ? fields[4...].joined(separator: " ") : ""
+            return GuardEvent(id: line, date: date, kind: .forensics(path: path),
+                              processName: "forensics", pid: nil, residentMB: nil, raw: line)
+
+        case "WARNING", "CRITICAL":
+            let rest = fields[3...].joined(separator: " ")
             return GuardEvent(id: line, date: date, kind: .warning,
-                              processName: label, pid: nil, residentMB: nil, raw: line)
+                              processName: rest, pid: nil, residentMB: nil, raw: line)
 
         default:
             return nil
@@ -169,7 +257,7 @@ public enum GuardLogParser {
         let cutoff = max(Date().addingTimeInterval(-interval), clearedAt ?? .distantPast)
 
         var kills: [GuardEvent] = []
-        var warnings: [GuardEvent] = []
+        var others: [GuardEvent] = []
         var latestSpike: [Int: GuardEvent] = [:]
         var killedPIDs: Set<Int> = []
 
@@ -181,13 +269,29 @@ public enum GuardLogParser {
                 if let pid = event.pid { killedPIDs.insert(pid) }
             case .spike:
                 if let pid = event.pid { latestSpike[pid] = event }
-            case .warning:
-                warnings.append(event)
+            default:
+                others.append(event)
             }
         }
 
         let spikes = latestSpike.filter { !killedPIDs.contains($0.key) }.map(\.value)
-        return (kills + warnings + spikes)
+        return (kills + others + spikes)
+            .sorted { $0.date > $1.date }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    /// Full-depth parse for the Logs pane (no per-pid spike dedupe — the log
+    /// screen shows everything; the menu keeps the collapsed view).
+    public static func allEvents(fromLog url: URL,
+                                 within interval: TimeInterval = 90 * 86_400,
+                                 limit: Int = 500) -> [GuardEvent] {
+        guard let data = try? Data(contentsOf: url),
+              let text = String(data: data, encoding: .utf8) else { return [] }
+        let cutoff = Date().addingTimeInterval(-interval)
+        return text.split(separator: "\n").suffix(2000)
+            .compactMap { parseLine(String($0)) }
+            .filter { $0.date >= cutoff }
             .sorted { $0.date > $1.date }
             .prefix(limit)
             .map { $0 }
