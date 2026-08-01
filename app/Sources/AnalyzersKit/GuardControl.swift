@@ -9,6 +9,7 @@ public enum GuardControl {
     public static let guardLabel = "com.mac-analyzers.memory-guard"
     public static let memoryCleanLabel = "com.mac-analyzers.memory-autoclean.daily"
     public static let storageCleanLabel = "com.mac-analyzers.storage-autoclean.daily"
+    public static let storageDeepLabel = "com.mac-analyzers.storage-autoclean.deep"
 
     /// Restart the guard agent so freshly-saved tunables take effect
     /// (the guard reads its env once at startup).

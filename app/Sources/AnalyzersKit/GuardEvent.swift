@@ -46,6 +46,33 @@ public struct GuardEvent: Identifiable, Hashable, Sendable {
             return processName
         }
     }
+
+    /// Human name from the glossary ("Next.js dev server"), else the raw one.
+    public var friendlyName: String {
+        ProcessGlossary.friendlyName(for: processName) ?? processName
+    }
+
+    /// Two-line row support: TITLE = friendly what-happened,
+    /// SUBTITLE = raw identity + mechanics (time appended by the view).
+    public var title: String {
+        switch kind {
+        case .killed:
+            return "\(friendlyName) killed — was \(residentText ?? "?")"
+        case .spike(let grew):
+            let grewText = String(format: "%.1f GB", Double(grew) / 1024)
+            return "\(friendlyName) climbing — at \(residentText ?? "?") (+\(grewText))"
+        case .warning:
+            return processName
+        }
+    }
+
+    public var subtitle: String {
+        var parts: [String] = []
+        if friendlyName != processName { parts.append(processName) }
+        if let pid { parts.append("pid \(pid)") }
+        if case .killed(let reason) = kind { parts.append(reason) }
+        return parts.joined(separator: " · ")
+    }
 }
 
 /// Parser for guard.log lines. Swift port of the SwiftBar plugin's awk logic:
@@ -124,10 +151,11 @@ public enum GuardLogParser {
     /// pids that were later killed are dropped. Newest first.
     public static func recentEvents(fromLog url: URL,
                                     within interval: TimeInterval = 86_400,
-                                    limit: Int = 6) -> [GuardEvent] {
+                                    limit: Int = 6,
+                                    after clearedAt: Date? = nil) -> [GuardEvent] {
         guard let data = try? Data(contentsOf: url),
               let text = String(data: data, encoding: .utf8) else { return [] }
-        let cutoff = Date().addingTimeInterval(-interval)
+        let cutoff = max(Date().addingTimeInterval(-interval), clearedAt ?? .distantPast)
 
         var kills: [GuardEvent] = []
         var warnings: [GuardEvent] = []
@@ -154,12 +182,15 @@ public enum GuardLogParser {
             .map { $0 }
     }
 
-    public static func killsToday(fromLog url: URL) -> Int {
+    public static func killsToday(fromLog url: URL, after clearedAt: Date? = nil) -> Int {
         guard let data = try? Data(contentsOf: url),
               let text = String(data: data, encoding: .utf8) else { return 0 }
         let today = timestampFormat.string(from: Date()).prefix(10)
+        let floor = clearedAt ?? .distantPast
         return text.split(separator: "\n")
             .filter { $0.hasPrefix(today) && $0.contains(" KILLED ") }
+            .compactMap { parseLine(String($0)) }
+            .filter { $0.date > floor }
             .count
     }
 }

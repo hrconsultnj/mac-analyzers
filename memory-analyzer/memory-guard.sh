@@ -154,7 +154,12 @@ kill_proc() {
   kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null
   LAST_KILL_TS=$(date +%s)
   log "KILLED [$reason] pid=$pid rss=$((rsskb/1024))MB  $args"
-  notify "Memory Guard — killed process" "[$reason] ${name} ($((rsskb/1024)) MB) was terminated." "Sosumi"
+  # notification: process identity as SUBTITLE, plain-English what/why as body
+  # (log line above stays machine-parseable — the app/plugin parse it)
+  local gb; gb=$(awk -v kb="$rsskb" 'BEGIN{printf "%.1f", kb/1048576}')
+  notify "Memory Guard — process stopped" \
+    "Was using ${gb} GB of memory (${reason}). Click to see the details." \
+    "Sosumi" "" "${name}"
 }
 
 # forensic snapshot for post-mortems ("what actually spiked?")
@@ -221,7 +226,14 @@ tick() {
       log "SPIKE $spikes"
       if [[ $((now - LAST_WARN_TS)) -ge "$WARN_COOLDOWN" ]]; then
         LAST_WARN_TS=$now
-        notify "Memory Guard — process spiking" "$(echo "$spikes" | head -1 | cut -c1-120)" "Glass"
+        # first spike line: "pid=N +GREWmb now TOTALmb  name…" → human phrasing
+        # with the process identity as the notification SUBTITLE
+        local sp_line sp_name sp_body
+        sp_line="$(echo "$spikes" | head -1)"
+        sp_name="$(echo "$sp_line" | awk '{ $1=$2=$3=$4=""; sub(/^ +/,""); print }' | cut -c1-80)"
+        sp_body="$(echo "$sp_line" | awk '{ grew=$2; total=$4; sub(/^\+/,"",grew); sub(/MB$/,"",grew); sub(/MB$/,"",total);
+          printf "Grew to %.1f GB (+%.1f GB in the last 15s). Watching — nothing killed yet.", total/1024, grew/1024 }')"
+        notify "Memory Guard — process climbing" "$sp_body" "Glass" "" "$sp_name"
       fi
     fi
   fi

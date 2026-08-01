@@ -23,9 +23,9 @@
 #   ANALYZERS_NOTIFY_TIMEOUT=180    seconds an unclicked alerter alert lives
 # ---------------------------------------------------------------------------
 
-notify() {  # title, message, [sound], [log path]
+notify() {  # title, message, [sound], [log path], [subtitle]
   local title="${1:-mac-analyzers}" msg="${2:-}" sound="${3:-Glass}"
-  local log="${4:-${LOG_FILE:-}}"
+  local log="${4:-${LOG_FILE:-}}" subtitle="${5:-}"
   local backend="${ANALYZERS_NOTIFIER:-native}"
 
   # preferred: the menu-bar app's bundled CLI (posts to the persistent app —
@@ -33,6 +33,7 @@ notify() {  # title, message, [sound], [log path]
   local app_cli="${ANALYZERS_ROOT:-$HOME/mac-analyzers}/app/MacAnalyzers.app/Contents/MacOS/notify"
   if [[ -x "$app_cli" && "$backend" == "native" ]]; then
     "$app_cli" --title "$title" --message "$msg" --sound "$sound" \
+      ${subtitle:+--subtitle "$subtitle"} \
       ${log:+--log "$log"} >/dev/null 2>&1 &
     disown 2>/dev/null || true
     return 0
@@ -41,6 +42,7 @@ notify() {  # title, message, [sound], [log path]
   if command -v alerter >/dev/null 2>&1 && [[ "$backend" != "osascript" ]]; then
     (
       out=$(alerter --title "$title" --message "$msg" --sound "$sound" \
+        ${subtitle:+--subtitle "$subtitle"} \
         --group "mac-analyzers.${title// /-}" --actions "Open Log" \
         --timeout "${ANALYZERS_NOTIFY_TIMEOUT:-180}" --json 2>/dev/null) || true
       if [[ -n "$log" && -e "$log" ]] &&
@@ -58,5 +60,5 @@ notify() {  # title, message, [sound], [log path]
   fi
 
   command -v osascript >/dev/null 2>&1 || return 0
-  osascript -e "display notification \"${msg//\"/\'}\" with title \"${title//\"/\'}\" sound name \"${sound}\"" >/dev/null 2>&1 || true
+  osascript -e "display notification \"${msg//\"/\'}\" with title \"${title//\"/\'}\"${subtitle:+ subtitle \"${subtitle//\"/\'}\"} sound name \"${sound}\"" >/dev/null 2>&1 || true
 }

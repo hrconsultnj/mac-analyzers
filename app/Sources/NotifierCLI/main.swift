@@ -6,6 +6,7 @@ import AppKit
 import AnalyzersKit
 
 var title = "Mac Analyzers"
+var subtitle: String?
 var message = ""
 var sound: String? = "Glass"
 var log: String?
@@ -14,6 +15,7 @@ var iterator = CommandLine.arguments.dropFirst().makeIterator()
 while let flag = iterator.next() {
     switch flag {
     case "--title": title = iterator.next() ?? title
+    case "--subtitle": subtitle = iterator.next()
     case "--message": message = iterator.next() ?? ""
     case "--sound": sound = iterator.next()
     case "--log": log = iterator.next()
@@ -46,6 +48,7 @@ if !appRunning {
 }
 
 var userInfo: [String: String] = ["title": title, "message": message]
+if let subtitle { userInfo["subtitle"] = subtitle }
 if let sound { userInfo["sound"] = sound }
 if let log { userInfo["log"] = log }
 

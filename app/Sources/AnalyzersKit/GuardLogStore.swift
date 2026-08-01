@@ -14,11 +14,27 @@ public final class GuardLogStore {
     public private(set) var guardPaused = false
     public private(set) var lastMemoryCleanRun: Date?
     public private(set) var lastStorageCleanRun: Date?
-    public private(set) var storageLastRunSummary: String?
+    public private(set) var storageDailySummary: String?
+    public private(set) var storageDeepSummary: String?
     public private(set) var latestForensics: URL?
+    public private(set) var pressure: LiveStats.Pressure = .normal
+    public private(set) var topProcesses: [LiveProcess] = []
 
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var watchedFD: Int32 = -1
+
+    /// Display-only stats floor: "Clear" hides events/kills before this
+    /// moment. The guard.log itself is never touched — it stays the full
+    /// audit trail.
+    private var clearMarker: URL {
+        AnalyzersPaths.memoryReports.appending(path: ".menu-stats-cleared")
+    }
+    private var clearedAt: Date? {
+        guard let raw = try? String(contentsOf: clearMarker, encoding: .utf8),
+              let epoch = TimeInterval(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+        else { return nil }
+        return Date(timeIntervalSince1970: epoch)
+    }
 
     public init() {
         reload()
@@ -26,13 +42,24 @@ public final class GuardLogStore {
     }
 
     public func reload() {
-        events = GuardLogParser.recentEvents(fromLog: AnalyzersPaths.guardLog)
-        killsToday = GuardLogParser.killsToday(fromLog: AnalyzersPaths.guardLog)
+        let floor = clearedAt
+        events = GuardLogParser.recentEvents(fromLog: AnalyzersPaths.guardLog, after: floor)
+        killsToday = GuardLogParser.killsToday(fromLog: AnalyzersPaths.guardLog, after: floor)
         guardPaused = FileManager.default.fileExists(atPath: AnalyzersPaths.guardPauseFlag.path)
         lastMemoryCleanRun = AnalyzersPaths.modificationDate(of: AnalyzersPaths.memoryAutoCleanLog)
         lastStorageCleanRun = AnalyzersPaths.modificationDate(of: AnalyzersPaths.storageAutoCleanLog)
-        storageLastRunSummary = Self.lastStorageSummary()
+        storageDailySummary = Self.lastStorageSummary(mode: "daily")
+        storageDeepSummary = Self.lastStorageSummary(mode: "deep")
         latestForensics = AnalyzersPaths.latestForensics()
+        pressure = LiveStats.memoryPressure()
+        topProcesses = LiveStats.topDevProcesses()
+    }
+
+    /// Hide everything shown so far (badge + rows). Log untouched.
+    public func clearStats() {
+        try? String(Date().timeIntervalSince1970.description)
+            .write(to: clearMarker, atomically: true, encoding: .utf8)
+        reload()
     }
 
     public func setGuardPaused(_ paused: Bool) {
@@ -82,22 +109,23 @@ public final class GuardLogStore {
 
     // MARK: - storage summary
 
-    /// Last "DONE — freed ~4 MB [mode=daily]." line from the storage log.
-    private nonisolated static func lastStorageSummary() -> String? {
+    /// Last "DONE — freed ~4 MB [mode=daily]." line for a given mode.
+    private nonisolated static func lastStorageSummary(mode: String) -> String? {
         guard let handle = try? FileHandle(forReadingFrom: AnalyzersPaths.storageAutoCleanLog)
         else { return nil }
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0
-        let window: UInt64 = 16_384
+        let window: UInt64 = 65_536
         let offset = size > window ? size - window : 0
         try? handle.seek(toOffset: offset)
         guard let data = try? handle.readToEnd(),
               let text = String(data: data, encoding: .utf8) else { return nil }
         return text.split(separator: "\n")
-            .last { $0.contains("DONE — freed") }
+            .last { $0.contains("DONE — freed") && $0.contains("[mode=\(mode)]") }
             .map {
                 $0.trimmingCharacters(in: .whitespaces)
                     .replacingOccurrences(of: "DONE — ", with: "")
+                    .replacingOccurrences(of: " [mode=\(mode)]", with: "")
                     .trimmingCharacters(in: CharacterSet(charactersIn: "."))
             }
     }

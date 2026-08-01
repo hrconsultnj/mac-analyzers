@@ -52,9 +52,11 @@ public final class NotificationPoster: NSObject {
         }
     }
 
-    public func post(title: String, message: String, sound: String?, logPath: String?) {
+    public func post(title: String, subtitle: String? = nil, message: String,
+                     sound: String?, logPath: String?) {
         let content = UNMutableNotificationContent()
         content.title = title
+        if let subtitle { content.subtitle = subtitle }
         content.body = message
         content.categoryIdentifier = Self.categoryID
         content.threadIdentifier = title
