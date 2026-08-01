@@ -136,10 +136,21 @@ public enum GuardLogParser {
             return GuardEvent(id: line, date: date, kind: .spike(grewMB: grew),
                               processName: name, pid: pid, residentMB: now, raw: line)
 
-        case "WARNING", "CRITICAL":
+        case "WARNING", "CRITICAL", "PRESSURE", "CAP-EXCEEDED", "CPU-HOG":
+            // real guard tokens: "PRESSURE warning (level 2)" / "PRESSURE
+            // CRITICAL" / "CAP-EXCEEDED (kill disabled) pid=… " / "CPU-HOG
+            // sustained…" — surveyed against actual log output; the previous
+            // WARNING/CRITICAL-only switch silently dropped all of these
             let rest = fields[3...].joined(separator: " ")
+            let label: String
+            switch token {
+            case "PRESSURE": label = "Memory pressure \(rest)"
+            case "CAP-EXCEEDED": label = "Over the cap (kills off) — \(rest)"
+            case "CPU-HOG": label = "Sustained CPU hog — \(rest)"
+            default: label = rest
+            }
             return GuardEvent(id: line, date: date, kind: .warning,
-                              processName: rest, pid: nil, residentMB: nil, raw: line)
+                              processName: label, pid: nil, residentMB: nil, raw: line)
 
         default:
             return nil

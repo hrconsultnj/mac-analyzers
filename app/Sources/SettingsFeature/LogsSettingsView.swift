@@ -83,18 +83,3 @@ struct LogsSettingsView: View {
             .map { $0.formatted(.dateTime.month(.abbreviated).day().hour().minute()) } ?? ""
     }
 }
-
-/// Small colored badge shared by run rows and detail rows.
-struct BadgeCapsule: View {
-    let text: String
-    let color: Color
-
-    var body: some View {
-        Text(text)
-            .font(.caption2.weight(.bold))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(color.opacity(0.15), in: Capsule())
-            .foregroundStyle(color)
-    }
-}

@@ -21,8 +21,9 @@ let package = Package(
         // features ("pages/components")
         .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit", "UIComponents"]),
         .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "NotifierKit", "UIComponents"]),
-        // shared visual language (System-Settings-style tiles, pane headers)
-        .target(name: "UIComponents"),
+        // shared visual language (System-Settings-style tiles, pane headers,
+        // process rows) — may use the kernel's models
+        .target(name: "UIComponents", dependencies: ["AnalyzersKit"]),
         // notifications (UN center, delegate, distributed bridge)
         .target(name: "NotifierKit", dependencies: ["AnalyzersKit"]),
         // shared kernel ("packages/shared"): models, parser, config bridge, launchd

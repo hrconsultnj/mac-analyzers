@@ -27,63 +27,6 @@ struct CapacityBar: View {
     }
 }
 
-/// Live-process row: real app icon (or a dev-tool tile), size, friendly +
-/// raw identity, and a user-initiated Stop/Quit — the "don't make me open
-/// Activity Monitor" button.
-struct ProcessRow: View {
-    let proc: LiveProcess
-    let afterStop: () -> Void
-    @State private var stopping = false
-
-    var body: some View {
-        HStack(spacing: 6) {
-            processIcon
-            Text(proc.residentText)
-                .font(.callout.monospacedDigit())
-                .foregroundStyle(proc.residentMB > 4096 ? .orange : .secondary)
-                .frame(width: 54, alignment: .trailing)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(proc.friendlyName).font(.callout).lineLimit(1)
-                if proc.friendlyName != proc.rawName {
-                    Text("\(proc.rawName.prefix(56)) · pid \(proc.pid)")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: 4)
-            Button(stopping ? "…" : (proc.isDev ? "Stop" : "Quit")) {
-                stopping = true
-                GuardControl.stopProcess(proc)
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(1.5))
-                    afterStop()
-                    stopping = false
-                }
-            }
-            .controlSize(.regular)
-            .disabled(stopping)
-            .help(proc.isDev
-                  ? "Stop this dev process (SIGTERM — it can restart from your next build/session)"
-                  : "Ask this app to quit gracefully — same as ⌘Q, save dialogs still appear")
-        }
-    }
-
-    /// The app's REAL icon when macOS knows it (GUI apps/helpers); a colored
-    /// tile for headless dev tooling.
-    @ViewBuilder private var processIcon: some View {
-        if !proc.isDev,
-           let icon = NSRunningApplication(processIdentifier: pid_t(proc.pid))?.icon {
-            Image(nsImage: icon)
-                .resizable()
-                .frame(width: 16, height: 16)
-        } else {
-            IconTile(symbol: proc.isDev ? "hammer.fill" : "gearshape.fill",
-                     color: proc.isDev ? .blue : .gray)
-        }
-    }
-}
-
 /// Two-line event row: friendly what-happened on top, raw identity +
 /// mechanics + time underneath. Click opens the guard log.
 struct EventRow: View {

@@ -8,7 +8,8 @@ import UIComponents
 public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
-        case memory, storage, notifications, activity, logs, log(LogKind), about, update
+        case memory, storage, notifications, schedule, monitor,
+             activity, logs, log(LogKind), about, update
     }
 
     @State private var pane: Pane = .memory
@@ -29,6 +30,12 @@ public struct SettingsTabsView: View {
                     sectionHeader("CONFIGURE")
                 }
                 Section {
+                    sidebarRow("Schedule", "calendar.badge.clock", .teal, .schedule)
+                } header: {
+                    sectionHeader("SCHEDULE")
+                }
+                Section {
+                    sidebarRow("Monitor", "gauge.with.dots.needle.67percent", .orange, .monitor)
                     sidebarRow("Activity", "list.bullet.rectangle.fill", .orange, .activity)
                     // both worlds: the Logs ROW opens the nested landing
                     // screen; the disclosure children jump straight to a log
@@ -91,6 +98,8 @@ public struct SettingsTabsView: View {
         case .memory: MemorySettingsView()
         case .storage: StorageSettingsView()
         case .notifications: NotifySettingsView()
+        case .schedule: ScheduleSettingsView()
+        case .monitor: MonitorSettingsView()
         case .activity: ActivitySettingsView()
         case .logs:
             // landing screen at the root; a log and then a run push on top
