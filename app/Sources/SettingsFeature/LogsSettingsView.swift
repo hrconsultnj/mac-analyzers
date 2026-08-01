@@ -58,6 +58,7 @@ struct LogsSettingsView: View {
             }
         }
         .padding(12)
+        .navigationTitle(kind.title)
         .onAppear(perform: load)
         .onChange(of: kind) { load() }
     }

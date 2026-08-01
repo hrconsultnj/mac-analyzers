@@ -43,6 +43,7 @@ struct AboutSettingsView: View {
             }
             .padding(16)
         }
+        .navigationTitle("About")
     }
 
     private func section(_ title: String, _ symbol: String, _ points: [String]) -> some View {

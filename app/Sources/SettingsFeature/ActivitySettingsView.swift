@@ -22,7 +22,7 @@ struct ActivitySettingsView: View {
                 } label: { Image(systemName: "arrow.clockwise") }
                     .help("Refresh")
             }
-            .controlSize(.small)
+
 
             List(events) { event in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -45,6 +45,7 @@ struct ActivitySettingsView: View {
             }
         }
         .padding(12)
+        .navigationTitle("Activity")
         .onAppear(perform: load)
     }
 

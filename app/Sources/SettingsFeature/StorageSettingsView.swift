@@ -8,9 +8,8 @@ struct StorageSettingsView: View {
 
     var body: some View {
         @Bindable var config = config
-        Form {
-            PaneHeader(symbol: "internaldrive.fill", color: .indigo, title: "Storage",
-                       caption: "What the scheduled cleans may touch. Everything is rebuildable; documents are never in scope.")
+        PaneScaffold(symbol: "internaldrive.fill", color: .indigo, title: "Storage",
+                     caption: "What the scheduled cleans may touch. Everything is rebuildable; documents are never in scope.") {
             Section("Storage auto-clean") {
                 StringListEditor(
                     title: "Extra cache-directory globs (cleaned when idle > 7 days)",
@@ -35,6 +34,5 @@ struct StorageSettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
     }
 }

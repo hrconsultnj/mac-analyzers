@@ -8,9 +8,8 @@ struct MemorySettingsView: View {
 
     var body: some View {
         @Bindable var config = config
-        Form {
-            PaneHeader(symbol: "memorychip", color: .blue, title: "Memory",
-                       caption: "What the guard is allowed to do, and when it should only warn you.")
+        PaneScaffold(symbol: "memorychip", color: .blue, title: "Memory",
+                     caption: "What the guard is allowed to do, and when it should only warn you.") {
             Section("Memory Guard — Limits") {
                 LabeledContent("Hard RAM cap") {
                     VStack(alignment: .trailing, spacing: 2) {
@@ -99,6 +98,5 @@ struct MemorySettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
     }
 }

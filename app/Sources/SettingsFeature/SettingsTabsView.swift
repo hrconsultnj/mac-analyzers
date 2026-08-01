@@ -8,7 +8,7 @@ import UIComponents
 public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
-        case memory, storage, notifications, activity, log(LogKind), about
+        case memory, storage, notifications, activity, logs, about
     }
 
     @State private var pane: Pane = .memory
@@ -18,31 +18,25 @@ public struct SettingsTabsView: View {
     public var body: some View {
         NavigationSplitView {
             List(selection: $pane) {
-                Section("Configure") {
+                Section {
                     sidebarRow("Memory", "memorychip", .blue, .memory)
                     sidebarRow("Storage", "internaldrive.fill", .indigo, .storage)
                     sidebarRow("Notifications", "bell.badge.fill", .red, .notifications)
+                } header: {
+                    sectionHeader("CONFIGURE")
                 }
-                Section("Observe") {
+                Section {
                     sidebarRow("Activity", "list.bullet.rectangle.fill", .orange, .activity)
-                    DisclosureGroup {
-                        ForEach(LogKind.allCases) { kind in
-                            sidebarRow(kind.title, kind.symbol, kind.tileColor, .log(kind))
-                        }
-                    } label: {
-                        Label {
-                            Text("Logs")
-                        } icon: {
-                            IconTile(symbol: "doc.text.magnifyingglass", color: .gray, side: 18)
-                        }
-                    }
+                    sidebarRow("Logs", "doc.text.magnifyingglass", .gray, .logs)
+                } header: {
+                    sectionHeader("OBSERVE")
                 }
                 Section {
                     sidebarRow("About", "questionmark.circle.fill", .gray, .about)
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 205, max: 240)
         } detail: {
             detailView
         }
@@ -52,6 +46,13 @@ public struct SettingsTabsView: View {
             // Settings button flips us to .regular so the window fronts)
             NSApp.setActivationPolicy(.accessory)
         }
+    }
+
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.leading, 2)
     }
 
     private func sidebarRow(_ title: String, _ symbol: String, _ color: Color, _ value: Pane) -> some View {
@@ -69,7 +70,13 @@ public struct SettingsTabsView: View {
         case .storage: StorageSettingsView()
         case .notifications: NotifySettingsView()
         case .activity: ActivitySettingsView()
-        case .log(let kind): LogsSettingsView(kind: kind)
+        case .logs:
+            NavigationStack {
+                LogsHomeView()
+                    .navigationDestination(for: LogKind.self) { kind in
+                        LogsSettingsView(kind: kind)
+                    }
+            }
         case .about: AboutSettingsView()
         }
     }

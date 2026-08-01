@@ -10,9 +10,8 @@ struct NotifySettingsView: View {
 
     var body: some View {
         @Bindable var config = config
-        Form {
-            PaneHeader(symbol: "bell.badge.fill", color: .red, title: "Notifications",
-                       caption: "How alerts behave, and the fix-it levers when they don't.")
+        PaneScaffold(symbol: "bell.badge.fill", color: .red, title: "Notifications",
+                     caption: "How alerts behave, and the fix-it levers when they don't.") {
             Section("Notification behavior") {
                 Picker("Clicking a notification opens logs in", selection: $config.notify.logViewer) {
                     Text("TextEdit").tag("TextEdit")
@@ -56,6 +55,5 @@ struct NotifySettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
     }
 }
