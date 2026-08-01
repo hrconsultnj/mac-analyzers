@@ -25,11 +25,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+
     public func applicationDidFinishLaunching(_ notification: Notification) {
         Self.log.notice("launched — delegate installed")
         NotificationPoster.shared.setup()
         NotifyBridge.start()
         startUpdateWatcher()
+
+        ThermalWatcher.shared.start { title, message in
+            NotificationPoster.shared.post(title: title, subtitle: "Thermal",
+                                           message: message, sound: nil,
+                                           logPath: nil, paneTarget: "monitor")
+        }
 
         registerLoginItem()
 

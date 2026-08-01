@@ -107,8 +107,16 @@ struct HomeSettingsView: View {
         let reclaimable = trends?.latestReclaimableBytes ?? 0
         let pressureBad = store.pressure != .normal
 
-        if updateReady || store.guardPaused || reclaimable > 1 << 30 || pressureBad {
+        let throttling = ThermalWatcher.shared.isElevated
+
+        if updateReady || store.guardPaused || reclaimable > 1 << 30 || pressureBad || throttling {
             Section("Needs attention") {
+                if throttling {
+                    attentionRow(symbol: "thermometer.high", color: .red,
+                                 title: "Your Mac is throttling to cool down",
+                                 subtitle: "macOS is slowing the CPU — see who's working it hardest.",
+                                 action: "Open Monitor", target: "monitor")
+                }
                 if pressureBad {
                     attentionRow(symbol: "exclamationmark.triangle.fill", color: .orange,
                                  title: "Memory pressure is \(store.pressure.label.lowercased())",

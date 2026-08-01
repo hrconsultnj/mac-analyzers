@@ -8,6 +8,8 @@ struct MonitorSettingsView: View {
 
     @State private var groups: [ProcessGroup] = []
     @State private var pressure: LiveStats.Pressure = .normal
+    /// Same instance the delegate keeps alive — one watcher, many surfaces.
+    private var thermal: ThermalWatcher { ThermalWatcher.shared }
     @State private var search = ""
     @AppStorage("monitorRefreshSeconds") private var refresh = 5
 
@@ -38,6 +40,12 @@ struct MonitorSettingsView: View {
                         .frame(width: 8, height: 8)
                     Text("Memory pressure: \(pressure.label)")
                         .foregroundStyle(pressure == .normal ? .secondary : .primary)
+                    if thermal.isElevated {
+                        BadgeCapsule(text: "THROTTLING", color: .red)
+                            .help("macOS is slowing the CPU to cool down — receipts in reports/thermal.log")
+                    } else if thermal.state == .fair {
+                        BadgeCapsule(text: "WARM", color: .orange)
+                    }
                     Spacer()
                     Picker("", selection: $refresh) {
                         Text("2s").tag(2)
