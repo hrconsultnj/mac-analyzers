@@ -151,7 +151,7 @@ SNAP="$(ps axo pid=,ppid=,rss=,etime=,args= | awk '
   }
   { pid=$1; ppid=$2; rss=$3; et=$4; $1=$2=$3=$4=""; sub(/^ +/,"");
     gsub(/\t/," ");
-    printf "%s\t%s\t%s\t%s\t%.140s\n", pid, ppid, rss, etime2s(et), $0 }')"
+    printf "%s\t%s\t%s\t%s\t%.400s\n", pid, ppid, rss, etime2s(et), $0 }')"
 
 # candidates <filter_re> <exclude_protect=1> — rows of SNAP matching re
 candidates() {

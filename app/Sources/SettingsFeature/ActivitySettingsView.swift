@@ -108,8 +108,11 @@ struct ActivitySettingsView: View {
 
     private func load() {
         detachedLoad({
-            GuardLogParser.recentEvents(fromLog: AnalyzersPaths.guardLog,
-                                        within: 7 * 86_400, limit: 50)
+            // allEvents, not recentEvents: the caption promises EVERYTHING in
+            // seven days, while the menu parser deliberately collapses
+            // clutter (drops spikes for later-killed pids, caps at 50).
+            GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
+                                     within: 7 * 86_400, limit: 500)
         }) { events = $0 }
     }
 }

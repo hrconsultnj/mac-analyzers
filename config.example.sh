@@ -43,3 +43,9 @@
 # Tool-cache expansion pack (storage-auto-clean): comma list of opt-in ids.
 # Available: brew,pip,uv,cargo,gradle,deriveddata — all redownloadable cache.
 # ANALYZERS_TOOL_CACHES="brew,uv,deriveddata"
+
+# Downloads janitor (storage-analyzer/downloads-janitor.sh). Everything it
+# moves goes to the Trash, never deleted, and is listed for review first.
+# JANITOR_DOWNLOADS_AGE_DAYS=30      # top-level ~/Downloads items untouched this long
+# JANITOR_SCREENSHOTS_AGE_DAYS=14    # screenshot FILES older than this (folders never move)
+# JANITOR_KEEP_PATTERNS="*.dmg:Tax *"  # colon-separated globs that are never touched

@@ -28,8 +28,29 @@ public enum ScheduleKit {
             detail: "Stale build caches only"),
         Job(label: "com.mac-analyzers.storage-autoclean.deep",
             displayName: "Storage deep clean",
-            detail: "+ node_modules of idle repos, Docker, TM snapshots"),
+            detail: "+ node_modules of idle repos; package-manager caches (npm's whole cache, pnpm's unreferenced only); ALL unused Docker images (starts Docker if needed, then quits it); thins Time Machine local snapshots"),
     ]
+
+    /// Human sentence for the INSTALLED schedule — never a hardcoded time.
+    /// "Not scheduled" is the honest answer when the agent isn't installed,
+    /// which the app previously misreported as its default time.
+    public static func describe(_ label: String) -> String {
+        switch schedule(for: label) {
+        case .daily(let hour, let minute):
+            return String(format: "Every day at %d:%02d", hour, minute)
+        case .interval(let days):
+            return days == 1 ? "Every day" : "Every \(days) days"
+        case .alwaysOn:
+            return "Always on"
+        case nil:
+            return "Not scheduled"
+        }
+    }
+
+    /// True when the agent's plist is actually installed.
+    public static func isInstalled(_ label: String) -> Bool {
+        FileManager.default.fileExists(atPath: plistURL(for: label).path)
+    }
 
     private static func plistURL(for label: String) -> URL {
         AnalyzersPaths.home.appending(path: "Library/LaunchAgents/\(label).plist")

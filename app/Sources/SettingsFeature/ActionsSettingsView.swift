@@ -26,11 +26,11 @@ struct ActionsSettingsView: View {
         var blurb: String {
             switch self {
             case .memoryClean:
-                "Closes orphaned dev helpers and yesterday's forgotten dev servers. Protected apps and live AI sessions are never touched."
+                "Closes helper processes whose parent session already died, and dev servers idle more than 24 hours. Protected apps are never touched."
             case .reclaim:
-                "Sweeps reclaimable dev processes for a bigger one-time memory win. Same protections as the guard."
+                "Sweeps EVERY reclaimable dev process at once — no age threshold, a wider net than the guard uses. Live AI sessions are exempt; protected apps are never touched."
             case .storageClean:
-                "Removes stale build caches and node_modules of idle repos only — anything touched recently is skipped."
+                "Removes stale build caches; in deep mode also node_modules of idle repos, package-manager caches (npm's entire cache), all unused container images, and Time Machine snapshot thinning. Anything touched recently is skipped."
             case .janitor:
                 "Moves stale Downloads and old screenshots to the Trash — recoverable, keep-patterns honored, folders reviewed as units."
             }
@@ -108,7 +108,7 @@ struct ActionsSettingsView: View {
 
     var body: some View {
         PaneScaffold(symbol: "checklist", color: .cyan, title: "Actions",
-                     caption: "Preview first, review everything, apply only what you approve — the scripts' dry-run contract, as a screen.") {
+                     caption: "Preview what a cleaner would do, review it, then apply. The engine re-checks everything at apply time, so the final set can differ slightly from the preview — that recheck is what keeps it safe.") {
             Section {
                 FullWidthSegments(
                     options: Cleaner.allCases.map { ($0, $0.title) },

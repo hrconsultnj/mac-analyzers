@@ -59,9 +59,24 @@ public enum GuardControl {
         }
     }
 
+    /// Honours the same ANALYZERS_LOG_VIEWER preference the notification
+    /// path uses — the in-app buttons used to ignore it and always open
+    /// TextEdit, which made the Settings picker look broken.
     public static func openLog(_ url: URL) {
-        let textEdit = URL(fileURLWithPath: "/System/Applications/TextEdit.app")
-        NSWorkspace.shared.open([url], withApplicationAt: textEdit,
+        let preferred = ConfigStore.currentLogViewer()
+        let candidates = [
+            "/System/Applications/\(preferred).app",
+            "/Applications/\(preferred).app",
+            "/System/Applications/Utilities/\(preferred).app",
+            "/System/Applications/TextEdit.app",
+        ].map { URL(fileURLWithPath: $0) }
+        guard let app = candidates.first(where: {
+            FileManager.default.fileExists(atPath: $0.path)
+        }) else {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        NSWorkspace.shared.open([url], withApplicationAt: app,
                                 configuration: NSWorkspace.OpenConfiguration()) { _, err in
             if err != nil { NSWorkspace.shared.open(url) }
         }

@@ -78,7 +78,7 @@ public struct MenuContentView: View {
             Text("Reaper: \(runText(store.lastMemoryCleanRun))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .help("Daily 8:30 AM reaper for orphaned dev/AI servers — memory-auto-clean log")
+                .help("\(ScheduleKit.describe("com.mac-analyzers.memory-autoclean.daily")) — reaps orphaned dev/AI servers; see the memory-auto-clean log")
         }
         .controlSize(.regular)
     }
@@ -198,7 +198,7 @@ public struct MenuContentView: View {
             }
         }
         if store.monitorGroups.isEmpty {
-            Text("No process is holding more than 0.5 GB right now.")
+            Text("No process is holding more than 256 MB right now.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -253,14 +253,14 @@ public struct MenuContentView: View {
         storageRow(
             title: "Daily clean",
             detail: store.storageDailySummary.map { "last: \($0)" } ?? "no runs yet",
-            sub: "Every day 8:00 AM — stale build caches only",
+            sub: "\(ScheduleKit.describe(GuardControl.storageCleanLabel)) — stale build caches only",
             label: GuardControl.storageCleanLabel,
             symbol: "sparkles", color: .green
         )
         storageRow(
             title: "Deep clean",
             detail: store.storageDeepSummary.map { "last: \($0)" } ?? "no runs yet",
-            sub: "Every 3 days — + node_modules of idle repos, Docker, TM snapshots",
+            sub: "\(ScheduleKit.describe(GuardControl.storageDeepLabel)) — + node_modules of idle repos, package-manager caches, ALL unused Docker images, Time Machine snapshot thinning",
             label: GuardControl.storageDeepLabel,
             symbol: "wand.and.stars", color: .purple
         )

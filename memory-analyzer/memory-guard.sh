@@ -218,7 +218,7 @@ tick() {
       if ($0 !~ killre) next;
       if ($0 ~ protre) next;
       gsub(/\t/," ");
-      printf "%s\t%s\t%.140s\n", pid, rss, $0 }')
+      printf "%s\t%s\t%.400s\n", pid, rss, $0 }')
 
   # --- 1. hard cap: single runaway dev process, any pressure level ---
   if [[ -n "$snap" && $((now - LAST_KILL_TS)) -ge "$KILL_COOLDOWN" ]]; then

@@ -27,7 +27,7 @@ struct GuardLogView: View {
 
     var body: some View {
         PaneScaffold(symbol: "shield.lefthalf.filled", color: .blue, title: "Memory Guard",
-                     caption: "Everything the guard saw and did — filter by what matters.") {
+                     caption: "What the guard saw and did over the last 90 days — filter by what matters.") {
             Section {
                 HStack {
                     FilterChipsBar(

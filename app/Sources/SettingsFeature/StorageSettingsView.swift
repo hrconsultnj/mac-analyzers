@@ -82,7 +82,7 @@ struct StorageSettingsView: View {
 
             Section {
                 SaveBar { try config.save() }
-                Text("Applies on the next scheduled run (daily 8:00 AM / deep every 3 days).")
+                Text("Applies on the next scheduled run — daily: \(ScheduleKit.describe(GuardControl.storageCleanLabel)); deep: \(ScheduleKit.describe(GuardControl.storageDeepLabel)).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -37,7 +37,7 @@ struct MonitorSettingsView: View {
 
     var body: some View {
         PaneScaffold(symbol: "gauge.with.dots.needle.67percent", color: .orange, title: "Monitor",
-                     caption: "Every process holding real memory right now — resident RAM, the number the guard acts on.") {
+                     caption: "The 30 biggest processes holding at least 128 MB right now — resident RAM, the number the guard acts on.") {
             Section {
                 HStack {
                     Circle()

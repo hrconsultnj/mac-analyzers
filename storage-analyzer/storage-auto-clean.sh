@@ -13,8 +13,8 @@
 #     M days (--nm-age-days, default 14) AND a clean git working tree. A repo
 #     with uncommitted changes or recent edits is left fully intact.
 #
-#   * Package-manager caches are pruned with the tools' own prune commands
-#     (pnpm store prune / npm cache clean), which only drop UNREFERENCED data.
+#   * Package-manager caches: pnpm store prune drops UNREFERENCED data only,
+#     but `npm cache clean --force` empties the ENTIRE npm cache (_cacache).
 #
 #   * Time Machine LOCAL SNAPSHOTS: by default just ALERTS you (macOS
 #     notification) with the reclaimable amount. Pass --prune-snapshots to thin
@@ -37,9 +37,10 @@
 #
 # Tunables: --cache-age-days N  --nm-age-days N  --snapshot-keep-days N
 #           --roots "dir1 dir2"  (default: ~/Projects)
-# Docker:   starts Docker Desktop only if it's not already running, prunes, then
+# Docker:   starts the container runtime (OrbStack or Docker Desktop, whichever
+#           backs the docker CLI here) only if not already running, prunes, then
 #           quits it again ONLY if this script started it. Volumes never pruned
-#           unless --docker-volumes. Needs the daemon reachable (Docker Desktop).
+#           unless --docker-volumes.
 # ---------------------------------------------------------------------------
 
 set -u
@@ -199,8 +200,22 @@ is_idle() {
 # Docker prune. If the daemon isn't running, start Docker Desktop, prune, then
 # quit it — but ONLY quit if WE started it (a Docker you left running stays up).
 # Never touches volumes unless --docker-volumes (data-loss risk).
+# Which container runtime backs the `docker` CLI on THIS Mac. OrbStack is a
+# drop-in for the CLI but a different app — starting/quitting "Docker" would
+# be wrong (and on an OrbStack-only Mac, impossible).
+container_app() {
+  local ctx
+  ctx="$(docker context show 2>/dev/null || true)"
+  if [[ "$ctx" == *orbstack* ]] || [[ -d "/Applications/OrbStack.app" && ! -d "/Applications/Docker.app" ]]; then
+    echo "OrbStack"
+  else
+    echo "Docker"
+  fi
+}
+
 docker_maint() {
   command -v docker >/dev/null 2>&1 || { log "  docker CLI not found; skipping."; return 0; }
+  local RUNTIME_APP; RUNTIME_APP="$(container_app)"
   if [[ "$DRY_RUN" -eq 1 ]]; then
     local extra=""
     [[ "$DOCKER_IMAGES" -eq 1 ]]  && extra="${extra} ; image prune -a -f"
@@ -219,20 +234,20 @@ docker_maint() {
     if [[ "$DOCKER_NO_START" -eq 1 ]]; then
       log "  Docker not running — skipping (running-only mode; won't boot it)."; return 0
     fi
-    log "  Docker not running — starting Docker Desktop…"
-    open -a Docker 2>/dev/null || open -a "Docker Desktop" 2>/dev/null || { log "  couldn't launch Docker; skipping."; return 0; }
+    log "  container runtime not running — starting ${RUNTIME_APP}…"
+    open -a "${RUNTIME_APP}" 2>/dev/null || open -a "Docker Desktop" 2>/dev/null || { log "  couldn't launch ${RUNTIME_APP}; skipping."; return 0; }
     started=1
     until docker info >/dev/null 2>&1; do
       sleep 3; i=$((i+1))
       if [[ $i -ge 40 ]]; then
-        log "  Docker didn't become ready (~120s) — shutting it back down, skipping."
-        osascript -e 'quit app "Docker"' 2>/dev/null || true
+        log "  ${RUNTIME_APP} didn't become ready (~120s) — shutting it back down, skipping."
+        osascript -e "quit app \"${RUNTIME_APP}\"" 2>/dev/null || true
         return 0
       fi
     done
-    log "  Docker ready (started by auto-clean)."
+    log "  ${RUNTIME_APP} ready (started by auto-clean)."
   else
-    log "  Docker already running — pruning, will leave it running."
+    log "  ${RUNTIME_APP} already running — pruning, will leave it running."
   fi
   log "  running: docker system prune -f"; docker system prune -f >>"$LOG_FILE" 2>&1 || true
   if [[ "$DOCKER_IMAGES" -eq 1 ]]; then
@@ -242,8 +257,8 @@ docker_maint() {
     log "  running: docker volume prune -f  (⚠ removes unused volumes — DATA)"; docker volume prune -f >>"$LOG_FILE" 2>&1 || true
   fi
   if [[ "$started" -eq 1 ]]; then
-    log "  shutting Docker back down (auto-clean started it)…"
-    osascript -e 'quit app "Docker"' 2>/dev/null || pkill -f 'Docker Desktop' 2>/dev/null || true
+    log "  shutting ${RUNTIME_APP} back down (auto-clean started it)…"
+    osascript -e "quit app \"${RUNTIME_APP}\"" 2>/dev/null || pkill -f "${RUNTIME_APP}" 2>/dev/null || true
   fi
 }
 

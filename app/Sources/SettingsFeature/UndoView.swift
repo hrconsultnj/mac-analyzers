@@ -16,7 +16,7 @@ struct UndoView: View {
 
     var body: some View {
         PaneScaffold(symbol: "arrow.uturn.backward", color: .gray, title: "Undo",
-                     caption: "What can be brought back — Trash restores with receipts, and the commands behind stopped dev servers.") {
+                     caption: "What can be brought back — janitor items restored from the Trash with a receipt, and the commands behind stopped dev servers.") {
             Section("Moved to Trash by the Janitor") {
                 if let restoreError {
                     Label(restoreError, systemImage: "exclamationmark.triangle.fill")
@@ -55,7 +55,7 @@ struct UndoView: View {
                 }
             }
 
-            Section("Stopped dev servers (last 90 days)") {
+            Section("Stopped dev servers (recent)") {
                 if kills.isEmpty {
                     Text("The guard hasn't stopped anything recently.")
                         .foregroundStyle(.secondary)
@@ -72,7 +72,9 @@ struct UndoView: View {
                             NSPasteboard.general.setString(event.processName, forType: .string)
                             copiedID = event.id
                         }
-                        .help("The logged command prefix — paste in a terminal (cwd/env are yours to supply).")
+                        .help(event.processName.count >= 140
+                              ? "This command was recorded before the app captured full command lines, so it is CUT SHORT — check it before running."
+                              : "The command as the guard recorded it. You still supply the working directory and environment.")
                     }
                 }
             }

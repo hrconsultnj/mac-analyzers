@@ -26,7 +26,7 @@ public struct StorageTunables: Equatable, Sendable {
 }
 
 public struct NotifyPrefs: Equatable, Sendable {
-    public var sound = "Glass"        // notify() sound default stays per-call; informational
+    // (a `sound` preference used to live here; nothing ever read or wrote it)
     public var timeoutSeconds = 180   // ANALYZERS_NOTIFY_TIMEOUT (alerter fallback)
     public var logViewer = "TextEdit" // ANALYZERS_LOG_VIEWER
     public init() {}
@@ -38,6 +38,17 @@ public struct NotifyPrefs: Equatable, Sendable {
 @MainActor
 @Observable
 public final class ConfigStore {
+
+    /// The log viewer the user picked, read straight from config.local.sh so
+    /// static call sites (GuardControl) honour it without a store instance.
+    public static func currentLogViewer() -> String {
+        guard let text = try? String(contentsOf: AnalyzersPaths.configLocal, encoding: .utf8),
+              let line = text.split(separator: "\n").last(where: { $0.contains("ANALYZERS_LOG_VIEWER=") })
+        else { return "TextEdit" }
+        let raw = line.split(separator: "=", maxSplits: 1).last.map(String.init) ?? ""
+        let cleaned = raw.trimmingCharacters(in: CharacterSet(charactersIn: " '\"")) 
+        return cleaned.isEmpty ? "TextEdit" : cleaned
+    }
 
     public var memory = MemoryTunables()
     public var storage = StorageTunables()

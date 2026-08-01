@@ -30,7 +30,7 @@ struct LogsSettingsView: View {
 
     private var genericRunList: some View {
         PaneScaffold(symbol: kind.symbol, color: kind.tileColor, title: kind.title,
-                     caption: "Newest runs first — pick one for the full detail. The file itself is never modified.") {
+                     caption: "Newest runs first — pick one for the full detail. Reading never changes a log; the only thing the app ever writes to one is an Undo receipt.") {
             Section {
                 HStack {
                     Spacer()
