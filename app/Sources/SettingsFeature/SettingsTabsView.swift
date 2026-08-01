@@ -358,6 +358,13 @@ public struct SettingsTabsView: View {
                 sectionHeader("REVIEW")
             }
             Section {
+                // Free builds had no way to reach .support at all, and it
+                // quietly rendered About a second time. Supporter builds get
+                // in through the sidebar-foot badge instead, so this row
+                // would only be a second door to the same screen.
+                #if !canImport(ProKit)
+                sidebarRow("Support", "heart.fill", .pink, .support)
+                #endif
                 sidebarRow("About", "questionmark.circle.fill", .gray, .about)
                 HStack {
                     sidebarRow("Update", "arrow.down.circle.fill", .green, .update)
@@ -457,7 +464,7 @@ public struct SettingsTabsView: View {
             #if canImport(ProKit)
             ProLicenseScreen()
             #else
-            AboutSettingsView()
+            SupportSettingsView()
             #endif
         case .about: AboutSettingsView()
         case .uninstall: UninstallView()
