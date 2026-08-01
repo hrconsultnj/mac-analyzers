@@ -12,10 +12,9 @@ public struct SettingsTabsView: View {
     }
 
     @State private var pane: Pane = .memory
-    /// Real state-backed path for the Logs stack — a computed binding here
-    /// fought SwiftUI's own transitions and bounced users back to the
-    /// landing screen when switching sidebar children.
-    @State private var logsPath: [LogKind] = []
+    /// State-backed path for the Logs stack (NavigationPath: it holds both
+    /// LogKind pushes and RunRoute pushes for the nested run screens).
+    @State private var logsPath = NavigationPath()
 
     public init() {}
 
@@ -56,18 +55,26 @@ public struct SettingsTabsView: View {
         }
         .frame(minWidth: 780, minHeight: 620)
         .onChange(of: pane) { _, newPane in
-            // sidebar → stack sync: a child selection pushes its log; the
-            // Logs row itself shows the landing screen
+            // sidebar → stack sync: a child selection shows its log; the
+            // Logs row itself shows the landing screen. NO inference in the
+            // other direction — a transient empty path during SwiftUI's
+            // child-switch animation is NOT the user pressing back (that
+            // inference was the "kicks me back to Logs" bug).
             switch newPane {
-            case .log(let kind): logsPath = [kind]
-            case .logs: logsPath = []
+            case .log(let kind):
+                var path = NavigationPath()
+                path.append(kind)
+                logsPath = path
+            case .logs:
+                logsPath = NavigationPath()
             default: break
             }
         }
-        .onChange(of: logsPath) { _, newPath in
-            // stack → sidebar sync: popping back to the landing screen moves
-            // the sidebar highlight from the child to Logs
-            if newPath.isEmpty, case .log = pane { pane = .logs }
+        .onReceive(NotificationCenter.default.publisher(for: logsHomeSignal)) { _ in
+            // explicit back intent from the "All Logs" button: land on the
+            // landing screen AND move the sidebar highlight to Logs
+            pane = .logs
+            logsPath = NavigationPath()
         }
         .onDisappear {
             // drop the Dock icon again once Settings closes (the menu-bar
@@ -102,11 +109,15 @@ public struct SettingsTabsView: View {
         case .activity: ActivitySettingsView()
         case .logs, .log:
             // ONE stack for both entry paths, backed by real state — the
-            // landing screen at the root, the selected log pushed on top
+            // landing screen at the root, the selected log pushed on top,
+            // and a run's detail screen one level deeper
             NavigationStack(path: $logsPath) {
                 LogsHomeView()
                     .navigationDestination(for: LogKind.self) { k in
                         LogsSettingsView(kind: k)
+                    }
+                    .navigationDestination(for: RunRoute.self) { route in
+                        RunDetailView(route: route)
                     }
             }
         case .about: AboutSettingsView()
