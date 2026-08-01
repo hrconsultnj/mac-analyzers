@@ -12,6 +12,7 @@ struct HomeSettingsView: View {
     @Environment(GuardLogStore.self) private var store
     @State private var trends: TrendsSnapshot?
     @State private var latestRelease: String?
+    @State private var runway: ForecastModel.Runway?
 
     var body: some View {
         PaneScaffold(symbol: "macwindow.on.rectangle", color: .blue, title: "Overview",
@@ -25,6 +26,7 @@ struct HomeSettingsView: View {
         .onAppear {
             store.reload()
             detachedLoad({ TrendsModel.snapshot(period: .day7) }) { trends = $0 }
+            detachedLoad({ ForecastModel.diskRunway() }) { runway = $0 }
             Task {
                 if let latest = await UpdateChecker.latestVersion() {
                     latestRelease = latest
@@ -51,7 +53,9 @@ struct HomeSettingsView: View {
                          target: "activity")
                 statTile(symbol: "internaldrive.fill", color: diskColor,
                          value: store.disk.map { "\($0.freeText) free" } ?? "—",
-                         label: store.disk.map { "of \($0.totalText) used \($0.usedText)" } ?? "Disk",
+                         label: runway.map { "runway \($0.text) at current pace" }
+                             ?? store.disk.map { "of \($0.totalText) used \($0.usedText)" }
+                             ?? "Disk",
                          target: "storage")
             }
             .padding(.vertical, 2)
@@ -144,6 +148,12 @@ struct HomeSettingsView: View {
                                  title: "\(ByteSize.format(reclaimable)) reclaimable right now",
                                  subtitle: "Latest storage dry run — review before anything is deleted.",
                                  action: "Review", target: "log:storageClean")
+                }
+                if let runway, runway.urgent {
+                    attentionRow(symbol: "chart.line.downtrend.xyaxis", color: .red,
+                                 title: "Disk full in \(runway.text) at the current pace",
+                                 subtitle: "Trend from your own storage-clean history.",
+                                 action: "Free space", target: "actions:storageClean")
                 }
             }
         }

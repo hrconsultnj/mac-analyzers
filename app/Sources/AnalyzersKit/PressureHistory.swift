@@ -32,6 +32,46 @@ public final class PressureHistory {
         if samples.count > capacity { samples.removeFirst(samples.count - capacity) }
         Logger(subsystem: "com.mac-analyzers.app", category: "sparkline")
             .notice("sample \(self.samples.count, privacy: .public): \(Int(fraction * 100), privacy: .public)% used")
+        Self.updateDailyBaseline(with: fraction)
+    }
+
+    // MARK: - baseline collection (deviation alerts read this later)
+
+    /// reports/baselines.json: one running mean of memory-in-use per day.
+    /// Collection starts now so future "this isn't normal for your Mac"
+    /// features have history on day one.
+    private static let baselinesFile = AnalyzersPaths.suiteRoot
+        .appending(path: "reports/baselines.json")
+
+    private struct DayBaseline: Codable {
+        var date: String
+        var meanUsedFraction: Double
+        var sampleCount: Int
+    }
+
+    private static func updateDailyBaseline(with fraction: Double) {
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "yyyy-MM-dd"
+        dayFormatter.locale = Locale(identifier: "en_US_POSIX")
+        let today = dayFormatter.string(from: Date())
+
+        var days: [DayBaseline] = (try? Data(contentsOf: baselinesFile))
+            .flatMap { try? JSONDecoder().decode([DayBaseline].self, from: $0) } ?? []
+        if let index = days.firstIndex(where: { $0.date == today }) {
+            var entry = days[index]
+            let total = entry.meanUsedFraction * Double(entry.sampleCount) + fraction
+            entry.sampleCount += 1
+            entry.meanUsedFraction = total / Double(entry.sampleCount)
+            days[index] = entry
+        } else {
+            days.append(DayBaseline(date: today, meanUsedFraction: fraction, sampleCount: 1))
+            if days.count > 90 { days.removeFirst(days.count - 90) }
+        }
+        try? FileManager.default.createDirectory(
+            at: baselinesFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let data = try? JSONEncoder().encode(days) {
+            try? data.write(to: baselinesFile, options: .atomic)
+        }
     }
 
     /// active + wired + compressed pages over physical RAM (0…1).
