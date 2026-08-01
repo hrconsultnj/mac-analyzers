@@ -18,7 +18,7 @@ public final class ThermalWatcher {
     private var lastNotified: ProcessInfo.ThermalState = .nominal
     private var observer: NSObjectProtocol?
 
-    public static let logURL = AnalyzersPaths.suiteRoot
+    public nonisolated static let logURL = AnalyzersPaths.suiteRoot
         .appending(path: "reports/thermal.log")
 
     /// One watcher, many surfaces — started once by the app delegate.

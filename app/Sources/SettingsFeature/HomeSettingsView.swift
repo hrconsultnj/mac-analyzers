@@ -234,6 +234,13 @@ struct HomeSettingsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                HStack {
+                    Text("Share a one-page health report")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Export…") { HealthReport.save() }
+                }
             } header: {
                 Text("This week")
             }

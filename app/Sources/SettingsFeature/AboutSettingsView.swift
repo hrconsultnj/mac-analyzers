@@ -32,6 +32,18 @@ struct AboutSettingsView: View {
             #if canImport(ProKit)
             ProAboutSlot()
             #endif
+            Section("Share") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Mac Health Report")
+                        Text("A one-page HTML summary of the last 30 days — for IT, family, or a buyer. Generated locally.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Export…") { HealthReport.save() }
+                }
+            }
             Section {
                 HStack {
                     Link("README on GitHub",
