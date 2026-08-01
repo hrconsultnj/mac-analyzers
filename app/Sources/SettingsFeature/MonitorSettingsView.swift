@@ -139,9 +139,11 @@ struct MonitorSettingsView: View {
     }
 
     /// Name / Memory / PID, sortable — the standalone (non-family) rows only.
-    /// Right-click restores both actions the old row offered (Dossier,
-    /// Stop/Quit), since a Table cell can't host an always-visible button
-    /// the way ProcessRow did.
+    /// Both actions the old row offered stay VISIBLE in a trailing column:
+    /// right-click is a power-user gesture, and burying the one thing this
+    /// screen exists to let you do behind it would hide it from exactly the
+    /// people this pass is for. The context menu is the shortcut, not the
+    /// only door.
     @ViewBuilder private var standaloneSection: some View {
         if !standaloneProcs.isEmpty {
             Section("Processes") {
@@ -157,6 +159,23 @@ struct MonitorSettingsView: View {
                         Text("\(proc.pid)")
                             .foregroundStyle(.secondary)
                     }
+                    TableColumn("") { proc in
+                        HStack(spacing: Tokens.Space.s) {
+                            Button(proc.isDev ? "Stop" : "Quit") { stop(proc) }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel(proc.isDev
+                                    ? "Stop \(proc.friendlyName)"
+                                    : "Quit \(proc.friendlyName)")
+                            Button {
+                                dossierPath.append(DossierRoute(name: proc.friendlyName,
+                                                                pid: proc.pid))
+                            } label: { Image(systemName: "info.circle") }
+                                .buttonStyle(.borderless)
+                                .help("What this process is doing")
+                                .accessibilityLabel("Details for \(proc.friendlyName)")
+                        }
+                    }
+                    .width(min: 96, ideal: 104)
                 }
                 .frame(minHeight: 220)
                 .contextMenu(forSelectionType: Int.self) { selection in
@@ -165,16 +184,20 @@ struct MonitorSettingsView: View {
                         Button("Dossier…") {
                             dossierPath.append(DossierRoute(name: proc.friendlyName, pid: proc.pid))
                         }
-                        Button(proc.isDev ? "Stop" : "Quit") {
-                            GuardControl.stopProcess(proc)
-                            Task {
-                                try? await Task.sleep(for: .seconds(1.5))
-                                await load()
-                            }
-                        }
+                        Button(proc.isDev ? "Stop" : "Quit") { stop(proc) }
                     }
                 }
             }
+        }
+    }
+
+    /// The polite request, then a refresh once macOS has had time to act on
+    /// it — the same behaviour ProcessRow had before the table.
+    private func stop(_ proc: LiveProcess) {
+        GuardControl.stopProcess(proc)
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            await load()
         }
     }
 
