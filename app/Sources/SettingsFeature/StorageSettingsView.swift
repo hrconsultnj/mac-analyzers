@@ -5,6 +5,7 @@ import UIComponents
 /// Storage pane: auto-clean scope lists + recordings folder.
 struct StorageSettingsView: View {
     @Environment(ConfigStore.self) private var config
+    @State private var backups: [IOSBackup]?
 
     var body: some View {
         @Bindable var config = config
@@ -48,11 +49,48 @@ struct StorageSettingsView: View {
             }
 
             Section {
+                if let backups {
+                    if backups.isEmpty {
+                        Text("No local iPhone/iPad backups on this Mac.")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(backups) { backup in
+                        HStack {
+                            DataCard(symbol: "iphone", color: .blue,
+                                     title: backup.deviceName,
+                                     subtitle: backup.lastBackup.map {
+                                         "Last backup \($0.formatted(.dateTime.month(.abbreviated).day().year()))"
+                                     } ?? "Backup date unknown",
+                                     trailing: ByteSize.format(backup.sizeBytes))
+                            Button("Show in Finder") { IOSBackups.revealInFinder(backup) }
+                        }
+                    }
+                } else {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Sizing local device backups…")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("iPhone/iPad backups on this Mac")
+            } footer: {
+                Text("Report only — deleting a backup is always your manual call, in Finder.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 SaveBar { try config.save() }
                 Text("Applies on the next scheduled run (daily 8:00 AM / deep every 3 days).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+        .task {
+            guard backups == nil else { return }
+            let found = await Task.detached(priority: .utility) { IOSBackups.scan() }.value
+            backups = found
         }
     }
 
