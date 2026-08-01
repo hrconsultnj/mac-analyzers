@@ -44,12 +44,9 @@ struct HomeSettingsView: View {
                 statTile(symbol: "memorychip", color: pressureColor,
                          value: store.pressure.label,
                          label: "Memory pressure", target: "monitor")
-                statTile(symbol: "shield.lefthalf.filled",
-                         color: store.guardPaused ? .orange : .green,
-                         value: store.guardPaused ? "Paused" : "Active",
-                         label: store.killsToday == 1
-                             ? "Guard · 1 stop today"
-                             : "Guard · \(store.killsToday) stops today",
+                statTile(symbol: guardSymbol, color: guardColor,
+                         value: store.engine?.summary ?? "Checking…",
+                         label: guardLabel,
                          target: "activity")
                 statTile(symbol: "internaldrive.fill", color: diskColor,
                          value: store.disk.map { "\($0.freeText) free" } ?? "—",
@@ -60,6 +57,33 @@ struct HomeSettingsView: View {
             }
             .padding(.vertical, 2)
         }
+    }
+
+    /// Three honest states, from what launchd actually reports — the tile
+    /// used to show green "Active" purely because a pause file was absent,
+    /// so a Mac with nothing installed looked protected.
+    private var guardSymbol: String {
+        guard let engine = store.engine else { return "shield.lefthalf.filled" }
+        if !engine.isFullyInstalled { return "shield.slash" }
+        if engine.guardPaused { return "pause.circle.fill" }
+        if !engine.guardProcessRunning { return "exclamationmark.triangle.fill" }
+        return "shield.lefthalf.filled"
+    }
+
+    private var guardColor: Color {
+        guard let engine = store.engine else { return .secondary }
+        if !engine.isFullyInstalled { return .orange }
+        if engine.guardPaused || !engine.guardProcessRunning { return .orange }
+        return .green
+    }
+
+    private var guardLabel: String {
+        guard let engine = store.engine else { return "Guard" }
+        if !engine.isFullyInstalled { return "Guard · not set up yet" }
+        if engine.guardPaused { return "Guard · taking no action" }
+        if !engine.guardProcessRunning { return "Guard · loaded but not running" }
+        return store.killsToday == 1 ? "Guard · 1 stop today"
+                                     : "Guard · \(store.killsToday) stops today"
     }
 
     private var pressureColor: Color {
@@ -133,7 +157,7 @@ struct HomeSettingsView: View {
                                  title: "Memory Guard is paused",
                                  subtitle: "Nothing is watching for runaways.")
                         Button("Resume") {
-                            store.setGuardPaused(false)
+                            try? store.setGuardPaused(false)
                         }
                     }
                 }

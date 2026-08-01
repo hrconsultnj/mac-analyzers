@@ -24,6 +24,8 @@ public final class GuardLogStore {
     public private(set) var disk: DiskUsage?
     /// "106Gi avail (76% used)" from the last storage-clean run's log.
     public private(set) var lastCleanDiskState: String?
+    /// What is actually installed and loaded — asked of launchd, not assumed.
+    public private(set) var engine: EngineStatus?
 
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var watchedFD: Int32 = -1
@@ -61,6 +63,7 @@ public final class GuardLogStore {
         let topProcesses: [LiveProcess]
         let monitorProcesses: [LiveProcess]
         let monitorGroups: [ProcessGroup]
+        let engine: EngineStatus
         let disk: DiskUsage?
         let lastCleanDiskState: String?
     }
@@ -90,6 +93,7 @@ public final class GuardLogStore {
                 topProcesses: LiveStats.topDevProcesses(),
                 monitorProcesses: LiveStats.snapshot(),
                 monitorGroups: LiveStats.groupedSnapshot(limit: 14, minimumMB: 256),
+                engine: EngineStatus.probe(),
                 disk: LiveStats.diskUsage(),
                 lastCleanDiskState: Self.lastFreeSpaceLine())
             await MainActor.run { [weak self] in
@@ -112,6 +116,7 @@ public final class GuardLogStore {
         topProcesses = p.topProcesses
         monitorProcesses = p.monitorProcesses
         monitorGroups = p.monitorGroups
+        engine = p.engine
         disk = p.disk
         lastCleanDiskState = p.lastCleanDiskState
     }
@@ -123,14 +128,38 @@ public final class GuardLogStore {
         reload()
     }
 
-    public func setGuardPaused(_ paused: Bool) {
-        let flag = AnalyzersPaths.guardPauseFlag
-        if paused {
-            FileManager.default.createFile(atPath: flag.path, contents: Data())
-        } else {
-            try? FileManager.default.removeItem(at: flag)
+    public enum PauseError: LocalizedError {
+        case couldNotWrite(String)
+        public var errorDescription: String? {
+            switch self {
+            case .couldNotWrite(let detail): detail
+            }
         }
-        guardPaused = paused
+    }
+
+    /// Verified, not assumed: create the directory if the engine has never
+    /// run, write (or remove) the flag, then RE-READ and compare against
+    /// intent before telling the user it worked. The UI used to flip to
+    /// "Paused" while the guard kept acting.
+    public func setGuardPaused(_ paused: Bool) throws {
+        let fm = FileManager.default
+        let flag = AnalyzersPaths.guardPauseFlag
+        try? fm.createDirectory(at: flag.deletingLastPathComponent(),
+                                withIntermediateDirectories: true)
+        if paused {
+            if !fm.createFile(atPath: flag.path, contents: Data()) {
+                throw PauseError.couldNotWrite("Could not create the pause marker at \(flag.path).")
+            }
+        } else {
+            try? fm.removeItem(at: flag)
+        }
+        let actual = fm.fileExists(atPath: flag.path)
+        guard actual == paused else {
+            throw PauseError.couldNotWrite(
+                paused ? "The pause marker could not be written, so the guard is still acting."
+                       : "The pause marker could not be removed, so the guard is still paused.")
+        }
+        guardPaused = actual
     }
 
     // MARK: - file watching

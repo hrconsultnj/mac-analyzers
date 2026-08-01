@@ -10,6 +10,7 @@ public struct MenuContentView: View {
     @State private var tab: Tab = .memory
     @AppStorage("monitorRefreshSeconds") private var monitorRefresh = 15
     @State private var latestVersion: String?
+    @State private var pauseError: String?
 
     enum Tab: String, CaseIterable {
         case memory = "Memory", monitor = "Monitor", storage = "Storage"
@@ -66,9 +67,20 @@ public struct MenuContentView: View {
             }
         }
 
+        if let pauseError {
+            Label(pauseError, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+        }
         HStack(spacing: 12) {
             Button(store.guardPaused ? "Resume guard" : "Pause guard") {
-                store.setGuardPaused(!store.guardPaused)
+                do {
+                    try store.setGuardPaused(!store.guardPaused)
+                    pauseError = nil
+                } catch {
+                    pauseError = error.localizedDescription
+                }
             }
             Button("Guard log") { SettingsOpener.open(target: "log:guardLog") }
             if store.latestForensics != nil {
@@ -85,7 +97,14 @@ public struct MenuContentView: View {
 
     private var headline: some View {
         Group {
-            if store.guardPaused {
+            if let engine = store.engine, !engine.isFullyInstalled {
+                Label("Guard not set up", systemImage: "shield.slash")
+                    .foregroundStyle(.orange)
+            } else if let engine = store.engine,
+                      !engine.guardPaused, !engine.guardProcessRunning {
+                Label("Guard not running", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            } else if store.guardPaused {
                 Label("Guard is paused", systemImage: "pause.circle.fill")
                     .foregroundStyle(.orange)
             } else if store.killsToday > 0 {
