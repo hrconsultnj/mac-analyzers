@@ -18,6 +18,8 @@ let package = Package(
             name: "NotifierCLI",
             dependencies: ["AnalyzersKit"]
         ),
+        // compiled launchd entry point (BTM attribution) — execs the engine
+        .executableTarget(name: "AgentRunner"),
         // features ("pages/components")
         .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit", "UIComponents"]),
         .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "NotifierKit", "UIComponents"]),

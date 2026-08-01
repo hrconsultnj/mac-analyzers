@@ -20,6 +20,7 @@ cp Info.plist "$APP/Contents/Info.plist"
   "$APP/Contents/Info.plist" 2>/dev/null || true
 cp "$BIN/MacAnalyzersApp" "$APP/Contents/MacOS/MacAnalyzersApp"
 cp "$BIN/NotifierCLI" "$APP/Contents/MacOS/notify"
+cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"
 
 [[ -f AppIcon.icns ]] || ./make-icon.sh
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
@@ -27,5 +28,14 @@ cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 [[ -f MenuBarIcon.png ]] || ./make-menubar-icon.sh
 cp MenuBarIcon.png "$APP/Contents/Resources/MenuBarIcon.png"
 
-codesign --force --deep --sign - "$APP"
-echo "built + signed: $(pwd)/$APP"
+# prefer a real Apple Development identity (Team ID → BTM attribution, stable
+# TCC identity across rebuilds); ad-hoc fallback keeps zero-setup builds working
+IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+  | grep -o '"Apple Development: [^"]*"' | head -1 | tr -d '"')"
+if [[ -n "$IDENTITY" ]]; then
+  codesign --force --deep --sign "$IDENTITY" "$APP"
+  echo "built + signed: $(pwd)/$APP  [$IDENTITY]"
+else
+  codesign --force --deep --sign - "$APP"
+  echo "built + signed: $(pwd)/$APP  [ad-hoc — add an Apple Development cert for BTM attribution]"
+fi

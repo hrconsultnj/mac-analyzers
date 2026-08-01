@@ -16,6 +16,7 @@
     <!-- LIGHT daily pass: regenerable build caches not written in >3 days. -->
     <key>ProgramArguments</key>
     <array>
+        <string>__RUNNER__</string>
         <string>__SUITE_DIR__/storage-auto-clean.sh</string>
         <string>--mode</string>
         <string>daily</string>

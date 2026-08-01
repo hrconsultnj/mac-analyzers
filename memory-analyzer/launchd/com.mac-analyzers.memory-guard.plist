@@ -18,6 +18,7 @@
          Pause without unloading: touch ~/memory-reports/.guard-paused -->
     <key>ProgramArguments</key>
     <array>
+        <string>__RUNNER__</string>
         <string>__SUITE_DIR__/memory-guard.sh</string>
     </array>
 

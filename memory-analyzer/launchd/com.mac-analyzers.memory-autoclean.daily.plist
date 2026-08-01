@@ -18,6 +18,7 @@
          report-only even under --apply. -->
     <key>ProgramArguments</key>
     <array>
+        <string>__RUNNER__</string>
         <string>__SUITE_DIR__/memory-auto-clean.sh</string>
         <string>--apply</string>
     </array>

@@ -20,6 +20,7 @@
          as another array entry below. -->
     <key>ProgramArguments</key>
     <array>
+        <string>__RUNNER__</string>
         <string>__SUITE_DIR__/storage-auto-clean.sh</string>
         <string>--mode</string>
         <string>deep</string>

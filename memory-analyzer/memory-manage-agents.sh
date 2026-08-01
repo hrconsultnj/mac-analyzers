@@ -36,9 +36,19 @@ case "$cmd" in
         old_m=$(/usr/libexec/PlistBuddy -c "Print :StartCalendarInterval:Minute" "${DEST}/${a}.plist" 2>/dev/null || true)
         old_i=$(/usr/libexec/PlistBuddy -c "Print :StartInterval" "${DEST}/${a}.plist" 2>/dev/null || true)
       fi
-      # hydrate the template for this machine (portable across users/locations)
-      sed -e "s|__SUITE_DIR__|${HERE}|g" -e "s|__HOME__|${HOME}|g" \
-          "${SRC}/${a}.plist" > "${DEST}/${a}.plist"
+      # hydrate the template for this machine (portable across users/locations).
+      # Entry point: the app's compiled agent-runner when the app is built
+      # (BTM attributes the item to Mac Analyzers); plain script otherwise.
+      RUNNER="$(dirname "$HERE")/app/MacAnalyzers.app/Contents/MacOS/agent-runner"
+      if [[ -x "$RUNNER" ]]; then
+        sed -e "s|__RUNNER__|${RUNNER}|g" \
+            -e "s|__SUITE_DIR__|${HERE}|g" -e "s|__HOME__|${HOME}|g" \
+            "${SRC}/${a}.plist" > "${DEST}/${a}.plist"
+      else
+        sed -e "/__RUNNER__/d" \
+            -e "s|__SUITE_DIR__|${HERE}|g" -e "s|__HOME__|${HOME}|g" \
+            "${SRC}/${a}.plist" > "${DEST}/${a}.plist"
+      fi
       if [[ -n "$old_h" && -n "$old_m" ]]; then
         /usr/libexec/PlistBuddy -c "Set :StartCalendarInterval:Hour ${old_h}" \
                                 -c "Set :StartCalendarInterval:Minute ${old_m}" \
