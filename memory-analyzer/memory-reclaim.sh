@@ -34,6 +34,7 @@ set -u
 
 HOME_DIR="${HOME}"
 DRY_RUN=1
+ONLY_PIDS=""
 QUIT_APPS=0
 LOG_DIR="${HOME_DIR}/mac-analyzers/reports/memory"
 LOG_FILE="${LOG_DIR}/reclaim.log"
@@ -62,6 +63,7 @@ while [[ $# -gt 0 ]]; do
     --apply)      DRY_RUN=0 ;;
     --dry-run)    DRY_RUN=1 ;;
     --apps)       QUIT_APPS=1 ;;
+    --only-pids)  ONLY_PIDS="${2:?--only-pids needs a file}"; shift ;;
     --apps-list)  QUIT_APPS=1; APPS_LIST="${2:?--apps-list needs a comma-separated list}"; shift ;;
     -h|--help)    sed -n '2,32p' "$0"; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
@@ -140,8 +142,20 @@ SESS_COUNT="$(echo "$SESSION_ROOTS" | wc -w | tr -d ' ')"
 
 is_exempt() { echo "$EXEMPT" | grep -qx "$1"; }
 
+# --only-pids <file>: stop ONLY the pids listed in the file, one per line.
+# The sweep still finds its own candidates, so an approved set can only ever
+# SHRINK what gets stopped — never add to it.
+approved_pid() {
+  [[ -z "${ONLY_PIDS}" ]] && return 0
+  grep -qxF -- "$1" "${ONLY_PIDS}"
+}
+
 reap() {
   local pid="$1" rsskb="$2" desc="$3"
+  if ! approved_pid "$pid"; then
+    log "  [SKIP]    not in approved set  pid=$pid  $desc"
+    return 0
+  fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
     log "  [DRY]     $(printf '%7s' "$((rsskb/1024)) MB")  pid=$pid  $desc"
     FREED_KB=$((FREED_KB + rsskb)); KILL_COUNT=$((KILL_COUNT + 1))

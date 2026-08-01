@@ -100,6 +100,10 @@ struct ActionsSettingsView: View {
     @Binding var preselect: String?
     @State private var cleaner: Cleaner = .memoryClean
     @State private var phase: Phase = .idle
+    /// Rows the user unticked in the review. Stored as the *exclusion* set so
+    /// a fresh preview starts with everything approved, which is what the
+    /// preview→apply flow has always implied.
+    @State private var deselected: Set<String> = []
     @State private var reapRun: ReapRun?
     @State private var storageRun: StorageCleanRun?
     @State private var confirmingApply = false
@@ -116,7 +120,7 @@ struct ActionsSettingsView: View {
 
     var body: some View {
         PaneScaffold(symbol: "checklist", color: .cyan, title: "Actions",
-                     caption: "Preview what a cleaner would do, review it, then apply. The engine re-checks everything at apply time, so the final set can differ slightly from the preview — that recheck is what keeps it safe.") {
+                     caption: "Preview what a cleaner would do, untick anything you want kept, then apply. Only the rows you leave ticked can be touched — and the engine re-checks everything at apply time, which can only narrow that set further, never widen it.") {
             Section {
                 FullWidthSegments(
                     options: Cleaner.allCases.map { ($0, $0.title) },
@@ -298,14 +302,19 @@ struct ActionsSettingsView: View {
                                      subtitle: exempt, badge: ("PROTECTED", .green))
                         }
                     }
+                    if phase == .review, !dryReapItems.isEmpty {
+                        Section { selectionBar }
+                    }
                     ForEach(run.groups) { group in
                         Section(group.title) {
                             ForEach(group.items) { item in
-                                DataCard(symbol: "terminal", color: statusColor(item.status),
-                                         title: item.friendlyName,
-                                         subtitle: item.description,
-                                         trailing: item.mb.map { "\($0) MB" },
-                                         badge: badge(for: item.status))
+                                selectable(item.status == .dry ? item.pid.map(String.init) : nil) {
+                                    DataCard(symbol: "terminal", color: statusColor(item.status),
+                                             title: item.friendlyName,
+                                             subtitle: item.description,
+                                             trailing: item.mb.map { "\($0) MB" },
+                                             badge: badge(for: item.status))
+                                }
                             }
                             ForEach(group.aggregates, id: \.label) { agg in
                                 DataCard(symbol: "square.stack.3d.up", color: .secondary,
@@ -317,10 +326,15 @@ struct ActionsSettingsView: View {
                 }
             case .storageClean, .janitor:
                 if let run = storageRun {
+                    if phase == .review, dryStorageBytes > 0 {
+                        Section { selectionBar }
+                    }
                     ForEach(reviewGroups(from: run), id: \.project) { group in
                         Section("\(group.project) — \(ByteSize.format(group.total))") {
                             ForEach(group.items) { item in
-                                pathRow(item)
+                                selectable(item.status == .dry ? item.path : nil) {
+                                    pathRow(item)
+                                }
                             }
                         }
                     }
@@ -332,6 +346,78 @@ struct ActionsSettingsView: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - per-item approval
+    //
+    // "Apply only what you approve" was a claim about the button, not the
+    // items. Deselecting a row now genuinely keeps it out of the apply: the
+    // approved set is written to a file and the engine intersects its own
+    // freshly-derived findings with it.
+
+    /// A row wrapped in its own checkbox. `key` is what the engine will be
+    /// given — a pid for processes, a path for files. Rows from a finished
+    /// run pass nil and render plain, since there is nothing left to approve.
+    @ViewBuilder private func selectable<Content: View>(
+        _ key: String?, @ViewBuilder content: () -> Content
+    ) -> some View {
+        if let key, phase == .review {
+            HStack(spacing: Tokens.Space.s) {
+                Toggle(isOn: Binding(
+                    get: { !deselected.contains(key) },
+                    set: { on in
+                        if on { deselected.remove(key) } else { deselected.insert(key) }
+                    })) { EmptyView() }
+                    .labelsHidden()
+                    .toggleStyle(.checkbox)
+                content()
+                    .opacity(deselected.contains(key) ? 0.45 : 1)
+            }
+        } else {
+            content()
+        }
+    }
+
+    private var selectionBar: some View {
+        HStack {
+            Text(approvedCount == totalApprovable
+                 ? "All \(totalApprovable) selected"
+                 : "\(approvedCount) of \(totalApprovable) selected")
+                .font(.callout.weight(.medium))
+            Spacer()
+            Button("Select all") { deselected.removeAll() }
+                .disabled(deselected.isEmpty)
+            Button("Select none") { deselected = Set(approvableKeys) }
+                .disabled(approvedCount == 0)
+        }
+    }
+
+    /// Every key that could be acted on in this run.
+    private var approvableKeys: [String] {
+        switch cleaner {
+        case .memoryClean, .reclaim: dryReapItems.compactMap { $0.pid.map(String.init) }
+        case .storageClean, .janitor:
+            storageRun?.items.filter { $0.status == .dry }.map(\.path) ?? []
+        }
+    }
+
+    private var totalApprovable: Int { approvableKeys.count }
+    private var approvedCount: Int { approvableKeys.filter { !deselected.contains($0) }.count }
+
+    /// Writes the approved keys to a temp file and returns the engine flag.
+    /// Nothing deselected → no flag at all, so the common case runs exactly
+    /// the command it always did.
+    private func approvalArgs() -> [String] {
+        guard !deselected.isEmpty else { return [] }
+        let approved = approvableKeys.filter { !deselected.contains($0) }
+        let file = FileManager.default.temporaryDirectory
+            .appending(path: "mac-analyzers-approved-\(UUID().uuidString).txt")
+        guard (try? approved.joined(separator: "\n")
+            .write(to: file, atomically: true, encoding: .utf8)) != nil else { return [] }
+        switch cleaner {
+        case .memoryClean, .reclaim: return ["--only-pids", file.path]
+        case .storageClean, .janitor: return ["--only-paths", file.path]
         }
     }
 
@@ -351,12 +437,9 @@ struct ActionsSettingsView: View {
         storageRun?.items.filter { $0.status == .dry }.map(\.sizeBytes).reduce(0, +) ?? 0
     }
 
-    private var hasAnythingToApply: Bool {
-        switch cleaner {
-        case .memoryClean, .reclaim: !dryReapItems.isEmpty
-        case .storageClean, .janitor: dryStorageBytes > 0
-        }
-    }
+    /// A selection count now, not a "was anything found" count — deselect
+    /// everything and Apply is correctly unavailable.
+    private var hasAnythingToApply: Bool { approvedCount > 0 }
 
     private var reviewHeadline: String {
         switch cleaner {
@@ -426,7 +509,8 @@ struct ActionsSettingsView: View {
 
     private func apply() async {
         phase = .applying
-        let result = await ActionRunner.run(script: cleaner.script, args: ["--apply"] + modeArgs)
+        let result = await ActionRunner.run(script: cleaner.script,
+                                            args: ["--apply"] + modeArgs + approvalArgs())
         lastOutput = result.output
         guard result.exitCode == 0 else {
             phase = .failed(Self.explain(exitCode: result.exitCode, verb: "apply"))
@@ -591,6 +675,7 @@ struct ActionsSettingsView: View {
         phase = .idle
         reapRun = nil
         storageRun = nil
+        deselected.removeAll()
     }
 
     private func statusColor(_ status: ReapItem.Status) -> Color {

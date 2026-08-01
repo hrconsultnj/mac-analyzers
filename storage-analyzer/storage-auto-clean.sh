@@ -50,6 +50,7 @@ shopt -s nullglob
 HOME_DIR="${HOME}"
 MODE="daily"                 # daily | deep
 DRY_RUN=1
+ONLY_PATHS=""
 PRUNE_SNAPSHOTS=0           # reclaim snapshot-pinned space via tmutil thinlocalsnapshots (needs sudoers rule)
 DOCKER=0                    # prune Docker (start it if needed, shut back down if WE started it)
 DOCKER_NO_START=0          # only prune if Docker is ALREADY running (don't boot it) — for the daily job
@@ -90,6 +91,7 @@ while [[ $# -gt 0 ]]; do
     --nm-age-days)        NM_AGE_DAYS="${2:-14}"; shift ;;
     --snapshot-keep-days) SNAPSHOT_KEEP_DAYS="${2:-5}"; shift ;;
     --roots)              ROOTS="${2:-}"; shift ;;
+    --only-paths)         ONLY_PATHS="${2:-}"; shift ;;
     -h|--help)            sed -n '2,40p' "$0"; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
@@ -163,10 +165,23 @@ fi
 
 group() { log ""; log "### $1"; }
 
+# --only-paths <file>: act ONLY on paths listed in the file, one per line.
+# The sweep still derives its own findings from scratch — an approved set can
+# only ever SHRINK what gets touched. A list that went stale between the
+# preview and the apply is therefore safe by construction.
+approved() {
+  [[ -z "${ONLY_PATHS}" ]] && return 0
+  grep -qxF -- "$1" "${ONLY_PATHS}"
+}
+
 # reclaim <path>  — size-aware, dry-run-aware, accumulates TOTAL_KB
 reclaim() {
   local p="$1"
   [[ -e "$p" ]] || return 0
+  if ! approved "$p"; then
+    log "  [SKIP]    not in approved set  $p"
+    return 0
+  fi
   local kb; kb=$(du -sk "$p" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"
   TOTAL_KB=$((TOTAL_KB + kb))
   if [[ "$DRY_RUN" -eq 1 ]]; then

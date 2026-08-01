@@ -30,12 +30,32 @@ SUITE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   && source "$HOME/mac-analyzers/config.local.sh"
 
 DRY_RUN=1
+ONLY_PATHS=""
+prev=""
 for arg in "$@"; do
+  case "$prev" in
+    --only-paths) ONLY_PATHS="$arg" ;;
+  esac
   case "$arg" in
     --apply)   DRY_RUN=0 ;;
     --dry-run) DRY_RUN=1 ;;
   esac
+  prev="$arg"
 done
+
+# --only-paths <file>: act ONLY on items whose path appears in the file, one
+# per line. The sweep still finds everything from scratch — the approved set
+# can only ever SHRINK what gets touched, never add to it. That way the list
+# going stale between preview and apply is safe by construction.
+if [[ -n "${ONLY_PATHS}" && ! -f "${ONLY_PATHS}" ]]; then
+  echo "--only-paths file not found: ${ONLY_PATHS}" >&2
+  exit 2
+fi
+
+approved() {
+  [[ -z "${ONLY_PATHS}" ]] && return 0
+  grep -qxF -- "$1" "${ONLY_PATHS}"
+}
 
 DL_AGE="${JANITOR_DOWNLOADS_AGE_DAYS:-30}"
 SS_AGE="${JANITOR_SCREENSHOTS_AGE_DAYS:-14}"
@@ -95,6 +115,10 @@ sweep() {
     name="$(basename "${item}")"
     if keep_match "${name}"; then
       log "[SKIP] kept by pattern  ${item}"
+      continue
+    fi
+    if ! approved "${item}"; then
+      log "[SKIP] not in approved set  ${item}"
       continue
     fi
     # `|| true`: without it, set -e aborts the sweep mid-run — AFTER files are

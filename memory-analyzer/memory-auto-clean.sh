@@ -34,6 +34,7 @@ set -u
 
 HOME_DIR="${HOME}"
 DRY_RUN=1
+ONLY_PIDS=""
 ORPHANS_ALL=0
 DEV_AGE_HOURS=24
 PW_AGE_HOURS=2
@@ -64,6 +65,7 @@ while [[ $# -gt 0 ]]; do
     --apply)          DRY_RUN=0 ;;
     --dry-run)        DRY_RUN=1 ;;
     --orphans-all)    ORPHANS_ALL=1 ;;
+    --only-pids)      ONLY_PIDS="${2:?--only-pids needs a file}"; shift ;;
     --dev-age-hours)  DEV_AGE_HOURS="${2:-24}"; shift ;;
     --pw-age-hours)   PW_AGE_HOURS="${2:-2}"; shift ;;
     -h|--help)        sed -n '2,40p' "$0"; exit 0 ;;
@@ -126,9 +128,22 @@ else
   }
 fi
 
+# --only-pids <file>: stop ONLY the pids listed in the file, one per line.
+# The sweep still finds its own candidates — the approved set can only ever
+# SHRINK what gets stopped. A pid recycled between preview and apply is not
+# a hazard either: identity is re-checked by the sweep, not taken from here.
+approved_pid() {
+  [[ -z "${ONLY_PIDS}" ]] && return 0
+  grep -qxF -- "$1" "${ONLY_PIDS}"
+}
+
 # reap <pid> <rss_kb> <desc> — dry-run-aware kill with accounting
 reap() {
   local pid="$1" rsskb="$2" desc="$3"
+  if ! approved_pid "$pid"; then
+    log "  [SKIP]    not in approved set  pid=$pid  $desc"
+    return 0
+  fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
     log "  [DRY]     $(printf '%7s' "$((rsskb/1024)) MB")  pid=$pid  $desc"
     FREED_KB=$((FREED_KB + rsskb)); KILL_COUNT=$((KILL_COUNT + 1))

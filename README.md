@@ -36,7 +36,10 @@ and handles it on autopilot:
 - **Everything runs locally.** No account, no telemetry — nothing about your
   machine ever leaves your machine.
 - Anything that deletes is **dry-run by default**: it shows you the plan and
-  does nothing until told to apply.
+  does nothing until told to apply. In the app you can untick individual
+  items before applying, and the cleaners enforce that list themselves —
+  they re-derive their own findings and intersect, so the set can only ever
+  shrink against what you approved.
 
 Born from a real incident: a 32 GB Mac Studio living at 25–28 GB used, swap
 87% full, freezing mid-meeting. Same machine, same day, after this toolkit:
