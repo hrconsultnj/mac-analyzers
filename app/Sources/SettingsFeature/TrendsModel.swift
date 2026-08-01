@@ -41,29 +41,41 @@ struct TrendsSnapshot {
 enum TrendsModel {
 
     enum Period: CaseIterable {
-        case week, month, all
+        case day1, day3, day7, day14, day30, day90, all
+
+        /// The full-width tabs; everything else lives behind the ellipsis.
+        static let primary: [Period] = [.day3, .day7, .day30]
+        static let extended: [Period] = [.day1, .day14, .day90, .all]
 
         var label: String {
             switch self {
-            case .week: "7 Days"
-            case .month: "30 Days"
-            case .all: "All"
+            case .day1: "24 Hours"
+            case .day3: "3 Days"
+            case .day7: "7 Days"
+            case .day14: "14 Days"
+            case .day30: "30 Days"
+            case .day90: "90 Days"
+            case .all: "All Time"
             }
         }
 
         var interval: TimeInterval {
             switch self {
-            case .week: 7 * 86_400
-            case .month: 30 * 86_400
-            case .all: 365 * 86_400
+            case .day1: 86_400
+            case .day3: 3 * 86_400
+            case .day7: 7 * 86_400
+            case .day14: 14 * 86_400
+            case .day30: 30 * 86_400
+            case .day90: 90 * 86_400
+            case .all: 3650 * 86_400
             }
         }
 
         var headlinePrefix: String {
             switch self {
-            case .week: "Last 7 days"
-            case .month: "Last 30 days"
+            case .day1: "Last 24 hours"
             case .all: "All time"
+            default: "Last \(label.lowercased())"
             }
         }
     }

@@ -8,17 +8,54 @@ import UIComponents
 /// day chart, and the repeat offenders. All read from local logs.
 struct TrendsSettingsView: View {
 
-    @State private var period: TrendsModel.Period = .month
+    @State private var period: TrendsModel.Period = .day30
     @State private var snapshot: TrendsSnapshot?
+
+    private var extendedSelected: Bool {
+        TrendsModel.Period.extended.contains(period)
+    }
 
     var body: some View {
         PaneScaffold(symbol: "chart.xyaxis.line", color: .mint, title: "Trends",
                      caption: "What the guard and cleaners have done for this Mac — from its own logs, nothing leaves the machine.") {
             Section {
-                FullWidthSegments(
-                    options: TrendsModel.Period.allCases.map { ($0, $0.label) },
-                    selection: $period
-                )
+                // 3/7/30 fill the bar; the fixed-width ellipsis is a menu
+                // holding the longer (and shorter) ranges
+                HStack(spacing: 8) {
+                    FullWidthSegments(
+                        options: TrendsModel.Period.primary.map { ($0, $0.label) },
+                        selection: $period
+                    )
+                    Menu {
+                        ForEach(TrendsModel.Period.extended, id: \.self) { option in
+                            Button {
+                                period = option
+                            } label: {
+                                if period == option {
+                                    Label(option.label, systemImage: "checkmark")
+                                } else {
+                                    Text(option.label)
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .fontWeight(.semibold)
+                            .frame(width: 34, height: 22)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .foregroundStyle(extendedSelected ? Color.white : .secondary)
+                    .background(extendedSelected ? Color.accentColor : Color.clear,
+                                in: Capsule())
+                    .help(extendedSelected ? period.label : "More ranges")
+                }
+                if extendedSelected {
+                    Text("Showing: \(period.label)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             if let snap = snapshot {
                 Section {

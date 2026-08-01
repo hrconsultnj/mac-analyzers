@@ -122,7 +122,12 @@ public struct SettingsTabsView: View {
         }
         .frame(minWidth: 780, minHeight: 620)
         .onChange(of: pane) {
-            if !isTimeTraveling { childPath = [] }
+            if !isTimeTraveling {
+                childPath = []
+                // sidebar "Logs" click always lands on the list — drilled
+                // states remain reachable via the history chevrons
+                if pane == .logs { logsPath = [] }
+            }
             scheduleRecord()
         }
         .onChange(of: logsPath) { scheduleRecord() }
@@ -153,8 +158,21 @@ public struct SettingsTabsView: View {
         }
     }
 
+    /// Selection routed through a custom binding so re-clicking "Logs" while
+    /// already drilled inside it still resets to the list (plain $pane never
+    /// fires when the selected value doesn't change).
+    private var paneSelection: Binding<Pane> {
+        Binding(get: { pane },
+                set: { newValue in
+                    if newValue == .logs, pane == .logs, !logsPath.isEmpty {
+                        logsPath = []
+                    }
+                    pane = newValue
+                })
+    }
+
     private var sidebarList: some View {
-        List(selection: $pane) {
+        List(selection: paneSelection) {
             Section {
                 sidebarRow("Memory", "memorychip", .blue, .memory)
                 sidebarRow("Storage", "internaldrive.fill", .indigo, .storage)
@@ -169,7 +187,6 @@ public struct SettingsTabsView: View {
             }
             Section {
                 sidebarRow("Monitor", "gauge.with.dots.needle.67percent", .orange, .monitor)
-                sidebarRow("Trends", "chart.xyaxis.line", .mint, .trends)
                 sidebarRow("Activity", "list.bullet.rectangle.fill", .orange, .activity)
                 // both worlds: the Logs ROW opens the nested landing
                 // screen; the disclosure children jump straight to a log
@@ -182,6 +199,15 @@ public struct SettingsTabsView: View {
                 }
             } header: {
                 sectionHeader("OBSERVE")
+            }
+            // the insight surfaces: Trends now, Actions + reports later.
+            // REVIEW keeps the verb voice of CONFIGURE/SCHEDULE/OBSERVE and
+            // covers both tenants — reviewing the record (Trends) and the
+            // dry-run -> review -> apply flow (Actions).
+            Section {
+                sidebarRow("Trends", "chart.xyaxis.line", .mint, .trends)
+            } header: {
+                sectionHeader("REVIEW")
             }
             Section {
                 sidebarRow("About", "questionmark.circle.fill", .gray, .about)
