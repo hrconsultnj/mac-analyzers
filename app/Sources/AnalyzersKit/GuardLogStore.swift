@@ -20,6 +20,7 @@ public final class GuardLogStore {
     public private(set) var pressure: LiveStats.Pressure = .normal
     public private(set) var topProcesses: [LiveProcess] = []
     public private(set) var monitorProcesses: [LiveProcess] = []
+    public private(set) var monitorGroups: [ProcessGroup] = []
     public private(set) var disk: DiskUsage?
     /// "106Gi avail (76% used)" from the last storage-clean run's log.
     public private(set) var lastCleanDiskState: String?
@@ -59,6 +60,7 @@ public final class GuardLogStore {
         let pressure: LiveStats.Pressure
         let topProcesses: [LiveProcess]
         let monitorProcesses: [LiveProcess]
+        let monitorGroups: [ProcessGroup]
         let disk: DiskUsage?
         let lastCleanDiskState: String?
     }
@@ -80,6 +82,7 @@ public final class GuardLogStore {
                 pressure: LiveStats.memoryPressure(),
                 topProcesses: LiveStats.topDevProcesses(),
                 monitorProcesses: LiveStats.snapshot(),
+                monitorGroups: LiveStats.groupedSnapshot(limit: 14, minimumMB: 256),
                 disk: LiveStats.diskUsage(),
                 lastCleanDiskState: Self.lastFreeSpaceLine())
             await MainActor.run { [weak self] in self?.apply(payload) }
@@ -98,6 +101,7 @@ public final class GuardLogStore {
         pressure = p.pressure
         topProcesses = p.topProcesses
         monitorProcesses = p.monitorProcesses
+        monitorGroups = p.monitorGroups
         disk = p.disk
         lastCleanDiskState = p.lastCleanDiskState
     }

@@ -8,7 +8,7 @@ import UIComponents
 /// explicit confirmation. The app never applies anything unreviewed.
 struct ActionsSettingsView: View {
 
-    enum Cleaner: Hashable, CaseIterable {
+    enum Cleaner: String, Hashable, CaseIterable {
         case memoryClean, reclaim, storageClean, janitor
 
         /// The two storage-shaped cleaners share the review renderer.
@@ -122,6 +122,13 @@ struct ActionsSettingsView: View {
             reviewSections
         }
         .onChange(of: cleaner) { resetToIdle() }
+        .onAppear {
+            // menu deep-links preselect a cleaner ("actions:<cleaner>")
+            if let raw = UserDefaults.standard.string(forKey: "actionsPreselect") {
+                UserDefaults.standard.removeObject(forKey: "actionsPreselect")
+                if let preselected = Cleaner(rawValue: raw) { cleaner = preselected }
+            }
+        }
         .confirmationDialog(applyPrompt, isPresented: $confirmingApply, titleVisibility: .visible) {
             Button(applyButtonTitle, role: .destructive) {
                 Task { await apply() }

@@ -228,7 +228,14 @@ public struct SettingsTabsView: View {
                 case "monitor": pane = .monitor
                 case "network": pane = .network
                 case "trends": pane = .trends
-                case "actions": pane = .actions
+                case let t where t.hasPrefix("actions"):
+                    // "actions" or "actions:<cleaner>" — the pane reads the
+                    // preselect key on appear and clears it
+                    if t.hasPrefix("actions:") {
+                        UserDefaults.standard.set(String(t.dropFirst(8)),
+                                                  forKey: "actionsPreselect")
+                    }
+                    pane = .actions
                 case "schedule": pane = .schedule
                 case "update": pane = .update
                 case "memory": pane = .memory

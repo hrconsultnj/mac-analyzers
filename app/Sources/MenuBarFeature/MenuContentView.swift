@@ -162,18 +162,42 @@ public struct MenuContentView: View {
             }
         }
 
-        let devs = store.monitorProcesses.filter(\.isDev)
-        let apps = store.monitorProcesses.filter { !$0.isDev }
-
-        if !devs.isEmpty {
-            sectionLabel("DEV PROCESSES")
-            ForEach(devs) { proc in ProcessRow(proc: proc) { store.reload() } }
+        // same family grouping as the Monitor pane — one row per app,
+        // helpers rolled underneath, expandable in place
+        if !store.monitorGroups.isEmpty {
+            sectionLabel("PROCESSES")
+            ForEach(store.monitorGroups) { group in
+                if group.children.isEmpty {
+                    ProcessRow(proc: group.parent) { store.reload() }
+                } else {
+                    DisclosureGroup {
+                        ProcessRow(proc: group.parent) { store.reload() }
+                        ForEach(group.children) { child in
+                            ProcessRow(proc: child) { store.reload() }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if let app = NSRunningApplication(processIdentifier: pid_t(group.parent.pid)),
+                               let icon = app.icon {
+                                Image(nsImage: icon).resizable().frame(width: 16, height: 16)
+                            } else {
+                                IconTile(symbol: "square.stack.3d.up.fill", color: .orange)
+                            }
+                            Text(group.parent.friendlyName)
+                                .font(.callout.weight(.medium))
+                            Text("\(group.children.count) helpers")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer(minLength: 6)
+                            Text(group.totalText)
+                                .font(.callout.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
         }
-        if !apps.isEmpty {
-            sectionLabel("APPS & HELPERS")
-            ForEach(apps) { proc in ProcessRow(proc: proc) { store.reload() } }
-        }
-        if store.monitorProcesses.isEmpty {
+        if store.monitorGroups.isEmpty {
             Text("No process is holding more than 0.5 GB right now.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -240,6 +264,21 @@ public struct MenuContentView: View {
             label: GuardControl.storageDeepLabel,
             symbol: "wand.and.stars", color: .purple
         )
+
+        Divider()
+
+        // the bigger, reviewed cleans — dry-run → review → apply in the app
+        sectionLabel("REVIEW & CLEAN")
+        HStack(spacing: 12) {
+            Button("Storage…") { SettingsOpener.open(target: "actions:storageClean") }
+                .help("Preview what storage clean would remove, review, then apply")
+            Button("Janitor…") { SettingsOpener.open(target: "actions:janitor") }
+                .help("Stale Downloads and old screenshots — to the Trash, reviewed first")
+            Button("Memory…") { SettingsOpener.open(target: "actions:memoryClean") }
+                .help("Close orphaned dev helpers — reviewed first")
+            Spacer()
+        }
+        .controlSize(.regular)
 
         Divider()
 
