@@ -48,8 +48,7 @@ public struct PaneHeader: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 18)
+        .padding(.top, 10)
         .padding(.horizontal, 24)
-        .padding(.bottom, 6)
     }
 }

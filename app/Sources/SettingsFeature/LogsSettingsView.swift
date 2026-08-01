@@ -16,10 +16,19 @@ struct LogsSettingsView: View {
 
     let kind: LogKind
     @State private var runs: [LogRun] = []
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
+                // explicit, always-visible back affordance (mobile-style),
+                // alongside the toolbar's native back chevron
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Logs", systemImage: "chevron.left")
+                }
+                .buttonStyle(.borderless)
                 IconTile(symbol: kind.symbol, color: kind.tileColor, side: 22)
                 Text(kind.title)
                     .font(.title3.weight(.semibold))

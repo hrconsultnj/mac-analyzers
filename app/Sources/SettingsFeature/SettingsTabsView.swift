@@ -8,7 +8,7 @@ import UIComponents
 public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
-        case memory, storage, notifications, activity, logs, about
+        case memory, storage, notifications, activity, logs, log(LogKind), about
     }
 
     @State private var pane: Pane = .memory
@@ -27,7 +27,15 @@ public struct SettingsTabsView: View {
                 }
                 Section {
                     sidebarRow("Activity", "list.bullet.rectangle.fill", .orange, .activity)
-                    sidebarRow("Logs", "doc.text.magnifyingglass", .gray, .logs)
+                    // both worlds: the Logs ROW opens the nested landing
+                    // screen; the disclosure children jump straight to a log
+                    DisclosureGroup {
+                        ForEach(LogKind.allCases) { kind in
+                            sidebarRow(kind.title, kind.symbol, kind.tileColor, .log(kind))
+                        }
+                    } label: {
+                        sidebarRow("Logs", "doc.text.magnifyingglass", .gray, .logs)
+                    }
                 } header: {
                     sectionHeader("OBSERVE")
                 }
@@ -75,6 +83,20 @@ public struct SettingsTabsView: View {
                 LogsHomeView()
                     .navigationDestination(for: LogKind.self) { kind in
                         LogsSettingsView(kind: kind)
+                    }
+            }
+        case .log(let kind):
+            // sidebar-child entry: same stack, pre-pushed to the log; the
+            // back affordance pops to the Logs landing screen
+            NavigationStack(path: Binding(
+                get: { [kind] },
+                set: { (newPath: [LogKind]) in
+                    if newPath.isEmpty { pane = .logs }
+                }
+            )) {
+                LogsHomeView()
+                    .navigationDestination(for: LogKind.self) { k in
+                        LogsSettingsView(kind: k)
                     }
             }
         case .about: AboutSettingsView()
