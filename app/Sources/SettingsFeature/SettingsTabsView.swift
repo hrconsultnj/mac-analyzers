@@ -1,5 +1,6 @@
 import SwiftUI
 import AnalyzersKit
+import os
 import UIComponents
 
 /// The settings window, System-Settings style: colored-tile sidebar on the
@@ -37,6 +38,7 @@ public struct SettingsTabsView: View {
 
     @State private var history: [NavSnapshot] = []
     @State private var historyIndex = -1
+    @State private var brandHovering = false
     /// True while a snapshot is being applied — suppresses recording and the
     /// pane-switch path reset so restoration isn't wiped by its own onChange.
     @State private var isTimeTraveling = false
@@ -44,6 +46,48 @@ public struct SettingsTabsView: View {
 
     private var canGoBack: Bool { historyIndex > 0 }
     private var canGoForward: Bool { historyIndex < history.count - 1 }
+
+    /// Depth of the on-screen stack — the back chevron's guarantee: even if
+    /// a history record was ever missed, back can ALWAYS pop a drilled screen.
+    private var activeStackDepth: Int {
+        switch pane {
+        case .logs: logsPath.count
+        case .log: childPath.count
+        case .trends: trendsPath.count
+        default: 0
+        }
+    }
+
+    private func goBack() {
+        if canGoBack {
+            travel(to: historyIndex - 1)
+        } else if activeStackDepth > 0 {
+            popActiveStack()
+        }
+    }
+
+    private func popActiveStack() {
+        switch pane {
+        case .logs: if !logsPath.isEmpty { logsPath.removeLast() }
+        case .log: if !childPath.isEmpty { childPath.removeLast() }
+        case .trends: if !trendsPath.isEmpty { trendsPath.removeLast() }
+        default: break
+        }
+    }
+
+    /// Same-row sidebar re-click: AppKit never fires the selection binding
+    /// when the clicked row is already selected (audit follow-up — the
+    /// binding-based reset was dead code for real clicks). Row tap gestures
+    /// call this instead.
+    private func resetStackIfCurrent(_ value: Pane) {
+        guard value == pane else { return }
+        switch value {
+        case .logs: logsPath = []
+        case .log: childPath = []
+        case .trends: trendsPath = []
+        default: break
+        }
+    }
 
     /// Coalesce per runloop tick: one user action can fire several onChange
     /// hooks (pane + path reset) — record the SETTLED state once.
@@ -58,6 +102,8 @@ public struct SettingsTabsView: View {
             if history.indices.contains(historyIndex), history[historyIndex] == snap { return }
             history = Array(history.prefix(historyIndex + 1)) + [snap]
             historyIndex = history.count - 1
+            Logger(subsystem: "com.mac-analyzers.app", category: "router")
+                .notice("recorded stop \(historyIndex, privacy: .public)/\(history.count, privacy: .public) — pane \(String(describing: pane), privacy: .public), stacks \(logsPath.count, privacy: .public)/\(childPath.count, privacy: .public)/\(trendsPath.count, privacy: .public)")
         }
     }
 
@@ -97,13 +143,21 @@ public struct SettingsTabsView: View {
                         }
                         Spacer()
                     }
-                    .contentShape(Rectangle())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    // glass-on-hover: the SuperWhisper cue — the card reads
+                    // as a button only when the cursor asks
+                    .background(brandHovering ? AnyShapeStyle(.regularMaterial)
+                                              : AnyShapeStyle(.clear),
+                                in: RoundedRectangle(cornerRadius: 10))
+                    .contentShape(RoundedRectangle(cornerRadius: 10))
                 }
                 .buttonStyle(.plain)
+                .onHover { brandHovering = $0 }
                 .help("Overview")
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
-                .padding(.bottom, 10)
+                .padding(.horizontal, 6)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
 
                 sidebarList
             }
@@ -119,11 +173,11 @@ public struct SettingsTabsView: View {
                 .toolbar {
                     ToolbarItemGroup(placement: .navigation) {
                         Button {
-                            travel(to: historyIndex - 1)
+                            goBack()
                         } label: {
                             Image(systemName: "chevron.left").fontWeight(.semibold)
                         }
-                        .disabled(!canGoBack)
+                        .disabled(!canGoBack && activeStackDepth == 0)
                         .help("Back")
                         Button {
                             travel(to: historyIndex + 1)
@@ -281,6 +335,7 @@ public struct SettingsTabsView: View {
             // System Settings' scale (DTS-acknowledged bug)
             IconTile(symbol: symbol, color: color, side: 20)
         }
+        .simultaneousGesture(TapGesture().onEnded { resetStackIfCurrent(value) })
         .tag(value)
     }
 
