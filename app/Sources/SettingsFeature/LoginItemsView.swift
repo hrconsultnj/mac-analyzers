@@ -102,7 +102,7 @@ struct LoginItemsView: View {
                         .truncationMode(.middle)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 5))
+                        .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.chip))
                     Button(copiedID == entry.id ? "Copied ✓" : "Copy command") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(cmd, forType: .string)

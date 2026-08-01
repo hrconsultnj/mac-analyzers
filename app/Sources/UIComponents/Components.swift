@@ -18,7 +18,7 @@ public struct BadgeCapsule: View {
             .font(.caption2.weight(.bold))
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
-            .background(color.opacity(0.15), in: Capsule())
+            .background(color.opacity(Tokens.Surface.tintFill), in: Capsule())
             .foregroundStyle(color)
     }
 }
@@ -114,7 +114,7 @@ public struct FullWidthSegments<Option: Hashable>: View {
             }
         }
         .padding(3)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.tile))
         .frame(maxWidth: .infinity)
     }
 }
@@ -156,7 +156,7 @@ public struct FilterChipsBar<Option: Hashable>: View {
                             .font(.caption.weight(selected ? .bold : .medium))
                             .padding(.horizontal, 9)
                             .padding(.vertical, 3)
-                            .background(selected ? chip.color : chip.color.opacity(0.15),
+                            .background(selected ? chip.color : chip.color.opacity(Tokens.Surface.tintFill),
                                         in: Capsule())
                             .foregroundStyle(selected ? Color.white : chip.color)
                     }
@@ -178,7 +178,7 @@ public struct LiveStateChip: View {
     public var body: some View {
         HStack(spacing: 4) {
             Circle()
-                .fill(active ? Color.green : Color.secondary.opacity(0.6))
+                .fill(active ? Tokens.Status.live.tint : Tokens.Status.inert.tint)
                 .frame(width: 5, height: 5)
             Text(active ? "ACTIVE" : "ENDED")
                 .font(.caption2.weight(.bold))
@@ -186,7 +186,7 @@ public struct LiveStateChip: View {
         .foregroundStyle(active ? Color.green : Color.secondary)
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
-        .background((active ? Color.green : Color.gray).opacity(0.16), in: Capsule())
+        .background((active ? Tokens.Status.live.tint : Tokens.Status.inert.tint).opacity(Tokens.Surface.tintFill), in: Capsule())
     }
 }
 

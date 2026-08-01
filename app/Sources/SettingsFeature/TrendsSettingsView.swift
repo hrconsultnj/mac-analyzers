@@ -53,7 +53,7 @@ struct TrendsSettingsView: View {
                     .frame(maxHeight: .infinity)
                     .foregroundStyle(extendedSelected ? Color.white : Color.primary)
                     .background(extendedSelected ? AnyShapeStyle(Color.accentColor)
-                                                 : AnyShapeStyle(.quaternary.opacity(0.5)),
+                                                 : Tokens.Surface.tile,
                                 in: RoundedRectangle(cornerRadius: 8))
                     .help(extendedSelected ? period.label : "More ranges")
                 }
@@ -161,7 +161,7 @@ struct TrendsSettingsView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
-                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                    .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.tile))
                 }
                 .buttonStyle(.plain)
             }
