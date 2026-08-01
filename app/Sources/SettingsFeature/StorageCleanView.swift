@@ -213,6 +213,7 @@ struct StorageCleanView: View {
         case .dry: .blue
         case .deleted: .green
         case .trashed: .orange
+        case .restored: .gray
         case .failed: .red
         }
     }

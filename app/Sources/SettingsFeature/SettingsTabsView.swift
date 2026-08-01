@@ -13,7 +13,7 @@ public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
         case home, memory, storage, notifications, schedule, monitor, network,
-             trends, actions, activity, logs, log(LogKind), about, update
+             trends, actions, undo, activity, logs, log(LogKind), about, update
     }
 
     /// Settings opens on the Overview dashboard — the SaaS-home pattern;
@@ -245,6 +245,7 @@ public struct SettingsTabsView: View {
                 case "monitor": pane = .monitor
                 case "network": pane = .network
                 case "trends": pane = .trends
+                case "undo": pane = .undo
                 case let t where t.hasPrefix("actions"):
                     // "actions" or "actions:<cleaner>" — the pane reads the
                     // preselect key on appear and clears it
@@ -328,6 +329,7 @@ public struct SettingsTabsView: View {
             // dry-run -> review -> apply flow (Actions).
             Section {
                 sidebarRow("Actions", "checklist", .cyan, .actions)
+                sidebarRow("Undo", "arrow.uturn.backward", .gray, .undo)
                 sidebarRow("Trends", "chart.xyaxis.line", .mint, .trends)
             } header: {
                 sectionHeader("REVIEW")
@@ -391,6 +393,7 @@ public struct SettingsTabsView: View {
             }
         case .network: NetworkSettingsView()
         case .actions: ActionsSettingsView()
+        case .undo: UndoView()
         case .trends:
             NavigationStack(path: $trendsPath) {
                 TrendsSettingsView()

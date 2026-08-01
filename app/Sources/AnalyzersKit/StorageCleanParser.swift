@@ -8,6 +8,7 @@ public struct StoragePathItem: Identifiable, Hashable, Sendable {
         case dry = "DRY"
         case deleted = "DELETED"
         case trashed = "TRASHED"     // janitor: moved to Trash, recoverable
+        case restored = "RESTORED"   // undo ledger: moved back from Trash
         case failed = "FAILED"
     }
 
