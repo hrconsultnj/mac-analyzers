@@ -1,11 +1,13 @@
 import SwiftUI
 import UIComponents
 
-/// The ONE container every settings pane uses: a hard-centered,
-/// System-Settings-style header PINNED above the grouped form (outside the
-/// Form entirely — macOS draws a section card around any Form row, clear
-/// background or not, which is why the header used to look boxed), plus the
-/// pane name as the window title. Identical anatomy for every pane.
+/// The ONE container every settings pane uses: centered header as the first
+/// row of the grouped form, pane name as the window title.
+///
+/// LESSON (v2.7.1 regression): the header must stay INSIDE the Form. Hoisting
+/// it above the Form put it in the toolbar's backdrop region — rendered as a
+/// light band with a doubled title. And no .scrollEdgeEffectStyle here: the
+/// hard edge paints an opaque backdrop that fights the Settings window.
 struct PaneScaffold<Content: View>: View {
     let symbol: String
     let color: Color
@@ -14,20 +16,19 @@ struct PaneScaffold<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Spacer(minLength: 0)
-                PaneHeader(symbol: symbol, color: color, title: title, caption: caption)
-                Spacer(minLength: 0)
+        Form {
+            Section {
+                HStack {
+                    Spacer(minLength: 0)
+                    PaneHeader(symbol: symbol, color: color, title: title, caption: caption)
+                    Spacer(minLength: 0)
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
             }
-            .padding(.bottom, 2)
-
-            Form {
-                content
-            }
-            .formStyle(.grouped)
-            .scrollEdgeEffectStyle(.hard, for: .top)
+            content
         }
+        .formStyle(.grouped)
         .navigationTitle(title)
     }
 }
