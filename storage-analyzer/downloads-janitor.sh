@@ -91,7 +91,11 @@ sweep() {
       dest="${TRASH_DIR}/${name}"
       [[ -e "${dest}" ]] && dest="${TRASH_DIR}/$(date +%s)-${name}"
       mv "${item}" "${dest}"
-      log "[TRASHED] ${size}  ${item}"
+      # Record WHERE it went, not just where it came from: on a name
+      # collision the Trash copy is renamed, so reconstructing the path
+      # from the basename can point at a different file the user trashed
+      # themselves — and restoring would overwrite their file.
+      log "[TRASHED] ${size}  ${item}  ->  ${dest}"
     fi
     TOTAL_KB=$((TOTAL_KB + kb))
     COUNT=$((COUNT + 1))

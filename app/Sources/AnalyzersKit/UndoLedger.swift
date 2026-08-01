@@ -9,9 +9,17 @@ public struct TrashedItem: Identifiable, Sendable {
         case restorable
         case trashCopyGone
         case pathOccupied
+        /// Receipt predates destination recording — restoring would mean
+        /// guessing which Trash file this was, so we refuse.
+        case destinationUnknown
     }
 
     public let originalPath: String
+    /// Where the janitor actually put it. Recorded in the receipt — never
+    /// guessed from the basename, because a name collision means the Trash
+    /// copy was renamed and the guess would point at a DIFFERENT file the
+    /// user trashed themselves.
+    public let trashPath: String?
     public let sizeText: String
     public let restorability: Restorability
 
@@ -31,7 +39,7 @@ public enum UndoLedger {
         guard let text = try? String(contentsOf: AnalyzersPaths.janitorLog, encoding: .utf8)
         else { return [] }
         var restored: Set<String> = []
-        var trashed: [(path: String, size: String)] = []
+        var trashed: [(path: String, dest: String?, size: String)] = []
         for line in text.split(separator: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("[RESTORED]") {
@@ -41,7 +49,13 @@ public enum UndoLedger {
             } else if trimmed.hasPrefix("[TRASHED]") {
                 if let path = pathPart(of: trimmed, prefix: "[TRASHED]"),
                    let size = sizePart(of: trimmed, prefix: "[TRASHED]") {
-                    trashed.append((path, size))
+                    // "…  <original>  ->  <trash destination>" (newer receipts)
+                    let parts = path.components(separatedBy: "  ->  ")
+                    trashed.append((parts[0].trimmingCharacters(in: .whitespaces),
+                                    parts.count > 1
+                                        ? parts[1].trimmingCharacters(in: .whitespaces)
+                                        : nil,
+                                    size))
                 }
             }
         }
@@ -49,13 +63,16 @@ public enum UndoLedger {
         return trashed.reversed()
             .filter { !restored.contains($0.path) }
             .map { entry in
-                let basename = (entry.path as NSString).lastPathComponent
-                let inTrash = fm.fileExists(atPath: trashDir.appending(path: basename).path)
-                let occupied = fm.fileExists(atPath: entry.path)
-                let state: TrashedItem.Restorability =
-                    !inTrash ? .trashCopyGone : occupied ? .pathOccupied : .restorable
-                return TrashedItem(originalPath: entry.path, sizeText: entry.size,
-                                   restorability: state)
+                let state: TrashedItem.Restorability
+                if let dest = entry.dest {
+                    state = !fm.fileExists(atPath: dest) ? .trashCopyGone
+                          : fm.fileExists(atPath: entry.path) ? .pathOccupied
+                          : .restorable
+                } else {
+                    state = .destinationUnknown
+                }
+                return TrashedItem(originalPath: entry.path, trashPath: entry.dest,
+                                   sizeText: entry.size, restorability: state)
             }
     }
 
@@ -63,10 +80,12 @@ public enum UndoLedger {
 
     /// Move the Trash copy back to its original path, receipt included.
     public static func restore(_ item: TrashedItem) throws {
-        guard item.restorability == .restorable else { throw RestoreError.notRestorable }
-        let from = trashDir.appending(path: item.basename)
+        guard item.restorability == .restorable,
+              let trashPath = item.trashPath        // never guessed
+        else { throw RestoreError.notRestorable }
         try FileManager.default.moveItem(
-            at: from, to: URL(fileURLWithPath: item.originalPath))
+            at: URL(fileURLWithPath: trashPath),
+            to: URL(fileURLWithPath: item.originalPath))
         appendReceipt("[RESTORED] \(item.sizeText)  \(item.originalPath)")
     }
 

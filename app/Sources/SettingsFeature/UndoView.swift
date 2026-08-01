@@ -45,6 +45,11 @@ struct UndoView: View {
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                                 .help("Something new exists at the original path — restore manually from the Trash if needed.")
+                        case .destinationUnknown:
+                            Text("Restore manually")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                                .help("This receipt predates exact destination recording. Restoring would mean guessing which Trash file it is, so the app won't — drag it back from the Trash yourself.")
                         }
                     }
                 }
