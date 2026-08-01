@@ -32,6 +32,22 @@ struct AboutSettingsView: View {
             #if canImport(ProKit)
             ProAboutSlot()
             #endif
+            Section {
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Turn off or remove")
+                        Text("Pause it, switch off background protection, or remove it from this Mac — with proof that it worked.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Open…") {
+                        NotificationCenter.default.post(
+                            name: NotifyChannel.openPaneInternal, object: nil,
+                            userInfo: ["target": "uninstall"])
+                    }
+                }
+            }
             Section("Share") {
                 HStack {
                     VStack(alignment: .leading, spacing: 1) {

@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import Foundation
 
 /// launchd + convenience actions the UI triggers. All user-domain
@@ -57,6 +58,11 @@ public enum GuardControl {
         if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    /// Stop opening at login — part of turning the product off cleanly.
+    public static func disableLoginItem() {
+        try? SMAppService.mainApp.unregister()
     }
 
     /// Honours the same ANALYZERS_LOG_VIEWER preference the notification

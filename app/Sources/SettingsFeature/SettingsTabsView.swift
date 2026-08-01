@@ -13,7 +13,7 @@ public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
         case home, memory, storage, notifications, schedule, monitor, network,
-             trends, actions, undo, activity, logs, log(LogKind), support, about, update
+             trends, actions, undo, activity, logs, log(LogKind), support, about, uninstall, update
     }
 
     /// Settings opens on the Overview dashboard — the SaaS-home pattern;
@@ -260,6 +260,7 @@ public struct SettingsTabsView: View {
                 case "trends": pane = .trends
                 case "undo": pane = .undo
                 case "support": pane = .support
+                case "uninstall": pane = .uninstall
                 case let t where t.hasPrefix("actions"):
                     // "actions" or "actions:<cleaner>" — the pane reads the
                     // preselect key on appear and clears it
@@ -446,6 +447,7 @@ public struct SettingsTabsView: View {
             AboutSettingsView()
             #endif
         case .about: AboutSettingsView()
+        case .uninstall: UninstallView()
         case .update: UpdateSettingsView()
         }
     }

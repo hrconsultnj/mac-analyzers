@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import AnalyzersKit
 import UIComponents
@@ -13,6 +14,11 @@ struct ActionsSettingsView: View {
 
         /// The two storage-shaped cleaners share the review renderer.
         var isStorageShaped: Bool { self == .storageClean || self == .janitor }
+
+        /// Can the user get it back? Only the janitor uses the Trash; the
+        /// storage cleaner deletes, and stopping a process is not undoable
+        /// (the command can be re-run, which is not the same thing).
+        var isRecoverable: Bool { self == .janitor }
 
         var title: String {
             switch self {
@@ -98,6 +104,7 @@ struct ActionsSettingsView: View {
     @State private var confirmingApply = false
     @State private var sortByName = false
     @State private var history: [HistoryRun] = []
+    @State private var lastOutput = ""
     /// Storage only: deep mode adds stale node_modules + TM snapshot report
     /// (the engine's --mode deep), vs daily's build-caches-only pass.
     @State private var storageDeep = false
@@ -114,9 +121,13 @@ struct ActionsSettingsView: View {
                     options: Cleaner.allCases.map { ($0, $0.title) },
                     selection: $cleaner
                 )
-                Text(cleaner.blurb)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    BadgeCapsule(text: cleaner.isRecoverable ? "GOES TO TRASH" : "PERMANENT",
+                                 color: cleaner.isRecoverable ? .orange : .red)
+                    Text(cleaner.blurb)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if cleaner == .storageClean {
                     Toggle(isOn: $storageDeep) {
                         VStack(alignment: .leading, spacing: 1) {
@@ -151,7 +162,12 @@ struct ActionsSettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Runs \(cleaner.script.lastPathComponent) with --apply. Everything is logged; protected lists always win.")
+            // The first sentence must say whether this can be taken back.
+            // "Everything is logged" was doing that job badly while storage
+            // clean does rm -rf and an Undo row sits three rows away.
+            Text(cleaner.isRecoverable
+                 ? "These move to the Trash, so you can put them back — from the Undo screen or from Finder. Everything is logged; protected lists always win."
+                 : "This is PERMANENT — these files are deleted, not moved to the Trash, and Undo cannot bring them back. They are rebuildable: your tools recreate them when needed. Everything is logged; protected lists always win.")
         }
     }
 
@@ -209,12 +225,39 @@ struct ActionsSettingsView: View {
                     Button("New preview") { resetToIdle() }
                 }
             case .failed(let message):
-                HStack {
-                    Label(message, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                        .lineLimit(2)
-                    Spacer()
-                    Button("Try again") { resetToIdle() }
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label(message, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer()
+                        Button("Try again") { resetToIdle() }
+                    }
+                    if !lastOutput.isEmpty {
+                        DisclosureGroup("Details") {
+                            VStack(alignment: .leading, spacing: 1) {
+                                ForEach(Array(lastOutput.split(separator: "\n").suffix(25).enumerated()),
+                                        id: \.offset) { _, line in
+                                    Text(line)
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
+                        Button("Copy diagnostics") {
+                            let report = """
+                            script: \(cleaner.script.path)
+                            args: \(modeArgs.joined(separator: " "))
+                            message: \(message)
+
+                            \(lastOutput.split(separator: "\n").suffix(40).joined(separator: "\n"))
+                            """
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(report, forType: .string)
+                        }
+                        .font(.caption)
+                    }
                 }
             }
         }
@@ -348,21 +391,39 @@ struct ActionsSettingsView: View {
     // MARK: - engine calls
 
     private func preview() async {
+        guard FileManager.default.isExecutableFile(atPath: cleaner.script.path) else {
+            phase = .failed("The cleaning tools aren't installed on this Mac (expected \(cleaner.script.path)).")
+            return
+        }
         phase = .previewing
         let result = await ActionRunner.run(script: cleaner.script, args: ["--dry-run"] + modeArgs)
         guard result.exitCode == 0 else {
-            phase = .failed("Dry run exited \(result.exitCode) — see the log for details.")
+            lastOutput = result.output
+            phase = .failed(Self.explain(exitCode: result.exitCode, verb: "preview"))
             return
         }
+        lastOutput = result.output
         parseLatestRun()
         phase = .review
+    }
+
+    /// Exit codes as sentences. "exited 127" tells a user nothing.
+    static func explain(exitCode: Int32, verb: String) -> String {
+        switch exitCode {
+        case 127: "Couldn't \(verb): the cleaning script wasn't found where the app expects it."
+        case 126: "Couldn't \(verb): macOS blocked running the script (permissions)."
+        case 78: "Couldn't \(verb): the engine refused to start because a setting is invalid — check your protected-apps list."
+        case 2: "Couldn't \(verb): the script rejected the options the app passed."
+        default: "Couldn't \(verb) — the script stopped with code \(exitCode)."
+        }
     }
 
     private func apply() async {
         phase = .applying
         let result = await ActionRunner.run(script: cleaner.script, args: ["--apply"] + modeArgs)
+        lastOutput = result.output
         guard result.exitCode == 0 else {
-            phase = .failed("Apply exited \(result.exitCode) — see the log for details.")
+            phase = .failed(Self.explain(exitCode: result.exitCode, verb: "apply"))
             return
         }
         parseLatestRun()
