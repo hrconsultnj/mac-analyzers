@@ -8,7 +8,7 @@ import SettingsFeature
 /// actual openSettings() call (with the activation dance already done by
 /// the poster of the signal).
 struct SettingsAnchorView: View {
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Color.clear
@@ -16,7 +16,7 @@ struct SettingsAnchorView: View {
             .onReceive(NotificationCenter.default.publisher(
                 for: NotifyChannel.openSettingsInternal)) { _ in
                 SettingsOpener.markHandled(by: "anchor-window")
-                openSettings()
+                openWindow(id: "settings")
             }
     }
 }
@@ -28,7 +28,7 @@ struct SettingsAnchorView: View {
 /// for the app's entire lifetime — its receiver always fires.
 struct MenuBarLabelView: View {
     let killsToday: Int
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Group {
@@ -44,7 +44,22 @@ struct MenuBarLabelView: View {
         .onReceive(NotificationCenter.default.publisher(
             for: NotifyChannel.openSettingsInternal)) { _ in
             SettingsOpener.markHandled(by: "menu-bar-label")
-            openSettings()
+            openWindow(id: "settings")
+        }
+    }
+}
+
+/// Cmd-, and the app-menu "Settings…" item — a regular Window scene doesn't
+/// get these for free the way the Settings scene did.
+struct SettingsCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(replacing: .appSettings) {
+            Button("Settings…") {
+                SettingsOpener.open()
+            }
+            .keyboardShortcut(",", modifiers: .command)
         }
     }
 }
@@ -91,10 +106,17 @@ struct MacAnalyzersApp: App {
         .defaultPosition(.center)
         .windowResizability(.contentSize)
 
-        Settings {
+        // A REGULAR Window scene, not Settings: the Settings scene ignores
+        // windowToolbarStyle and stacks a centered title over the nav
+        // buttons. System Settings itself is a plain window — only a plain
+        // window gives the single-row strip: [back][forward] Title.
+        Window("Mac Analyzers", id: "settings") {
             SettingsTabsView()
                 .environment(store)
                 .environment(config)
         }
+        .windowToolbarStyle(.unifiedCompact(showsTitle: true))
+        .defaultSize(width: 900, height: 710)
+        .commands { SettingsCommands() }
     }
 }

@@ -13,30 +13,57 @@ public struct SettingsTabsView: View {
     }
 
     @State private var pane: Pane = .memory
-    /// State-backed path for the Logs stack (NavigationPath: it holds both
-    /// LogKind pushes and RunRoute pushes for the nested run screens).
-    @State private var logsPath = NavigationPath()
-    /// Path for the per-child stacks (.log(kind) sidebar entries). Reset on
-    /// every pane switch — the .id(kind) re-root and this reset happen in the
-    /// same update, never mid-animation.
-    @State private var childPath = NavigationPath()
+    /// Typed path for the Logs stack (landing → log → run/forensics).
+    @State private var logsPath: [LogRoute] = []
+    /// Typed path for the per-child stacks (.log(kind) sidebar entries).
+    @State private var childPath: [LogRoute] = []
     @State private var updateAvailable = false
 
-    /// Depth of whichever stack is on screen — drives the shell back chevron.
-    private var activeDepth: Int {
-        switch pane {
-        case .logs: logsPath.count
-        case .log: childPath.count
-        default: 0
+    // MARK: - browser-style history (the System Settings model)
+    // The chevrons are ALWAYS in the toolbar and track EVERY navigation —
+    // sidebar switches and drill-ins alike — as snapshots in a history
+    // array with a cursor. Back/forward time-travel the whole nav state.
+
+    private struct NavSnapshot: Equatable {
+        let pane: Pane
+        let logsPath: [LogRoute]
+        let childPath: [LogRoute]
+    }
+
+    @State private var history: [NavSnapshot] = []
+    @State private var historyIndex = -1
+    /// True while a snapshot is being applied — suppresses recording and the
+    /// pane-switch path reset so restoration isn't wiped by its own onChange.
+    @State private var isTimeTraveling = false
+    @State private var recordQueued = false
+
+    private var canGoBack: Bool { historyIndex > 0 }
+    private var canGoForward: Bool { historyIndex < history.count - 1 }
+
+    /// Coalesce per runloop tick: one user action can fire several onChange
+    /// hooks (pane + path reset) — record the SETTLED state once.
+    private func scheduleRecord() {
+        guard !isTimeTraveling, !recordQueued else { return }
+        recordQueued = true
+        DispatchQueue.main.async {
+            recordQueued = false
+            guard !isTimeTraveling else { return }
+            let snap = NavSnapshot(pane: pane, logsPath: logsPath, childPath: childPath)
+            if history.indices.contains(historyIndex), history[historyIndex] == snap { return }
+            history = Array(history.prefix(historyIndex + 1)) + [snap]
+            historyIndex = history.count - 1
         }
     }
 
-    private func popActive() {
-        switch pane {
-        case .logs: if !logsPath.isEmpty { logsPath.removeLast() }
-        case .log: if !childPath.isEmpty { childPath.removeLast() }
-        default: break
-        }
+    private func travel(to index: Int) {
+        guard history.indices.contains(index) else { return }
+        isTimeTraveling = true
+        historyIndex = index
+        let snap = history[index]
+        pane = snap.pane
+        logsPath = snap.logsPath
+        childPath = snap.childPath
+        DispatchQueue.main.async { isTimeTraveling = false }
     }
 
     public init() {}
@@ -71,25 +98,36 @@ public struct SettingsTabsView: View {
             .navigationSplitViewColumnWidth(min: 190, ideal: 205, max: 240)
         } detail: {
             detailView
-                // SHELL-level navigation, the System Settings anatomy: the
-                // back chevron lives in the window toolbar strip, never inside
-                // the pane (a nested stack's own bar floats over content).
+                // SHELL-level navigation, the System Settings anatomy: a
+                // permanent back/forward pair leading the toolbar strip,
+                // walking the recorded history — never a per-pane bar.
                 .toolbar {
-                    if activeDepth > 0 {
-                        ToolbarItem(placement: .navigation) {
-                            Button {
-                                popActive()
-                            } label: {
-                                Image(systemName: "chevron.left")
-                                    .fontWeight(.semibold)
-                            }
-                            .help("Back")
+                    ToolbarItemGroup(placement: .navigation) {
+                        Button {
+                            travel(to: historyIndex - 1)
+                        } label: {
+                            Image(systemName: "chevron.left").fontWeight(.semibold)
                         }
+                        .disabled(!canGoBack)
+                        .help("Back")
+                        Button {
+                            travel(to: historyIndex + 1)
+                        } label: {
+                            Image(systemName: "chevron.right").fontWeight(.semibold)
+                        }
+                        .disabled(!canGoForward)
+                        .help("Forward")
                     }
                 }
         }
         .frame(minWidth: 780, minHeight: 620)
-        .onChange(of: pane) { childPath = NavigationPath() }
+        .onChange(of: pane) {
+            if !isTimeTraveling { childPath = [] }
+            scheduleRecord()
+        }
+        .onChange(of: logsPath) { scheduleRecord() }
+        .onChange(of: childPath) { scheduleRecord() }
+        .onAppear(perform: scheduleRecord)
         .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.openPaneInternal)) { note in
             // deep links from the menu bar ("Guard log" → the guard-log pane)
             guard let target = note.userInfo?["target"] as? String else { return }
@@ -98,7 +136,7 @@ public struct SettingsTabsView: View {
                 pane = .log(kind)
             } else {
                 switch target {
-                case "logs": pane = .logs; logsPath = NavigationPath()
+                case "logs": pane = .logs; logsPath = []
                 case "activity": pane = .activity
                 case "monitor": pane = .monitor
                 case "trends": pane = .trends
@@ -199,16 +237,8 @@ public struct SettingsTabsView: View {
             // landing screen at the root; a log and then a run push on top
             NavigationStack(path: $logsPath) {
                 LogsHomeView()
-                    .navigationDestination(for: LogKind.self) { k in
-                        LogsSettingsView(kind: k)
-                            .navigationBarBackButtonHidden(true)
-                    }
-                    .navigationDestination(for: RunRoute.self) { route in
-                        RunDetailView(route: route)
-                            .navigationBarBackButtonHidden(true)
-                    }
-                    .navigationDestination(for: ForensicsRoute.self) { route in
-                        ForensicsDetailView(route: route)
+                    .navigationDestination(for: LogRoute.self) { route in
+                        logDestination(route)
                             .navigationBarBackButtonHidden(true)
                     }
             }
@@ -219,18 +249,22 @@ public struct SettingsTabsView: View {
             // Switching children just re-roots the stack with the new kind.
             NavigationStack(path: $childPath) {
                 LogsSettingsView(kind: kind)
-                    .navigationDestination(for: RunRoute.self) { route in
-                        RunDetailView(route: route)
-                            .navigationBarBackButtonHidden(true)
-                    }
-                    .navigationDestination(for: ForensicsRoute.self) { route in
-                        ForensicsDetailView(route: route)
+                    .navigationDestination(for: LogRoute.self) { route in
+                        logDestination(route)
                             .navigationBarBackButtonHidden(true)
                     }
             }
             .id(kind)
         case .about: AboutSettingsView()
         case .update: UpdateSettingsView()
+        }
+    }
+
+    @ViewBuilder private func logDestination(_ route: LogRoute) -> some View {
+        switch route {
+        case .log(let kind): LogsSettingsView(kind: kind)
+        case .run(let run): RunDetailView(route: run)
+        case .forensics(let forensics): ForensicsDetailView(route: forensics)
         }
     }
 }

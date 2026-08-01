@@ -45,7 +45,7 @@ struct LogsSettingsView: View {
             }
             Section {
                 ForEach(runs) { run in
-                    NavigationLink(value: RunRoute(kind: kind, run: run)) {
+                    NavigationLink(value: LogRoute.run(RunRoute(kind: kind, run: run))) {
                         VStack(alignment: .leading, spacing: 1) {
                             HStack(spacing: 6) {
                                 if let badge = run.summary.flatMap(LogParser.badge(for:)) {

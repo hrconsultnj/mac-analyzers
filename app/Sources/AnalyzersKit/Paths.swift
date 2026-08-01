@@ -77,14 +77,14 @@ public enum SettingsOpener {
         log.notice("open(target: \(target ?? "nil", privacy: .public)) — windows before: \(NSApp.windows.count)")
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        // Diagnosed via os_log (2026-08-01): the SwiftUI anchor route fails
-        // silently on the first reopen while this selector opens the window
-        // every time — so the selector IS the primary path, anchor second.
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        // The signal is answered by the menu-bar LABEL's receiver (always
+        // alive/visible — os_log diagnosis 2026-08-01; the hidden anchor
+        // window's publisher suspends while occluded), which openWindow()s
+        // the settings Window scene.
         NotificationCenter.default.post(name: NotifyChannel.openSettingsInternal, object: nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             let settingsUp = NSApp.windows.contains {
-                $0.isVisible && ($0.identifier?.rawValue.contains("Settings") ?? false)
+                $0.isVisible && ($0.identifier?.rawValue.lowercased().contains("settings") ?? false)
             }
             log.notice("post-open check — settings visible: \(settingsUp, privacy: .public), windows: \(NSApp.windows.count)")
             NSApp.activate(ignoringOtherApps: true)

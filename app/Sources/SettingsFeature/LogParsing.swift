@@ -27,6 +27,15 @@ struct RunRoute: Hashable {
     let run: LogRun
 }
 
+/// ONE typed route for everything pushable in the logs world — a typed path
+/// array ([LogRoute]) instead of an opaque NavigationPath is what lets the
+/// shell snapshot and restore navigation for browser-style back/forward.
+enum LogRoute: Hashable {
+    case log(LogKind)
+    case run(RunRoute)
+    case forensics(ForensicsRoute)
+}
+
 enum LogParser {
 
     /// Parse a log file into runs, newest first.

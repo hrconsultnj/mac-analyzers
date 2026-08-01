@@ -6,7 +6,7 @@ import UIComponents
 /// facts, two-line human-readable events, controls, shared footer.
 public struct MenuContentView: View {
     @Environment(GuardLogStore.self) private var store
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
     @State private var tab: Tab = .memory
     @AppStorage("monitorRefreshSeconds") private var monitorRefresh = 5
     @State private var latestVersion: String?
@@ -279,7 +279,7 @@ public struct MenuContentView: View {
             Button {
                 NSApp.setActivationPolicy(.regular)
                 NSApp.activate(ignoringOtherApps: true)
-                openSettings()
+                openWindow(id: "settings")
             } label: {
                 Label("Settings…", systemImage: "gearshape")
             }

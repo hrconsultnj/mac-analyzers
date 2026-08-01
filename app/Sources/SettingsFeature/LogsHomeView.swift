@@ -11,7 +11,7 @@ struct LogsHomeView: View {
                      caption: "Every receipt the suite writes — pick a log to read it newest-first.") {
             Section {
                 ForEach(LogKind.allCases) { kind in
-                    NavigationLink(value: kind) {
+                    NavigationLink(value: LogRoute.log(kind)) {
                         Label {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(kind.title)
