@@ -15,6 +15,12 @@ fi
 # files keep references to the overlay module. Detect and force recompiles.
 MODE="$([[ -n "${MA_PRO_PATH:-}" ]] && echo pro || echo public)"
 LAST_MODE_FILE=".build/.ma-build-mode"
+# Overlay source changes (new files in the local package) are invisible to
+# SPM's cached target file lists — fold the overlay's newest mtime into the
+# mode key so adding a file there forces a clean resolve.
+if [[ -n "${MA_PRO_PATH:-}" && -d "$MA_PRO_PATH/Sources" ]]; then
+  MODE="$MODE-$(find "$MA_PRO_PATH/Sources" -name '*.swift' -exec stat -f %m {} + 2>/dev/null | sort -rn | head -1)"
+fi
 if [[ "$(cat "$LAST_MODE_FILE" 2>/dev/null || echo none)" != "$MODE" ]]; then
   rm -rf .build   # stale overlay refs survive touch-level invalidation
   mkdir -p .build && echo "$MODE" > "$LAST_MODE_FILE"
