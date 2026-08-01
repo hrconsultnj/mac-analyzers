@@ -5,6 +5,13 @@ import UIComponents
 
 /// Notifications pane: viewer app, fallback-timeout, maintenance actions.
 struct NotifySettingsView: View {
+
+    /// Same key the menu-bar label reads — flips the sparkline live.
+    private var menuSparkline: Binding<Bool> {
+        Binding(
+            get: { UserDefaults.standard.object(forKey: "menuSparklineEnabled") as? Bool ?? true },
+            set: { UserDefaults.standard.set($0, forKey: "menuSparklineEnabled") })
+    }
     @Environment(ConfigStore.self) private var config
     @State private var permissionStatus: String?
 
@@ -20,6 +27,14 @@ struct NotifySettingsView: View {
                 }
                 Stepper("Fallback (alerter) auto-close: \(config.notify.timeoutSeconds) s",
                         value: $config.notify.timeoutSeconds, in: 30...600, step: 30)
+                Toggle(isOn: menuSparkline) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Memory sparkline in the menu bar")
+                        Text("Last 30 minutes of memory-in-use next to the chip icon.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Section("Maintenance") {

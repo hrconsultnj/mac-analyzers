@@ -28,11 +28,18 @@ struct SettingsAnchorView: View {
 /// for the app's entire lifetime — its receiver always fires.
 struct MenuBarLabelView: View {
     let killsToday: Int
+    let history: PressureHistory
+    @AppStorage("menuSparklineEnabled") private var sparklineEnabled = true
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Group {
-            if let icon = MacAnalyzersApp.menuBarIcon {
+            if sparklineEnabled, history.samples.count > 1 {
+                // chip + last 30 min of memory-in-use, composed as one
+                // template image (labels render a single image reliably)
+                Image(nsImage: SparklineRenderer.labelImage(
+                    chip: MacAnalyzersApp.menuBarIcon, values: history.samples))
+            } else if let icon = MacAnalyzersApp.menuBarIcon {
                 Image(nsImage: icon)
             } else {
                 Image(systemName: "memorychip")
@@ -69,6 +76,7 @@ struct MacAnalyzersApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = GuardLogStore()
     @State private var config = ConfigStore()
+    @State private var pressureHistory = PressureHistory()
 
     /// Brand chip glyph from Contents/Resources (hand-copied by build.sh —
     /// deliberately Bundle.main, not Bundle.module; see research on SPM
@@ -91,7 +99,7 @@ struct MacAnalyzersApp: App {
             // brand chip glyph as a TEMPLATE image (black+alpha, macOS tints
             // it for light/dark/translucency); SF-symbol fallback if missing.
             // The badge is the count of today's kills.
-            MenuBarLabelView(killsToday: store.killsToday)
+            MenuBarLabelView(killsToday: store.killsToday, history: pressureHistory)
         }
         .menuBarExtraStyle(.window)
 
