@@ -145,11 +145,18 @@ public struct SettingsTabsView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
-                    // glass-on-hover: the SuperWhisper cue — the card reads
-                    // as a button only when the cursor asks
-                    .background(brandHovering ? AnyShapeStyle(.regularMaterial)
-                                              : AnyShapeStyle(.clear),
+                    // persistent glass container: the card must read as a
+                    // button at rest, not only under the cursor — hover
+                    // brightens, click navigates home
+                    .background(brandHovering ? AnyShapeStyle(.thickMaterial)
+                                              : AnyShapeStyle(.regularMaterial),
                                 in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(brandHovering ? AnyShapeStyle(.tertiary)
+                                                        : AnyShapeStyle(.quaternary),
+                                          lineWidth: 1)
+                    )
                     .contentShape(RoundedRectangle(cornerRadius: 10))
                 }
                 .buttonStyle(.plain)
