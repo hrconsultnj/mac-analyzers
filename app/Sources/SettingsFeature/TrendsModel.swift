@@ -38,6 +38,31 @@ struct TrendsSnapshot {
     }
 }
 
+/// One process's share of the window's freed memory — guard kills' resident
+/// size plus reap runs' actual closures, combined.
+struct MemoryFreedEntry: Identifiable {
+    let name: String
+    let freedMB: Int
+    var id: String { name }
+}
+
+/// Deleted storage items in the window for one project, sized and sorted.
+struct DiskReclaimedGroup: Identifiable {
+    let project: String
+    let items: [StoragePathItem]
+    let totalBytes: Int64
+    var id: String { project }
+}
+
+/// One process's full guard timeline in the window, plus the header stats
+/// the offender drill-down leads with.
+struct OffenderTimeline {
+    let events: [GuardEvent]
+    let eventCount: Int
+    let killCount: Int
+    let peakResidentMB: Int
+}
+
 enum TrendsModel {
 
     enum Period: CaseIterable {
@@ -186,6 +211,76 @@ enum TrendsModel {
                               latestReclaimableBytes: latestReclaimable,
                               cleanRuns: cleanRuns, days: days,
                               offenders: offenders, headline: headline)
+    }
+
+    /// Guard events scoped to `period` and filtered to one category — the
+    /// drill-down list behind each Defended tile.
+    static func events(period: Period, category: GuardEvent.Category) -> [GuardEvent] {
+        GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
+                                 within: period.interval, limit: 2000)
+            .filter { $0.category == category }
+    }
+
+    /// Per-process memory recovered in the window: guard kills' resident size
+    /// plus reap runs' actual closures (KILLED/QUIT — dry rows are intent,
+    /// not effect, same rule as snapshot()).
+    static func memoryFreedByProcess(period: Period) -> [MemoryFreedEntry] {
+        let cutoff = Date().addingTimeInterval(-period.interval)
+        var perProcess: [String: Int] = [:]
+
+        for event in GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
+                                              within: period.interval, limit: 2000)
+        where event.isKill {
+            perProcess[event.friendlyName, default: 0] += event.residentMB ?? 0
+        }
+        for kind in [LogKind.memoryClean, .reclaim] {
+            for run in LogParser.runs(for: kind) {
+                guard let date = runDate(run.header), date >= cutoff else { continue }
+                let parsed = ReapParser.parse(runHeader: run.header, lines: run.lines)
+                for item in parsed.allItems where item.status == .killed || item.status == .quit {
+                    perProcess[item.friendlyName, default: 0] += item.mb ?? 0
+                }
+            }
+        }
+        return perProcess.map { MemoryFreedEntry(name: $0.key, freedMB: $0.value) }
+            .sorted { $0.freedMB > $1.freedMB }
+    }
+
+    /// Deleted storage items across real runs in the window, grouped by
+    /// project and sorted by size — the receipts behind "Disk reclaimed."
+    static func diskReclaimedByProject(period: Period) -> [DiskReclaimedGroup] {
+        let cutoff = Date().addingTimeInterval(-period.interval)
+        var deleted: [StoragePathItem] = []
+        for run in LogParser.runs(for: .storageClean) {
+            guard let date = runDate(run.header), date >= cutoff else { continue }
+            let parsed = StorageCleanParser.parse(runHeader: run.header, lines: run.lines)
+            deleted.append(contentsOf: parsed.items.filter { $0.status == .deleted })
+        }
+        return Dictionary(grouping: deleted, by: \.project).map { project, items in
+            DiskReclaimedGroup(project: project,
+                               items: items.sorted { $0.sizeBytes > $1.sizeBytes },
+                               totalBytes: items.reduce(Int64(0)) { $0 + $1.sizeBytes })
+        }.sorted { $0.totalBytes > $1.totalBytes }
+    }
+
+    /// The latest storage run's dry-run findings — "reclaimable right now"
+    /// is always the most recent scan, independent of the selected period.
+    static func reclaimableNow() -> [StoragePathItem] {
+        guard let newest = LogParser.runs(for: .storageClean).first else { return [] }
+        let parsed = StorageCleanParser.parse(runHeader: newest.header, lines: newest.lines)
+        return parsed.items.filter { $0.status == .dry }.sorted { $0.sizeBytes > $1.sizeBytes }
+    }
+
+    /// One process's full guard timeline in the window, across every event
+    /// kind, plus the stat row the offender drill-down leads with.
+    static func offenderTimeline(name: String, period: Period) -> OffenderTimeline {
+        let events = GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
+                                              within: period.interval, limit: 2000)
+            .filter { $0.friendlyName == name }
+        return OffenderTimeline(events: events,
+                                eventCount: events.count,
+                                killCount: events.filter(\.isKill).count,
+                                peakResidentMB: events.compactMap(\.residentMB).max() ?? 0)
     }
 
     /// Run headers open with "yyyy-MM-dd HH:mm | …" (block logs). Day-grouped

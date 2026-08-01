@@ -26,6 +26,8 @@ struct TrendsSettingsView: View {
                         options: TrendsModel.Period.primary.map { ($0, $0.label) },
                         selection: $period
                     )
+                    // fixed-width sibling matching the segment bar's full
+                    // height and corner treatment — never a floating dot
                     Menu {
                         ForEach(TrendsModel.Period.extended, id: \.self) { option in
                             Button {
@@ -41,16 +43,21 @@ struct TrendsSettingsView: View {
                     } label: {
                         Image(systemName: "ellipsis")
                             .fontWeight(.semibold)
-                            .frame(width: 34, height: 22)
+                            .frame(width: 34)
+                            .frame(maxHeight: .infinity)
+                            .contentShape(Rectangle())
                     }
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
-                    .fixedSize()
-                    .foregroundStyle(extendedSelected ? Color.white : .secondary)
-                    .background(extendedSelected ? Color.accentColor : Color.clear,
-                                in: Capsule())
+                    .frame(width: 40)
+                    .frame(maxHeight: .infinity)
+                    .foregroundStyle(extendedSelected ? Color.white : Color.primary)
+                    .background(extendedSelected ? AnyShapeStyle(Color.accentColor)
+                                                 : AnyShapeStyle(.quaternary.opacity(0.5)),
+                                in: RoundedRectangle(cornerRadius: 8))
                     .help(extendedSelected ? period.label : "More ranges")
                 }
+                .fixedSize(horizontal: false, vertical: true)
                 if extendedSelected {
                     Text("Showing: \(period.label)")
                         .font(.caption)
@@ -81,20 +88,20 @@ struct TrendsSettingsView: View {
     @ViewBuilder private func statSections(_ snap: TrendsSnapshot) -> some View {
         Section("Defended") {
             statGrid([
-                ("xmark.octagon.fill", .red, "\(snap.kills)", "Runaways stopped"),
-                ("arrow.up.right", .orange, "\(snap.spikes)", "Spikes caught"),
-                ("exclamationmark.triangle.fill", .orange, "\(snap.pressure)", "Pressure alerts"),
-                ("cpu", .purple, "\(snap.cpuHogs)", "CPU hogs flagged"),
+                ("xmark.octagon.fill", .red, "\(snap.kills)", "Runaways stopped", TrendsRoute.kills(period)),
+                ("arrow.up.right", .orange, "\(snap.spikes)", "Spikes caught", TrendsRoute.spikes(period)),
+                ("exclamationmark.triangle.fill", .orange, "\(snap.pressure)", "Pressure alerts", TrendsRoute.pressure(period)),
+                ("cpu", .purple, "\(snap.cpuHogs)", "CPU hogs flagged", TrendsRoute.cpuHogs(period)),
             ])
         }
         Section("Recovered") {
             statGrid([
                 ("memorychip", .blue,
-                 String(format: "%.1f GB", Double(snap.memoryFreedMB) / 1024), "Memory freed"),
+                 String(format: "%.1f GB", Double(snap.memoryFreedMB) / 1024), "Memory freed", TrendsRoute.memoryFreed(period)),
                 ("internaldrive.fill", .indigo,
-                 ByteSize.format(snap.storageFreedBytes), "Disk reclaimed"),
+                 ByteSize.format(snap.storageFreedBytes), "Disk reclaimed", TrendsRoute.diskReclaimed(period)),
                 ("sparkles", .teal,
-                 ByteSize.format(snap.latestReclaimableBytes), "Reclaimable right now"),
+                 ByteSize.format(snap.latestReclaimableBytes), "Reclaimable right now", TrendsRoute.reclaimableNow(period)),
             ])
         }
         if !snap.days.isEmpty {
@@ -120,38 +127,43 @@ struct TrendsSettingsView: View {
         if !snap.offenders.isEmpty {
             Section("Repeat offenders") {
                 ForEach(snap.offenders) { offender in
-                    DataCard(symbol: "flame.fill", color: .orange,
-                             title: offender.name,
-                             subtitle: "\(offender.count) event\(offender.count == 1 ? "" : "s") in this window",
-                             trailing: "\(offender.count)×",
-                             badge: offender.kills > 0
-                                 ? ("\(offender.kills) KILLED", .red) : nil)
+                    NavigationLink(value: TrendsRoute.offender(offender.name, period)) {
+                        DataCard(symbol: "flame.fill", color: .orange,
+                                 title: offender.name,
+                                 subtitle: "\(offender.count) event\(offender.count == 1 ? "" : "s") in this window",
+                                 trailing: "\(offender.count)×",
+                                 badge: offender.kills > 0
+                                     ? ("\(offender.kills) KILLED", .red) : nil)
+                    }
                 }
             }
         }
     }
 
-    private func statGrid(_ stats: [(symbol: String, color: Color, value: String, label: String)]) -> some View {
+    private func statGrid(_ stats: [(symbol: String, color: Color, value: String, label: String, route: TrendsRoute)]) -> some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10),
                                  count: min(stats.count, 4)),
                   spacing: 10) {
             ForEach(stats, id: \.label) { stat in
-                VStack(spacing: 3) {
-                    Image(systemName: stat.symbol)
-                        .foregroundStyle(stat.color)
-                        .font(.body)
-                    Text(stat.value)
-                        .font(.title3.weight(.semibold).monospacedDigit())
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                    Text(stat.label)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                NavigationLink(value: stat.route) {
+                    VStack(spacing: 3) {
+                        Image(systemName: stat.symbol)
+                            .foregroundStyle(stat.color)
+                            .font(.body)
+                        Text(stat.value)
+                            .font(.title3.weight(.semibold).monospacedDigit())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        Text(stat.label)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                .buttonStyle(.plain)
             }
         }
         .padding(.vertical, 2)

@@ -8,15 +8,19 @@ import UIComponents
 public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
-        case memory, storage, notifications, schedule, monitor, trends,
+        case home, memory, storage, notifications, schedule, monitor, trends,
              activity, logs, log(LogKind), about, update
     }
 
-    @State private var pane: Pane = .memory
+    /// Settings opens on the Overview dashboard — the SaaS-home pattern;
+    /// the sidebar brand card is the way back to it (no sidebar row).
+    @State private var pane: Pane = .home
     /// Typed path for the Logs stack (landing → log → run/forensics).
     @State private var logsPath: [LogRoute] = []
     /// Typed path for the per-child stacks (.log(kind) sidebar entries).
     @State private var childPath: [LogRoute] = []
+    /// Typed path for the Trends drill-downs (tiles → receipt screens).
+    @State private var trendsPath: [TrendsRoute] = []
     @State private var updateAvailable = false
 
     // MARK: - browser-style history (the System Settings model)
@@ -28,6 +32,7 @@ public struct SettingsTabsView: View {
         let pane: Pane
         let logsPath: [LogRoute]
         let childPath: [LogRoute]
+        let trendsPath: [TrendsRoute]
     }
 
     @State private var history: [NavSnapshot] = []
@@ -48,7 +53,8 @@ public struct SettingsTabsView: View {
         DispatchQueue.main.async {
             recordQueued = false
             guard !isTimeTraveling else { return }
-            let snap = NavSnapshot(pane: pane, logsPath: logsPath, childPath: childPath)
+            let snap = NavSnapshot(pane: pane, logsPath: logsPath,
+                                   childPath: childPath, trendsPath: trendsPath)
             if history.indices.contains(historyIndex), history[historyIndex] == snap { return }
             history = Array(history.prefix(historyIndex + 1)) + [snap]
             historyIndex = history.count - 1
@@ -63,6 +69,7 @@ public struct SettingsTabsView: View {
         pane = snap.pane
         logsPath = snap.logsPath
         childPath = snap.childPath
+        trendsPath = snap.trendsPath
         DispatchQueue.main.async { isTimeTraveling = false }
     }
 
@@ -72,20 +79,28 @@ public struct SettingsTabsView: View {
         NavigationSplitView {
             VStack(spacing: 0) {
                 // sticky brand card above the sections — the System-Settings
-                // sidebar-header pattern (icon · name · version)
-                HStack(spacing: 10) {
-                    Image(nsImage: NSApp.applicationIconImage)
-                        .resizable()
-                        .frame(width: 44, height: 44)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Mac Analyzers")
-                            .font(.headline)
-                        Text("v\(UpdateChecker.installedVersion)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                // sidebar-header pattern (icon · name · version), acting as
+                // the Home button like a SaaS navbar logo
+                Button {
+                    pane = .home
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(nsImage: NSApp.applicationIconImage)
+                            .resizable()
+                            .frame(width: 44, height: 44)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Mac Analyzers")
+                                .font(.headline)
+                            Text("v\(UpdateChecker.installedVersion)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
                     }
-                    Spacer()
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .help("Overview")
                 .padding(.horizontal, 14)
                 .padding(.top, 8)
                 .padding(.bottom, 10)
@@ -124,6 +139,7 @@ public struct SettingsTabsView: View {
         .onChange(of: pane) {
             if !isTimeTraveling {
                 childPath = []
+                trendsPath = []
                 // sidebar "Logs" click always lands on the list — drilled
                 // states remain reachable via the history chevrons
                 if pane == .logs { logsPath = [] }
@@ -132,21 +148,29 @@ public struct SettingsTabsView: View {
         }
         .onChange(of: logsPath) { scheduleRecord() }
         .onChange(of: childPath) { scheduleRecord() }
+        .onChange(of: trendsPath) { scheduleRecord() }
         .onAppear(perform: scheduleRecord)
         .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.openPaneInternal)) { note in
             // deep links from the menu bar ("Guard log" → the guard-log pane)
             guard let target = note.userInfo?["target"] as? String else { return }
             if target.hasPrefix("log:"),
                let kind = LogKind(rawValue: String(target.dropFirst(4))) {
+                // deep-linking to the ALREADY-selected log is a no-op pane
+                // assignment — reset the stack explicitly (audit finding)
+                if pane == .log(kind) { childPath = [] }
                 pane = .log(kind)
             } else {
                 switch target {
+                case "home", "overview": pane = .home
                 case "logs": pane = .logs; logsPath = []
                 case "activity": pane = .activity
                 case "monitor": pane = .monitor
                 case "trends": pane = .trends
                 case "schedule": pane = .schedule
                 case "update": pane = .update
+                case "memory": pane = .memory
+                case "storage": pane = .storage
+                case "notifications": pane = .notifications
                 default: break
                 }
             }
@@ -164,7 +188,17 @@ public struct SettingsTabsView: View {
     private var paneSelection: Binding<Pane> {
         Binding(get: { pane },
                 set: { newValue in
-                    if newValue == .logs, pane == .logs, !logsPath.isEmpty {
+                    // re-click on the CURRENT pane is a no-op assignment, so
+                    // onChange never fires — reset its stack here (audit
+                    // finding: stale drilled screen under a correct highlight)
+                    if newValue == pane {
+                        switch newValue {
+                        case .logs: logsPath = []
+                        case .log: childPath = []
+                        case .trends: trendsPath = []
+                        default: break
+                        }
+                    } else if newValue == .logs {
                         logsPath = []
                     }
                     pane = newValue
@@ -252,12 +286,20 @@ public struct SettingsTabsView: View {
 
     @ViewBuilder private var detailView: some View {
         switch pane {
+        case .home: HomeSettingsView()
         case .memory: MemorySettingsView()
         case .storage: StorageSettingsView()
         case .notifications: NotifySettingsView()
         case .schedule: ScheduleSettingsView()
         case .monitor: MonitorSettingsView()
-        case .trends: TrendsSettingsView()
+        case .trends:
+            NavigationStack(path: $trendsPath) {
+                TrendsSettingsView()
+                    .navigationDestination(for: TrendsRoute.self) { route in
+                        trendsDestination(route)
+                            .navigationBarBackButtonHidden(true)
+                    }
+            }
         case .activity: ActivitySettingsView()
         case .logs:
             // landing screen at the root; a log and then a run push on top
