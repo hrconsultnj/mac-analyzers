@@ -115,7 +115,7 @@ struct MacAnalyzersApp: App {
                 .environment(store)
                 .environment(config)
         }
-        .windowToolbarStyle(.unifiedCompact(showsTitle: true))
+        .windowToolbarStyle(.unified(showsTitle: true))
         .defaultSize(width: 900, height: 710)
         .commands { SettingsCommands() }
     }
