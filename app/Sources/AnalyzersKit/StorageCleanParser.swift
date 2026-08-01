@@ -7,6 +7,7 @@ public struct StoragePathItem: Identifiable, Hashable, Sendable {
     public enum Status: String, Sendable {
         case dry = "DRY"
         case deleted = "DELETED"
+        case trashed = "TRASHED"     // janitor: moved to Trash, recoverable
         case failed = "FAILED"
     }
 

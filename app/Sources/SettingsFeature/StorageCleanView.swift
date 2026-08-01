@@ -195,6 +195,7 @@ struct StorageCleanView: View {
         switch status {
         case .dry: .blue
         case .deleted: .green
+        case .trashed: .orange
         case .failed: .red
         }
     }

@@ -9,13 +9,17 @@ import UIComponents
 struct ActionsSettingsView: View {
 
     enum Cleaner: Hashable, CaseIterable {
-        case memoryClean, reclaim, storageClean
+        case memoryClean, reclaim, storageClean, janitor
+
+        /// The two storage-shaped cleaners share the review renderer.
+        var isStorageShaped: Bool { self == .storageClean || self == .janitor }
 
         var title: String {
             switch self {
             case .memoryClean: "Memory Clean"
             case .reclaim: "Memory Reclaim"
             case .storageClean: "Storage Clean"
+            case .janitor: "Janitor"
             }
         }
 
@@ -27,6 +31,8 @@ struct ActionsSettingsView: View {
                 "Sweeps reclaimable dev processes for a bigger one-time memory win. Same protections as the guard."
             case .storageClean:
                 "Removes stale build caches and node_modules of idle repos only — anything touched recently is skipped."
+            case .janitor:
+                "Moves stale Downloads and old screenshots to the Trash — recoverable, keep-patterns honored, folders reviewed as units."
             }
         }
 
@@ -35,6 +41,7 @@ struct ActionsSettingsView: View {
             case .memoryClean: "memorychip"
             case .reclaim: "arrow.3.trianglepath"
             case .storageClean: "internaldrive.fill"
+            case .janitor: "trash"
             }
         }
 
@@ -43,6 +50,7 @@ struct ActionsSettingsView: View {
             case .memoryClean: .blue
             case .reclaim: .teal
             case .storageClean: .indigo
+            case .janitor: .orange
             }
         }
 
@@ -51,6 +59,7 @@ struct ActionsSettingsView: View {
             case .memoryClean: AnalyzersPaths.memoryCleanScript
             case .reclaim: AnalyzersPaths.reclaimScript
             case .storageClean: AnalyzersPaths.storageCleanScript
+            case .janitor: AnalyzersPaths.janitorScript
             }
         }
 
@@ -59,6 +68,7 @@ struct ActionsSettingsView: View {
             case .memoryClean: .memoryClean
             case .reclaim: .reclaim
             case .storageClean: .storageClean
+            case .janitor: .janitor
             }
         }
     }
@@ -223,9 +233,9 @@ struct ActionsSettingsView: View {
                         }
                     }
                 }
-            case .storageClean:
+            case .storageClean, .janitor:
                 if let run = storageRun {
-                    let groups = Dictionary(grouping: run.items.filter { $0.status == .dry || $0.status == .deleted },
+                    let groups = Dictionary(grouping: run.items.filter { $0.status == .dry || $0.status == .deleted || $0.status == .trashed },
                                             by: \.project)
                         .map { (project: $0.key,
                                 items: $0.value.sorted { $0.sizeBytes > $1.sizeBytes },
@@ -238,8 +248,9 @@ struct ActionsSettingsView: View {
                                          title: item.cacheKind,
                                          subtitle: item.path,
                                          trailing: ByteSize.format(item.sizeBytes),
-                                         badge: item.status == .deleted
-                                             ? ("DELETED", .red) : ("WOULD REMOVE", .blue))
+                                         badge: item.status == .deleted ? ("DELETED", .red)
+                                             : item.status == .trashed ? ("TRASHED", .orange)
+                                             : ("WOULD REMOVE", .blue))
                             }
                         }
                     }
@@ -273,7 +284,7 @@ struct ActionsSettingsView: View {
     private var hasAnythingToApply: Bool {
         switch cleaner {
         case .memoryClean, .reclaim: !dryReapItems.isEmpty
-        case .storageClean: dryStorageBytes > 0
+        case .storageClean, .janitor: dryStorageBytes > 0
         }
     }
 
@@ -284,7 +295,7 @@ struct ActionsSettingsView: View {
             return dryReapItems.isEmpty
                 ? "Nothing to close — all clean."
                 : "Would close \(dryReapItems.count) process\(dryReapItems.count == 1 ? "" : "es") (~\(mb) MB)"
-        case .storageClean:
+        case .storageClean, .janitor:
             return dryStorageBytes == 0
                 ? "Nothing stale to remove."
                 : "Would free \(ByteSize.format(dryStorageBytes))"
@@ -297,6 +308,8 @@ struct ActionsSettingsView: View {
             "Apply — close \(dryReapItems.count)"
         case .storageClean:
             "Apply — free \(ByteSize.format(dryStorageBytes))"
+        case .janitor:
+            "Apply — trash \(ByteSize.format(dryStorageBytes))"
         }
     }
 
@@ -306,6 +319,8 @@ struct ActionsSettingsView: View {
             "Close \(dryReapItems.count) process\(dryReapItems.count == 1 ? "" : "es")?"
         case .storageClean:
             "Remove the listed caches (\(ByteSize.format(dryStorageBytes)))?"
+        case .janitor:
+            "Move the listed items (\(ByteSize.format(dryStorageBytes))) to the Trash?"
         }
     }
 
@@ -345,6 +360,11 @@ struct ActionsSettingsView: View {
                 .map(\.sizeBytes).reduce(0, +) ?? 0
             return freed == 0 ? "Done — nothing removed."
                               : "Freed \(ByteSize.format(freed)). Receipts in the log."
+        case .janitor:
+            let trashed = storageRun?.items.filter { $0.status == .trashed }
+                .map(\.sizeBytes).reduce(0, +) ?? 0
+            return trashed == 0 ? "Done — nothing needed tidying."
+                                : "Moved \(ByteSize.format(trashed)) to the Trash — recoverable there."
         }
     }
 
@@ -357,7 +377,7 @@ struct ActionsSettingsView: View {
         switch cleaner {
         case .memoryClean, .reclaim:
             reapRun = ReapParser.parse(runHeader: latest.header, lines: latest.lines)
-        case .storageClean:
+        case .storageClean, .janitor:
             storageRun = StorageCleanParser.parse(runHeader: latest.header, lines: latest.lines)
         }
     }

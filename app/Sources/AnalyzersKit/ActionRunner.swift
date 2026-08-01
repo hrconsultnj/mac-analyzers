@@ -41,4 +41,6 @@ public extension AnalyzersPaths {
     static let memoryCleanScript = suiteRoot.appending(path: "memory-analyzer/memory-auto-clean.sh")
     static let reclaimScript = suiteRoot.appending(path: "memory-analyzer/memory-reclaim.sh")
     static let storageCleanScript = suiteRoot.appending(path: "storage-analyzer/storage-auto-clean.sh")
+    static let janitorScript = suiteRoot.appending(path: "storage-analyzer/downloads-janitor.sh")
+    static let janitorLog = storageReports.appending(path: "janitor.log")
 }
