@@ -150,7 +150,12 @@ public final class ConfigStore {
         out += "GUARD_CPU_HOG_PCT=\(memory.cpuHogPct)\n"
         out += "GUARD_CPU_HOG_TICKS=\(memory.cpuHogTicks)\n"
         if !memory.protectExtra.isEmpty {
-            out += "ANALYZERS_PROTECT_EXTRA=\(shellQuote(memory.protectExtra.joined(separator: "|")))\n"
+            // Escaped: an app name containing a regex metacharacter (a lone
+            // "(" in "Foo (beta)") otherwise makes awk abort inside the
+            // guard — which silently protects NOTHING while the UI claims
+            // the list is active.
+            let escaped = memory.protectExtra.map(Self.regexEscape).joined(separator: "|")
+            out += "ANALYZERS_PROTECT_EXTRA=\(shellQuote(escaped))\n"
         }
         if !memory.reclaimApps.isEmpty {
             out += "ANALYZERS_RECLAIM_APPS=\(shellQuote(memory.reclaimApps.joined(separator: ",")))\n"
@@ -176,6 +181,17 @@ public final class ConfigStore {
         let tmp = AnalyzersPaths.configLocal.appendingPathExtension("tmp")
         try out.write(to: tmp, atomically: true, encoding: .utf8)
         _ = try fm.replaceItemAt(AnalyzersPaths.configLocal, withItemAt: tmp)
+    }
+
+    /// Escape POSIX ERE metacharacters so a literal app name stays literal
+    /// when the guard compiles the protect pattern in awk.
+    static func regexEscape(_ s: String) -> String {
+        var out = ""
+        for character in s {
+            if "\\^$.[]|()*+?{}".contains(character) { out.append("\\") }
+            out.append(character)
+        }
+        return out
     }
 
     /// Single-quote for bash; embedded single quotes become '\'' .

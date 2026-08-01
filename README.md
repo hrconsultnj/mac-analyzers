@@ -22,8 +22,12 @@ and handles it on autopilot:
   from a narrow allowlist, and a protected list (video calls, browsers,
   editors, anything you add) **always wins**.
 - **It cleans rebuildable junk on a schedule** — caches, build leftovers,
-  abandoned background servers: things your tools recreate on their own. It
-  **never touches your documents**, photos, or projects.
+  abandoned background servers: things your tools recreate on their own. The
+  scheduled cleans **never touch your documents**, photos, or projects.
+- **The optional Downloads janitor is the one exception, and it is opt-in** —
+  you run it yourself, it lists old downloads and screenshots for review
+  first, and it only ever moves them to the **Trash**, where you (or the
+  app's Undo screen) can put them straight back.
 - **It tells you what happened** in a normal macOS notification — click it to
   see exactly what was done and why. **Every action is written down.**
 - **The menu-bar app is how you live with it**: glance at the chip icon to

@@ -58,6 +58,21 @@ KILLABLE_RE='(^|/)(node|npm|npx|bun|tsx|deno)( |$)|next-server|next dev|vite|esb
 PROTECT_RE='.local/bin/claude|Claude.app|Visual Studio Code|Code Helper|zoom.us|ZoomCef|Docker|OrbStack|Opera.app|Google Chrome.app|Safari|WindowServer|loginwindow|mds|Finder|screencapture|screencaptureui|QuickTime|CoreServices|iTerm'
 [[ -n "${ANALYZERS_PROTECT_EXTRA:-}" ]] && PROTECT_RE="${PROTECT_RE}|${ANALYZERS_PROTECT_EXTRA}"
 
+# The protect list is the guard's most important safety property, and an
+# invalid pattern makes awk abort mid-tick — which would protect NOTHING
+# while everything still looks healthy. Refuse to run instead.
+if ! awk -v re="$PROTECT_RE" 'BEGIN { if ("probe" ~ re) exit 0; exit 0 }' </dev/null 2>/dev/null; then
+  echo "FATAL: protected-apps list is not a valid pattern; refusing to start." >&2
+  if [[ -f "${ANALYZERS_ROOT}/lib/notify.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "${ANALYZERS_ROOT}/lib/notify.sh"
+    notify "Memory Guard did not start" \
+      "Your protected-apps list has an invalid entry, so nothing would be protected. Open Settings → Memory and fix the list." \
+      2>/dev/null || true
+  fi
+  exit 78
+fi
+
 ONCE=0
 VERBOSE=0
 ORIG_ARGS="$*"

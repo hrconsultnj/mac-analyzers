@@ -25,5 +25,16 @@
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <!-- Without these, macOS denies the request with NO prompt: the reclaim's
+         polite quit fails silently and the janitor finds nothing. Two
+         advertised actions that simply could not work. -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Mac Analyzers asks apps to quit politely — the same Quit you would choose from the menu — so unsaved work is never lost.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>The Downloads janitor lists old files here so you can review them before anything is moved to the Trash.</string>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Mac Analyzers looks at your Screenshots folder to offer tidying old screenshots. It only ever moves them to the Trash, after you approve.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Mac Analyzers reads folder sizes here to report what is using space. It never moves or deletes anything in Documents.</string>
 </dict>
 </plist>

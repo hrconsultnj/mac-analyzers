@@ -38,6 +38,16 @@ KEEP="${JANITOR_KEEP_PATTERNS:-}"
 OUT_DIR="${HOME}/mac-analyzers/reports/storage"
 mkdir -p "${OUT_DIR}"
 LOG_FILE="${OUT_DIR}/janitor.log"
+LOCK_FILE="${OUT_DIR}/.janitor.lock"
+
+# Single instance, like every other cleaner: two sweeps racing over the same
+# Trash destinations is how a receipt ends up pointing at the wrong file.
+if [[ -e "$LOCK_FILE" ]] && kill -0 "$(cat "$LOCK_FILE" 2>/dev/null)" 2>/dev/null; then
+  echo "downloads janitor already running (pid $(cat "$LOCK_FILE")); exiting." >&2
+  exit 0
+fi
+echo "$$" > "$LOCK_FILE"
+trap 'rm -f "$LOCK_FILE"' EXIT
 TRASH_DIR="${HOME}/.Trash"
 
 log() { echo "$*" | tee -a "${LOG_FILE}"; }
@@ -82,7 +92,10 @@ sweep() {
       log "[SKIP] kept by pattern  ${item}"
       continue
     fi
-    kb="$(du -sk "${item}" 2>/dev/null | cut -f1)"
+    # `|| true`: without it, set -e aborts the sweep mid-run — AFTER files are
+    # already in the Trash but BEFORE their receipts are written, which is the
+    # one failure that loses the ability to undo.
+    kb="$(du -sk "${item}" 2>/dev/null | cut -f1 || true)"
     [[ -z "${kb}" ]] && kb=0
     size="$(human "${kb}")"
     if [[ "${DRY_RUN}" -eq 1 ]]; then

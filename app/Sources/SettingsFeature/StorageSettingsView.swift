@@ -10,7 +10,7 @@ struct StorageSettingsView: View {
     var body: some View {
         @Bindable var config = config
         PaneScaffold(symbol: "internaldrive.fill", color: .indigo, title: "Storage",
-                     caption: "What the scheduled cleans may touch. Everything is rebuildable; documents are never in scope.") {
+                     caption: "What the SCHEDULED cleans may touch — build output and caches only, all of it regenerable. The Downloads janitor is separate: it moves old files to the Trash, after you review them, and you can undo it.") {
             Section("Storage auto-clean") {
                 StringListEditor(
                     title: "Extra cache-directory globs (cleaned when idle > 7 days)",
