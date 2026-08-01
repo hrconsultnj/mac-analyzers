@@ -82,11 +82,22 @@ struct ActionsSettingsView: View {
         case failed(String)
     }
 
+    /// One prior run of the selected cleaner, parsed — the Actions history
+    /// backfill (the logs already held every run; this surfaces them here).
+    struct HistoryRun: Identifiable {
+        let id: Int
+        let header: String
+        let reap: ReapRun?
+        let storage: StorageCleanRun?
+    }
+
     @State private var cleaner: Cleaner = .memoryClean
     @State private var phase: Phase = .idle
     @State private var reapRun: ReapRun?
     @State private var storageRun: StorageCleanRun?
     @State private var confirmingApply = false
+    @State private var sortByName = false
+    @State private var history: [HistoryRun] = []
     /// Storage only: deep mode adds stale node_modules + TM snapshot report
     /// (the engine's --mode deep), vs daily's build-caches-only pass.
     @State private var storageDeep = false
@@ -120,14 +131,19 @@ struct ActionsSettingsView: View {
             }
             controlSection
             reviewSections
+            historySection
         }
-        .onChange(of: cleaner) { resetToIdle() }
+        .onChange(of: cleaner) {
+            resetToIdle()
+            loadHistory()
+        }
         .onAppear {
             // menu deep-links preselect a cleaner ("actions:<cleaner>")
             if let raw = UserDefaults.standard.string(forKey: "actionsPreselect") {
                 UserDefaults.standard.removeObject(forKey: "actionsPreselect")
                 if let preselected = Cleaner(rawValue: raw) { cleaner = preselected }
             }
+            loadHistory()
         }
         .confirmationDialog(applyPrompt, isPresented: $confirmingApply, titleVisibility: .visible) {
             Button(applyButtonTitle, role: .destructive) {
@@ -164,6 +180,16 @@ struct ActionsSettingsView: View {
                     Label(reviewHeadline, systemImage: "eye")
                         .font(.callout.weight(.medium))
                     Spacer()
+                    if cleaner.isStorageShaped {
+                        Picker("", selection: $sortByName) {
+                            Text("Size").tag(false)
+                            Text("Name").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .frame(width: 110)
+                    }
                     Button("Discard") { resetToIdle() }
                     Button(applyButtonTitle) { confirmingApply = true }
                         .buttonStyle(.glassProminent)
@@ -242,22 +268,10 @@ struct ActionsSettingsView: View {
                 }
             case .storageClean, .janitor:
                 if let run = storageRun {
-                    let groups = Dictionary(grouping: run.items.filter { $0.status == .dry || $0.status == .deleted || $0.status == .trashed },
-                                            by: \.project)
-                        .map { (project: $0.key,
-                                items: $0.value.sorted { $0.sizeBytes > $1.sizeBytes },
-                                total: $0.value.map(\.sizeBytes).reduce(0, +)) }
-                        .sorted { $0.total > $1.total }
-                    ForEach(groups, id: \.project) { group in
+                    ForEach(reviewGroups(from: run), id: \.project) { group in
                         Section("\(group.project) — \(ByteSize.format(group.total))") {
                             ForEach(group.items) { item in
-                                DataCard(symbol: "folder.fill", color: .indigo,
-                                         title: item.cacheKind,
-                                         subtitle: item.path,
-                                         trailing: ByteSize.format(item.sizeBytes),
-                                         badge: item.status == .deleted ? ("DELETED", .red)
-                                             : item.status == .trashed ? ("TRASHED", .orange)
-                                             : ("WOULD REMOVE", .blue))
+                                pathRow(item)
                             }
                         }
                     }
@@ -387,6 +401,123 @@ struct ActionsSettingsView: View {
         case .storageClean, .janitor:
             storageRun = StorageCleanParser.parse(runHeader: latest.header, lines: latest.lines)
         }
+    }
+
+    private struct ReviewGroup {
+        let project: String
+        let items: [StoragePathItem]
+        let total: Int64
+    }
+
+    private func reviewGroups(from run: StorageCleanRun) -> [ReviewGroup] {
+        let visible = run.items.filter {
+            $0.status == .dry || $0.status == .deleted || $0.status == .trashed
+        }
+        var groups = Dictionary(grouping: visible, by: \.project).map { key, value in
+            let items: [StoragePathItem]
+            if sortByName {
+                items = value.sorted {
+                    $0.cacheKind.localizedCaseInsensitiveCompare($1.cacheKind) == .orderedAscending
+                }
+            } else {
+                items = value.sorted { $0.sizeBytes > $1.sizeBytes }
+            }
+            return ReviewGroup(project: key, items: items,
+                               total: value.map(\.sizeBytes).reduce(0, +))
+        }
+        if sortByName {
+            groups.sort {
+                $0.project.localizedCaseInsensitiveCompare($1.project) == .orderedAscending
+            }
+        } else {
+            groups.sort { $0.total > $1.total }
+        }
+        return groups
+    }
+
+    // MARK: - path rows (icons + Finder reveal)
+
+    /// Real file/folder icon + Show in Finder — the same first-class
+    /// treatment the memory lists give apps.
+    private func pathRow(_ item: StoragePathItem) -> some View {
+        let exists = FileManager.default.fileExists(atPath: item.path)
+        return HStack(spacing: 6) {
+            DataCard(appIcon: NSWorkspace.shared.icon(forFile: item.path),
+                     title: item.cacheKind,
+                     subtitle: item.path,
+                     trailing: ByteSize.format(item.sizeBytes),
+                     badge: item.status == .deleted ? ("DELETED", .red)
+                         : item.status == .trashed ? ("TRASHED", .orange)
+                         : ("WOULD REMOVE", .blue))
+            if exists {
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting(
+                        [URL(fileURLWithPath: item.path)])
+                } label: {
+                    Image(systemName: "magnifyingglass.circle")
+                }
+                .buttonStyle(.borderless)
+                .help("Show in Finder")
+            }
+        }
+    }
+
+    // MARK: - history (the backfill: every prior run, parsed)
+
+    @ViewBuilder private var historySection: some View {
+        if !history.isEmpty {
+            Section("Previous runs") {
+                ForEach(history) { run in
+                    DisclosureGroup {
+                        historyCards(run)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(run.header)
+                                .font(.callout.weight(.medium))
+                                .lineLimit(1)
+                            if let summary = run.reap?.summary ?? run.storage?.summary {
+                                Text(summary)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func historyCards(_ run: HistoryRun) -> some View {
+        if let reap = run.reap {
+            ForEach(reap.allItems.prefix(15)) { item in
+                DataCard(symbol: "terminal", color: statusColor(item.status),
+                         title: item.friendlyName,
+                         subtitle: item.description,
+                         trailing: item.mb.map { "\($0) MB" },
+                         badge: badge(for: item.status))
+            }
+        }
+        if let storage = run.storage {
+            ForEach(storage.items.sorted { $0.sizeBytes > $1.sizeBytes }.prefix(15)) { item in
+                pathRow(item)
+            }
+        }
+    }
+
+    private func loadHistory() {
+        let logKind = cleaner.logKind
+        let storageShaped = cleaner.isStorageShaped
+        detachedLoad({
+            LogParser.runs(for: logKind).prefix(10).enumerated().map { index, run in
+                HistoryRun(id: index, header: run.header,
+                           reap: storageShaped ? nil
+                               : ReapParser.parse(runHeader: run.header, lines: run.lines),
+                           storage: storageShaped
+                               ? StorageCleanParser.parse(runHeader: run.header, lines: run.lines)
+                               : nil)
+            }
+        }) { history = $0 }
     }
 
     private func resetToIdle() {
