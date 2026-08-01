@@ -18,8 +18,33 @@ public enum AnalyzersPaths {
 
     public static let guardPauseFlag = memoryReports.appending(path: ".guard-paused")
 
-    public static let suiteRoot = home.appending(path: "mac-analyzers")
-    public static let configLocal = suiteRoot.appending(path: "config.local.sh")
+    /// Where the engine scripts actually live. The app bundles its own copy,
+    /// so a downloaded app works with nothing else installed; a source clone
+    /// still wins when present, because that is the copy the developer edits.
+    public static let suiteRoot: URL = {
+        let clone = home.appending(path: "mac-analyzers")
+        if FileManager.default.isExecutableFile(
+            atPath: clone.appending(path: "memory-analyzer/memory-guard.sh").path) {
+            return clone
+        }
+        if let bundled = Bundle.main.resourceURL?.appending(path: "engine"),
+           FileManager.default.isExecutableFile(
+            atPath: bundled.appending(path: "memory-analyzer/memory-guard.sh").path) {
+            return bundled
+        }
+        return clone
+    }()
+
+    /// True when the engine we found is the one inside the app bundle — the
+    /// Setup checklist says so rather than implying a clone exists.
+    public static var usingBundledEngine: Bool {
+        suiteRoot.path.contains(".app/Contents/Resources/engine")
+    }
+
+    /// Settings always live in the user's own folder, never inside the app
+    /// bundle (which is replaced wholesale on every update).
+    public static let configLocal = home
+        .appending(path: "mac-analyzers/config.local.sh")
 
     /// Newest guard-critical forensics dump, if any (they live in dated subdirs).
     public static func latestForensics() -> URL? {

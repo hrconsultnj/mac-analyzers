@@ -53,6 +53,18 @@ git -C .. log --first-parent -E --grep='^v[0-9]+\.[0-9]+' -n 60 \
   | awk '/^## v[0-9]/{count++} count>20{exit} {print}' \
   > "$APP/Contents/Resources/CHANGELOG.md" || true
 
+# Bundled engine: the bash suite ships INSIDE the app, so a downloaded copy
+# works without cloning anything. The manage-agents installers hydrate
+# __SUITE_DIR__ from their own location, so they run unchanged from in here.
+ENGINE="$APP/Contents/Resources/engine"
+mkdir -p "$ENGINE"
+for dir in memory-analyzer storage-analyzer network-analyzer lib; do
+  [[ -d "../$dir" ]] && cp -R "../$dir" "$ENGINE/"
+done
+cp ../config.example.sh "$ENGINE/" 2>/dev/null || true
+cp ../VERSION "$ENGINE/" 2>/dev/null || true
+find "$ENGINE" -name '*.sh' -exec chmod +x {} +
+
 [[ -f MenuBarIcon.png ]] || ./make-menubar-icon.sh
 cp MenuBarIcon.png "$APP/Contents/Resources/MenuBarIcon.png"
 

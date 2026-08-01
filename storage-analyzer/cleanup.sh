@@ -41,7 +41,11 @@ SKIP_BUILD=0
 
 # optional per-machine config (gitignored) — see config.example.sh at repo root
 ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-[[ -f "${ANALYZERS_ROOT}/config.local.sh" ]] && source "${ANALYZERS_ROOT}/config.local.sh"
+# Settings live in the user folder. When the engine runs from inside the
+# app bundle, that bundle is replaced wholesale on every update, so the
+# user copy is the one that must win.
+[[ -f "1/config.local.sh" ]] && source "1/config.local.sh"
+[[ -f "/mac-analyzers/config.local.sh" && "1" != "/mac-analyzers" ]] && source "/mac-analyzers/config.local.sh"
 
 # Curated "stale apps" come from config.local.sh (ANALYZERS_STALE_APPS) — run
 # analyze.sh §24 (apps by last-opened) to build your list. Only acts with

@@ -12,7 +12,7 @@ import ProKit
 public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
-        case home, memory, storage, notifications, schedule, monitor, network,
+        case home, setup, memory, storage, notifications, schedule, monitor, network,
              trends, actions, undo, logs, log(LogKind), support, about, uninstall, update
     }
 
@@ -28,6 +28,8 @@ public struct SettingsTabsView: View {
     /// Typed path for Monitor dossier drill-downs.
     @State private var monitorPath: [DossierRoute] = []
     @State private var updateAvailable = false
+    /// Badge on the Setup row: something on this Mac is not working.
+    @State private var setupNeedsAttention = false
     /// Cleaner requested by a deep link, consumed once by the Actions pane.
     @State private var actionsPreselect: String?
 
@@ -273,6 +275,7 @@ public struct SettingsTabsView: View {
                         actionsPreselect = String(t.dropFirst(8))
                     }
                     pane = .actions
+                case "setup": pane = .setup
                 case "schedule": pane = .schedule
                 case "update": pane = .update
                 case "about": pane = .about
@@ -297,6 +300,25 @@ public struct SettingsTabsView: View {
     // same job with different case coverage, so they could disagree.
     private var sidebarList: some View {
         List(selection: $pane) {
+            // The row STAYS after everything is green — permissions get
+            // withdrawn and background jobs get unloaded without asking. Only
+            // the badge goes away.
+            Section {
+                HStack {
+                    sidebarRow("Setup", "checklist.checked", .green, .setup)
+                    if setupNeedsAttention {
+                        Spacer()
+                        Text("!")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .frame(width: Tokens.Icon.badge, height: Tokens.Icon.badge)
+                            .background(Color.red, in: Circle())
+                    }
+                }
+                .tag(Pane.setup)
+            } header: {
+                sectionHeader("START HERE")
+            }
             Section {
                 sidebarRow("Memory", "memorychip", .blue, .memory)
                 sidebarRow("Storage", "internaldrive.fill", .indigo, .storage)
@@ -356,6 +378,11 @@ public struct SettingsTabsView: View {
                 updateAvailable = UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion)
             }
         }
+        .task {
+            // cheap version of the checklist: is anything actually broken?
+            let engine = await Task.detached(priority: .utility) { EngineStatus.probe() }.value
+            setupNeedsAttention = !engine.isFullyInstalled
+        }
     }
 
     private func sectionHeader(_ text: String) -> some View {
@@ -380,6 +407,7 @@ public struct SettingsTabsView: View {
     @ViewBuilder private var detailView: some View {
         switch pane {
         case .home: HomeSettingsView()
+        case .setup: SetupSettingsView()
         case .memory: MemorySettingsView()
         case .storage: StorageSettingsView()
         case .notifications: NotifySettingsView()

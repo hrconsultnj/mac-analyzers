@@ -37,7 +37,11 @@ PAUSE_FLAG="${LOG_DIR}/.guard-paused"
 
 # optional per-machine config (gitignored) — see config.example.sh at repo root
 ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-[[ -f "${ANALYZERS_ROOT}/config.local.sh" ]] && source "${ANALYZERS_ROOT}/config.local.sh"
+# Settings live in the user folder. When the engine runs from inside the
+# app bundle, that bundle is replaced wholesale on every update, so the
+# user copy is the one that must win.
+[[ -f "1/config.local.sh" ]] && source "1/config.local.sh"
+[[ -f "/mac-analyzers/config.local.sh" && "1" != "/mac-analyzers" ]] && source "/mac-analyzers/config.local.sh"
 
 # ---------- tunables (env or flags) ----------
 INTERVAL="${GUARD_INTERVAL:-15}"              # seconds between ticks

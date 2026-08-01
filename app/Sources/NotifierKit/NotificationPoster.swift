@@ -39,7 +39,10 @@ public final class NotificationPoster: NSObject {
                                                 actions: [stopProc, openApp, openLog],
                                                 intentIdentifiers: [], options: [])
         center.setNotificationCategories([event, actionable])
-        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        // Deliberately no permission request here. Asking in the first second
+        // after install, before anything has been explained, is the prompt
+        // people reflexively decline — and macOS only asks once. The Setup
+        // screen asks in context; posting falls back to asking if it must.
     }
 
     /// Maintenance action: re-ask macOS for notification permission when it's
@@ -93,7 +96,17 @@ public final class NotificationPoster: NSObject {
         content.userInfo = info
         let request = UNNotificationRequest(identifier: UUID().uuidString,
                                             content: content, trigger: nil)
-        center.add(request)
+        // Safety net for anyone who never opens Setup: the first thing worth
+        // announcing is also a fine moment to ask.
+        center.getNotificationSettings { [center] settings in
+            if settings.authorizationStatus == .notDetermined {
+                center.requestAuthorization(options: [.alert, .sound]) { _, _ in
+                    center.add(request)
+                }
+            } else {
+                center.add(request)
+            }
+        }
     }
 
     // MARK: - click handling helpers

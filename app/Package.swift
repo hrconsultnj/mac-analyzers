@@ -31,7 +31,7 @@ let package = Package(
             dependencies: ["AnalyzersKit"]
         ),
         // compiled launchd entry point (BTM attribution) — execs the engine
-        .executableTarget(name: "AgentRunner"),
+        .executableTarget(name: "AgentRunner", dependencies: ["AnalyzersKit"]),
         // features ("pages/components")
         .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit", "UIComponents"]),
         .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "NotifierKit", "UIComponents"] + proTargetDependencies),

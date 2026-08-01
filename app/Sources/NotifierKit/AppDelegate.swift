@@ -50,6 +50,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                 SettingsOpener.open(target: target)
             }
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                self.openSetupIfUnconfigured()
+            }
         }
     }
 
@@ -124,12 +128,38 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // not at the repo build-artifact copy.
         let inApplications = Bundle.main.bundleURL.path.hasPrefix("/Applications/")
         let migratedKey = "loginItemMovedToApplications"
-        if inApplications, !UserDefaults.standard.bool(forKey: migratedKey) {
-            try? SMAppService.mainApp.unregister()
-            try? SMAppService.mainApp.register()
-            UserDefaults.standard.set(true, forKey: migratedKey)
-        } else if SMAppService.mainApp.status != .enabled {
-            try? SMAppService.mainApp.register()
+        //
+        // Failures are recorded rather than swallowed: the Setup screen reads
+        // the live status and says what went wrong, instead of the app quietly
+        // not opening at login forever.
+        do {
+            if inApplications, !UserDefaults.standard.bool(forKey: migratedKey) {
+                try? SMAppService.mainApp.unregister()
+                try SMAppService.mainApp.register()
+                UserDefaults.standard.set(true, forKey: migratedKey)
+            } else if SMAppService.mainApp.status != .enabled {
+                try SMAppService.mainApp.register()
+            }
+        } catch {
+            Self.log.error("login item registration failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// First run, or a Mac where the background jobs are not installed: open
+    /// Setup instead of leaving someone on an Overview that reports nothing.
+    private func openSetupIfUnconfigured() {
+        Task { @MainActor in
+            let engine = await Task.detached(priority: .userInitiated) {
+                EngineStatus.probe()
+            }.value
+            // A window that opens itself has to earn it: either this Mac is
+            // genuinely new to the app, or something is genuinely broken.
+            // An upgrade on a healthy Mac gets nothing.
+            let fresh = !UserDefaults.standard.bool(forKey: "setupSeen")
+                && !FileManager.default.fileExists(atPath: AnalyzersPaths.configLocal.path)
+            UserDefaults.standard.set(true, forKey: "setupSeen")
+            guard fresh || !engine.isFullyInstalled else { return }
+            SettingsOpener.open(target: "setup")
         }
     }
 }
