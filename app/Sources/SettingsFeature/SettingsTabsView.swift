@@ -44,6 +44,8 @@ public struct SettingsTabsView: View {
                 }
             }
             .listStyle(.sidebar)
+            // System Settings' sidebar is never collapsible — no toggle
+            .toolbar(removing: .sidebarToggle)
             .navigationSplitViewColumnWidth(min: 190, ideal: 205, max: 240)
         } detail: {
             detailView
@@ -67,7 +69,9 @@ public struct SettingsTabsView: View {
         Label {
             Text(title)
         } icon: {
-            IconTile(symbol: symbol, color: color, side: 18)
+            // explicit tile size — Tahoe's default sidebar icons undershoot
+            // System Settings' scale (DTS-acknowledged bug)
+            IconTile(symbol: symbol, color: color, side: 20)
         }
         .tag(value)
     }
@@ -134,7 +138,7 @@ struct SaveBar: View {
                     errorText = "Could not save: \(error.localizedDescription)"
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)      // the one standout action per pane
             .controlSize(.large)
             .keyboardShortcut("s", modifiers: .command)
         }

@@ -2,10 +2,10 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// One log's pane (selected from the Logs sidebar children), rendered
-/// natively — parsed into RUN blocks (newest run first, lines in natural
-/// order inside each run) instead of a raw text dump. TextEdit stays as the
-/// escape hatch for the untouched file.
+/// One log's pane (pushed from the Logs landing screen or a sidebar child),
+/// on the shared PaneScaffold — parsed into RUN blocks (newest run first,
+/// lines in natural order inside each run) instead of a raw text dump.
+/// TextEdit stays as the escape hatch for the untouched file.
 struct LogsSettingsView: View {
 
     private struct LogRun: Identifiable {
@@ -19,55 +19,44 @@ struct LogsSettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                // explicit, always-visible back affordance (mobile-style),
-                // alongside the toolbar's native back chevron
-                Button {
-                    dismiss()
-                } label: {
-                    Label("Logs", systemImage: "chevron.left")
-                }
-                .buttonStyle(.borderless)
-                IconTile(symbol: kind.symbol, color: kind.tileColor, side: 22)
-                Text(kind.title)
-                    .font(.title3.weight(.semibold))
-                Text("newest first")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                Spacer()
-                if let url = kind.url {
-                    Text(mtime(url)).font(.caption).foregroundStyle(.secondary)
-                    Button("Open in TextEdit") { GuardControl.openLog(url) }
+        PaneScaffold(symbol: kind.symbol, color: kind.tileColor, title: kind.title,
+                     caption: "Newest entries first — the file itself is never modified.") {
+            Section {
+                HStack {
                     Button {
-                        load()
-                    } label: { Image(systemName: "arrow.clockwise") }
-                }
-            }
-
-            if runs.isEmpty {
-                ContentUnavailableView("Nothing logged yet",
-                                       systemImage: kind.symbol,
-                                       description: Text("This log appears after its first run."))
-            } else {
-                List {
-                    ForEach(runs) { run in
-                        Section {
-                            ForEach(Array(run.lines.enumerated()), id: \.offset) { _, line in
-                                row(for: line)
-                                    .listRowSeparator(.hidden)
-                                    .listRowInsets(EdgeInsets(top: 1, leading: 12, bottom: 1, trailing: 8))
-                            }
-                        } header: {
-                            Text(run.header)
-                                .font(.callout.weight(.semibold))
-                        }
+                        dismiss()
+                    } label: {
+                        Label("All Logs", systemImage: "chevron.left")
+                    }
+                    .buttonStyle(.borderless)
+                    Spacer()
+                    if let url = kind.url {
+                        Text(mtime(url)).font(.caption).foregroundStyle(.secondary)
+                        Button("Open in TextEdit") { GuardControl.openLog(url) }
+                        Button {
+                            load()
+                        } label: { Image(systemName: "arrow.clockwise") }
+                            .help("Refresh")
                     }
                 }
             }
+            if runs.isEmpty {
+                Section {
+                    Text("Nothing logged yet — this log appears after its first run.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            ForEach(runs) { run in
+                Section {
+                    ForEach(Array(run.lines.enumerated()), id: \.offset) { _, line in
+                        row(for: line)
+                    }
+                } header: {
+                    Text(run.header)
+                        .font(.callout.weight(.semibold))
+                }
+            }
         }
-        .padding(12)
-        .navigationTitle(kind.title)
         .onAppear(perform: load)
         .onChange(of: kind) { load() }
     }
@@ -78,7 +67,6 @@ struct LogsSettingsView: View {
         if line.hasPrefix("### ") {
             Text(line.dropFirst(4))
                 .font(.caption.weight(.semibold))
-                .padding(.top, 4)
         } else {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if let badge = badge(for: line) {
@@ -157,8 +145,6 @@ struct LogsSettingsView: View {
         }
         if !current.isEmpty { blocks.append(current) }
 
-        // pair header blocks ("memory-reclaim | DRY RUN | date" style one-liners)
-        // with the body that follows; then newest first
         var result: [LogRun] = []
         var pendingHeader: String?
         for block in blocks {

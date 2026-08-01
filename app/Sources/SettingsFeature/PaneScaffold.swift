@@ -22,6 +22,7 @@ struct PaneScaffold<Content: View>: View {
             content
         }
         .formStyle(.grouped)
+        .scrollEdgeEffectStyle(.hard, for: .top)
         .navigationTitle(title)
     }
 }

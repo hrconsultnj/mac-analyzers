@@ -2,50 +2,51 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// Activity pane: the bigger logger — the last ~50 guard events over 7 days,
-/// with the same human titles the menu uses. Read-only view over guard.log.
+/// Activity pane: the last ~50 guard events over 7 days, with the same human
+/// titles the menu uses. Same PaneScaffold as every other pane — it displays
+/// and scrolls identically to Memory/Storage/Notifications.
 struct ActivitySettingsView: View {
     @State private var events: [GuardEvent] = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            PaneHeader(symbol: "list.bullet.rectangle.fill", color: .orange, title: "Activity",
-                       caption: "Everything the memory guard did or flagged in the last 7 days.")
-            HStack {
-                Text("\(events.count) event\(events.count == 1 ? "" : "s") in the last 7 days")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Open guard log") { GuardControl.openLog(AnalyzersPaths.guardLog) }
-                Button {
-                    load()
-                } label: { Image(systemName: "arrow.clockwise") }
-                    .help("Refresh")
-            }
-
-
-            List(events) { event in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(event.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
-                        .font(.caption.monospacedDigit())
+        PaneScaffold(symbol: "list.bullet.rectangle.fill", color: .orange, title: "Activity",
+                     caption: "Everything the memory guard did or flagged in the last 7 days.") {
+            Section {
+                HStack {
+                    Text("\(events.count) event\(events.count == 1 ? "" : "s")")
                         .foregroundStyle(.secondary)
-                        .frame(width: 92, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(event.title)
-                            .font(.callout)
-                            .foregroundStyle(event.isKill ? .red : .orange)
-                        if !event.subtitle.isEmpty {
-                            Text(event.subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Open guard log") { GuardControl.openLog(AnalyzersPaths.guardLog) }
+                    Button {
+                        load()
+                    } label: { Image(systemName: "arrow.clockwise") }
+                        .help("Refresh")
+                }
+            }
+            Section {
+                if events.isEmpty {
+                    Text("No events in the last 7 days.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(events) { event in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(event.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 92, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(event.title)
+                                .foregroundStyle(event.isKill ? Color.red : .orange)
+                            if !event.subtitle.isEmpty {
+                                Text(event.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
-                .listRowSeparator(.visible)
             }
         }
-        .padding(12)
-        .navigationTitle("Activity")
         .onAppear(perform: load)
     }
 
