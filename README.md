@@ -55,14 +55,18 @@ open /Applications/MacAnalyzers.app                  # launch it
 ```
 
 The app builds from source in a couple of minutes and needs only Apple's
-**free Command Line Tools** (`xcode-select --install`) — no Xcode. On first
-launch it adds itself to Login Items (macOS notifies you it did) and asks for
-notification permission; from then on the chip icon in the menu bar is the
-whole interface — status at a glance, sliders for the limits, click a
-notification to open the log behind it. The build installs the app to
-`/Applications/MacAnalyzers.app` like any Mac app (the copy under `app/` is
-just the build artifact) — keep it in the Dock if you like: clicking the Dock
-icon launches it when it's stopped and opens Settings when it's running.
+**free Command Line Tools** (`xcode-select --install`) — no Xcode. If your
+keychain holds an Apple Development certificate (free with any Apple ID), the
+build signs with it automatically — a stable identity, so macOS permissions
+survive rebuilds; without one it falls back to ad-hoc signing and everything
+still works. On first launch it adds itself to Login Items (macOS notifies
+you it did) and asks for notification permission; from then on the chip icon
+in the menu bar is the whole interface — status at a glance, sliders for the
+limits, click a notification to open the log behind it. The build installs
+the app to `/Applications/MacAnalyzers.app` like any Mac app (the copy under
+`app/` is just the build artifact and the script-only fallback) — keep it in
+the Dock if you like: clicking the Dock icon launches it when it's stopped
+and opens Settings when it's running.
 
 Want to see your machine before installing anything? `./memory-analyzer/analyze.sh`
 and `./storage-analyzer/analyze.sh` are read-only reports — always safe.
@@ -88,19 +92,28 @@ app's Settings manage.
 
 ### Distribution — where's the DMG?
 
-There deliberately isn't one. A downloaded unsigned app gets quarantined by
-Gatekeeper ("cannot be opened"), while building locally from source carries
-no quarantine at all and takes two commands. If demand appears, a notarized
-DMG (Apple Developer ID) is the future path. Releases ship a source tarball
-(`mac-analyzers-v<version>.tar.gz`) —
+There deliberately isn't one. Local builds are signed (Apple Development
+certificate when present, ad-hoc otherwise), but signing is not
+**notarization** — a *downloaded* copy of the app would still be quarantined
+by Gatekeeper ("cannot be opened"), while building locally from source
+carries no quarantine at all and takes two commands. If demand appears, a
+notarized DMG (Apple Developer ID) is the future path. Releases ship a
+source tarball (`mac-analyzers-v<version>.tar.gz`) —
 see [Releases](https://github.com/hrconsultnj/mac-analyzers/releases).
 
 ## Staying up to date
 
+The app checks for a newer release on launch and every 6 hours (one public
+GET to the GitHub releases API — nothing about your machine is sent) and
+notifies **once per new version**; the Settings → Update pane and the menu
+footer both show installed vs latest, with a one-click Install that runs
+`upgrade.command` in Terminal.
+
 Already cloned? **Double-click `upgrade.command` in Finder.** It pulls the
-latest release (`git pull --ff-only`), rebuilds the app, refreshes the
-launchd agents, and relaunches the menu-bar app — your `config.local.sh` is
-**never touched**. Terminal equivalent:
+latest release (`git pull --ff-only`), rebuilds the app (which reinstalls it
+to `/Applications`), refreshes the launchd agents, and relaunches the
+menu-bar app — your `config.local.sh` is **never touched**. Terminal
+equivalent:
 
 ```bash
 cd ~/mac-analyzers && ./upgrade.command
@@ -115,7 +128,7 @@ from the new folder.
 
 | | Tool | What it does | Touches anything? |
 |---|---|---|---|
-| 🖥️ | `app/` — **Mac Analyzers** menu-bar app | the product's face: Memory/Monitor/Storage glance menu with per-process Stop/Quit, actionable native notifications, System-Settings-style Settings window for the tunables | writes only its own marked block in `config.local.sh` |
+| 🖥️ | `app/` — **Mac Analyzers** menu-bar app | the product's face: Memory/Monitor/Storage glance menu with per-process Stop/Quit, actionable native notifications, System-Settings-style Settings window — tunables, editable schedules, structured log viewers, update checks | writes only its own marked block in `config.local.sh` (+ schedule edits into its own launchd plists) |
 | 🔍 | `memory-analyzer/analyze.sh` | "Why is RAM at N GB?" — Activity-Monitor-style breakdown, compressor/swap truth, per-app rollup, CPU/energy, diagnosis with verdicts | never — read-only report |
 | 🛡️ | `memory-analyzer/memory-guard.sh` | always-on listener: alerts on memory-pressure, kills a runaway dev process before the machine locks up. Meeting apps, browsers, editors are never touched | kills dev tooling only |
 | 🧹 | `memory-analyzer/memory-auto-clean.sh` | daily reaper: orphaned MCP/agent servers, dev servers forgotten since yesterday, stale headless browsers | with `--apply` |
@@ -188,10 +201,10 @@ Every alert — guard kills, pressure warnings, auto-clean summaries — goes
 through `lib/notify.sh`, which picks the best backend present:
 
 1. **The menu-bar app's bundled CLI**
-   (`app/MacAnalyzers.app/Contents/MacOS/notify`) — posts over
-   `DistributedNotificationCenter` to the persistent app, which shows a real
-   native notification under the app's identity; clicking it opens that run's
-   log.
+   (`/Applications/MacAnalyzers.app/Contents/MacOS/notify`, falling back to
+   the repo copy under `app/`) — posts over `DistributedNotificationCenter`
+   to the persistent app, which shows a real native notification under the
+   app's identity; clicking it opens that run's log **inside the app**.
 2. **`alerter`** (`brew install vjeantet/tap/alerter`) — banner with an
    "Open Log" button.
 3. **Plain `osascript` banner** — always available, no click action.
@@ -209,26 +222,45 @@ Swift 6, macOS 26) — the face on the script engine:
 
 - **Glance + control** — today's kill count on the menu-bar icon; the
   dropdown has **Memory | Monitor | Storage** tabs: live pressure and recent
-  guard events, an Activity-Monitor-style process list with per-row
-  **Stop/Quit**, storage/auto-clean status, pause/resume guard, one-click
-  log access.
-- **Settings** — a System-Settings-style window (sidebar panes: Memory,
-  Storage, Notifications, Activity, Logs, About) that writes a clearly-marked
-  managed block into `config.local.sh`; anything you wrote outside the
-  markers is never touched, and saving memory tunables restarts the guard
-  agent so they take effect immediately. The guard's two kill switches
-  (hard-cap, critical-pressure) can be flipped to **notify-only**. Clicking
-  the app's Dock icon opens Settings.
+  guard events, an Activity-Monitor-style process list with **real app
+  icons** and per-row **Stop/Quit**, storage now-vs-last-clean, pause/resume
+  guard, and a footer showing the installed version (with an Upgrade button
+  when a newer release exists). Every menu button deep-links into the
+  matching Settings screen.
+- **Settings** — a System-Settings-style window: sidebar with a brand card
+  (icon · name · version) over sectioned panes — **CONFIGURE**
+  (Memory, Storage, Notifications), **SCHEDULE** (editable clean times that
+  survive reinstalls and upgrades), **OBSERVE** (Monitor, Activity, Logs) —
+  plus About and Update. Config panes write a clearly-marked managed block
+  into `config.local.sh`; anything you wrote outside the markers is never
+  touched, and saving memory tunables restarts the guard agent so they take
+  effect immediately. The guard's two kill switches (hard-cap,
+  critical-pressure) can be flipped to **notify-only**. Clicking the app's
+  Dock icon opens Settings.
+- **Structured log panes** — every log renders as a real screen, not raw
+  text: guard events behind filter chips (Spikes / Killed / Reports /
+  Pressure & Cap / CPU Hogs), the login-items audit as verdict cards with
+  per-row copyable `sudo` commands, storage cleans grouped by project and
+  sorted by reclaimable size, memory clean/reclaim runs as status-filtered
+  cards with a protected-session banner, and forensics snapshots as in-app
+  stat cards plus the top-process table. "Open in TextEdit" stays on every
+  pane as the raw-file escape hatch.
+- **Update awareness** — the Update pane and menu footer compare installed
+  vs latest release; the app self-checks at launch and every 6 hours and
+  notifies once per new version. Install runs `upgrade.command` in Terminal.
 - **Actionable notifications** — Open Mac Analyzers / Open Log right on the
   alert, plus **Stop Process** when the alert names a live process.
-- **Launchd attribution** — every plist carries
-  `AssociatedBundleIdentifiers` = `com.mac-analyzers.app`, so System Settings →
-  Login Items & Extensions shows the background agents under the app's
-  identity instead of anonymous script rows. The app registers itself as a
-  login item (`SMAppService`) on first launch.
+- **Launchd attribution** — the installed plists launch the engine through
+  the app's compiled `agent-runner` (inside the bundle, sharing its signing
+  identity) and carry `AssociatedBundleIdentifiers` = `com.mac-analyzers.app`,
+  so System Settings → Login Items & Extensions shows the background agents
+  under the app's identity instead of anonymous script rows. The app
+  registers itself as a login item (`SMAppService`) on first launch.
 - **Built without Xcode** — `./app/build.sh` (Command Line Tools only) runs
-  `swift build` and hand-assembles the ad-hoc-signed bundle, including the
-  `notify` CLI shim the scripts call. Icons regenerate with `app/make-icon.sh`
+  `swift build`, hand-assembles the bundle (including the `notify` CLI shim
+  the scripts call and the `agent-runner` launchd entry point), signs it with
+  your Apple Development certificate when one exists (ad-hoc fallback), and
+  installs it to `/Applications`. Icons regenerate with `app/make-icon.sh`
   (colored .icns) and `app/make-menubar-icon.sh` (monochrome template PNG).
 
 Running script-only? `extras/swiftbar-plugin/` ships a

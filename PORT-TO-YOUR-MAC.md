@@ -39,8 +39,8 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
    set `GUARD_HARD_CAP_MB` (default 6144 ≈ RAM/5) and the spike thresholds
    (`GUARD_SPIKE_MB`, `GUARD_SPIKE_MIN_MB`) in `config.local.sh` — the
    defaults live in `memory-guard.sh`, the overrides belong in config. On a
-   16 GB machine, halve them. (The menu-bar app's Memory tab edits the same
-   values with sliders, if you build it.)
+   16 GB machine, halve them. (The app's Settings → Memory pane edits the
+   same values with sliders, if you build it.)
 4. **Rebuild the protect list for YOUR user.** The base `PROTECT_RE` in
    memory-guard.sh, memory-auto-clean.sh, and memory-reclaim.sh covers meeting
    apps, browsers, editors, and container engines generically. Ask your user
@@ -51,8 +51,11 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
    curated stale-app list (`ANALYZERS_STALE_APPS`) — both in
    `config.local.sh`; the in-script defaults are the author's apps, not
    universal.
-6. **Schedule times**: storage daily 08:00, memory daily 08:30 — adjust in the
-   plists if they collide with your user's hours.
+6. **Schedule times**: storage daily 08:00, memory daily 08:30 (defaults).
+   Once the app is built (step 10), the Settings → Schedule pane edits these
+   with time pickers and the installers preserve the customization across
+   reinstalls and upgrades; on a script-only setup, adjust the plist
+   templates before installing if they collide with your user's hours.
 7. Dry-run everything once with your user watching (`auto-clean` scripts are
    dry-run by default; double-clicking any script opens an interactive menu),
    THEN `./memory-analyzer/memory-manage-agents.sh install` and
@@ -64,24 +67,37 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
 9. All personal values live in `config.local.sh` (gitignored) — copy
    `config.example.sh` and fill it in for your user as part of steps 3–5.
    The launchd labels are the neutral `com.mac-analyzers.*` namespace.
-10. **Build the menu-bar app** — `./app/build.sh && open app/MacAnalyzers.app`
-    (Command Line Tools only, no Xcode; needs macOS 26). This is the suite's
-    face for your user: actionable native notifications (Open Log / Stop
-    Process), a glance menu with Memory/Monitor/Storage tabs and per-process
-    Stop/Quit, and a System-Settings-style Settings window that writes a
-    marked managed block into `config.local.sh` — hand-written values
-    outside the markers are never touched. It self-registers as a login item,
-    and the plists' `AssociatedBundleIdentifiers` attribute the agents to it
-    in Login Items. Skip this only on a headless / script-only setup — the
-    engine runs fine alone: `lib/notify.sh` falls back to `alerter` (if
-    installed) or a plain `osascript` banner, and `extras/swiftbar-plugin/`
-    gives a no-app menu-bar surface.
+10. **Build the menu-bar app** — `./app/build.sh && open
+    /Applications/MacAnalyzers.app` (Command Line Tools only, no Xcode; needs
+    macOS 26). The build signs with an Apple Development certificate when the
+    keychain has one (free with any Apple ID; keeps the permission identity
+    stable across rebuilds), falls back to ad-hoc, and **installs the app to
+    `/Applications`** — the repo `app/` copy is just the build artifact.
+    This is the suite's face for your user: actionable native notifications
+    (Open Log / Stop Process), a glance menu with Memory/Monitor/Storage
+    tabs, live pressure, and per-process Stop/Quit, and a
+    System-Settings-style Settings window — config panes that write a marked
+    managed block into `config.local.sh` (hand-written values outside the
+    markers are never touched), a Schedule pane for the clean times, an
+    Update pane, and structured viewers for every log (TextEdit stays as the
+    raw escape hatch). It self-registers as a login item, and the plists'
+    `AssociatedBundleIdentifiers` attribute the agents to it in Login Items.
+    After the first build, re-run both manage-agents installers once (or just
+    run `upgrade.command`) so the plists switch to the app's compiled
+    `agent-runner` entry point — that's what lets Login Items attribute the
+    background agents properly. Skip this step only on a headless /
+    script-only setup — the engine runs fine alone: `lib/notify.sh` falls
+    back to `alerter` (if installed) or a plain `osascript` banner, and
+    `extras/swiftbar-plugin/` gives a no-app menu-bar surface.
 11. **Show your user `upgrade.command`** — from now on, updating is a Finder
     double-click on `upgrade.command` at the repo root (or
-    `./upgrade.command` in a terminal): `git pull --ff-only`, rebuild the
-    app, re-run both manage-agents installers, relaunch the menu-bar app.
-    It never touches `config.local.sh`, so everything you calibrated in
-    steps 3–5 survives every upgrade.
+    `./upgrade.command` in a terminal): `git pull --ff-only`, rebuild +
+    reinstall the app, re-run both manage-agents installers, relaunch the
+    menu-bar app. It never touches `config.local.sh`, so everything you
+    calibrated in steps 3–5 (and any schedule set in the app) survives every
+    upgrade. Your user won't even need to remember it: the app checks for
+    new releases at launch and every 6 hours, notifies once per version, and
+    its Update pane / menu footer run `upgrade.command` on one click.
 
 ## Safety invariants — keep these when you customize
 

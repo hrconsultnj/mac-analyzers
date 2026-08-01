@@ -11,7 +11,7 @@ agents group under the app's identity there.
 |------|------|----------|
 | `analyze.sh` | "why is my RAM at N GB?" report | never |
 | `memory-guard.sh` | always-on spike listener — alerts / kills runaway dev processes | kills (safelist only) |
-| `memory-auto-clean.sh` | daily reaper — orphans, forgotten dev servers (scheduled 08:30) | with `--apply` |
+| `memory-auto-clean.sh` | daily reaper — orphans, forgotten dev servers (scheduled, default 08:30) | with `--apply` |
 | `memory-reclaim.sh` | **manual "free my RAM now" button** — reboot effect, no reboot | with `--apply` |
 | `memory-manage-agents.sh` | install / remove / status / pause the LaunchAgents | — |
 
@@ -20,10 +20,14 @@ Reports live in `~/mac-analyzers/reports/memory/<YYYY-MM-DD>/report-<HHMM>.md`, 
 mirrors this at `~/mac-analyzers/reports/storage/`.)
 
 Notifications (spikes, warnings, kills, clean summaries) go through
-`../lib/notify.sh` — the Mac Analyzers menu-bar app's native path by default,
-falling back to `alerter` and then a plain banner on script-only setups;
-clicking one opens the matching log. See the root README's Notifications
-section.
+`../lib/notify.sh` — the Mac Analyzers menu-bar app's native path by default
+(the `/Applications` install, repo copy as fallback), falling back to
+`alerter` and then a plain banner on script-only setups; clicking one opens
+the matching log. With the app installed, each log opens as a structured
+screen — guard events behind filter chips, clean/reclaim runs as
+status-filtered cards with a protected-session banner, forensics snapshots
+as stat cards plus a top-process table — with "Open in TextEdit" for the raw
+file. See the root README's Notifications section.
 
 ## Which one do I run?
 
@@ -37,9 +41,10 @@ input used (`input: interactive menu: choice N` or the flags).
   then `./memory-reclaim.sh --apply`, or `--apply --apps` to also gracefully
   quit Opera/Chrome/VS Code/ChatGPT/Docker (⌘Q-style — save dialogs still
   appear; Zoom never touched). Reopen what you need after.
-- **Nothing** → the daily 08:30 agent already runs `memory-auto-clean.sh --apply`
-  automatically; the guard is always watching. Running `memory-auto-clean.sh`
-  by hand is always a DRY RUN unless you add `--apply`.
+- **Nothing** → the daily agent (08:30 by default — editable in the app's
+  Schedule pane) already runs `memory-auto-clean.sh --apply` automatically;
+  the guard is always watching. Running `memory-auto-clean.sh` by hand is
+  always a DRY RUN unless you add `--apply`.
 
 A reboot clears swap + compressed memory only because it kills every process —
 `memory-reclaim.sh --apply --apps` gets the same effect surgically. RAM cannot
@@ -66,11 +71,11 @@ vitest/jest, playwright + headless Chromium.
 recording, anything system — plus whatever ANALYZERS_PROTECT_EXTRA adds in config.local.sh.
 
 Pause during a heavy legit build: `./memory-manage-agents.sh pause` / `resume`,
-or the Pause/Resume button in the menu-bar app. The app's Memory settings tab
-edits the guard tunables (hard cap, spike thresholds) in `config.local.sh` and
-restarts the guard so they apply immediately.
+or the Pause/Resume button in the menu-bar app. The app's Settings → Memory
+pane edits the guard tunables (hard cap, spike thresholds) in
+`config.local.sh` and restarts the guard so they apply immediately.
 
-## memory-auto-clean.sh — the daily reaper (08:30)
+## memory-auto-clean.sh — the daily reaper (default 08:30)
 
 | § | Target | Default action |
 |---|--------|----------------|

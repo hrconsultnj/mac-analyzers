@@ -79,7 +79,9 @@ OS-update snapshots are left alone. Passwordless with the sudoers rule below.
 
 ## Scheduled auto-clean
 
-Two LaunchAgents (installed & loaded):
+Two LaunchAgents (installed & loaded; times are defaults — the Mac Analyzers
+app's Settings → Schedule pane edits them, and the edits survive reinstalls
+and upgrades):
 - **daily 08:00** → `--mode daily --apply --docker-running-only` — build caches idle >3 days (incl. any ANALYZERS_EXTRA_CACHE_GLOBS from config.local.sh), + a quick Docker prune **only if Docker is already running** (never boots it)
 - **every 3 days** → `--mode deep --apply --docker-images --prune-snapshots` — caches + node_modules of *idle, git-clean* repos; removes **all unused Docker images** (boots Docker if off, then shuts it back down); **thins TM snapshots** so freed space lands immediately
 
@@ -91,8 +93,9 @@ Two LaunchAgents (installed & loaded):
 
 Labels are `com.mac-analyzers.storage-autoclean.{daily,deep}`; the plists set
 `AbandonProcessGroup` (notification click-handlers survive the run) and
-`AssociatedBundleIdentifiers` = `com.mac-analyzers.app`, so Login Items &
-Extensions attributes the agents to the Mac Analyzers app.
+`AssociatedBundleIdentifiers` = `com.mac-analyzers.app`, and with the app
+installed they launch the engine through its compiled `agent-runner`, so
+Login Items & Extensions attributes the agents to the Mac Analyzers app.
 
 ### Make freed space land immediately (one-time setup)
 The deep agent's `--prune-snapshots` needs a **scoped, passwordless** sudo rule for
@@ -118,7 +121,10 @@ Tunables: `--cache-age-days N` (default 3) · `--nm-age-days N` (default 14).
 Logs to `~/mac-analyzers/reports/storage/auto-clean.log`. Fires a macOS
 notification each run via `../lib/notify.sh` (menu-bar app → alerter →
 osascript — see the root README's Notifications section; clicking one opens
-the log).
+the log). With the app installed, the storage log opens as a structured
+pane — runs grouped by project, sorted by reclaimable size — and the
+login-items audit as verdict cards with per-row copyable `sudo` commands;
+"Open in TextEdit" keeps the raw file a click away.
 
 **Docker lifecycle:** prunes if running; if stopped, the deep job starts Docker
 Desktop, prunes, then quits it again — but **only quits if the script started it**
