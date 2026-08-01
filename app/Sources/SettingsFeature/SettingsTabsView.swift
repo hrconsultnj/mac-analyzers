@@ -212,6 +212,19 @@ public struct SettingsTabsView: View {
                 }
         }
         .frame(minWidth: 780, minHeight: 620)
+        .onChange(of: pane) { old, new in
+            // Ground truth for navigation responsiveness, measured in the
+            // user's own session rather than a synthetic launch:
+            // log show --predicate 'category == "nav"' --last 15m
+            let t = Date()
+            Logger(subsystem: "com.mac-analyzers.app", category: "nav")
+                .notice("switch \(String(describing: old), privacy: .public) -> \(String(describing: new), privacy: .public)")
+            DispatchQueue.main.async {
+                let ms = Int(Date().timeIntervalSince(t) * 1000)
+                Logger(subsystem: "com.mac-analyzers.app", category: "nav")
+                    .notice("main-thread turnaround \(ms, privacy: .public) ms for \(String(describing: new), privacy: .public)")
+            }
+        }
         .onChange(of: pane) {
             if !isTimeTraveling {
                 childPath = []
