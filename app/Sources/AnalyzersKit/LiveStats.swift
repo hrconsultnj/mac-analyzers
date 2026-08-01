@@ -28,7 +28,35 @@ public struct LiveProcess: Identifiable, Sendable, Hashable {
     public var residentText: String { String(format: "%.1f GB", Double(residentMB) / 1024) }
 }
 
+/// Boot-volume capacity right now (the "purgeable-aware" free-space number —
+/// the same important-usage figure Finder shows, not raw df).
+public struct DiskUsage: Sendable, Equatable {
+    public let totalBytes: Int64
+    public let freeBytes: Int64
+
+    public var usedBytes: Int64 { totalBytes - freeBytes }
+    public var usedFraction: Double {
+        totalBytes > 0 ? Double(usedBytes) / Double(totalBytes) : 0
+    }
+    public var usedText: String { Self.gb(usedBytes) }
+    public var totalText: String { Self.gb(totalBytes) }
+    public var freeText: String { Self.gb(freeBytes) }
+
+    static func gb(_ bytes: Int64) -> String {
+        String(format: "%.0f GB", Double(bytes) / 1_000_000_000)
+    }
+}
+
 public enum LiveStats {
+
+    public static func diskUsage() -> DiskUsage? {
+        let root = URL(fileURLWithPath: "/")
+        guard let values = try? root.resourceValues(forKeys: [
+            .volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey,
+        ]), let total = values.volumeTotalCapacity else { return nil }
+        let free = values.volumeAvailableCapacityForImportantUsage ?? 0
+        return DiskUsage(totalBytes: Int64(total), freeBytes: free)
+    }
 
     /// kern.memorystatus_vm_pressure_level — 1 normal, 2 warning, ≥4 critical
     /// (the exact sysctl the guard polls each tick).

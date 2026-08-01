@@ -20,6 +20,9 @@ public final class GuardLogStore {
     public private(set) var pressure: LiveStats.Pressure = .normal
     public private(set) var topProcesses: [LiveProcess] = []
     public private(set) var monitorProcesses: [LiveProcess] = []
+    public private(set) var disk: DiskUsage?
+    /// "106Gi avail (76% used)" from the last storage-clean run's log.
+    public private(set) var lastCleanDiskState: String?
 
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var watchedFD: Int32 = -1
@@ -55,6 +58,8 @@ public final class GuardLogStore {
         pressure = LiveStats.memoryPressure()
         topProcesses = LiveStats.topDevProcesses()
         monitorProcesses = LiveStats.snapshot()
+        disk = LiveStats.diskUsage()
+        lastCleanDiskState = Self.lastFreeSpaceLine()
     }
 
     /// Hide everything shown so far (badge + rows). Log untouched.
@@ -110,6 +115,26 @@ public final class GuardLogStore {
     }
 
     // MARK: - storage summary
+
+    /// Last "Free space now: 106Gi avail (76% used)" line the storage clean
+    /// logged — the disk state as of the last run.
+    private nonisolated static func lastFreeSpaceLine() -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: AnalyzersPaths.storageAutoCleanLog)
+        else { return nil }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        let window: UInt64 = 65_536
+        try? handle.seek(toOffset: size > window ? size - window : 0)
+        guard let data = try? handle.readToEnd(),
+              let text = String(data: data, encoding: .utf8) else { return nil }
+        return text.split(separator: "\n")
+            .last { $0.contains("Free space now:") }
+            .map {
+                $0.trimmingCharacters(in: .whitespaces)
+                    .replacingOccurrences(of: "Free space now: ", with: "")
+                    .replacingOccurrences(of: "Gi avail", with: " GB free")
+            }
+    }
 
     /// Last "DONE — freed ~4 MB [mode=daily]." line for a given mode.
     private nonisolated static func lastStorageSummary(mode: String) -> String? {

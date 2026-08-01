@@ -186,18 +186,57 @@ public struct MenuContentView: View {
     // MARK: - Storage tab
 
     @ViewBuilder private var storageTab: some View {
+        sectionLabel("STORAGE NOW")
+        if let disk = store.disk {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    IconTile(symbol: "internaldrive.fill", color: .indigo)
+                    Text("Macintosh HD")
+                        .font(.callout.weight(.medium))
+                    Text("\(disk.usedText) of \(disk.totalText) used")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(disk.freeText) free")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(disk.usedFraction > 0.9 ? .red : .primary)
+                }
+                CapacityBar(fraction: disk.usedFraction)
+            }
+        } else {
+            Text("Couldn't read the boot volume.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        if let last = store.lastCleanDiskState {
+            HStack(spacing: 6) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("At last clean (\(runText(store.lastStorageCleanRun))): \(last)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .help("What the storage log recorded when the scheduled clean last ran — compare with the live bar above")
+        }
+
+        Divider()
+
         sectionLabel("SCHEDULED CLEANS")
         storageRow(
             title: "Daily clean",
             detail: store.storageDailySummary.map { "last: \($0)" } ?? "no runs yet",
             sub: "Every day 8:00 AM — stale build caches only",
-            label: GuardControl.storageCleanLabel
+            label: GuardControl.storageCleanLabel,
+            symbol: "sparkles", color: .green
         )
         storageRow(
             title: "Deep clean",
             detail: store.storageDeepSummary.map { "last: \($0)" } ?? "no runs yet",
             sub: "Every 3 days — + node_modules of idle repos, Docker, TM snapshots",
-            label: GuardControl.storageDeepLabel
+            label: GuardControl.storageDeepLabel,
+            symbol: "wand.and.stars", color: .purple
         )
 
         Divider()
@@ -213,8 +252,10 @@ public struct MenuContentView: View {
         .controlSize(.small)
     }
 
-    private func storageRow(title: String, detail: String, sub: String, label: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
+    private func storageRow(title: String, detail: String, sub: String, label: String,
+                            symbol: String, color: Color) -> some View {
+        HStack(alignment: .center) {
+            IconTile(symbol: symbol, color: color)
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 6) {
                     Text(title).font(.callout.weight(.medium))
@@ -264,8 +305,48 @@ public struct MenuContentView: View {
     }
 }
 
-/// Live-process row: size, friendly + raw identity, and a user-initiated
-/// Stop/Quit — the "don't make me open Activity Monitor" button.
+/// Finder-style capacity bar: used fill over a track, color escalating with
+/// fullness. (A per-category segmented bar like the system Storage pane
+/// needs a full-disk scan — the storage analyzer's report has that detail;
+/// this bar answers the at-a-glance question.)
+struct CapacityBar: View {
+    let fraction: Double
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(.quaternary)
+                Capsule()
+                    .fill(color.gradient)
+                    .frame(width: max(6, geo.size.width * fraction))
+            }
+        }
+        .frame(height: 7)
+    }
+
+    private var color: Color {
+        fraction > 0.9 ? .red : fraction > 0.75 ? .orange : .blue
+    }
+}
+
+/// System-Settings-style colored icon tile (the visual language of the
+/// Settings sidebar) — used wherever a row deserves a native glyph.
+struct IconTile: View {
+    let symbol: String
+    let color: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 16, height: 16)
+            .background(color.gradient, in: RoundedRectangle(cornerRadius: 4))
+    }
+}
+
+/// Live-process row: real app icon (or a dev-tool tile), size, friendly +
+/// raw identity, and a user-initiated Stop/Quit — the "don't make me open
+/// Activity Monitor" button.
 struct ProcessRow: View {
     let proc: LiveProcess
     let afterStop: () -> Void
@@ -273,6 +354,7 @@ struct ProcessRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            processIcon
             Text(proc.residentText)
                 .font(.callout.monospacedDigit())
                 .foregroundStyle(proc.residentMB > 4096 ? .orange : .secondary)
@@ -301,6 +383,20 @@ struct ProcessRow: View {
             .help(proc.isDev
                   ? "Stop this dev process (SIGTERM — it can restart from your next build/session)"
                   : "Ask this app to quit gracefully — same as ⌘Q, save dialogs still appear")
+        }
+    }
+
+    /// The app's REAL icon when macOS knows it (GUI apps/helpers); a colored
+    /// tile for headless dev tooling.
+    @ViewBuilder private var processIcon: some View {
+        if !proc.isDev,
+           let icon = NSRunningApplication(processIdentifier: pid_t(proc.pid))?.icon {
+            Image(nsImage: icon)
+                .resizable()
+                .frame(width: 16, height: 16)
+        } else {
+            IconTile(symbol: proc.isDev ? "hammer.fill" : "gearshape.fill",
+                     color: proc.isDev ? .blue : .gray)
         }
     }
 }
