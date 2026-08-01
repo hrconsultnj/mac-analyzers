@@ -6,11 +6,12 @@ import UIComponents
 /// search, the same live pressure signal and Stop/Quit actions.
 struct MonitorSettingsView: View {
 
-    enum Lens: Hashable { case memory, energy }
+    enum Lens: Hashable { case memory, energy, diskIO }
 
     @State private var lens: Lens = .memory
     @State private var groups: [ProcessGroup] = []
     @State private var energy: [EnergyEntry] = []
+    @State private var diskIO: [DiskIOEntry] = []
     @State private var pressure: LiveStats.Pressure = .normal
     /// Same instance the delegate keeps alive — one watcher, many surfaces.
     private var thermal: ThermalWatcher { ThermalWatcher.shared }
@@ -62,7 +63,8 @@ struct MonitorSettingsView: View {
                     .frame(width: 170)
                 }
                 FullWidthSegments(
-                    options: [(Lens.memory, "Memory"), (Lens.energy, "Energy")],
+                    options: [(Lens.memory, "Memory"), (Lens.energy, "Energy"),
+                              (Lens.diskIO, "Disk I/O")],
                     selection: $lens
                 )
                 TextField("Filter by name…", text: $search)
@@ -71,6 +73,8 @@ struct MonitorSettingsView: View {
 
             if lens == .energy {
                 energySections
+            } else if lens == .diskIO {
+                diskIOSections
             } else if !filtered.isEmpty {
                 Section("Processes") {
                     ForEach(filtered) { group in
@@ -160,13 +164,45 @@ struct MonitorSettingsView: View {
         }
     }
 
+    /// SSD wear, kernel-accounted: cumulative bytes read/written per process.
+    @ViewBuilder private var diskIOSections: some View {
+        let rows = search.isEmpty ? diskIO : diskIO.filter {
+            $0.name.lowercased().contains(search.lowercased())
+        }
+        Section("Disk I/O since launch (writes are what wear the SSD)") {
+            if rows.isEmpty {
+                Text("No disk-I/O accounting available yet.")
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(rows) { entry in
+                if let app = NSRunningApplication(processIdentifier: pid_t(entry.pid)),
+                   let icon = app.icon {
+                    DataCard(appIcon: icon, title: app.localizedName ?? entry.name,
+                             subtitle: "↓ \(entry.readText) read · pid \(entry.pid)",
+                             trailing: "↑ \(entry.writtenText)")
+                } else {
+                    DataCard(symbol: "internaldrive", color: .indigo,
+                             title: entry.name,
+                             subtitle: "↓ \(entry.readText) read · pid \(entry.pid)",
+                             trailing: "↑ \(entry.writtenText)")
+                }
+            }
+        }
+    }
+
     private func load() {
-        if lens == .energy {
+        switch lens {
+        case .energy:
             detachedLoad({ (EnergyStats.snapshot(limit: 30), LiveStats.memoryPressure()) }) {
                 energy = $0.0
                 pressure = $0.1
             }
-        } else {
+        case .diskIO:
+            detachedLoad({ (EnergyStats.diskSnapshot(limit: 30), LiveStats.memoryPressure()) }) {
+                diskIO = $0.0
+                pressure = $0.1
+            }
+        case .memory:
             detachedLoad({ (LiveStats.groupedSnapshot(limit: 30, minimumMB: 128),
                             LiveStats.memoryPressure()) }) {
                 groups = $0.0

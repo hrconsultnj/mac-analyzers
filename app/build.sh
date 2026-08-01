@@ -10,7 +10,14 @@ cd "$(dirname "$0")"
 # touch busts SPM's manifest cache, which does not key on environment.
 if [[ "${1:-}" == "--pro" ]]; then
   export MA_PRO_PATH="${MA_PRO_PATH:-$HOME/mac-analyzers-pro}"
-  touch Package.swift
+fi
+# Mode switches (overlay <-> plain) poison SPM incremental state: object
+# files keep references to the overlay module. Detect and force recompiles.
+MODE="$([[ -n "${MA_PRO_PATH:-}" ]] && echo pro || echo public)"
+LAST_MODE_FILE=".build/.ma-build-mode"
+if [[ "$(cat "$LAST_MODE_FILE" 2>/dev/null || echo none)" != "$MODE" ]]; then
+  rm -rf .build   # stale overlay refs survive touch-level invalidation
+  mkdir -p .build && echo "$MODE" > "$LAST_MODE_FILE"
 fi
 
 APP="MacAnalyzers.app"
