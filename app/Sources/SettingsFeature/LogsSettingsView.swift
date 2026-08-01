@@ -57,6 +57,9 @@ struct LogsSettingsView: View {
                 }
             }
         }
+        // our in-content "All Logs" button is the back affordance; the
+        // native chevron rendered as an awkward floating glass circle here
+        .navigationBarBackButtonHidden(true)
         .onAppear(perform: load)
         .onChange(of: kind) { load() }
     }

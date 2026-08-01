@@ -12,6 +12,10 @@ public struct SettingsTabsView: View {
     }
 
     @State private var pane: Pane = .memory
+    /// Real state-backed path for the Logs stack — a computed binding here
+    /// fought SwiftUI's own transitions and bounced users back to the
+    /// landing screen when switching sidebar children.
+    @State private var logsPath: [LogKind] = []
 
     public init() {}
 
@@ -51,6 +55,20 @@ public struct SettingsTabsView: View {
             detailView
         }
         .frame(minWidth: 780, minHeight: 620)
+        .onChange(of: pane) { _, newPane in
+            // sidebar → stack sync: a child selection pushes its log; the
+            // Logs row itself shows the landing screen
+            switch newPane {
+            case .log(let kind): logsPath = [kind]
+            case .logs: logsPath = []
+            default: break
+            }
+        }
+        .onChange(of: logsPath) { _, newPath in
+            // stack → sidebar sync: popping back to the landing screen moves
+            // the sidebar highlight from the child to Logs
+            if newPath.isEmpty, case .log = pane { pane = .logs }
+        }
         .onDisappear {
             // drop the Dock icon again once Settings closes (the menu-bar
             // Settings button flips us to .regular so the window fronts)
@@ -82,22 +100,10 @@ public struct SettingsTabsView: View {
         case .storage: StorageSettingsView()
         case .notifications: NotifySettingsView()
         case .activity: ActivitySettingsView()
-        case .logs:
-            NavigationStack {
-                LogsHomeView()
-                    .navigationDestination(for: LogKind.self) { kind in
-                        LogsSettingsView(kind: kind)
-                    }
-            }
-        case .log(let kind):
-            // sidebar-child entry: same stack, pre-pushed to the log; the
-            // back affordance pops to the Logs landing screen
-            NavigationStack(path: Binding(
-                get: { [kind] },
-                set: { (newPath: [LogKind]) in
-                    if newPath.isEmpty { pane = .logs }
-                }
-            )) {
+        case .logs, .log:
+            // ONE stack for both entry paths, backed by real state — the
+            // landing screen at the root, the selected log pushed on top
+            NavigationStack(path: $logsPath) {
                 LogsHomeView()
                     .navigationDestination(for: LogKind.self) { k in
                         LogsSettingsView(kind: k)
