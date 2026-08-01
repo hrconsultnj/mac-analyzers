@@ -39,7 +39,8 @@ case "$cmd" in
       # hydrate the template for this machine (portable across users/locations).
       # Entry point: the app's compiled agent-runner when the app is built
       # (BTM attributes the item to Mac Analyzers); plain script otherwise.
-      RUNNER="$(dirname "$HERE")/app/MacAnalyzers.app/Contents/MacOS/agent-runner"
+      RUNNER="/Applications/MacAnalyzers.app/Contents/MacOS/agent-runner"
+      [[ -x "$RUNNER" ]] || RUNNER="$(dirname "$HERE")/app/MacAnalyzers.app/Contents/MacOS/agent-runner"
       if [[ -x "$RUNNER" ]]; then
         sed -e "s|__RUNNER__|${RUNNER}|g" \
             -e "s|__SUITE_DIR__|${HERE}|g" -e "s|__HOME__|${HOME}|g" \

@@ -20,6 +20,10 @@ echo "→ refreshing the background agents…"
 echo "→ relaunching the menu-bar app…"
 pkill -x MacAnalyzersApp 2>/dev/null || true
 sleep 1
-open -g app/MacAnalyzers.app
+if [[ -d /Applications/MacAnalyzers.app ]]; then
+  open -g /Applications/MacAnalyzers.app
+else
+  open -g app/MacAnalyzers.app
+fi
 
 echo "✓ Done — Mac Analyzers $(cat VERSION) is running. You can close this window."

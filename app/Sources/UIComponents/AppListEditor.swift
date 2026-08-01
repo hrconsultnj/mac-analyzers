@@ -15,13 +15,18 @@ public struct AppListEditor: View {
 
     let title: String
     let mode: Mode
+    let minHeight: CGFloat
+    let maxHeight: CGFloat
     @Binding var items: [String]
     @State private var selection: String?
     @State private var showPicker = false
 
-    public init(title: String, mode: Mode, items: Binding<[String]>) {
+    public init(title: String, mode: Mode, items: Binding<[String]>,
+                minHeight: CGFloat = 76, maxHeight: CGFloat = 120) {
         self.title = title
         self.mode = mode
+        self.minHeight = minHeight
+        self.maxHeight = maxHeight
         self._items = items
     }
 
@@ -37,7 +42,7 @@ public struct AppListEditor: View {
                     .tag(item)
                 }
             }
-            .frame(minHeight: 76, maxHeight: 120)
+            .frame(minHeight: minHeight, maxHeight: maxHeight)
             .border(.separator)
             HStack {
                 Button {

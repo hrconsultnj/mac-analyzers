@@ -5,6 +5,11 @@ import UIComponents
 /// Memory pane: guard tunables + the never-kill / reclaim app lists.
 struct MemorySettingsView: View {
     @Environment(ConfigStore.self) private var config
+    @State private var processListTab: ProcessListTab = .protected
+
+    private enum ProcessListTab: String, CaseIterable {
+        case protected = "Protected", reclaim = "Reclaim"
+    }
 
     var body: some View {
         @Bindable var config = config
@@ -76,16 +81,28 @@ struct MemorySettingsView: View {
             }
 
             Section("Process Lists") {
-                AppListEditor(
-                    title: "Protected processes (never stopped)",
-                    mode: .processFragments,
-                    items: $config.memory.protectExtra
-                )
-                AppListEditor(
-                    title: "Apps memory-reclaim may quit gracefully",
-                    mode: .installedApps,
-                    items: $config.memory.reclaimApps
-                )
+                Picker("", selection: $processListTab) {
+                    ForEach(ProcessListTab.allCases, id: \.self) { Text($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                switch processListTab {
+                case .protected:
+                    AppListEditor(
+                        title: "Protected processes (never stopped)",
+                        mode: .processFragments,
+                        items: $config.memory.protectExtra,
+                        minHeight: 170, maxHeight: 260
+                    )
+                case .reclaim:
+                    AppListEditor(
+                        title: "Apps memory-reclaim may quit gracefully",
+                        mode: .installedApps,
+                        items: $config.memory.reclaimApps,
+                        minHeight: 170, maxHeight: 260
+                    )
+                }
             }
 
             Section {

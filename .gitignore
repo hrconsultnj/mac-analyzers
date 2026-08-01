@@ -15,3 +15,6 @@ app/icon_1024.png
 # run reports/logs live inside the repo now (moved from ~/system-reports)
 reports/
 app/MenuBarIcon.png
+
+# local Claude instructions (never public)
+CLAUDE.local.md

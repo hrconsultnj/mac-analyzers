@@ -39,3 +39,13 @@ else
   codesign --force --deep --sign - "$APP"
   echo "built + signed: $(pwd)/$APP  [ad-hoc — add an Apple Development cert for BTM attribution]"
 fi
+
+# install to /Applications — the canonical location for the running app; the
+# repo copy is the build artifact / script-only fallback. A locally built app
+# carries no quarantine, so no DMG/notarization is involved.
+INSTALL="/Applications/MacAnalyzers.app"
+if ditto "$APP" "$INSTALL" 2>/dev/null; then
+  echo "installed: $INSTALL"
+else
+  echo "note: could not install to /Applications (permissions?) — running from the repo copy still works"
+fi

@@ -29,8 +29,10 @@ notify() {  # title, message, [sound], [log path], [subtitle], [pid]
   local backend="${ANALYZERS_NOTIFIER:-native}"
 
   # preferred: the menu-bar app's bundled CLI (posts to the persistent app —
-  # live click handling; a pid adds a "Stop Process" notification button)
-  local app_cli="${ANALYZERS_ROOT:-$HOME/mac-analyzers}/app/MacAnalyzers.app/Contents/MacOS/notify"
+  # live click handling; a pid adds a "Stop Process" notification button).
+  # /Applications is the canonical install; the repo copy is the fallback.
+  local app_cli="/Applications/MacAnalyzers.app/Contents/MacOS/notify"
+  [[ -x "$app_cli" ]] || app_cli="${ANALYZERS_ROOT:-$HOME/mac-analyzers}/app/MacAnalyzers.app/Contents/MacOS/notify"
   if [[ -x "$app_cli" && "$backend" == "native" ]]; then
     "$app_cli" --title "$title" --message "$msg" --sound "$sound" \
       ${subtitle:+--subtitle "$subtitle"} \

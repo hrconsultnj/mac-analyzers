@@ -26,7 +26,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // added, with a link to System Settings — the transparent, Apple-
         // sanctioned path). Idempotent: skip when already enabled; if the
         // user removes it in System Settings, macOS remembers the opt-out.
-        if SMAppService.mainApp.status != .enabled {
+        //
+        // One-time migration: when first launched from /Applications (the
+        // canonical install), re-register so the login item points here and
+        // not at the repo build-artifact copy.
+        let inApplications = Bundle.main.bundleURL.path.hasPrefix("/Applications/")
+        let migratedKey = "loginItemMovedToApplications"
+        if inApplications, !UserDefaults.standard.bool(forKey: migratedKey) {
+            try? SMAppService.mainApp.unregister()
+            try? SMAppService.mainApp.register()
+            UserDefaults.standard.set(true, forKey: migratedKey)
+        } else if SMAppService.mainApp.status != .enabled {
             try? SMAppService.mainApp.register()
         }
     }

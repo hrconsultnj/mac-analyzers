@@ -50,7 +50,8 @@ git clone https://github.com/hrconsultnj/mac-analyzers.git ~/mac-analyzers
 cd ~/mac-analyzers
 ./memory-analyzer/memory-manage-agents.sh install    # RAM guard + daily reaper
 ./storage-analyzer/storage-manage-agents.sh install  # scheduled disk hygiene
-./app/build.sh && open app/MacAnalyzers.app          # build + launch the app
+./app/build.sh                                       # build + install the app
+open /Applications/MacAnalyzers.app                  # launch it
 ```
 
 The app builds from source in a couple of minutes and needs only Apple's
@@ -58,10 +59,10 @@ The app builds from source in a couple of minutes and needs only Apple's
 launch it adds itself to Login Items (macOS notifies you it did) and asks for
 notification permission; from then on the chip icon in the menu bar is the
 whole interface — status at a glance, sliders for the limits, click a
-notification to open the log behind it. The built app lives at
-`app/MacAnalyzers.app`: open it from Finder, and keep it in the Dock if you
-like — clicking the Dock icon launches it when it's stopped and opens
-Settings when it's running.
+notification to open the log behind it. The build installs the app to
+`/Applications/MacAnalyzers.app` like any Mac app (the copy under `app/` is
+just the build artifact) — keep it in the Dock if you like: clicking the Dock
+icon launches it when it's stopped and opens Settings when it's running.
 
 Want to see your machine before installing anything? `./memory-analyzer/analyze.sh`
 and `./storage-analyzer/analyze.sh` are read-only reports — always safe.
