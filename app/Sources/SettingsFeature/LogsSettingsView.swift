@@ -21,9 +21,6 @@ struct LogsSettingsView: View {
         // QA fix: forensics files are NOT run-shaped — the generic parser
         // garbled them while the proper detail screen sat unwired
         case .forensics: ForensicsBrowserView()
-        // QA fix: network snapshots already have a rich pane — never render
-        // the same data twice, worse
-        case .network: NetworkSettingsView()
         default: genericRunList
         }
     }

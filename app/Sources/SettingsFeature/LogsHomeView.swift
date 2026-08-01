@@ -13,7 +13,6 @@ struct LogsHomeView: View {
         case memory = "Memory"
         case storage = "Storage"
         case downloads = "Downloads"
-        case network = "Network"
         case system = "System"
     }
 
@@ -31,7 +30,6 @@ struct LogsHomeView: View {
         case .guardLog, .memoryClean, .reclaim: .memory
         case .storageClean: .storage
         case .janitor: .downloads
-        case .network: .network
         case .persistence, .loginItems, .forensics: .system
         }
     }
@@ -145,7 +143,6 @@ struct LogsHomeView: View {
         case .memory: .blue
         case .storage: .indigo
         case .downloads: .orange
-        case .network: .purple
         case .system: .brown
         }
     }

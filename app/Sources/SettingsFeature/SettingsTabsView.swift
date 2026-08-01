@@ -13,7 +13,7 @@ public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
         case home, memory, storage, notifications, schedule, monitor, network,
-             trends, actions, undo, activity, logs, log(LogKind), support, about, uninstall, update
+             trends, actions, undo, logs, log(LogKind), support, about, uninstall, update
     }
 
     /// Settings opens on the Overview dashboard — the SaaS-home pattern;
@@ -28,6 +28,8 @@ public struct SettingsTabsView: View {
     /// Typed path for Monitor dossier drill-downs.
     @State private var monitorPath: [DossierRoute] = []
     @State private var updateAvailable = false
+    /// Cleaner requested by a deep link, consumed once by the Actions pane.
+    @State private var actionsPreselect: String?
 
     // MARK: - browser-style history (the System Settings model)
     // The chevrons are ALWAYS in the toolbar and track EVERY navigation —
@@ -254,7 +256,8 @@ public struct SettingsTabsView: View {
                 switch target {
                 case "home", "overview": pane = .home
                 case "logs": pane = .logs; logsPath = []
-                case "activity": pane = .activity
+                // Activity was a duplicate view of the guard log — one screen now
+                case "activity": pane = .log(.guardLog)
                 case "monitor": pane = .monitor
                 case "network": pane = .network
                 case "trends": pane = .trends
@@ -264,17 +267,21 @@ public struct SettingsTabsView: View {
                 case let t where t.hasPrefix("actions"):
                     // "actions" or "actions:<cleaner>" — the pane reads the
                     // preselect key on appear and clears it
+                    // in-memory, not UserDefaults: a persisted key survived the
+                    // visit and made the NEXT one jump to a cleaner nobody asked for
                     if t.hasPrefix("actions:") {
-                        UserDefaults.standard.set(String(t.dropFirst(8)),
-                                                  forKey: "actionsPreselect")
+                        actionsPreselect = String(t.dropFirst(8))
                     }
                     pane = .actions
                 case "schedule": pane = .schedule
                 case "update": pane = .update
+                case "about": pane = .about
                 case "memory": pane = .memory
                 case "storage": pane = .storage
                 case "notifications": pane = .notifications
-                default: break
+                default:
+                    Logger(subsystem: "com.mac-analyzers.app", category: "router")
+                        .notice("ignored unknown deep-link target \(target, privacy: .public)")
                 }
             }
         }
@@ -285,31 +292,11 @@ public struct SettingsTabsView: View {
         }
     }
 
-    /// Selection routed through a custom binding so re-clicking "Logs" while
-    /// already drilled inside it still resets to the list (plain $pane never
-    /// fires when the selected value doesn't change).
-    private var paneSelection: Binding<Pane> {
-        Binding(get: { pane },
-                set: { newValue in
-                    // re-click on the CURRENT pane is a no-op assignment, so
-                    // onChange never fires — reset its stack here (audit
-                    // finding: stale drilled screen under a correct highlight)
-                    if newValue == pane {
-                        switch newValue {
-                        case .logs: logsPath = []
-                        case .log: childPath = []
-                        case .trends: trendsPath = []
-                        default: break
-                        }
-                    } else if newValue == .logs {
-                        logsPath = []
-                    }
-                    pane = newValue
-                })
-    }
-
+    // Row tap gestures own the "re-click resets the stack" behaviour
+    // (resetStackIfCurrent) — a second, custom selection binding did the
+    // same job with different case coverage, so they could disagree.
     private var sidebarList: some View {
-        List(selection: paneSelection) {
+        List(selection: $pane) {
             Section {
                 sidebarRow("Memory", "memorychip", .blue, .memory)
                 sidebarRow("Storage", "internaldrive.fill", .indigo, .storage)
@@ -325,7 +312,6 @@ public struct SettingsTabsView: View {
             Section {
                 sidebarRow("Monitor", "gauge.with.dots.needle.67percent", .orange, .monitor)
                 sidebarRow("Network", "network", .purple, .network)
-                sidebarRow("Activity", "list.bullet.rectangle.fill", .orange, .activity)
                 // both worlds: the Logs ROW opens the nested landing
                 // screen; the disclosure children jump straight to a log
                 DisclosureGroup {
@@ -407,7 +393,7 @@ public struct SettingsTabsView: View {
                     }
             }
         case .network: NetworkSettingsView()
-        case .actions: ActionsSettingsView()
+        case .actions: ActionsSettingsView(preselect: $actionsPreselect)
         case .undo: UndoView()
         case .trends:
             NavigationStack(path: $trendsPath) {
@@ -417,7 +403,6 @@ public struct SettingsTabsView: View {
                             .navigationBarBackButtonHidden(true)
                     }
             }
-        case .activity: ActivitySettingsView()
         case .logs:
             // landing screen at the root; a log and then a run push on top
             NavigationStack(path: $logsPath) {

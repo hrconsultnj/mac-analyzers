@@ -97,6 +97,7 @@ struct ActionsSettingsView: View {
         let storage: StorageCleanRun?
     }
 
+    @Binding var preselect: String?
     @State private var cleaner: Cleaner = .memoryClean
     @State private var phase: Phase = .idle
     @State private var reapRun: ReapRun?
@@ -148,12 +149,9 @@ struct ActionsSettingsView: View {
             resetToIdle()
             loadHistory()
         }
+        .onChange(of: preselect) { consumePreselect() }
         .onAppear {
-            // menu deep-links preselect a cleaner ("actions:<cleaner>")
-            if let raw = UserDefaults.standard.string(forKey: "actionsPreselect") {
-                UserDefaults.standard.removeObject(forKey: "actionsPreselect")
-                if let preselected = Cleaner(rawValue: raw) { cleaner = preselected }
-            }
+            consumePreselect()
             loadHistory()
         }
         .confirmationDialog(applyPrompt, isPresented: $confirmingApply, titleVisibility: .visible) {
@@ -169,6 +167,14 @@ struct ActionsSettingsView: View {
                  ? "These move to the Trash, so you can put them back — from the Undo screen or from Finder. Everything is logged; protected lists always win."
                  : "This is PERMANENT — these files are deleted, not moved to the Trash, and Undo cannot bring them back. They are rebuildable: your tools recreate them when needed. Everything is logged; protected lists always win.")
         }
+    }
+
+    /// Applies a deep-link request once, then clears it — so re-delivery to
+    /// an already-visible pane still works and nothing leaks to next time.
+    private func consumePreselect() {
+        guard let raw = preselect else { return }
+        preselect = nil
+        if let requested = Cleaner(rawValue: raw) { cleaner = requested }
     }
 
     // MARK: - control row

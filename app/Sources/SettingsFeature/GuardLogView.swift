@@ -6,6 +6,16 @@ import UIComponents
 /// menu and Activity use) behind filter chips with live counts — no raw text.
 struct GuardLogView: View {
 
+    /// Activity used to be a separate sidebar row rendering the SAME parser
+    /// over the SAME file with a shorter window — one screen with a range
+    /// switch replaces two screens that could disagree.
+    enum Window: Hashable {
+        case week, quarter
+        var seconds: TimeInterval { self == .week ? 7 * 86_400 : 90 * 86_400 }
+        var label: String { self == .week ? "Last 7 days" : "Last 90 days" }
+    }
+
+    @State private var window: Window = .quarter
     @State private var events: [GuardEvent] = []
     @State private var filter: GuardEvent.Category = .all
     @State private var search = ""
@@ -27,8 +37,12 @@ struct GuardLogView: View {
 
     var body: some View {
         PaneScaffold(symbol: "shield.lefthalf.filled", color: .blue, title: "Memory Guard",
-                     caption: "What the guard saw and did over the last 90 days — filter by what matters.") {
+                     caption: "What the guard saw and did — pick a range, then filter by what matters.") {
             Section {
+                FullWidthSegments(
+                    options: [(Window.week, "Last 7 days"), (Window.quarter, "Last 90 days")],
+                    selection: $window
+                )
                 HStack {
                     FilterChipsBar(
                         chips: GuardEvent.Category.allCases.map { cat in
@@ -59,6 +73,7 @@ struct GuardLogView: View {
             }
         }
         .onAppear(perform: load)
+        .onChange(of: window) { load() }
     }
 
     @ViewBuilder private func row(for event: GuardEvent) -> some View {
@@ -135,6 +150,9 @@ struct GuardLogView: View {
     }
 
     private func load() {
-        detachedLoad({ GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog) }) { events = $0 }
+        let span = window.seconds
+        detachedLoad({
+            GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog, within: span, limit: 500)
+        }) { events = $0 }
     }
 }
