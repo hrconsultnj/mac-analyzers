@@ -32,7 +32,7 @@ struct LogsHomeView: View {
         case .storageClean: .storage
         case .janitor: .downloads
         case .network: .network
-        case .loginItems, .forensics: .system
+        case .persistence, .loginItems, .forensics: .system
         }
     }
 

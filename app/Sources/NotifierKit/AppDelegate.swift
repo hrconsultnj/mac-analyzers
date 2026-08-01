@@ -38,6 +38,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                                            logPath: nil, paneTarget: "monitor")
         }
 
+        startPersistenceWatcher()
+
         registerLoginItem()
 
         // `open -a "Mac Analyzers" --args --pane <target>` jumps straight to
@@ -47,6 +49,31 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             let target = CommandLine.arguments[flag + 1]
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                 SettingsOpener.open(target: target)
+            }
+        }
+    }
+
+    /// Launch + 6-hourly: alert when something NEW installs itself to run at
+    /// login/boot. First run seeds the baseline silently.
+    private func startPersistenceWatcher() {
+        Task { @MainActor in
+            while true {
+                let additions = await Task.detached(priority: .utility) {
+                    PersistenceWatcher.checkForAdditions()
+                }.value
+                if !additions.isEmpty {
+                    let names = additions
+                        .map { ($0 as NSString).lastPathComponent }
+                        .joined(separator: ", ")
+                    NotificationPoster.shared.post(
+                        title: additions.count == 1
+                            ? "New login/startup item installed"
+                            : "\(additions.count) new login/startup items installed",
+                        subtitle: "Persistence",
+                        message: "\(names). Click to review — nothing was blocked.",
+                        sound: nil, logPath: nil, paneTarget: "log:persistence")
+                }
+                try? await Task.sleep(for: .seconds(6 * 3600))
             }
         }
     }
