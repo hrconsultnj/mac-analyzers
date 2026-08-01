@@ -9,6 +9,7 @@ struct MonitorSettingsView: View {
     enum Lens: Hashable { case memory, energy, diskIO }
 
     @State private var lens: Lens = .memory
+    @Binding var dossierPath: [DossierRoute]
     @State private var groups: [ProcessGroup] = []
     @State private var energy: [EnergyEntry] = []
     @State private var diskIO: [DiskIOEntry] = []
@@ -80,6 +81,13 @@ struct MonitorSettingsView: View {
                     ForEach(filtered) { group in
                         if group.children.isEmpty {
                             ProcessRow(proc: group.parent) { load() }
+                                .contextMenu {
+                                    Button("Dossier…") {
+                                        dossierPath.append(DossierRoute(
+                                            name: group.parent.friendlyName,
+                                            pid: group.parent.pid))
+                                    }
+                                }
                         } else {
                             DisclosureGroup {
                                 ProcessRow(proc: group.parent) { load() }
@@ -88,6 +96,13 @@ struct MonitorSettingsView: View {
                                 }
                             } label: {
                                 groupLabel(group)
+                                    .contextMenu {
+                                        Button("Dossier…") {
+                                            dossierPath.append(DossierRoute(
+                                                name: group.parent.friendlyName,
+                                                pid: group.parent.pid))
+                                        }
+                                    }
                             }
                         }
                     }

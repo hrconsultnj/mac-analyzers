@@ -25,6 +25,8 @@ public struct SettingsTabsView: View {
     @State private var childPath: [LogRoute] = []
     /// Typed path for the Trends drill-downs (tiles → receipt screens).
     @State private var trendsPath: [TrendsRoute] = []
+    /// Typed path for Monitor dossier drill-downs.
+    @State private var monitorPath: [DossierRoute] = []
     @State private var updateAvailable = false
 
     // MARK: - browser-style history (the System Settings model)
@@ -37,6 +39,7 @@ public struct SettingsTabsView: View {
         let logsPath: [LogRoute]
         let childPath: [LogRoute]
         let trendsPath: [TrendsRoute]
+        let monitorPath: [DossierRoute]
     }
 
     @State private var history: [NavSnapshot] = []
@@ -57,6 +60,7 @@ public struct SettingsTabsView: View {
         case .logs: logsPath.count
         case .log: childPath.count
         case .trends: trendsPath.count
+        case .monitor: monitorPath.count
         default: 0
         }
     }
@@ -74,6 +78,7 @@ public struct SettingsTabsView: View {
         case .logs: if !logsPath.isEmpty { logsPath.removeLast() }
         case .log: if !childPath.isEmpty { childPath.removeLast() }
         case .trends: if !trendsPath.isEmpty { trendsPath.removeLast() }
+        case .monitor: if !monitorPath.isEmpty { monitorPath.removeLast() }
         default: break
         }
     }
@@ -88,6 +93,7 @@ public struct SettingsTabsView: View {
         case .logs: logsPath = []
         case .log: childPath = []
         case .trends: trendsPath = []
+        case .monitor: monitorPath = []
         default: break
         }
     }
@@ -101,7 +107,8 @@ public struct SettingsTabsView: View {
             recordQueued = false
             guard !isTimeTraveling else { return }
             let snap = NavSnapshot(pane: pane, logsPath: logsPath,
-                                   childPath: childPath, trendsPath: trendsPath)
+                                   childPath: childPath, trendsPath: trendsPath,
+                                   monitorPath: monitorPath)
             if history.indices.contains(historyIndex), history[historyIndex] == snap { return }
             history = Array(history.prefix(historyIndex + 1)) + [snap]
             historyIndex = history.count - 1
@@ -119,6 +126,7 @@ public struct SettingsTabsView: View {
         logsPath = snap.logsPath
         childPath = snap.childPath
         trendsPath = snap.trendsPath
+        monitorPath = snap.monitorPath
         DispatchQueue.main.async { isTimeTraveling = false }
     }
 
@@ -208,6 +216,7 @@ public struct SettingsTabsView: View {
             if !isTimeTraveling {
                 childPath = []
                 trendsPath = []
+                monitorPath = []
                 // sidebar "Logs" click always lands on the list — drilled
                 // states remain reachable via the history chevrons
                 if pane == .logs { logsPath = [] }
@@ -217,6 +226,7 @@ public struct SettingsTabsView: View {
         .onChange(of: logsPath) { scheduleRecord() }
         .onChange(of: childPath) { scheduleRecord() }
         .onChange(of: trendsPath) { scheduleRecord() }
+        .onChange(of: monitorPath) { scheduleRecord() }
         .onAppear(perform: scheduleRecord)
         .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.openPaneInternal)) { note in
             // deep links from the menu bar ("Guard log" → the guard-log pane)
@@ -371,7 +381,14 @@ public struct SettingsTabsView: View {
         case .storage: StorageSettingsView()
         case .notifications: NotifySettingsView()
         case .schedule: ScheduleSettingsView()
-        case .monitor: MonitorSettingsView()
+        case .monitor:
+            NavigationStack(path: $monitorPath) {
+                MonitorSettingsView(dossierPath: $monitorPath)
+                    .navigationDestination(for: DossierRoute.self) { route in
+                        DossierView(route: route)
+                            .navigationBarBackButtonHidden(true)
+                    }
+            }
         case .network: NetworkSettingsView()
         case .actions: ActionsSettingsView()
         case .trends:

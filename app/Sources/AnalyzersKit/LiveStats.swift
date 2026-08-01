@@ -131,6 +131,12 @@ public enum LiveStats {
         return Array(result.sorted { $0.residentMB > $1.residentMB }.prefix(limit))
     }
 
+    /// Is this name/command inside the guard's auto-stop scope? (Public for
+    /// the dossier's protection verdict.)
+    public static func isDevKillable(_ raw: String) -> Bool {
+        raw.range(of: killablePattern, options: .regularExpression) != nil
+    }
+
     /// Dev-only convenience for the Memory tab strip.
     public static func topDevProcesses(limit: Int = 3) -> [LiveProcess] {
         snapshot(limit: 24, minimumMB: 256).filter(\.isDev).prefix(limit).map { $0 }
