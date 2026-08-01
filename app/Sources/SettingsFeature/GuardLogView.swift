@@ -8,9 +8,17 @@ struct GuardLogView: View {
 
     @State private var events: [GuardEvent] = []
     @State private var filter: GuardEvent.Category = .all
+    @State private var search = ""
 
     private var filtered: [GuardEvent] {
-        filter == .all ? events : events.filter { $0.category == filter }
+        let byCategory = filter == .all ? events : events.filter { $0.category == filter }
+        guard !search.isEmpty else { return byCategory }
+        let needle = search.lowercased()
+        return byCategory.filter {
+            $0.friendlyName.lowercased().contains(needle)
+                || $0.processName.lowercased().contains(needle)
+                || ($0.pid.map { String($0).contains(needle) } ?? false)
+        }
     }
 
     private func count(_ category: GuardEvent.Category) -> Int {
@@ -35,6 +43,8 @@ struct GuardLogView: View {
                     } label: { Image(systemName: "arrow.clockwise") }
                         .help("Refresh")
                 }
+                TextField("Filter by process or pid…", text: $search)
+                    .textFieldStyle(.roundedBorder)
             }
             Section {
                 if filtered.isEmpty {

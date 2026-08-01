@@ -79,10 +79,20 @@ struct LoginItemsView: View {
 
     @ViewBuilder private func entryRow(_ entry: LoginItemEntry) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            DataCard(symbol: symbol(for: entry.verdict), color: color(for: entry.verdict),
-                     title: entry.displayName,
-                     subtitle: subtitle(for: entry),
-                     badge: (entry.verdict.rawValue, color(for: entry.verdict)))
+            // real vendor icon when the target still exists — a recognizable
+            // app beats a generic glyph when deciding what to remove
+            if let target = entry.targetPath,
+               FileManager.default.fileExists(atPath: target) {
+                DataCard(appIcon: NSWorkspace.shared.icon(forFile: target),
+                         title: entry.displayName,
+                         subtitle: subtitle(for: entry),
+                         badge: (entry.verdict.rawValue, color(for: entry.verdict)))
+            } else {
+                DataCard(symbol: symbol(for: entry.verdict), color: color(for: entry.verdict),
+                         title: entry.displayName,
+                         subtitle: subtitle(for: entry),
+                         badge: (entry.verdict.rawValue, color(for: entry.verdict)))
+            }
             if let cmd = entry.sudoCommand {
                 HStack(spacing: 6) {
                     Text(cmd)

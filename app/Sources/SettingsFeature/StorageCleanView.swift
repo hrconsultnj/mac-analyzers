@@ -92,12 +92,22 @@ struct StorageCleanView: View {
                         Section {
                             DisclosureGroup {
                                 ForEach(group.items.sorted { $0.sizeBytes > $1.sizeBytes }) { item in
-                                    DataCard(symbol: cacheSymbol(item.cacheKind),
-                                             color: statusColor(item.status),
-                                             title: item.cacheKind,
-                                             subtitle: item.path,
-                                             trailing: ByteSize.format(item.sizeBytes),
-                                             badge: (item.status.rawValue, statusColor(item.status)))
+                                    HStack(spacing: 6) {
+                                        DataCard(symbol: cacheSymbol(item.cacheKind),
+                                                 color: statusColor(item.status),
+                                                 title: item.cacheKind,
+                                                 subtitle: item.path,
+                                                 trailing: ByteSize.format(item.sizeBytes),
+                                                 badge: (item.status.rawValue, statusColor(item.status)))
+                                        if FileManager.default.fileExists(atPath: item.path) {
+                                            Button {
+                                                NSWorkspace.shared.activateFileViewerSelecting(
+                                                    [URL(fileURLWithPath: item.path)])
+                                            } label: { Image(systemName: "magnifyingglass.circle") }
+                                                .buttonStyle(.borderless)
+                                                .help("Show in Finder")
+                                        }
+                                    }
                                 }
                             } label: {
                                 HStack {

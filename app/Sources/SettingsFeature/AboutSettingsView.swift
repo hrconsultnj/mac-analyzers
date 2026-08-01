@@ -56,13 +56,19 @@ struct AboutSettingsView: View {
         }
     }
 
+    /// Collapsed by default (first section expanded) — the prose is worth
+    /// having, but scannability beats a wall of text.
     private func section(_ title: String, _ points: [String]) -> some View {
-        Section(title) {
-            ForEach(points, id: \.self) { point in
-                Text(point)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        Section {
+            DisclosureGroup(isExpanded: .constant(title.hasPrefix("What the guard")).animation()) {
+                ForEach(points, id: \.self) { point in
+                    Text(point)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } label: {
+                Text(title).font(.callout.weight(.medium))
             }
         }
     }
