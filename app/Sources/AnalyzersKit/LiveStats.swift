@@ -103,30 +103,12 @@ public enum LiveStats {
     /// tooling (an OrbStack helper at 3.3 GB matters as much as next-server).
     /// `minimumMB` keeps the list to rows worth a decision.
     public static func snapshot(limit: Int = 10, minimumMB: Int = 512) -> [LiveProcess] {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/ps")
-        p.arguments = ["axo", "pid=,rss=,args="]
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = FileHandle.nullDevice
-        guard (try? p.run()) != nil else { return [] }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        guard let text = String(data: data, encoding: .utf8) else { return [] }
-
-        var result: [LiveProcess] = []
-        for line in text.split(separator: "\n") {
-            let fields = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
-            guard fields.count == 3,
-                  let pid = Int(fields[0]), pid > 500,
-                  let rssKB = Int(fields[1]) else { continue }
-            let rssMB = rssKB / 1024
-            guard rssMB >= minimumMB else { continue }
-            let args = String(fields[2])
-            let isDev = args.range(of: killablePattern, options: .regularExpression) != nil
-            result.append(LiveProcess(pid: pid, residentMB: rssMB,
-                                      rawName: String(args.prefix(100)),
-                                      kind: isDev ? .devTool : .app))
+        // fork-free: the kernel answers this directly (see ProcTable)
+        let result = ProcTable.sweep(minimumMB: minimumMB).map { raw in
+            LiveProcess(pid: raw.pid, residentMB: raw.residentMB,
+                        rawName: String(raw.command.prefix(100)),
+                        kind: isDevKillable(raw.command) ? .devTool : .app,
+                        ppid: raw.ppid)
         }
         return Array(result.sorted { $0.residentMB > $1.residentMB }.prefix(limit))
     }
@@ -151,27 +133,28 @@ public enum LiveStats {
         #"(^|/)-?(zsh|bash|sh|fish|login|tmux|screen|launchd)( |$)|iTerm|Apple Terminal|Terminal\.app"#
 
     public static func groupedSnapshot(limit: Int = 30, minimumMB: Int = 128) -> [ProcessGroup] {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/ps")
-        p.arguments = ["axo", "pid=,ppid=,rss=,args="]
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = FileHandle.nullDevice
-        guard (try? p.run()) != nil else { return [] }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        guard let text = String(data: data, encoding: .utf8) else { return [] }
-
         struct Entry { let pid: Int; let ppid: Int; let rssMB: Int; let args: String }
+        // one fork-free sweep; parents of heavy children are pulled in below
         var table: [Int: Entry] = [:]
-        for line in text.split(separator: "\n") {
-            let fields = line.split(separator: " ", maxSplits: 3, omittingEmptySubsequences: true)
-            guard fields.count == 4,
-                  let pid = Int(fields[0]), pid > 1,
-                  let ppid = Int(fields[1]),
-                  let rssKB = Int(fields[2]) else { continue }
-            table[pid] = Entry(pid: pid, ppid: ppid, rssMB: rssKB / 1024,
-                               args: String(fields[3]))
+        for raw in ProcTable.sweep(minimumMB: min(minimumMB, 32)) {
+            table[raw.pid] = Entry(pid: raw.pid, ppid: raw.ppid,
+                                   rssMB: raw.residentMB, args: raw.command)
+        }
+        // pull in ancestors that sit under the floor — an app's slim launcher
+        // owning fat helpers is the normal shape, and without it every helper
+        // becomes its own root (VS Code / Chrome lose their family)
+        var pending = table.values.map(\.ppid).filter { $0 > 1 }
+        var hops = 0
+        while !pending.isEmpty, hops < 25 {
+            var next: [Int] = []
+            for parent in Set(pending) where table[parent] == nil {
+                guard let raw = ProcTable.lightweight(pid: parent) else { continue }
+                table[parent] = Entry(pid: raw.pid, ppid: raw.ppid,
+                                      rssMB: raw.residentMB, args: raw.command)
+                if raw.ppid > 1 { next.append(raw.ppid) }
+            }
+            pending = next
+            hops += 1
         }
 
         func isStopParent(_ args: String) -> Bool {
