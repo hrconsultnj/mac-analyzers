@@ -16,9 +16,9 @@ struct StorageSettingsView: View {
                     prompt: "e.g. ~/.someapp/cache/.next-*",
                     items: $config.storage.extraCacheGlobs
                 )
-                StringListEditor(
+                AppListEditor(
                     title: "Stale apps (cleanup offers to remove, per app)",
-                    prompt: "App name without .app",
+                    mode: .installedApps,
                     items: $config.storage.staleApps
                 )
                 LabeledContent("Recordings folder") {

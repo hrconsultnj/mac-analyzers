@@ -76,14 +76,14 @@ struct MemorySettingsView: View {
             }
 
             Section("Process Lists") {
-                StringListEditor(
-                    title: "Protected processes (never stopped — name fragments)",
-                    prompt: "e.g. obs or my-daemon",
+                AppListEditor(
+                    title: "Protected processes (never stopped)",
+                    mode: .processFragments,
                     items: $config.memory.protectExtra
                 )
-                StringListEditor(
+                AppListEditor(
                     title: "Apps memory-reclaim may quit gracefully",
-                    prompt: "App name as in /Applications, e.g. Docker",
+                    mode: .installedApps,
                     items: $config.memory.reclaimApps
                 )
             }
