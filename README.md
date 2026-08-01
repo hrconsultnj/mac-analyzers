@@ -287,3 +287,11 @@ share for **noncommercial** purposes; the license text and the Required
 Notice must stay with every copy. **Commercial use requires a separate
 license** — open an issue or reach out via GitHub. Contributions are welcome
 under the terms in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+**What this means for the app** (`app/`, the same license): the source is
+public so you can read exactly what runs on your Mac — audit it, build it
+for yourself, patch it, learn from it. What the license does **not** grant
+is commercial redistribution: selling the app, shipping it (or builds of
+it) inside a paid product or service, or offering your own distribution of
+it commercially. Official binaries and any commercial licensing come only
+from this project. Source you can see is not source you can sell.
