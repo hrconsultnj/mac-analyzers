@@ -65,9 +65,16 @@ public final class GuardLogStore {
         let lastCleanDiskState: String?
     }
 
+    /// In-flight guard: this is the heaviest read in the app (process table
+    /// + three log parses + disk). Menu ticks, pane appears and file-watch
+    /// events all call it — without this they stacked.
+    @ObservationIgnored private var reloading = false
+
     /// Cached-first: published values stay on screen while the fresh payload
     /// is computed in the background, then apply atomically on main.
     public func reload() {
+        guard !reloading else { return }
+        reloading = true
         let floor = clearedAt
         Task.detached(priority: .userInitiated) { [weak self] in
             let payload = Payload(
@@ -85,7 +92,10 @@ public final class GuardLogStore {
                 monitorGroups: LiveStats.groupedSnapshot(limit: 14, minimumMB: 256),
                 disk: LiveStats.diskUsage(),
                 lastCleanDiskState: Self.lastFreeSpaceLine())
-            await MainActor.run { [weak self] in self?.apply(payload) }
+            await MainActor.run { [weak self] in
+                self?.apply(payload)
+                self?.reloading = false
+            }
         }
     }
 

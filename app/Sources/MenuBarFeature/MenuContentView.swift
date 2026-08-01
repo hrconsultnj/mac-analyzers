@@ -8,7 +8,7 @@ public struct MenuContentView: View {
     @Environment(GuardLogStore.self) private var store
     @Environment(\.openWindow) private var openWindow
     @State private var tab: Tab = .memory
-    @AppStorage("monitorRefreshSeconds") private var monitorRefresh = 5
+    @AppStorage("monitorRefreshSeconds") private var monitorRefresh = 15
     @State private var latestVersion: String?
 
     enum Tab: String, CaseIterable {
@@ -143,9 +143,9 @@ public struct MenuContentView: View {
             Spacer()
             // Activity-Monitor-style update frequency
             Picker("", selection: $monitorRefresh) {
-                Text("2s").tag(2)
                 Text("5s").tag(5)
-                Text("10s").tag(10)
+                Text("15s").tag(15)
+                Text("60s").tag(60)
                 Text("Off").tag(0)
             }
             .pickerStyle(.segmented)

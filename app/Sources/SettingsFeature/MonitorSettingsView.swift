@@ -17,7 +17,7 @@ struct MonitorSettingsView: View {
     /// Same instance the delegate keeps alive — one watcher, many surfaces.
     private var thermal: ThermalWatcher { ThermalWatcher.shared }
     @State private var search = ""
-    @AppStorage("monitorRefreshSeconds") private var refresh = 5
+    @AppStorage("monitorRefreshSeconds") private var refresh = 15
 
     /// A group matches if the parent OR any helper matches; a parent match
     /// keeps the whole family, a helper match trims to matching helpers.
@@ -54,9 +54,9 @@ struct MonitorSettingsView: View {
                     }
                     Spacer()
                     Picker("", selection: $refresh) {
-                        Text("2s").tag(2)
                         Text("5s").tag(5)
-                        Text("10s").tag(10)
+                        Text("15s").tag(15)
+                        Text("60s").tag(60)
                         Text("Off").tag(0)
                     }
                     .pickerStyle(.segmented)

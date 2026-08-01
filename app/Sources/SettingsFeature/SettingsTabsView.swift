@@ -329,8 +329,8 @@ public struct SettingsTabsView: View {
             // dry-run -> review -> apply flow (Actions).
             Section {
                 sidebarRow("Actions", "checklist", .cyan, .actions)
-                sidebarRow("Undo", "arrow.uturn.backward", .gray, .undo)
                 sidebarRow("Trends", "chart.xyaxis.line", .mint, .trends)
+                sidebarRow("Undo", "arrow.uturn.backward", .gray, .undo)
             } header: {
                 sectionHeader("REVIEW")
             }

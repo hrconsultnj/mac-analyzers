@@ -1,13 +1,18 @@
+import AnalyzersKit
 import Foundation
 import SwiftUI
 
-/// Blueprint P0 pattern: compute off the main thread, assign on main.
-/// Cached values stay painted while fresh data loads — pane switches never
-/// block on parses or shell-outs.
+/// Every pane's load goes through the shared query cache: serialized (one
+/// expensive producer at a time), deduped by call site, and served from a
+/// short TTL so re-entering a pane or a refresh tick costs nothing. The
+/// key comes free from the call site — nothing to pass, nothing to collide.
 func detachedLoad<T: Sendable>(_ work: @escaping @Sendable () -> T,
+                               ttl: TimeInterval = 3,
+                               key: String = "\(#fileID):\(#line)",
                                assign: @escaping @MainActor (T) -> Void) {
-    Task.detached(priority: .userInitiated) {
-        let value = work()
+    Task {
+        let value = await LoadCoordinator.shared.value(key: key, ttl: ttl, produce: work)
+        guard !Task.isCancelled else { return }
         await MainActor.run { assign(value) }
     }
 }
