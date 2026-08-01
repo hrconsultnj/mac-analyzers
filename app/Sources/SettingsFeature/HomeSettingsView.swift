@@ -24,7 +24,7 @@ struct HomeSettingsView: View {
         }
         .onAppear {
             store.reload()
-            trends = TrendsModel.snapshot(period: .day7)
+            detachedLoad({ TrendsModel.snapshot(period: .day7) }) { trends = $0 }
             Task {
                 if let latest = await UpdateChecker.latestVersion() {
                     latestRelease = latest

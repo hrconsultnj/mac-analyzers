@@ -125,6 +125,6 @@ struct GuardLogView: View {
     }
 
     private func load() {
-        events = GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog)
+        detachedLoad({ GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog) }) { events = $0 }
     }
 }

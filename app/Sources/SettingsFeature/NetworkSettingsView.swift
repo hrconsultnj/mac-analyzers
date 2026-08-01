@@ -57,9 +57,9 @@ struct NetworkSettingsView: View {
             }
         }
         .onAppear {
-            snapshot = NetworkParser.latest(fromLog: AnalyzersPaths.networkLog)
-            if snapshot == nil {
-                Task { await refresh() }
+            detachedLoad({ NetworkParser.latest(fromLog: AnalyzersPaths.networkLog) }) {
+                snapshot = $0
+                if $0 == nil { Task { await refresh() } }
             }
         }
     }
@@ -103,7 +103,9 @@ struct NetworkSettingsView: View {
     private func refresh() async {
         refreshing = true
         _ = await ActionRunner.run(script: AnalyzersPaths.networkScript, args: [])
-        snapshot = NetworkParser.latest(fromLog: AnalyzersPaths.networkLog)
+        snapshot = await Task.detached(priority: .userInitiated) {
+            NetworkParser.latest(fromLog: AnalyzersPaths.networkLog)
+        }.value
         refreshing = false
     }
 }

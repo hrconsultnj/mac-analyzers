@@ -64,6 +64,9 @@ struct ForensicsDetailView: View {
                 }
             }
         }
-        .onAppear { snapshot = ForensicsParser.parse(fileAt: route.path) }
+        .onAppear {
+            let path = route.path
+            detachedLoad({ ForensicsParser.parse(fileAt: path) }) { snapshot = $0 }
+        }
     }
 }

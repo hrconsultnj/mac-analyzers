@@ -162,10 +162,16 @@ struct MonitorSettingsView: View {
 
     private func load() {
         if lens == .energy {
-            energy = EnergyStats.snapshot(limit: 30)
+            detachedLoad({ (EnergyStats.snapshot(limit: 30), LiveStats.memoryPressure()) }) {
+                energy = $0.0
+                pressure = $0.1
+            }
         } else {
-            groups = LiveStats.groupedSnapshot(limit: 30, minimumMB: 128)
+            detachedLoad({ (LiveStats.groupedSnapshot(limit: 30, minimumMB: 128),
+                            LiveStats.memoryPressure()) }) {
+                groups = $0.0
+                pressure = $0.1
+            }
         }
-        pressure = LiveStats.memoryPressure()
     }
 }

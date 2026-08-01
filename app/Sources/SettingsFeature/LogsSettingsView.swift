@@ -78,7 +78,8 @@ struct LogsSettingsView: View {
     }
 
     private func load() {
-        runs = LogParser.runs(for: kind)
+        let logKind = kind
+        detachedLoad({ LogParser.runs(for: logKind) }) { runs = $0 }
     }
 
     private func mtime(_ url: URL) -> String {

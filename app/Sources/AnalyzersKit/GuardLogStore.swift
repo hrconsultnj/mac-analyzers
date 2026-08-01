@@ -45,21 +45,61 @@ public final class GuardLogStore {
         startWatching()
     }
 
+    /// Everything reload gathers, computed OFF the main thread (ps shell-outs
+    /// + log parses froze pane switches when done inline — blueprint P0).
+    private struct Payload: Sendable {
+        let events: [GuardEvent]
+        let killsToday: Int
+        let guardPaused: Bool
+        let lastMemoryCleanRun: Date?
+        let lastStorageCleanRun: Date?
+        let storageDailySummary: String?
+        let storageDeepSummary: String?
+        let latestForensics: URL?
+        let pressure: LiveStats.Pressure
+        let topProcesses: [LiveProcess]
+        let monitorProcesses: [LiveProcess]
+        let disk: DiskUsage?
+        let lastCleanDiskState: String?
+    }
+
+    /// Cached-first: published values stay on screen while the fresh payload
+    /// is computed in the background, then apply atomically on main.
     public func reload() {
         let floor = clearedAt
-        events = GuardLogParser.recentEvents(fromLog: AnalyzersPaths.guardLog, after: floor)
-        killsToday = GuardLogParser.killsToday(fromLog: AnalyzersPaths.guardLog, after: floor)
-        guardPaused = FileManager.default.fileExists(atPath: AnalyzersPaths.guardPauseFlag.path)
-        lastMemoryCleanRun = AnalyzersPaths.modificationDate(of: AnalyzersPaths.memoryAutoCleanLog)
-        lastStorageCleanRun = AnalyzersPaths.modificationDate(of: AnalyzersPaths.storageAutoCleanLog)
-        storageDailySummary = Self.lastStorageSummary(mode: "daily")
-        storageDeepSummary = Self.lastStorageSummary(mode: "deep")
-        latestForensics = AnalyzersPaths.latestForensics()
-        pressure = LiveStats.memoryPressure()
-        topProcesses = LiveStats.topDevProcesses()
-        monitorProcesses = LiveStats.snapshot()
-        disk = LiveStats.diskUsage()
-        lastCleanDiskState = Self.lastFreeSpaceLine()
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let payload = Payload(
+                events: GuardLogParser.recentEvents(fromLog: AnalyzersPaths.guardLog, after: floor),
+                killsToday: GuardLogParser.killsToday(fromLog: AnalyzersPaths.guardLog, after: floor),
+                guardPaused: FileManager.default.fileExists(atPath: AnalyzersPaths.guardPauseFlag.path),
+                lastMemoryCleanRun: AnalyzersPaths.modificationDate(of: AnalyzersPaths.memoryAutoCleanLog),
+                lastStorageCleanRun: AnalyzersPaths.modificationDate(of: AnalyzersPaths.storageAutoCleanLog),
+                storageDailySummary: Self.lastStorageSummary(mode: "daily"),
+                storageDeepSummary: Self.lastStorageSummary(mode: "deep"),
+                latestForensics: AnalyzersPaths.latestForensics(),
+                pressure: LiveStats.memoryPressure(),
+                topProcesses: LiveStats.topDevProcesses(),
+                monitorProcesses: LiveStats.snapshot(),
+                disk: LiveStats.diskUsage(),
+                lastCleanDiskState: Self.lastFreeSpaceLine())
+            await MainActor.run { [weak self] in self?.apply(payload) }
+        }
+    }
+
+    private func apply(_ p: Payload) {
+        events = p.events
+        killsToday = p.killsToday
+        guardPaused = p.guardPaused
+        lastMemoryCleanRun = p.lastMemoryCleanRun
+        lastStorageCleanRun = p.lastStorageCleanRun
+        storageDailySummary = p.storageDailySummary
+        storageDeepSummary = p.storageDeepSummary
+        latestForensics = p.latestForensics
+        pressure = p.pressure
+        topProcesses = p.topProcesses
+        monitorProcesses = p.monitorProcesses
+        disk = p.disk
+        lastCleanDiskState = p.lastCleanDiskState
     }
 
     /// Hide everything shown so far (badge + rows). Log untouched.

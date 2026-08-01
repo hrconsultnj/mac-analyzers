@@ -55,10 +55,9 @@ struct ActivitySettingsView: View {
     }
 
     private func load() {
-        events = GuardLogParser.recentEvents(
-            fromLog: AnalyzersPaths.guardLog,
-            within: 7 * 86_400,
-            limit: 50
-        )
+        detachedLoad({
+            GuardLogParser.recentEvents(fromLog: AnalyzersPaths.guardLog,
+                                        within: 7 * 86_400, limit: 50)
+        }) { events = $0 }
     }
 }

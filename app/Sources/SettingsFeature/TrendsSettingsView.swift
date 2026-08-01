@@ -170,6 +170,7 @@ struct TrendsSettingsView: View {
     }
 
     private func load() {
-        snapshot = TrendsModel.snapshot(period: period)
+        let window = period
+        detachedLoad({ TrendsModel.snapshot(period: window) }) { snapshot = $0 }
     }
 }

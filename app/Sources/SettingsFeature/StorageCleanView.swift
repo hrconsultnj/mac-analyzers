@@ -148,11 +148,12 @@ struct StorageCleanView: View {
     }
 
     private func load() {
-        guard let newest = LogParser.runs(for: kind).first else {
-            run = nil
-            return
-        }
-        run = StorageCleanParser.parse(runHeader: newest.header, lines: newest.lines)
+        let logKind = kind
+        detachedLoad({
+            LogParser.runs(for: logKind).first.map {
+                StorageCleanParser.parse(runHeader: $0.header, lines: $0.lines)
+            }
+        }) { run = $0 }
     }
 
     private func chipLabel(_ f: Filter) -> String {

@@ -1,6 +1,17 @@
 import Foundation
 import SwiftUI
 
+/// Blueprint P0 pattern: compute off the main thread, assign on main.
+/// Cached values stay painted while fresh data loads — pane switches never
+/// block on parses or shell-outs.
+func detachedLoad<T: Sendable>(_ work: @escaping @Sendable () -> T,
+                               assign: @escaping @MainActor (T) -> Void) {
+    Task.detached(priority: .userInitiated) {
+        let value = work()
+        await MainActor.run { assign(value) }
+    }
+}
+
 /// One run (or day, for event-style logs) inside a log file.
 struct LogRun: Identifiable, Hashable {
     let id: Int

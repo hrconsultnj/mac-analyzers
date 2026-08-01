@@ -166,11 +166,10 @@ struct LoginItemsView: View {
     }
 
     private func load() {
-        let runs = LogParser.runs(for: .loginItems)
-        guard let newest = runs.first else {
-            run = nil
-            return
-        }
-        run = LoginItemsParser.parse(runHeader: newest.header, lines: newest.lines)
+        detachedLoad({
+            LogParser.runs(for: .loginItems).first.map {
+                LoginItemsParser.parse(runHeader: $0.header, lines: $0.lines)
+            }
+        }) { run = $0 }
     }
 }

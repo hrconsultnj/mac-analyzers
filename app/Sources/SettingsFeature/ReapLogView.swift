@@ -110,11 +110,12 @@ struct ReapLogView: View {
     }
 
     private func load() {
-        guard let newest = LogParser.runs(for: kind).first else {
-            run = nil
-            return
-        }
-        run = ReapParser.parse(runHeader: newest.header, lines: newest.lines)
+        let logKind = kind
+        detachedLoad({
+            LogParser.runs(for: logKind).first.map {
+                ReapParser.parse(runHeader: $0.header, lines: $0.lines)
+            }
+        }) { run = $0 }
     }
 
     private func matches(_ item: ReapItem, _ f: Filter) -> Bool {
