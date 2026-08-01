@@ -9,6 +9,7 @@ public struct MenuContentView: View {
     @Environment(\.openSettings) private var openSettings
     @State private var tab: Tab = .memory
     @AppStorage("monitorRefreshSeconds") private var monitorRefresh = 5
+    @State private var latestVersion: String?
 
     enum Tab: String, CaseIterable {
         case memory = "Memory", monitor = "Monitor", storage = "Storage"
@@ -282,6 +283,16 @@ public struct MenuContentView: View {
             } label: {
                 Label("Settings…", systemImage: "gearshape")
             }
+            if let latest = latestVersion,
+               UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion) {
+                Button("Upgrade to v\(latest)") { GuardControl.runUpgrade() }
+                    .buttonStyle(.borderedProminent)
+                    .help("Runs upgrade.command in Terminal — pull, rebuild, relaunch; settings untouched")
+            } else {
+                Text("v\(UpdateChecker.installedVersion)")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
             Spacer()
             Button {
                 GuardControl.restartApp()
@@ -292,6 +303,7 @@ public struct MenuContentView: View {
             Button("Quit") { NSApp.terminate(nil) }
         }
         .controlSize(.regular)
+        .task { latestVersion = await UpdateChecker.latestVersion() }
     }
 
     private func sectionLabel(_ text: String) -> some View {

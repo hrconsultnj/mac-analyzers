@@ -14,6 +14,10 @@ BIN="$(swift build --show-bin-path -c release)"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Info.plist "$APP/Contents/Info.plist"
+# the repo's VERSION file is the single source of truth — inject it so the
+# app can compare itself against the latest GitHub release
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(tr -d ' \n' < ../VERSION)" \
+  "$APP/Contents/Info.plist" 2>/dev/null || true
 cp "$BIN/MacAnalyzersApp" "$APP/Contents/MacOS/MacAnalyzersApp"
 cp "$BIN/NotifierCLI" "$APP/Contents/MacOS/notify"
 

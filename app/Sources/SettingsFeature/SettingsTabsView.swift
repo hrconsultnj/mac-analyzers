@@ -8,7 +8,7 @@ import UIComponents
 public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
-        case memory, storage, notifications, activity, logs, log(LogKind), about
+        case memory, storage, notifications, activity, logs, log(LogKind), about, update
     }
 
     @State private var pane: Pane = .memory
@@ -44,6 +44,7 @@ public struct SettingsTabsView: View {
                 }
                 Section {
                     sidebarRow("About", "questionmark.circle.fill", .gray, .about)
+                    sidebarRow("Update", "arrow.down.circle.fill", .green, .update)
                 }
             }
             .listStyle(.sidebar)
@@ -54,22 +55,6 @@ public struct SettingsTabsView: View {
             detailView
         }
         .frame(minWidth: 780, minHeight: 620)
-        .onChange(of: pane) { _, newPane in
-            // sidebar → stack sync: a child selection shows its log; the
-            // Logs row itself shows the landing screen. NO inference in the
-            // other direction — a transient empty path during SwiftUI's
-            // child-switch animation is NOT the user pressing back (that
-            // inference was the "kicks me back to Logs" bug).
-            switch newPane {
-            case .log(let kind):
-                var path = NavigationPath()
-                path.append(kind)
-                logsPath = path
-            case .logs:
-                logsPath = NavigationPath()
-            default: break
-            }
-        }
         .onReceive(NotificationCenter.default.publisher(for: logsHomeSignal)) { _ in
             // explicit back intent from the "All Logs" button: land on the
             // landing screen AND move the sidebar highlight to Logs
@@ -107,10 +92,8 @@ public struct SettingsTabsView: View {
         case .storage: StorageSettingsView()
         case .notifications: NotifySettingsView()
         case .activity: ActivitySettingsView()
-        case .logs, .log:
-            // ONE stack for both entry paths, backed by real state — the
-            // landing screen at the root, the selected log pushed on top,
-            // and a run's detail screen one level deeper
+        case .logs:
+            // landing screen at the root; a log and then a run push on top
             NavigationStack(path: $logsPath) {
                 LogsHomeView()
                     .navigationDestination(for: LogKind.self) { k in
@@ -120,7 +103,20 @@ public struct SettingsTabsView: View {
                         RunDetailView(route: route)
                     }
             }
+        case .log(let kind):
+            // sidebar-child entry: its OWN stack ROOTED at the log pane — no
+            // programmatic path surgery at all (replacing a path mid-animation
+            // dropped pushes and landed users back on the landing screen).
+            // Switching children just re-roots the stack with the new kind.
+            NavigationStack {
+                LogsSettingsView(kind: kind)
+                    .navigationDestination(for: RunRoute.self) { route in
+                        RunDetailView(route: route)
+                    }
+            }
+            .id(kind)
         case .about: AboutSettingsView()
+        case .update: UpdateSettingsView()
         }
     }
 }

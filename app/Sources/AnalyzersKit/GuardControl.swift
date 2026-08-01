@@ -46,6 +46,12 @@ public enum GuardControl {
         NSApp.terminate(nil)
     }
 
+    /// Run the repo's upgrade.command in Terminal — visible progress: pull,
+    /// rebuild, refresh agents, relaunch. Settings are never touched.
+    public static func runUpgrade() {
+        NSWorkspace.shared.open(AnalyzersPaths.suiteRoot.appending(path: "upgrade.command"))
+    }
+
     /// Deep-link to this app's pane in System Settings → Notifications.
     public static func openNotificationSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
