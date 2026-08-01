@@ -6,17 +6,24 @@ import UIComponents
 /// search, the same live pressure signal and Stop/Quit actions.
 struct MonitorSettingsView: View {
 
-    @State private var processes: [LiveProcess] = []
+    @State private var groups: [ProcessGroup] = []
     @State private var pressure: LiveStats.Pressure = .normal
     @State private var search = ""
     @AppStorage("monitorRefreshSeconds") private var refresh = 5
 
-    private var filtered: [LiveProcess] {
-        guard !search.isEmpty else { return processes }
+    /// A group matches if the parent OR any helper matches; a parent match
+    /// keeps the whole family, a helper match trims to matching helpers.
+    private var filtered: [ProcessGroup] {
+        guard !search.isEmpty else { return groups }
         let needle = search.lowercased()
-        return processes.filter {
-            $0.friendlyName.lowercased().contains(needle)
-                || $0.rawName.lowercased().contains(needle)
+        func matches(_ proc: LiveProcess) -> Bool {
+            proc.friendlyName.lowercased().contains(needle)
+                || proc.rawName.lowercased().contains(needle)
+        }
+        return groups.compactMap { group in
+            if matches(group.parent) { return group }
+            let kids = group.children.filter(matches)
+            return kids.isEmpty ? nil : ProcessGroup(parent: group.parent, children: kids)
         }
     }
 
@@ -46,17 +53,22 @@ struct MonitorSettingsView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            let devs = filtered.filter(\.isDev)
-            let apps = filtered.filter { !$0.isDev }
-
-            if !devs.isEmpty {
-                Section("Dev Processes") {
-                    ForEach(devs) { proc in ProcessRow(proc: proc) { load() } }
-                }
-            }
-            if !apps.isEmpty {
-                Section("Apps & Helpers") {
-                    ForEach(apps) { proc in ProcessRow(proc: proc) { load() } }
+            if !filtered.isEmpty {
+                Section("Processes") {
+                    ForEach(filtered) { group in
+                        if group.children.isEmpty {
+                            ProcessRow(proc: group.parent) { load() }
+                        } else {
+                            DisclosureGroup {
+                                ProcessRow(proc: group.parent) { load() }
+                                ForEach(group.children) { child in
+                                    ProcessRow(proc: child) { load() }
+                                }
+                            } label: {
+                                groupLabel(group)
+                            }
+                        }
+                    }
                 }
             }
             if filtered.isEmpty {
@@ -78,8 +90,33 @@ struct MonitorSettingsView: View {
         }
     }
 
+    /// Family header: real app icon when the parent is a GUI app, rolled-up
+    /// total on the right — the row Activity Monitor never gives you.
+    private func groupLabel(_ group: ProcessGroup) -> some View {
+        HStack(spacing: 8) {
+            if let app = NSRunningApplication(processIdentifier: pid_t(group.parent.pid)),
+               let icon = app.icon {
+                Image(nsImage: icon).resizable().frame(width: 20, height: 20)
+            } else {
+                IconTile(symbol: "square.stack.3d.up.fill", color: .orange, side: 20)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(group.parent.friendlyName)
+                    .font(.callout.weight(.medium))
+                Text("\(group.children.count) helper\(group.children.count == 1 ? "" : "s") · pid \(group.parent.pid)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 6)
+            Text(group.totalText)
+                .font(.callout.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
+    }
+
     private func load() {
-        processes = LiveStats.snapshot(limit: 40, minimumMB: 128)
+        groups = LiveStats.groupedSnapshot(limit: 30, minimumMB: 128)
         pressure = LiveStats.memoryPressure()
     }
 }
