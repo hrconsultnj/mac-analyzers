@@ -13,7 +13,7 @@ struct StorageSettingsView: View {
                      caption: "What the SCHEDULED cleans may touch — build output and caches only, all of it regenerable. The Downloads janitor is separate: it moves old files to the Trash, after you review them, and you can undo it.") {
             Section("Storage auto-clean") {
                 StringListEditor(
-                    title: "Extra cache-directory globs (cleaned when idle > 7 days)",
+                    title: "Extra cache-directory patterns (cleaned when idle > 7 days)",
                     prompt: "e.g. ~/.someapp/cache/.next-*",
                     items: $config.storage.extraCacheGlobs
                 )
@@ -43,7 +43,41 @@ struct StorageSettingsView: View {
             } header: {
                 Text("Tool caches (expansion pack)")
             } footer: {
-                Text("Opt-in per tool. Everything here is redownloadable or rebuildable cache — sources and state are never in scope. Sizes show in every dry run; cleaning happens on apply.")
+                Text("Opt-in per tool. Everything here is redownloadable or rebuildable cache — sources and state are never in scope. Sizes show every time you preview; cleaning happens when you apply.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            // The janitor is the ONE cleaner that touches documents rather
+            // than rebuildable caches, and its settings were reachable only by
+            // hand-editing a shell file — so the pane's promise that keep
+            // patterns are honoured had no way to be acted on.
+            Section {
+                Stepper(value: $config.storage.janitorDownloadsDays, in: 1...365) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Downloads older than \(config.storage.janitorDownloadsDays) days")
+                        Text("Counted from when you last opened or changed the file, not when you downloaded it.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Stepper(value: $config.storage.janitorScreenshotsDays, in: 1...365) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Screenshots older than \(config.storage.janitorScreenshotsDays) days")
+                        Text("Only files in your Screenshots folder. Folders are never moved.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                StringListEditor(
+                    title: "Never touch anything matching these",
+                    prompt: "e.g. *.dmg  or  Tax *",
+                    items: $config.storage.janitorKeepPatterns
+                )
+            } header: {
+                Text("Downloads janitor")
+            } footer: {
+                Text("These move to the Trash, so you can always put them back — from the Undo screen or from Finder. Nothing moves until you review it and apply.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

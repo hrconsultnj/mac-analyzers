@@ -30,7 +30,7 @@ struct MemorySettingsView: View {
                                 .monospacedDigit()
                                 .frame(width: 58, alignment: .trailing)
                         }
-                        Text("A dev process whose RESIDENT memory exceeds this is stopped — at any pressure level. 0.1 GB steps.")
+                        Text("A dev process using more memory than this is stopped — at any pressure level. 0.1 GB steps.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

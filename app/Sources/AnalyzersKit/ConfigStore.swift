@@ -22,6 +22,12 @@ public struct StorageTunables: Equatable, Sendable {
     public var staleApps: [String] = []        // ANALYZERS_STALE_APPS (array)
     public var recordingsDir = ""              // ANALYZERS_RECORDINGS_DIR
     public var toolCaches: [String] = []       // ANALYZERS_TOOL_CACHES (comma ids)
+    // Downloads janitor. It is the one cleaner that touches documents rather
+    // than rebuildable caches, so its knobs belong in the UI — hand-editing
+    // a shell file was the only way to set them.
+    public var janitorDownloadsDays = 30       // JANITOR_DOWNLOADS_AGE_DAYS
+    public var janitorScreenshotsDays = 14     // JANITOR_SCREENSHOTS_AGE_DAYS
+    public var janitorKeepPatterns: [String] = []  // JANITOR_KEEP_PATTERNS (colon list)
     public init() {}
 }
 
@@ -121,6 +127,16 @@ public final class ConfigStore {
         }
         storage.extraCacheGlobs = arrayValue("ANALYZERS_EXTRA_CACHE_GLOBS").map(Self.expandHome)
         storage.staleApps = arrayValue("ANALYZERS_STALE_APPS")
+        if let v = value("JANITOR_DOWNLOADS_AGE_DAYS").flatMap({ Int($0) }) {
+            storage.janitorDownloadsDays = v
+        }
+        if let v = value("JANITOR_SCREENSHOTS_AGE_DAYS").flatMap({ Int($0) }) {
+            storage.janitorScreenshotsDays = v
+        }
+        if let v = value("JANITOR_KEEP_PATTERNS") {
+            storage.janitorKeepPatterns = v.split(separator: ":")
+                .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        }
         if let v = value("ANALYZERS_RECORDINGS_DIR") { storage.recordingsDir = Self.expandHome(v) }
         if let v = value("ANALYZERS_TOOL_CACHES") {
             storage.toolCaches = v.split(separator: ",")
@@ -184,6 +200,11 @@ public final class ConfigStore {
         }
         if !storage.toolCaches.isEmpty {
             out += "ANALYZERS_TOOL_CACHES=\(shellQuote(storage.toolCaches.joined(separator: ",")))\n"
+        }
+        out += "JANITOR_DOWNLOADS_AGE_DAYS=\(storage.janitorDownloadsDays)\n"
+        out += "JANITOR_SCREENSHOTS_AGE_DAYS=\(storage.janitorScreenshotsDays)\n"
+        if !storage.janitorKeepPatterns.isEmpty {
+            out += "JANITOR_KEEP_PATTERNS=\(shellQuote(storage.janitorKeepPatterns.joined(separator: ":")))\n"
         }
         out += "ANALYZERS_NOTIFY_TIMEOUT=\(notify.timeoutSeconds)\n"
         out += "ANALYZERS_LOG_VIEWER=\(shellQuote(notify.logViewer))\n"

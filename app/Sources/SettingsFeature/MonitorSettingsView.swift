@@ -18,6 +18,10 @@ struct MonitorSettingsView: View {
     private var thermal: ThermalWatcher { ThermalWatcher.shared }
     @State private var search = ""
     @AppStorage("monitorRefreshSeconds") private var refresh = 15
+    /// Standalone-process table state — the family disclosure tree below
+    /// has no equivalent, since a Table can't express nesting.
+    @State private var sortOrder: [KeyPathComparator<LiveProcess>] = [KeyPathComparator(\.residentMB, order: .reverse)]
+    @State private var selectedPID: Int?
 
     /// A group matches if the parent OR any helper matches; a parent match
     /// keeps the whole family, a helper match trims to matching helpers.
@@ -37,7 +41,7 @@ struct MonitorSettingsView: View {
 
     var body: some View {
         PaneScaffold(symbol: "gauge.with.dots.needle.67percent", color: .orange, title: "Monitor",
-                     caption: "The 30 biggest processes holding at least 128 MB right now — resident RAM, the number the guard acts on.") {
+                     caption: "See what's using the most memory right now. These are the 30 biggest processes over 128 MB — memory in use, the number the guard acts on.") {
             Section {
                 HStack {
                     Circle()
@@ -68,8 +72,6 @@ struct MonitorSettingsView: View {
                               (Lens.diskIO, "Disk I/O")],
                     selection: $lens
                 )
-                TextField("Filter by name…", text: $search)
-                    .textFieldStyle(.roundedBorder)
             }
 
             if lens == .energy {
@@ -77,36 +79,8 @@ struct MonitorSettingsView: View {
             } else if lens == .diskIO {
                 diskIOSections
             } else if !filtered.isEmpty {
-                Section("Processes") {
-                    ForEach(filtered) { group in
-                        if group.children.isEmpty {
-                            ProcessRow(proc: group.parent) { Task { await load() } }
-                                .contextMenu {
-                                    Button("Dossier…") {
-                                        dossierPath.append(DossierRoute(
-                                            name: group.parent.friendlyName,
-                                            pid: group.parent.pid))
-                                    }
-                                }
-                        } else {
-                            DisclosureGroup {
-                                ProcessRow(proc: group.parent) { Task { await load() } }
-                                ForEach(group.children) { child in
-                                    ProcessRow(proc: child) { Task { await load() } }
-                                }
-                            } label: {
-                                groupLabel(group)
-                                    .contextMenu {
-                                        Button("Dossier…") {
-                                            dossierPath.append(DossierRoute(
-                                                name: group.parent.friendlyName,
-                                                pid: group.parent.pid))
-                                        }
-                                    }
-                            }
-                        }
-                    }
-                }
+                familySection
+                standaloneSection
             }
             if lens == .memory, filtered.isEmpty {
                 Section {
@@ -117,6 +91,7 @@ struct MonitorSettingsView: View {
                 }
             }
         }
+        .searchable(text: $search, prompt: "Filter by name")
         .onChange(of: lens) { Task { await load() } }
         .task { await load() }
         .task(id: refresh) {
@@ -128,16 +103,94 @@ struct MonitorSettingsView: View {
         }
     }
 
+    /// The two shapes the Memory lens renders: families keep their disclosure
+    /// tree (a Table can't express nesting), standalone processes get the
+    /// sortable Table a tree can't offer.
+    private var familyGroups: [ProcessGroup] {
+        filtered.filter { !$0.children.isEmpty }
+    }
+
+    private var standaloneProcs: [LiveProcess] {
+        filtered.filter { $0.children.isEmpty }.map(\.parent).sorted(using: sortOrder)
+    }
+
+    @ViewBuilder private var familySection: some View {
+        if !familyGroups.isEmpty {
+            Section("Process families") {
+                ForEach(familyGroups) { group in
+                    DisclosureGroup {
+                        ProcessRow(proc: group.parent) { Task { await load() } }
+                        ForEach(group.children) { child in
+                            ProcessRow(proc: child) { Task { await load() } }
+                        }
+                    } label: {
+                        groupLabel(group)
+                            .contextMenu {
+                                Button("Dossier…") {
+                                    dossierPath.append(DossierRoute(
+                                        name: group.parent.friendlyName,
+                                        pid: group.parent.pid))
+                                }
+                            }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Name / Memory / PID, sortable — the standalone (non-family) rows only.
+    /// Right-click restores both actions the old row offered (Dossier,
+    /// Stop/Quit), since a Table cell can't host an always-visible button
+    /// the way ProcessRow did.
+    @ViewBuilder private var standaloneSection: some View {
+        if !standaloneProcs.isEmpty {
+            Section("Processes") {
+                Table(standaloneProcs, selection: $selectedPID, sortOrder: $sortOrder) {
+                    TableColumn("Name", sortUsing: KeyPathComparator<LiveProcess>(\.friendlyName)) { proc in
+                        Text(proc.friendlyName)
+                    }
+                    TableColumn("Memory", sortUsing: KeyPathComparator<LiveProcess>(\.residentMB)) { proc in
+                        Text(proc.residentText)
+                            .foregroundStyle(proc.residentMB > 4096 ? .orange : .secondary)
+                    }
+                    TableColumn("PID", sortUsing: KeyPathComparator<LiveProcess>(\.pid)) { proc in
+                        Text("\(proc.pid)")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(minHeight: 220)
+                .contextMenu(forSelectionType: Int.self) { selection in
+                    if let pid = selection.first,
+                       let proc = standaloneProcs.first(where: { $0.pid == pid }) {
+                        Button("Dossier…") {
+                            dossierPath.append(DossierRoute(name: proc.friendlyName, pid: proc.pid))
+                        }
+                        Button(proc.isDev ? "Stop" : "Quit") {
+                            GuardControl.stopProcess(proc)
+                            Task {
+                                try? await Task.sleep(for: .seconds(1.5))
+                                await load()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Family header: real app icon when the parent is a GUI app, rolled-up
     /// total on the right — the row Activity Monitor never gives you.
     private func groupLabel(_ group: ProcessGroup) -> some View {
         HStack(spacing: 8) {
-            if let app = NSRunningApplication(processIdentifier: pid_t(group.parent.pid)),
-               let icon = app.icon {
-                Image(nsImage: icon).resizable().frame(width: 20, height: 20)
-            } else {
-                IconTile(symbol: "square.stack.3d.up.fill", color: .orange, side: 20)
+            Group {
+                if let app = NSRunningApplication(processIdentifier: pid_t(group.parent.pid)),
+                   let icon = app.icon {
+                    Image(nsImage: icon).resizable().frame(width: 20, height: 20)
+                } else {
+                    IconTile(symbol: "square.stack.3d.up.fill", color: .orange, side: 20)
+                }
             }
+            .accessibilityHidden(true) // decorative — the name text next to it already says who this is
             VStack(alignment: .leading, spacing: 1) {
                 Text(group.parent.friendlyName)
                     .font(.callout.weight(.medium))
@@ -158,7 +211,7 @@ struct MonitorSettingsView: View {
         let rows = search.isEmpty ? energy : energy.filter {
             $0.name.lowercased().contains(search.lowercased())
         }
-        Section("Energy since launch (kernel accounting — who drained the battery)") {
+        Section("Energy since launch (the numbers macOS itself reports — who drained the battery)") {
             if rows.isEmpty {
                 Text("No energy accounting available yet.")
                     .foregroundStyle(.secondary)

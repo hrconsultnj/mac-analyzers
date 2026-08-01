@@ -89,6 +89,7 @@ struct NetworkSettingsView: View {
     private func totalTile(symbol: String, color: Color, value: String, label: String) -> some View {
         VStack(spacing: 3) {
             Image(systemName: symbol).foregroundStyle(color).font(.body)
+                .accessibilityHidden(true) // decorative — value + label below already say this
             Text(value)
                 .font(.title3.weight(.semibold).monospacedDigit())
             Text(label)

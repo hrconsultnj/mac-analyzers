@@ -11,15 +11,23 @@ struct CapacityBar: View {
     let fraction: Double
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(.quaternary)
-                Capsule()
-                    .fill(color.gradient)
-                    .frame(width: max(6, geo.size.width * fraction))
+        VStack(alignment: .trailing, spacing: 2) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.quaternary)
+                    Capsule()
+                        .fill(color.gradient)
+                        .frame(width: max(6, geo.size.width * fraction))
+                }
             }
+            .frame(height: 7)
+            // the escalating red/orange/blue tint is invisible to a colourblind
+            // or VoiceOver user — the number is the second channel
+            Text(fraction, format: .percent.precision(.fractionLength(0)))
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
         }
-        .frame(height: 7)
+        .accessibilityElement(children: .combine)
     }
 
     private var color: Color {
@@ -41,6 +49,7 @@ struct EventRow: View {
                     .foregroundStyle(color)
                     .font(.caption)
                     .padding(.top, 2)
+                    .accessibilityHidden(true)  // decorative — the title text already says what happened
                 VStack(alignment: .leading, spacing: 0) {
                     Text(event.title)
                         .font(.callout)
@@ -48,7 +57,7 @@ struct EventRow: View {
                         .lineLimit(1)
                     Text(subtitleWithTime)
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }

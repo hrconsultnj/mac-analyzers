@@ -90,6 +90,9 @@ struct LogsHomeView: View {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
+                    // the row's own Button already speaks its title/date; a
+                    // spoken "chevron right" on top of that is just noise
+                    .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
         }
@@ -115,13 +118,14 @@ struct LogsHomeView: View {
                     if let date = facts[kind.rawValue]?.date {
                         Text("Updated \(date.formatted(.dateTime.month(.abbreviated).day().hour().minute()))")
                             .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
             .padding(.vertical, 8)
             .contentShape(Rectangle())

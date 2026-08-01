@@ -62,10 +62,15 @@ struct ForensicsDetailView: View {
             if let snapshot {
                 Section("At the Moment of Crisis") {
                     if let level = snapshot.pressureLevel {
-                        DataCard(symbol: "gauge.with.needle", color: level >= 4 ? .red : .orange,
+                        // color now tracks all three tiers, not just critical-vs-not —
+                        // a "Normal" reading was showing the same orange as a warning
+                        DataCard(symbol: "gauge.with.needle",
+                                 color: level >= 4 ? Tokens.Status.destructive.tint
+                                     : level >= 2 ? Tokens.Status.caution.tint
+                                     : Tokens.Status.safe.tint,
                                  title: "Memory pressure level \(level)",
-                                 subtitle: level >= 4 ? "CRITICAL — the system was drowning"
-                                                      : level >= 2 ? "Warning — compressing/swapping"
+                                 subtitle: level >= 4 ? "Critical — the system was drowning"
+                                                      : level >= 2 ? "Warning — squeezing memory harder than usual (compressing, using swap)"
                                                       : "Normal")
                     }
                     if let physMem = snapshot.physMemLine {
@@ -77,17 +82,21 @@ struct ForensicsDetailView: View {
                                  title: "Swap", subtitle: swap)
                     }
                 }
-                Section("Top Processes by Resident RAM") {
+                Section("Top Processes by Memory in Use") {
                     ForEach(snapshot.processes.prefix(25)) { proc in
-                        DataCard(symbol: "hammer.fill", color: proc.rssMB > 4096 ? .orange : .gray,
+                        // color alone used to be the only signal a process was
+                        // memory-heavy — add the word so it doesn't rely on color
+                        let tone = Tokens.Ramp.residency(proc.rssMB)
+                        DataCard(symbol: "hammer.fill", color: tone.tint,
                                  title: proc.friendlyName,
-                                 subtitle: "pid \(proc.pid) · up \(proc.etime) · \(proc.shortName)",
-                                 trailing: proc.rssText)
+                                 subtitle: "process \(proc.pid) · up \(proc.etime) · \(proc.shortName)",
+                                 trailing: proc.rssText,
+                                 badge: proc.rssMB > 4096 ? ("HIGH", tone.tint) : nil)
                     }
                 }
             } else {
                 Section {
-                    Label("This forensics file is no longer on disk.",
+                    Label("This forensics report is no longer on disk.",
                           systemImage: "questionmark.folder")
                         .foregroundStyle(.secondary)
                     Text(route.path)

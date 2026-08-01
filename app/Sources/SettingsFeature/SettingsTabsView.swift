@@ -13,7 +13,8 @@ public struct SettingsTabsView: View {
 
     enum Pane: Hashable {
         case home, setup, memory, storage, notifications, schedule, monitor, network,
-             trends, actions, undo, logs, log(LogKind), support, about, uninstall, update
+             trends, actions, undo, reports, logs, log(LogKind), support, about,
+             uninstall, update
     }
 
     /// Settings opens on the Overview dashboard — the SaaS-home pattern;
@@ -168,8 +169,11 @@ public struct SettingsTabsView: View {
                                 in: RoundedRectangle(cornerRadius: 10))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
-                            .strokeBorder(brandHovering ? AnyShapeStyle(.tertiary)
-                                                        : AnyShapeStyle(.quaternary),
+                            // .quaternary over .regularMaterial was invisible,
+                            // so the card did not read as a button at rest —
+                            // which was the whole point of the container.
+                            .strokeBorder(brandHovering ? AnyShapeStyle(.secondary)
+                                                        : AnyShapeStyle(.tertiary),
                                           lineWidth: 1)
                     )
                     .contentShape(RoundedRectangle(cornerRadius: 10))
@@ -205,6 +209,7 @@ public struct SettingsTabsView: View {
                         }
                         .disabled(!canGoBack && activeStackDepth == 0)
                         .help("Back")
+                        .accessibilityLabel("Back")
                         Button {
                             travel(to: historyIndex + 1)
                         } label: {
@@ -212,6 +217,7 @@ public struct SettingsTabsView: View {
                         }
                         .disabled(!canGoForward)
                         .help("Forward")
+                        .accessibilityLabel("Forward")
                     }
                 }
         }
@@ -276,6 +282,7 @@ public struct SettingsTabsView: View {
                     }
                     pane = .actions
                 case "setup": pane = .setup
+                case "reports": pane = .reports
                 case "schedule": pane = .schedule
                 case "update": pane = .update
                 case "about": pane = .about
@@ -324,16 +331,17 @@ public struct SettingsTabsView: View {
                 sidebarRow("Storage", "internaldrive.fill", .indigo, .storage)
                 sidebarRow("Notifications", "bell.badge.fill", .red, .notifications)
             } header: {
-                sectionHeader("CONFIGURE")
+                sectionHeader("SETTINGS")
             }
             Section {
                 sidebarRow("Schedule", "calendar.badge.clock", .teal, .schedule)
             } header: {
-                sectionHeader("SCHEDULE")
+                sectionHeader("AUTOMATIC")
             }
             Section {
                 sidebarRow("Monitor", "gauge.with.dots.needle.67percent", .orange, .monitor)
                 sidebarRow("Network", "network", .purple, .network)
+                sidebarRow("Reports", "doc.text.magnifyingglass", .purple, .reports)
                 // both worlds: the Logs ROW opens the nested landing
                 // screen; the disclosure children jump straight to a log
                 DisclosureGroup {
@@ -344,7 +352,7 @@ public struct SettingsTabsView: View {
                     sidebarRow("Logs", "doc.text.magnifyingglass", .gray, .logs)
                 }
             } header: {
-                sectionHeader("OBSERVE")
+                sectionHeader("WHAT'S HAPPENING")
             }
             // the insight surfaces: Trends now, Actions + reports later.
             // REVIEW keeps the verb voice of CONFIGURE/SCHEDULE/OBSERVE and
@@ -355,7 +363,7 @@ public struct SettingsTabsView: View {
                 sidebarRow("Trends", "chart.xyaxis.line", .mint, .trends)
                 sidebarRow("Undo", "arrow.uturn.backward", .gray, .undo)
             } header: {
-                sectionHeader("REVIEW")
+                sectionHeader("HISTORY & CLEANUP")
             }
             Section {
                 // Free builds had no way to reach .support at all, and it
@@ -415,6 +423,7 @@ public struct SettingsTabsView: View {
         switch pane {
         case .home: HomeSettingsView()
         case .setup: SetupSettingsView()
+        case .reports: ReportsSettingsView()
         case .memory: MemorySettingsView()
         case .storage: StorageSettingsView()
         case .notifications: NotifySettingsView()

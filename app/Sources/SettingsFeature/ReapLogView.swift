@@ -9,7 +9,7 @@ struct ReapLogView: View {
 
     private enum Filter: String, CaseIterable {
         case all = "All"
-        case wouldReap = "Would Reap"
+        case wouldReap = "Would Close"
         case killed = "Killed"
         case reported = "Reported"
         case exempt = "Protected"
@@ -38,6 +38,7 @@ struct ReapLogView: View {
                         Task { await load() }
                     } label: { Image(systemName: "arrow.clockwise") }
                         .help("Refresh")
+                        .accessibilityLabel("Refresh")
                 }
                 if let run {
                     HStack(spacing: 6) {
@@ -100,7 +101,7 @@ struct ReapLogView: View {
                 }
             } else {
                 Section {
-                    Text("No runs logged yet.")
+                    Text("No runs logged yet — this appears after the suite's next automatic pass.")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -144,7 +145,7 @@ struct ReapLogView: View {
 
     private func subtitle(for item: ReapItem) -> String {
         var parts: [String] = []
-        if let pid = item.pid { parts.append("pid \(pid)") }
+        if let pid = item.pid { parts.append("process \(pid)") }
         if item.friendlyName != item.description {
             parts.append(String(item.description.prefix(70)))
         }

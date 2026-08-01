@@ -56,8 +56,9 @@ struct GuardLogView: View {
                         Task { await load() }
                     } label: { Image(systemName: "arrow.clockwise") }
                         .help("Refresh")
+                        .accessibilityLabel("Refresh")
                 }
-                TextField("Filter by process or pid…", text: $search)
+                TextField("Filter by process name or ID…", text: $search)
                     .textFieldStyle(.roundedBorder)
             }
             Section {

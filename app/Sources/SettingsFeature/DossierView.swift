@@ -40,7 +40,7 @@ struct DossierView: View {
         Section("Right now") {
             if let live {
                 DataCard(symbol: "memorychip", color: .blue,
-                         title: "Resident memory",
+                         title: "Memory in use",
                          subtitle: "pid \(live.pid)",
                          trailing: live.residentText,
                          live: true)

@@ -38,6 +38,7 @@ struct LogsSettingsView: View {
                             Task { await load() }
                         } label: { Image(systemName: "arrow.clockwise") }
                             .help("Refresh")
+                            .accessibilityLabel("Refresh")
                     }
                 }
             }
@@ -69,7 +70,7 @@ struct LogsSettingsView: View {
                                 Spacer(minLength: 4)
                                 Text("\(run.itemCount) line\(run.itemCount == 1 ? "" : "s")")
                                     .font(.caption2)
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                         .padding(.vertical, 1)

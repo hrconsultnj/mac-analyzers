@@ -35,6 +35,7 @@ public struct AppListEditor: View {
                 ForEach(items, id: \.self) { item in
                     HStack(spacing: 6) {
                         itemIcon(item)
+                            .accessibilityHidden(true)  // decorative — the name text is the identity
                         Text(item)
                     }
                     .tag(item)
@@ -117,6 +118,7 @@ private struct AppPickerSheet: View {
                                 Image(nsImage: icon(app.path))
                                     .resizable()
                                     .frame(width: 20, height: 20)
+                                    .accessibilityHidden(true)  // decorative — the name text is the identity
                                 Text(app.name)
                                 Spacer()
                                 if existing.contains(app.name) {
@@ -135,6 +137,7 @@ private struct AppPickerSheet: View {
                         } label: {
                             HStack(spacing: 8) {
                                 IconTile(symbol: "terminal.fill", color: .blue)
+                                    .accessibilityHidden(true)  // decorative — the name text is the identity
                                 Text(name)
                                 Spacer()
                                 if existing.contains(name) {

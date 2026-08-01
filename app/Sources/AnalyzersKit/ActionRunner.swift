@@ -12,7 +12,15 @@ public enum ActionRunner {
     }
 
     public static func run(script: URL, args: [String]) async -> RunResult {
-        await withCheckedContinuation { continuation in
+        // A missing engine used to arrive as exit code -1 with the reason
+        // buried in the output string, which every caller then rendered as
+        // "the script stopped with code -1". Say it plainly instead.
+        guard FileManager.default.isReadableFile(atPath: script.path) else {
+            return RunResult(
+                exitCode: 127,
+                output: "engine missing: \(script.lastPathComponent) was not found at \(script.path)")
+        }
+        return await withCheckedContinuation { continuation in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/bash")
             process.arguments = [script.path] + args
@@ -43,4 +51,11 @@ public extension AnalyzersPaths {
     static let storageCleanScript = suiteRoot.appending(path: "storage-analyzer/storage-auto-clean.sh")
     static let janitorScript = suiteRoot.appending(path: "storage-analyzer/downloads-janitor.sh")
     static let janitorLog = storageReports.appending(path: "janitor.log")
+    /// The two read-only analyzers. They only ever write a markdown report —
+    /// the README leads with these, and until now nothing in the app could
+    /// run them.
+    static let memoryAnalyzeScript = suiteRoot.appending(path: "memory-analyzer/analyze.sh")
+    static let storageAnalyzeScript = suiteRoot.appending(path: "storage-analyzer/analyze.sh")
+    static let memoryLatestReport = memoryReports.appending(path: "latest.md")
+    static let storageLatestReport = storageReports.appending(path: "latest.md")
 }

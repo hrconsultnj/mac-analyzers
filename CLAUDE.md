@@ -10,6 +10,14 @@ through `config.local.sh` (never hardcoded).
 ## Conventions
 
 - Repo root is `~/mac-analyzers`; run reports live inside it at `reports/`.
+  The app BUNDLES the engine (`build.sh` copies `memory-analyzer/`,
+  `storage-analyzer/`, `network-analyzer/`, `lib/` into
+  `Contents/Resources/engine/`), and `AnalyzersPaths.suiteRoot` resolves the
+  clone first, the bundle second — so a downloaded app works alone while a
+  checkout stays the copy you edit. Config and reports are ALWAYS read from
+  `$HOME/mac-analyzers/`, never from inside the bundle: every cleaner sources
+  `${ANALYZERS_ROOT}/config.local.sh` and then `$HOME/mac-analyzers/config.local.sh`,
+  user copy last so it wins.
   The pre-consolidation paths (`~/scripts`, `~/system-reports`) are RETIRED —
   never reintroduce them in code or docs.
 - `$HOME`-based paths everywhere; launchd plists are
@@ -48,14 +56,19 @@ through `config.local.sh` (never hardcoded).
   `execv`s the engine script for BTM attribution).
 - Every settings pane renders inside `PaneScaffold`
   (`SettingsFeature/PaneScaffold.swift`); the sidebar is a brand card +
-  CONFIGURE / SCHEDULE / OBSERVE sections + About/Update; every log gets a
+  START HERE (Setup) / SETTINGS / AUTOMATIC / WHAT'S HAPPENING /
+  HISTORY & CLEANUP sections + Support/About/Update; every log gets a
   STRUCTURED pane (chips/cards/tables — see `GuardLogView`, `LoginItemsView`,
   `StorageCleanView`, `ReapLogView`, `ForensicsDetailView`) with
   "Open in TextEdit" as the raw escape hatch; menu rows/components live in
   `MenuBarFeature/MenuComponents.swift`. The engine stays bash — the app is a
   control surface over the scripts + launchd, never a reimplementation.
 - Verify: `cd app && swift build`, then `./app/build.sh` (rebuild + reinstall
-  to /Applications) and relaunch the app to see it live.
+  to /Applications) and relaunch the app to see it live. Drive navigation with
+  `open -g "macanalyzers://pane/<target>"` — the URL scheme reaches a RUNNING
+  app, unlike `--args --pane`, which macOS only delivers at launch. Nav cost is
+  measured from `log show --predicate 'category == "nav"'`.
+  `agent-runner --probe-setup` prints the Setup checklist as text.
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;

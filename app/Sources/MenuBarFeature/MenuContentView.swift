@@ -90,7 +90,7 @@ public struct MenuContentView: View {
             Text("Reaper: \(runText(store.lastMemoryCleanRun))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .help("\(ScheduleKit.describe("com.mac-analyzers.memory-autoclean.daily")) — reaps orphaned dev/AI servers; see the memory-auto-clean log")
+                .help("Closes helper processes whose app already closed. \(ScheduleKit.describe("com.mac-analyzers.memory-autoclean.daily")) — see the memory-auto-clean log")
         }
         .controlSize(.regular)
     }
@@ -122,9 +122,10 @@ public struct MenuContentView: View {
     /// What the guard sees right now: pressure + the biggest dev processes.
     @ViewBuilder private var liveStrip: some View {
         HStack(spacing: 6) {
-            Circle()
-                .fill(pressureColor)
-                .frame(width: 8, height: 8)
+            Image(systemName: pressureSymbol)
+                .foregroundStyle(pressureColor)
+                .font(.caption2)
+                .accessibilityHidden(true)  // decorative — the label text already says the state
             Text("Memory pressure: \(store.pressure.label)")
                 .font(.callout)
                 .foregroundStyle(store.pressure == .normal ? .secondary : .primary)
@@ -137,7 +138,7 @@ public struct MenuContentView: View {
             }
             Text("Full list — including apps and helpers — in the Monitor tab.")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -149,13 +150,26 @@ public struct MenuContentView: View {
         }
     }
 
+    /// Paired with pressureColor so the state has a shape, not just a tint —
+    /// colour alone doesn't reach a colourblind user.
+    private var pressureSymbol: String {
+        switch store.pressure {
+        case .normal: "checkmark.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
+        case .critical: "exclamationmark.octagon.fill"
+        }
+    }
+
     // MARK: - Monitor tab
 
     /// Mini live monitor: what the guard can see and act on — resident RAM
     /// across ALL big processes (apps, helpers, dev tools), stoppable per row.
     @ViewBuilder private var monitorTab: some View {
         HStack(spacing: 6) {
-            Circle().fill(pressureColor).frame(width: 8, height: 8)
+            Image(systemName: pressureSymbol)
+                .foregroundStyle(pressureColor)
+                .font(.caption2)
+                .accessibilityHidden(true)  // decorative — the label text already says the state
             Text("Pressure: \(store.pressure.label)")
                 .font(.callout)
                 .foregroundStyle(store.pressure == .normal ? .secondary : .primary)
@@ -196,12 +210,15 @@ public struct MenuContentView: View {
                         }
                     } label: {
                         HStack(spacing: 6) {
-                            if let app = NSRunningApplication(processIdentifier: pid_t(group.parent.pid)),
-                               let icon = app.icon {
-                                Image(nsImage: icon).resizable().frame(width: 16, height: 16)
-                            } else {
-                                IconTile(symbol: "square.stack.3d.up.fill", color: .orange)
+                            Group {
+                                if let app = NSRunningApplication(processIdentifier: pid_t(group.parent.pid)),
+                                   let icon = app.icon {
+                                    Image(nsImage: icon).resizable().frame(width: 16, height: 16)
+                                } else {
+                                    IconTile(symbol: "square.stack.3d.up.fill", color: .orange)
+                                }
                             }
+                            .accessibilityHidden(true)  // decorative — friendlyName below already names it
                             Text(group.parent.friendlyName)
                                 .font(.callout.weight(.medium))
                             Text("\(group.children.count) helpers")
@@ -222,9 +239,9 @@ public struct MenuContentView: View {
                 .foregroundStyle(.secondary)
         }
 
-        Text("Sizes are resident RAM — what's physically in memory right now (the number the guard acts on). Stop = the same polite quit Activity Monitor does.")
+        Text("Sizes show memory in use right now — the same number the guard acts on. Stop sends the same polite quit request Activity Monitor's Quit does.")
             .font(.caption2)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -236,6 +253,7 @@ public struct MenuContentView: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 6) {
                     IconTile(symbol: "internaldrive.fill", color: .indigo)
+                        .accessibilityHidden(true)  // decorative — "Macintosh HD" below already names it
                     Text("Macintosh HD")
                         .font(.callout.weight(.medium))
                     Text("\(disk.usedText) of \(disk.totalText) used")
@@ -294,7 +312,7 @@ public struct MenuContentView: View {
             Button("Janitor…") { SettingsOpener.open(target: "actions:janitor") }
                 .help("Stale Downloads and old screenshots — to the Trash, reviewed first")
             Button("Memory…") { SettingsOpener.open(target: "actions:memoryClean") }
-                .help("Close orphaned dev helpers — reviewed first")
+                .help("Close helper processes whose app already closed — reviewed first")
             Spacer()
         }
         .controlSize(.regular)
@@ -316,12 +334,13 @@ public struct MenuContentView: View {
                             symbol: String, color: Color) -> some View {
         HStack(alignment: .center) {
             IconTile(symbol: symbol, color: color)
+                .accessibilityHidden(true)  // decorative — title below already names the row
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 6) {
                     Text(title).font(.callout.weight(.medium))
                     Text(detail).font(.callout).foregroundStyle(.secondary)
                 }
-                Text(sub).font(.caption2).foregroundStyle(.tertiary)
+                Text(sub).font(.caption2).foregroundStyle(.secondary)
             }
             Spacer()
             Button("Run now") { GuardControl.runNow(label) }
@@ -349,7 +368,7 @@ public struct MenuContentView: View {
             } else {
                 Text("v\(UpdateChecker.installedVersion)")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             Button {
@@ -358,6 +377,7 @@ public struct MenuContentView: View {
                 Image(systemName: "arrow.clockwise")
             }
             .help("Restart this app only — nothing else is touched")
+            .accessibilityLabel("Restart app")
             Button("Quit") { NSApp.terminate(nil) }
         }
         .controlSize(.regular)

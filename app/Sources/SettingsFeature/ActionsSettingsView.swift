@@ -36,7 +36,7 @@ struct ActionsSettingsView: View {
             case .reclaim:
                 "Sweeps EVERY reclaimable dev process at once — no age threshold, a wider net than the guard uses. Live AI sessions are exempt; protected apps are never touched."
             case .storageClean:
-                "Removes stale build caches; in deep mode also node_modules of idle repos, package-manager caches (npm's entire cache), all unused container images, and Time Machine snapshot thinning. Anything touched recently is skipped."
+                "Removes stale build caches; in deep mode also downloaded code for projects you haven't touched lately (node_modules), package-manager caches (npm's entire cache), all unused container images, and Time Machine snapshot thinning. Anything touched recently is skipped."
             case .janitor:
                 "Moves stale Downloads and old screenshots to the Trash — recoverable, keep-patterns honored, folders reviewed as units."
             }
@@ -137,7 +137,7 @@ struct ActionsSettingsView: View {
                     Toggle(isOn: $storageDeep) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Deep mode")
-                            Text("Also stale node_modules of idle repos and the Time Machine snapshot report.")
+                            Text("Also downloaded code for projects you haven't touched lately (node_modules), and the Time Machine snapshot report.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -190,7 +190,7 @@ struct ActionsSettingsView: View {
                 HStack {
                     lastRunText
                     Spacer()
-                    Button("Preview (dry run)") {
+                    Button("See what would be cleaned") {
                         Task { await preview() }
                     }
                     .buttonStyle(.glassProminent)
@@ -198,7 +198,7 @@ struct ActionsSettingsView: View {
             case .previewing:
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Running the dry run — nothing is being changed…")
+                    Text("Checking what could be cleaned — nothing is being changed yet…")
                         .foregroundStyle(.secondary)
                 }
             case .review:
@@ -308,7 +308,8 @@ struct ActionsSettingsView: View {
                     ForEach(run.groups) { group in
                         Section(group.title) {
                             ForEach(group.items) { item in
-                                selectable(item.status == .dry ? item.pid.map(String.init) : nil) {
+                                selectable(item.status == .dry ? item.pid.map(String.init) : nil,
+                                           name: item.friendlyName) {
                                     DataCard(symbol: "terminal", color: statusColor(item.status),
                                              title: item.friendlyName,
                                              subtitle: item.description,
@@ -332,7 +333,8 @@ struct ActionsSettingsView: View {
                     ForEach(reviewGroups(from: run), id: \.project) { group in
                         Section("\(group.project) — \(ByteSize.format(group.total))") {
                             ForEach(group.items) { item in
-                                selectable(item.status == .dry ? item.path : nil) {
+                                selectable(item.status == .dry ? item.path : nil,
+                                           name: item.cacheKind) {
                                     pathRow(item)
                                 }
                             }
@@ -359,8 +361,11 @@ struct ActionsSettingsView: View {
     /// A row wrapped in its own checkbox. `key` is what the engine will be
     /// given — a pid for processes, a path for files. Rows from a finished
     /// run pass nil and render plain, since there is nothing left to approve.
+    /// `name` names the row for VoiceOver — the checkbox itself carries no
+    /// visible label (`.labelsHidden()`), so without this it reads as an
+    /// anonymous "checkbox".
     @ViewBuilder private func selectable<Content: View>(
-        _ key: String?, @ViewBuilder content: () -> Content
+        _ key: String?, name: String, @ViewBuilder content: () -> Content
     ) -> some View {
         if let key, phase == .review {
             HStack(spacing: Tokens.Space.s) {
@@ -371,6 +376,7 @@ struct ActionsSettingsView: View {
                     })) { EmptyView() }
                     .labelsHidden()
                     .toggleStyle(.checkbox)
+                    .accessibilityLabel("Include \(name) in this cleanup")
                 content()
                     .opacity(deselected.contains(key) ? 0.45 : 1)
             }
@@ -609,6 +615,7 @@ struct ActionsSettingsView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Show in Finder")
+                .accessibilityLabel("Show in Finder")
             }
         }
     }

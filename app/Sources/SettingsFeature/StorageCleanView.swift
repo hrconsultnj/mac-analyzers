@@ -9,7 +9,7 @@ struct StorageCleanView: View {
     private enum Filter: String, CaseIterable {
         case all = "All"
         case caches = "Build Caches"
-        case nodeModules = "node_modules"
+        case nodeModules = "Downloaded Code"
         case raw = "Tool Output"
     }
 
@@ -50,6 +50,7 @@ struct StorageCleanView: View {
                         Task { await load() }
                     } label: { Image(systemName: "arrow.clockwise") }
                         .help("Refresh")
+                        .accessibilityLabel("Refresh")
                 }
                 if let run {
                     HStack(spacing: 6) {
@@ -106,6 +107,8 @@ struct StorageCleanView: View {
                                             } label: { Image(systemName: "magnifyingglass.circle") }
                                                 .buttonStyle(.borderless)
                                                 .help("Show in Finder")
+                                                .accessibilityLabel("Show in Finder")
+                                                .accessibilityLabel("Show in Finder")
                                         }
                                     }
                                 }
@@ -149,7 +152,7 @@ struct StorageCleanView: View {
                 }
             } else {
                 Section {
-                    Text("No runs logged yet.")
+                    Text("No runs logged yet — this appears after the suite's next automatic pass.")
                         .foregroundStyle(.secondary)
                 }
             }

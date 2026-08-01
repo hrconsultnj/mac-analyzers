@@ -39,8 +39,10 @@ public struct ProcessRow: View {
     public var body: some View {
         HStack(spacing: 6) {
             processIcon
+                .accessibilityHidden(true)  // decorative — friendlyName below already names it
             Text(proc.residentText)
-                .font(.callout.monospacedDigit())
+                // weight carries the "large" signal too — colour alone misses colourblind users
+                .font(.callout.monospacedDigit().weight(proc.residentMB > 4096 ? .semibold : .regular))
                 .foregroundStyle(proc.residentMB > 4096 ? .orange : .secondary)
                 .frame(width: 54, alignment: .trailing)
             VStack(alignment: .leading, spacing: 0) {
@@ -48,7 +50,7 @@ public struct ProcessRow: View {
                 if proc.friendlyName != proc.rawName {
                     Text("\(proc.rawName.prefix(56)) · pid \(proc.pid)")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
@@ -65,7 +67,7 @@ public struct ProcessRow: View {
             .controlSize(.small)
             .disabled(stopping)
             .help(proc.isDev
-                  ? "Stop this dev process (SIGTERM — it can restart from your next build/session)"
+                  ? "Stops this dev process — it's asked to quit, so it can restart on its own next build or session. (Technically: SIGTERM, not a forced kill.)"
                   : "Ask this app to quit gracefully — same as ⌘Q, save dialogs still appear")
         }
     }
@@ -183,7 +185,9 @@ public struct LiveStateChip: View {
             Text(active ? "ACTIVE" : "ENDED")
                 .font(.caption2.weight(.bold))
         }
-        .foregroundStyle(active ? Color.green : Color.secondary)
+        // one source for the tone (was a hardcoded Color.green/.secondary
+        // alongside the token-driven dot/background — same colour, two sources)
+        .foregroundStyle(active ? Tokens.Status.live.tint : Tokens.Status.inert.tint)
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
         .background((active ? Tokens.Status.live.tint : Tokens.Status.inert.tint).opacity(Tokens.Surface.tintFill), in: Capsule())
@@ -228,6 +232,7 @@ public struct DataCard: View {
     public var body: some View {
         HStack(alignment: .center, spacing: 8) {
             icon
+                .accessibilityHidden(true)  // decorative — title below already names the row
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .font(.callout)
@@ -297,6 +302,7 @@ public struct PaneHeader: View {
     public var body: some View {
         VStack(spacing: 6) {
             IconTile(symbol: symbol, color: color, side: 44)
+                .accessibilityHidden(true)  // decorative — title below already names the pane
             Text(title).font(.title2.weight(.bold))
             Text(caption)
                 .font(.callout)

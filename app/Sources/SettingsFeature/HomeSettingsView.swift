@@ -48,7 +48,7 @@ struct HomeSettingsView: View {
                          value: store.engine?.summary ?? "Checking…",
                          label: guardLabel,
                          target: "activity")
-                statTile(symbol: "internaldrive.fill", color: diskColor,
+                statTile(symbol: diskSymbol, color: diskColor,
                          value: store.disk.map { "\($0.freeText) free" } ?? "—",
                          label: runway.map { "runway \($0.text) at current pace" }
                              ?? store.disk.map { "of \($0.totalText) used \($0.usedText)" }
@@ -99,6 +99,13 @@ struct HomeSettingsView: View {
         return disk.usedFraction > 0.9 ? .red : disk.usedFraction > 0.75 ? .orange : .indigo
     }
 
+    /// Getting-full is conveyed by colour on this tile, but colour alone
+    /// isn't accessible — a differing symbol is the second channel.
+    private var diskSymbol: String {
+        guard let disk = store.disk else { return "internaldrive.fill" }
+        return disk.usedFraction > 0.75 ? "exclamationmark.triangle.fill" : "internaldrive.fill"
+    }
+
     private func statTile(symbol: String, color: Color, value: String,
                           label: String, target: String) -> some View {
         Button {
@@ -108,6 +115,7 @@ struct HomeSettingsView: View {
                 Image(systemName: symbol)
                     .foregroundStyle(color)
                     .font(.body)
+                    .accessibilityHidden(true) // decorative — value + label below already say this
                 Text(value)
                     .font(.title3.weight(.semibold))
                     .lineLimit(1)
@@ -170,7 +178,7 @@ struct HomeSettingsView: View {
                 if reclaimable > 1 << 30 {
                     attentionRow(symbol: "sparkles", color: .teal,
                                  title: "\(ByteSize.format(reclaimable)) reclaimable right now",
-                                 subtitle: "Latest storage dry run — review before anything is deleted.",
+                                 subtitle: "Latest storage check — review before anything is deleted.",
                                  action: "Review", target: "log:storageClean")
                 }
                 if let runway, runway.urgent {
@@ -254,6 +262,7 @@ struct HomeSettingsView: View {
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true) // decorative disclosure arrow — the row's own text says where it goes
                     }
                     .contentShape(Rectangle())
                 }
@@ -283,6 +292,7 @@ struct HomeSettingsView: View {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true) // decorative disclosure arrow — the row's own text says where it goes
             }
             .contentShape(Rectangle())
         }

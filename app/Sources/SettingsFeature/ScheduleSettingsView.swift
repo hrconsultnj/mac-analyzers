@@ -26,7 +26,7 @@ struct ScheduleSettingsView: View {
                                    displayedComponents: .hourAndMinute)
                             .labelsHidden()
                     }
-                    Text("Reaps orphaned dev/AI servers and stale headless browsers once a day.")
+                    Text("Closes dev/AI servers whose session already ended, and stale headless browsers, once a day.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -48,7 +48,7 @@ struct ScheduleSettingsView: View {
                         Stepper("every \(deepDays) day\(deepDays == 1 ? "" : "s")",
                                 value: $deepDays, in: 1...14)
                     }
-                    Text("Adds node_modules of idle repos, Docker prune, and Time Machine snapshot thinning. Measured from load or the last run.")
+                    Text("Adds downloaded code for projects you haven't touched lately (node_modules), Docker prune, and Time Machine snapshot thinning. Measured from load or the last run.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -75,7 +75,7 @@ struct ScheduleSettingsView: View {
                         .buttonStyle(.glassProminent)
                         .controlSize(.large)
                 }
-                Text("Writes the times into the installed launchd agents and reloads them. The repo's defaults are untouched; reinstalls keep your times.")
+                Text("Writes the times into macOS's scheduler and reloads it. The repo's defaults are untouched; reinstalls keep your times.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -48,6 +48,7 @@ struct TrendsSettingsView: View {
                             .contentShape(Rectangle())
                     }
                     .menuStyle(.borderlessButton)
+                    .accessibilityLabel("More options")
                     .menuIndicator(.hidden)
                     .frame(width: 40)
                     .frame(maxHeight: .infinity)
@@ -56,6 +57,7 @@ struct TrendsSettingsView: View {
                                                  : Tokens.Surface.tile,
                                 in: RoundedRectangle(cornerRadius: 8))
                     .help(extendedSelected ? period.label : "More ranges")
+                    .accessibilityLabel(extendedSelected ? period.label : "More ranges")
                 }
                 .fixedSize(horizontal: false, vertical: true)
                 if extendedSelected {
@@ -122,6 +124,10 @@ struct TrendsSettingsView: View {
                 ])
                 .frame(height: 150)
                 .padding(.vertical, 4)
+                // the bars themselves are unreadable to VoiceOver — say in
+                // words what the shape shows
+                .accessibilityLabel("Bar chart of guard events per day")
+                .accessibilityValue("\(snap.kills) killed, \(snap.spikes) spikes, over the \(period.label.lowercased()) window")
             }
         }
         if !snap.offenders.isEmpty {
@@ -150,6 +156,7 @@ struct TrendsSettingsView: View {
                         Image(systemName: stat.symbol)
                             .foregroundStyle(stat.color)
                             .font(.body)
+                            .accessibilityHidden(true) // decorative — value + label below already say this
                         Text(stat.value)
                             .font(.title3.weight(.semibold).monospacedDigit())
                             .lineLimit(1)

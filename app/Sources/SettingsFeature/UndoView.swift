@@ -24,7 +24,7 @@ struct UndoView: View {
                         .font(.caption)
                 }
                 if trashed.isEmpty {
-                    Text("Nothing restorable — no janitor items in the Trash ledger.")
+                    Text("Nothing to restore — the Janitor hasn't moved anything to the Trash recently.")
                         .foregroundStyle(.secondary)
                 }
                 ForEach(trashed) { item in
@@ -39,17 +39,17 @@ struct UndoView: View {
                         case .trashCopyGone:
                             Text("Trash emptied")
                                 .font(.caption)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(.secondary)
                         case .pathOccupied:
                             Text("Path occupied")
                                 .font(.caption)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(.secondary)
                                 .help("Something new exists at the original path — restore manually from the Trash if needed.")
                         case .destinationUnknown:
                             Text("Restore manually")
                                 .font(.caption)
-                                .foregroundStyle(.tertiary)
-                                .help("This receipt predates exact destination recording. Restoring would mean guessing which Trash file it is, so the app won't — drag it back from the Trash yourself.")
+                                .foregroundStyle(.secondary)
+                                .help("This item was trashed before the app tracked exactly where files came from, so restoring would mean guessing which file in the Trash is the right one — the app won't guess. Drag it back yourself if you need it.")
                         }
                     }
                 }
@@ -73,7 +73,7 @@ struct UndoView: View {
                             copiedID = event.id
                         }
                         .help(event.processName.count >= 140
-                              ? "This command was recorded before the app captured full command lines, so it is CUT SHORT — check it before running."
+                              ? "This command was recorded before the app captured full command lines, so part of it may be missing — check it before running."
                               : "The command as the guard recorded it. You still supply the working directory and environment.")
                     }
                 }

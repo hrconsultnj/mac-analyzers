@@ -73,6 +73,12 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
     keychain has one (free with any Apple ID; keeps the permission identity
     stable across rebuilds), falls back to ad-hoc, and **installs the app to
     `/Applications`** — the repo `app/` copy is just the build artifact.
+    The build also copies `memory-analyzer/`, `storage-analyzer/`,
+    `network-analyzer/` and `lib/` into `Contents/Resources/engine/`, so the
+    installed app carries its own engine. A checkout at `~/mac-analyzers`
+    still wins when present — that is the copy you edit — and settings and
+    reports always live in `~/mac-analyzers/`, never inside the bundle,
+    because the bundle is replaced wholesale on every update.
     This is the suite's face for your user: actionable native notifications
     (Open Log / Stop Process), a glance menu with Memory/Monitor/Storage
     tabs, live pressure, and per-process Stop/Quit, and a

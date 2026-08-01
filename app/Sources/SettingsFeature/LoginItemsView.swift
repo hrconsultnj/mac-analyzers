@@ -22,7 +22,7 @@ struct LoginItemsView: View {
     var body: some View {
         PaneScaffold(symbol: "person.crop.circle.badge.questionmark", color: .brown,
                      title: "Login-Items Audit",
-                     caption: "Launch agents and login items whose app is gone — with the exact removal command per row.") {
+                     caption: "Apps that quietly start when you log in, even after you removed them. This audit finds login items and launch agents whose original app is gone, with the exact removal command for each.") {
             Section {
                 HStack {
                     FilterChipsBar(
@@ -37,6 +37,7 @@ struct LoginItemsView: View {
                         Task { await load() }
                     } label: { Image(systemName: "arrow.clockwise") }
                         .help("Refresh")
+                        .accessibilityLabel("Refresh")
                 }
                 if let run {
                     HStack(spacing: 6) {
@@ -53,7 +54,7 @@ struct LoginItemsView: View {
             if let run {
                 if filteredSections(run).isEmpty {
                     Section {
-                        Label("No orphaned login items — Login Items are clean.",
+                        Label("Nothing left behind — every login item here still has its app installed.",
                               systemImage: "checkmark.shield")
                             .foregroundStyle(.green)
                     }
@@ -67,7 +68,7 @@ struct LoginItemsView: View {
                 }
             } else {
                 Section {
-                    Text("No audit run logged yet — it runs with the storage suite, or run login-items-audit.sh for a fresh pass.")
+                    Text("No check logged yet — this runs automatically with the storage suite, or run login-items-audit.sh yourself for a fresh pass.")
                         .foregroundStyle(.secondary)
                 }
             }
