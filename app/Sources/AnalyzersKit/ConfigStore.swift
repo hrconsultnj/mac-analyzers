@@ -6,6 +6,8 @@ import Observation
 /// so the engine needs zero changes.
 public struct MemoryTunables: Equatable, Sendable {
     public var hardCapMB = 6144        // GUARD_HARD_CAP_MB
+    public var hardCapKill = true      // GUARD_HARDCAP_KILL (off = notify-only)
+    public var pressureKill = true     // GUARD_PRESSURE_KILL (off = notify-only)
     public var spikeMB = 400           // GUARD_SPIKE_MB
     public var spikeMinMB = 1024       // GUARD_SPIKE_MIN_MB
     public var cpuHogPct = 150         // GUARD_CPU_HOG_PCT
@@ -92,6 +94,8 @@ public final class ConfigStore {
         }
 
         if let v = value("GUARD_HARD_CAP_MB").flatMap({ Int($0) }) { memory.hardCapMB = v }
+        if let v = value("GUARD_HARDCAP_KILL") { memory.hardCapKill = v != "0" }
+        if let v = value("GUARD_PRESSURE_KILL") { memory.pressureKill = v != "0" }
         if let v = value("GUARD_SPIKE_MB").flatMap({ Int($0) }) { memory.spikeMB = v }
         if let v = value("GUARD_SPIKE_MIN_MB").flatMap({ Int($0) }) { memory.spikeMinMB = v }
         if let v = value("GUARD_CPU_HOG_PCT").flatMap({ Int($0) }) { memory.cpuHogPct = v }
@@ -134,6 +138,8 @@ public final class ConfigStore {
         out += "# Written by the Mac Analyzers menu-bar app (Settings). Anything outside\n"
         out += "# these markers is yours and is never touched.\n"
         out += "GUARD_HARD_CAP_MB=\(memory.hardCapMB)\n"
+        out += "GUARD_HARDCAP_KILL=\(memory.hardCapKill ? 1 : 0)\n"
+        out += "GUARD_PRESSURE_KILL=\(memory.pressureKill ? 1 : 0)\n"
         out += "GUARD_SPIKE_MB=\(memory.spikeMB)\n"
         out += "GUARD_SPIKE_MIN_MB=\(memory.spikeMinMB)\n"
         out += "GUARD_CPU_HOG_PCT=\(memory.cpuHogPct)\n"

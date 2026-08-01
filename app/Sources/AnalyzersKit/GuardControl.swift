@@ -22,6 +22,19 @@ public enum GuardControl {
         launchctl(["kickstart", "gui/\(getuid())/\(label)"])
     }
 
+    /// USER-initiated stop — a different contract from the guard's automatic
+    /// kills (which stay dev-tooling-only): the user may stop anything, same
+    /// as Activity Monitor. GUI apps get a graceful terminate (⌘Q semantics,
+    /// save dialogs still appear); everything else gets SIGTERM.
+    public static func stopProcess(_ proc: LiveProcess) {
+        if !proc.isDev,
+           let app = NSRunningApplication(processIdentifier: pid_t(proc.pid)) {
+            app.terminate()
+            return
+        }
+        kill(pid_t(proc.pid), SIGTERM)
+    }
+
     /// Relaunch just this app — the light alternative to a Mac restart: the
     /// detached child survives our exit and opens a fresh instance.
     public static func restartApp() {

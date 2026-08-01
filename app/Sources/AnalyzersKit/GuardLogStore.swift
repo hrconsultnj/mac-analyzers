@@ -19,6 +19,7 @@ public final class GuardLogStore {
     public private(set) var latestForensics: URL?
     public private(set) var pressure: LiveStats.Pressure = .normal
     public private(set) var topProcesses: [LiveProcess] = []
+    public private(set) var monitorProcesses: [LiveProcess] = []
 
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var watchedFD: Int32 = -1
@@ -53,6 +54,7 @@ public final class GuardLogStore {
         latestForensics = AnalyzersPaths.latestForensics()
         pressure = LiveStats.memoryPressure()
         topProcesses = LiveStats.topDevProcesses()
+        monitorProcesses = LiveStats.snapshot()
     }
 
     /// Hide everything shown so far (badge + rows). Log untouched.

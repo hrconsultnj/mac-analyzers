@@ -8,7 +8,9 @@ public struct MenuContentView: View {
     @Environment(\.openSettings) private var openSettings
     @State private var tab: Tab = .memory
 
-    enum Tab: String, CaseIterable { case memory = "Memory", storage = "Storage" }
+    enum Tab: String, CaseIterable {
+        case memory = "Memory", monitor = "Monitor", storage = "Storage"
+    }
 
     public init() {}
 
@@ -22,6 +24,7 @@ public struct MenuContentView: View {
 
             switch tab {
             case .memory: memoryTab
+            case .monitor: monitorTab
             case .storage: storageTab
             }
 
@@ -108,23 +111,11 @@ public struct MenuContentView: View {
         if !store.topProcesses.isEmpty {
             sectionLabel("BIGGEST DEV PROCESSES NOW")
             ForEach(store.topProcesses) { proc in
-                HStack(spacing: 6) {
-                    Text(proc.residentText)
-                        .font(.callout.monospacedDigit())
-                        .foregroundStyle(proc.residentMB > 4096 ? .orange : .secondary)
-                        .frame(width: 54, alignment: .trailing)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(proc.friendlyName).font(.callout)
-                        if proc.friendlyName != proc.rawName {
-                            Text("\(proc.rawName.prefix(52)) · pid \(proc.pid)")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
+                ProcessRow(proc: proc) { store.reload() }
             }
+            Text("Full list — including apps and helpers — in the Monitor tab.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
     }
 
@@ -134,6 +125,47 @@ public struct MenuContentView: View {
         case .warning: .orange
         case .critical: .red
         }
+    }
+
+    // MARK: - Monitor tab
+
+    /// Mini live monitor: what the guard can see and act on — resident RAM
+    /// across ALL big processes (apps, helpers, dev tools), stoppable per row.
+    @ViewBuilder private var monitorTab: some View {
+        HStack(spacing: 6) {
+            Circle().fill(pressureColor).frame(width: 8, height: 8)
+            Text("Memory pressure: \(store.pressure.label)")
+                .font(.callout)
+                .foregroundStyle(store.pressure == .normal ? .secondary : .primary)
+            Spacer()
+            Button {
+                store.reload()
+            } label: { Image(systemName: "arrow.clockwise") }
+                .controlSize(.small)
+                .help("Refresh the list")
+        }
+
+        let devs = store.monitorProcesses.filter(\.isDev)
+        let apps = store.monitorProcesses.filter { !$0.isDev }
+
+        if !devs.isEmpty {
+            sectionLabel("DEV PROCESSES")
+            ForEach(devs) { proc in ProcessRow(proc: proc) { store.reload() } }
+        }
+        if !apps.isEmpty {
+            sectionLabel("APPS & HELPERS")
+            ForEach(apps) { proc in ProcessRow(proc: proc) { store.reload() } }
+        }
+        if store.monitorProcesses.isEmpty {
+            Text("No process is holding more than 0.5 GB right now.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+
+        Text("Sizes are resident RAM — what's physically in memory right now (the number the guard acts on). Stop = the same polite quit Activity Monitor does.")
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: - Storage tab
@@ -214,6 +246,47 @@ public struct MenuContentView: View {
     private func runText(_ date: Date?) -> String {
         guard let date else { return "never" }
         return date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+    }
+}
+
+/// Live-process row: size, friendly + raw identity, and a user-initiated
+/// Stop/Quit — the "don't make me open Activity Monitor" button.
+struct ProcessRow: View {
+    let proc: LiveProcess
+    let afterStop: () -> Void
+    @State private var stopping = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(proc.residentText)
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(proc.residentMB > 4096 ? .orange : .secondary)
+                .frame(width: 54, alignment: .trailing)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(proc.friendlyName).font(.callout).lineLimit(1)
+                if proc.friendlyName != proc.rawName {
+                    Text("\(proc.rawName.prefix(56)) · pid \(proc.pid)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 4)
+            Button(stopping ? "…" : (proc.isDev ? "Stop" : "Quit")) {
+                stopping = true
+                GuardControl.stopProcess(proc)
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1.5))
+                    afterStop()
+                    stopping = false
+                }
+            }
+            .controlSize(.small)
+            .disabled(stopping)
+            .help(proc.isDev
+                  ? "Stop this dev process (SIGTERM — it can restart from your next build/session)"
+                  : "Ask this app to quit gracefully — same as ⌘Q, save dialogs still appear")
+        }
     }
 }
 

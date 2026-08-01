@@ -44,6 +44,8 @@ INTERVAL="${GUARD_INTERVAL:-15}"              # seconds between ticks
 WARN_COOLDOWN="${GUARD_WARN_COOLDOWN:-300}"   # min seconds between WARNING notifications
 KILL_COOLDOWN="${GUARD_KILL_COOLDOWN:-60}"    # min seconds between kills
 HARD_CAP_MB="${GUARD_HARD_CAP_MB:-6144}"      # single safelisted proc above this → kill at ANY pressure
+HARDCAP_KILL="${GUARD_HARDCAP_KILL:-1}"       # 0 = over-cap NOTIFIES instead of killing
+PRESSURE_KILL="${GUARD_PRESSURE_KILL:-1}"     # 0 = critical pressure NOTIFIES instead of killing
 SPIKE_MB="${GUARD_SPIKE_MB:-400}"             # growth per tick that flags a runaway…
 SPIKE_MIN_MB="${GUARD_SPIKE_MIN_MB:-1024}"    # …once the process is at least this big
 CPU_HOG_PCT="${GUARD_CPU_HOG_PCT:-150}"       # %CPU that counts as a hog…
@@ -209,8 +211,17 @@ tick() {
     big=$(echo "$snap" | sort -t$'\t' -k2 -rn | head -1)
     bpid=$(echo "$big" | cut -f1); brss=$(echo "$big" | cut -f2); bargs=$(echo "$big" | cut -f3)
     if [[ -n "$brss" && "$brss" -gt $((HARD_CAP_MB * 1024)) ]]; then
-      dump_forensics
-      kill_proc "$bpid" "$brss" "hard-cap ${HARD_CAP_MB}MB" "$bargs"
+      if [[ "$HARDCAP_KILL" == "1" ]]; then
+        dump_forensics
+        kill_proc "$bpid" "$brss" "hard-cap ${HARD_CAP_MB}MB" "$bargs"
+      elif [[ $((now - LAST_WARN_TS)) -ge "$WARN_COOLDOWN" ]]; then
+        # kill disabled in settings → notify-only, never silent
+        LAST_WARN_TS=$now
+        log "CAP-EXCEEDED (kill disabled) pid=$bpid rss=$((brss/1024))MB  $bargs"
+        notify "Memory Guard — over the cap" \
+          "Using $(awk -v kb="$brss" 'BEGIN{printf "%.1f", kb/1048576}') GB — cap kills are off, so nothing was stopped." \
+          "Glass" "" "$(short_name "$bargs")"
+      fi
     fi
   fi
 
@@ -255,7 +266,11 @@ tick() {
       local big bpid brss bargs
       big=$(echo "$snap" | sort -t$'\t' -k2 -rn | head -1)
       bpid=$(echo "$big" | cut -f1); brss=$(echo "$big" | cut -f2); bargs=$(echo "$big" | cut -f3)
-      if [[ -n "$brss" && "$brss" -gt 512000 ]]; then   # only worth killing if >500 MB
+      if [[ "$PRESSURE_KILL" != "1" ]]; then
+        # kill disabled in settings → notify-only, never silent
+        log "PRESSURE-CRITICAL (kill disabled)"
+        notify "Memory Guard — pressure CRITICAL" "Pressure kills are off in Settings — close apps manually (see guard-critical log)." "Sosumi"
+      elif [[ -n "$brss" && "$brss" -gt 512000 ]]; then   # only worth killing if >500 MB
         kill_proc "$bpid" "$brss" "pressure-critical" "$bargs"
       else
         notify "Memory Guard — pressure CRITICAL" "No big dev process to kill — close apps manually (see guard-critical log)." "Sosumi"

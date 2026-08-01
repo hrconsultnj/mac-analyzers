@@ -3,12 +3,28 @@ import Foundation
 /// Live system facts the menu reads on open — the same signals the guard
 /// watches, so what you see is what the guard decides on.
 public struct LiveProcess: Identifiable, Sendable, Hashable {
+    public enum Kind: Sendable { case devTool, app }
+
     public let pid: Int
     public let residentMB: Int
     public let rawName: String
+    public let kind: Kind
     public var id: Int { pid }
 
-    public var friendlyName: String { ProcessGlossary.friendlyName(for: rawName) ?? rawName }
+    public var isDev: Bool { kind == .devTool }
+
+    /// Human name: glossary for dev tooling, .app bundle name for apps.
+    public var friendlyName: String {
+        if isDev, let known = ProcessGlossary.friendlyName(for: rawName) { return known }
+        if let range = rawName.range(of: #"([^/]+)\.app"#, options: .regularExpression) {
+            return String(rawName[range].dropLast(4))
+        }
+        // bare binary name (helpers/daemons outside .app bundles)
+        return String(rawName.split(separator: " ").first.map {
+            $0.split(separator: "/").last.map(String.init) ?? String($0)
+        } ?? rawName)
+    }
+
     public var residentText: String { String(format: "%.1f GB", Double(residentMB) / 1024) }
 }
 
@@ -46,9 +62,10 @@ public enum LiveStats {
     private static let killablePattern =
         "(^|/)(node|npm|npx|bun|tsx|deno)( |$)|next-server|next dev|vite|esbuild|webpack|turbo|tsup|vitest|jest|playwright|headless_shell|--headless|ms-playwright"
 
-    /// Biggest dev processes RIGHT NOW, by resident RAM. What you'd want to
-    /// see before deciding whether to pause the guard or raise the cap.
-    public static func topDevProcesses(limit: Int = 3) -> [LiveProcess] {
+    /// Biggest processes RIGHT NOW by resident RAM — every kind, not just dev
+    /// tooling (an OrbStack helper at 3.3 GB matters as much as next-server).
+    /// `minimumMB` keeps the list to rows worth a decision.
+    public static func snapshot(limit: Int = 10, minimumMB: Int = 512) -> [LiveProcess] {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/ps")
         p.arguments = ["axo", "pid=,rss=,args="]
@@ -66,11 +83,19 @@ public enum LiveStats {
             guard fields.count == 3,
                   let pid = Int(fields[0]), pid > 500,
                   let rssKB = Int(fields[1]) else { continue }
+            let rssMB = rssKB / 1024
+            guard rssMB >= minimumMB else { continue }
             let args = String(fields[2])
-            guard args.range(of: killablePattern, options: .regularExpression) != nil else { continue }
-            result.append(LiveProcess(pid: pid, residentMB: rssKB / 1024,
-                                      rawName: String(args.prefix(80))))
+            let isDev = args.range(of: killablePattern, options: .regularExpression) != nil
+            result.append(LiveProcess(pid: pid, residentMB: rssMB,
+                                      rawName: String(args.prefix(100)),
+                                      kind: isDev ? .devTool : .app))
         }
         return Array(result.sorted { $0.residentMB > $1.residentMB }.prefix(limit))
+    }
+
+    /// Dev-only convenience for the Memory tab strip.
+    public static func topDevProcesses(limit: Int = 3) -> [LiveProcess] {
+        snapshot(limit: 24, minimumMB: 256).filter(\.isDev).prefix(limit).map { $0 }
     }
 }

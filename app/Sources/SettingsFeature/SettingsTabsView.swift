@@ -15,8 +15,12 @@ public struct SettingsTabsView: View {
                 .tabItem { Label("Storage", systemImage: "internaldrive") }
             NotifySettingsView()
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
+            ActivitySettingsView()
+                .tabItem { Label("Activity", systemImage: "list.bullet.rectangle") }
+            AboutSettingsView()
+                .tabItem { Label("About", systemImage: "questionmark.circle") }
         }
-        .frame(width: 560, height: 560)
+        .frame(width: 640, height: 620)
         .onDisappear {
             // drop the Dock icon again once Settings closes (the menu-bar
             // Settings button flips us to .regular so the window fronts)

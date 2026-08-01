@@ -26,7 +26,7 @@ struct MacAnalyzersApp: App {
             MenuContentView()
                 .environment(store)
                 .environment(config)
-                .frame(width: 360)
+                .frame(width: 420)
         } label: {
             // brand chip glyph as a TEMPLATE image (black+alpha, macOS tints
             // it for light/dark/translucency); SF-symbol fallback if missing.
