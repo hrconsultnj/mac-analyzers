@@ -43,6 +43,10 @@ struct ActivitySettingsView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                        Spacer(minLength: 4)
+                        if let live = event.isProcessStillRunning {
+                            LiveStateChip(active: live)
+                        }
                     }
                 }
             }

@@ -167,34 +167,62 @@ public struct FilterChipsBar<Option: Hashable>: View {
     }
 }
 
+/// Liveness chip: green dot + ACTIVE while the row's process is still the
+/// same running program; dimmed ENDED once it's gone (killed, quit, or the
+/// pid was recycled). One component for the menu and the settings panes.
+public struct LiveStateChip: View {
+    let active: Bool
+
+    public init(active: Bool) { self.active = active }
+
+    public var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(active ? Color.green : Color.secondary.opacity(0.6))
+                .frame(width: 5, height: 5)
+            Text(active ? "ACTIVE" : "ENDED")
+                .font(.caption2.weight(.bold))
+        }
+        .foregroundStyle(active ? Color.green : Color.secondary)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background((active ? Color.green : Color.gray).opacity(0.16), in: Capsule())
+    }
+}
+
 /// Settings-pane-weight data row: leading icon (tile or real app icon),
-/// title/subtitle, trailing value + badge — the "card" anatomy from the
-/// Apple Storage Management reference.
+/// title/subtitle, trailing value + liveness chip + badge — the "card"
+/// anatomy from the Apple Storage Management reference.
 public struct DataCard: View {
     let icon: AnyView
     let title: String
     let subtitle: String?
     let trailing: String?
     let badge: (text: String, color: Color)?
+    let live: Bool?
 
     public init(symbol: String, color: Color, title: String,
                 subtitle: String? = nil, trailing: String? = nil,
-                badge: (text: String, color: Color)? = nil) {
+                badge: (text: String, color: Color)? = nil,
+                live: Bool? = nil) {
         self.icon = AnyView(IconTile(symbol: symbol, color: color, side: 20))
         self.title = title
         self.subtitle = subtitle
         self.trailing = trailing
         self.badge = badge
+        self.live = live
     }
 
     public init(appIcon: NSImage, title: String,
                 subtitle: String? = nil, trailing: String? = nil,
-                badge: (text: String, color: Color)? = nil) {
+                badge: (text: String, color: Color)? = nil,
+                live: Bool? = nil) {
         self.icon = AnyView(Image(nsImage: appIcon).resizable().frame(width: 20, height: 20))
         self.title = title
         self.subtitle = subtitle
         self.trailing = trailing
         self.badge = badge
+        self.live = live
     }
 
     public var body: some View {
@@ -217,6 +245,9 @@ public struct DataCard: View {
                 Text(trailing)
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
+            }
+            if let live {
+                LiveStateChip(active: live)
             }
             if let badge {
                 BadgeCapsule(text: badge.text, color: badge.color)

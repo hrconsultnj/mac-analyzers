@@ -66,7 +66,8 @@ struct GuardLogView: View {
                      title: event.title,
                      subtitle: subtitleWithTime(event),
                      trailing: event.residentText,
-                     badge: badge(for: event))
+                     badge: badge(for: event),
+                     live: event.isProcessStillRunning)
         }
     }
 

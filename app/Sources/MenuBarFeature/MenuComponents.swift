@@ -52,7 +52,12 @@ struct EventRow: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                Spacer(minLength: 0)
+                Spacer(minLength: 4)
+                // is this spike/hog still going, or already over?
+                if let live = event.isProcessStillRunning {
+                    LiveStateChip(active: live)
+                        .padding(.top, 1)
+                }
             }
         }
         .buttonStyle(.plain)
