@@ -36,4 +36,14 @@ welcome either way.
 
 ## Workflow
 
-Branch from `development`, PR into `development`. `main` is the release line.
+**Fork the repo, branch from `development`, and open your PR against
+`development`** — never `main`. `main` is the release line: any commit that
+lands on it ships a release (a git hook builds the tarball and publishes it),
+so nothing goes there except release merges. Both branches are protected;
+code-owner review is required before merge.
+
+- **App/UI PRs** (`app/`): describe what changed visually — a screenshot of
+  the affected menu tab or settings pane beats a paragraph — and confirm
+  `cd app && swift build` is green.
+- **Engine PRs** (scripts): the safety invariants above are the review bar,
+  and the practical checklist applies (dry-run output in the PR body).

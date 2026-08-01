@@ -97,9 +97,7 @@ public final class NotificationPoster: NSObject {
     // MARK: - click handling helpers
 
     fileprivate func openApp() {
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        NotificationCenter.default.post(name: NotifyChannel.openSettingsInternal, object: nil)
+        SettingsOpener.open()
     }
 
     /// Verified stop: the pid must still exist AND its command line must

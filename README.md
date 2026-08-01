@@ -58,7 +58,10 @@ The app builds from source in a couple of minutes and needs only Apple's
 launch it adds itself to Login Items (macOS notifies you it did) and asks for
 notification permission; from then on the chip icon in the menu bar is the
 whole interface — status at a glance, sliders for the limits, click a
-notification to open the log behind it.
+notification to open the log behind it. The built app lives at
+`app/MacAnalyzers.app`: open it from Finder, and keep it in the Dock if you
+like — clicking the Dock icon launches it when it's stopped and opens
+Settings when it's running.
 
 Want to see your machine before installing anything? `./memory-analyzer/analyze.sh`
 and `./storage-analyzer/analyze.sh` are read-only reports — always safe.
@@ -91,11 +94,27 @@ DMG (Apple Developer ID) is the future path. Releases ship a source tarball
 (`mac-analyzers-v<version>.tar.gz`) —
 see [Releases](https://github.com/hrconsultnj/mac-analyzers/releases).
 
+## Staying up to date
+
+Already cloned? **Double-click `upgrade.command` in Finder.** It pulls the
+latest release (`git pull --ff-only`), rebuilds the app, refreshes the
+launchd agents, and relaunches the menu-bar app — your `config.local.sh` is
+**never touched**. Terminal equivalent:
+
+```bash
+cd ~/mac-analyzers && ./upgrade.command
+```
+
+Not using git? Every release on the
+[Releases page](https://github.com/hrconsultnj/mac-analyzers/releases) ships
+the full source as a tarball — download, unpack, and run the Install steps
+from the new folder.
+
 ## What's inside
 
 | | Tool | What it does | Touches anything? |
 |---|---|---|---|
-| 🖥️ | `app/` — **Mac Analyzers** menu-bar app | the product's face: glance menu (kills today, recent events), native notifications with click-to-open-log, Settings with sliders for the tunables | writes only its own marked block in `config.local.sh` |
+| 🖥️ | `app/` — **Mac Analyzers** menu-bar app | the product's face: Memory/Monitor/Storage glance menu with per-process Stop/Quit, actionable native notifications, System-Settings-style Settings window for the tunables | writes only its own marked block in `config.local.sh` |
 | 🔍 | `memory-analyzer/analyze.sh` | "Why is RAM at N GB?" — Activity-Monitor-style breakdown, compressor/swap truth, per-app rollup, CPU/energy, diagnosis with verdicts | never — read-only report |
 | 🛡️ | `memory-analyzer/memory-guard.sh` | always-on listener: alerts on memory-pressure, kills a runaway dev process before the machine locks up. Meeting apps, browsers, editors are never touched | kills dev tooling only |
 | 🧹 | `memory-analyzer/memory-auto-clean.sh` | daily reaper: orphaned MCP/agent servers, dev servers forgotten since yesterday, stale headless browsers | with `--apply` |
@@ -187,12 +206,20 @@ lives.
 `app/` is **Mac Analyzers**, a native SwiftUI menu-bar app (SPM package,
 Swift 6, macOS 26) — the face on the script engine:
 
-- **Glance + control** — today's kill count on the menu-bar icon, recent guard
-  events, auto-clean status, pause/resume guard, one-click log access.
-- **Settings** (Memory / Storage / Notifications tabs) that write a
-  clearly-marked managed block into `config.local.sh`; anything you wrote
-  outside the markers is never touched, and saving memory tunables restarts
-  the guard agent so they take effect immediately.
+- **Glance + control** — today's kill count on the menu-bar icon; the
+  dropdown has **Memory | Monitor | Storage** tabs: live pressure and recent
+  guard events, an Activity-Monitor-style process list with per-row
+  **Stop/Quit**, storage/auto-clean status, pause/resume guard, one-click
+  log access.
+- **Settings** — a System-Settings-style window (sidebar panes: Memory,
+  Storage, Notifications, Activity, Logs, About) that writes a clearly-marked
+  managed block into `config.local.sh`; anything you wrote outside the
+  markers is never touched, and saving memory tunables restarts the guard
+  agent so they take effect immediately. The guard's two kill switches
+  (hard-cap, critical-pressure) can be flipped to **notify-only**. Clicking
+  the app's Dock icon opens Settings.
+- **Actionable notifications** — Open Mac Analyzers / Open Log right on the
+  alert, plus **Stop Process** when the alert names a live process.
 - **Launchd attribution** — every plist carries
   `AssociatedBundleIdentifiers` = `com.mac-analyzers.app`, so System Settings →
   Login Items & Extensions shows the background agents under the app's

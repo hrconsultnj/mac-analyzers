@@ -22,4 +22,20 @@ Hard rules (from CONTRIBUTING.md, enforced in review):
 5. The app's Settings own ONLY the marked managed block in `config.local.sh`;
    user content outside the markers is never touched.
 
-Work from `development`; PRs target `development`; `main` is releases.
+App feature work: SPM targets — AnalyzersKit (shared kernel) · NotifierKit
+(notifications) · MenuBarFeature / SettingsFeature (views) · UIComponents
+(shared tiles/headers) · MacAnalyzersApp (thin shell) · NotifierCLI (`notify`
+shim). Every settings pane uses PaneScaffold; menu rows live in
+MenuComponents.swift; the engine stays bash — the app is a control surface,
+never a reimplementation. Verify `cd app && swift build`, then `./app/build.sh`
+and relaunch. UI traps (v2.7.1): pane header stays INSIDE the Form; no
+`.scrollEdgeEffectStyle(.hard)` in the Settings window; `.listSectionSpacing`
+is iOS-only.
+
+Work from `development`; PRs target `development`; `main` is releases — ANY
+commit/merge on main SHIPS (scripts/release.sh hook: push + tarball
+`mac-analyzers-v<V>.tar.gz` + GitHub release from `VERSION`). Cut a release by
+bumping VERSION on development, then merging development → main in the main
+worktree (`.composure/workspaces/main`). Installed clones upgrade via
+`./upgrade.command` (pull --ff-only, rebuild app, refresh agents, relaunch;
+`config.local.sh` untouched).

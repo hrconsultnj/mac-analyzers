@@ -28,7 +28,37 @@ through `config.local.sh` (never hardcoded).
   output. There is no test suite; the dry-run IS the test. For the app:
   `cd app && swift build` (bundle assembly is `./app/build.sh` — no Xcode).
 
-## Branches
+## Building features in the app
+
+- SPM target map: `AnalyzersKit` (shared kernel — paths, guard-log parser,
+  config bridge, launchd control, live stats) · `NotifierKit` (UN center,
+  delegate, distributed-notification bridge, login item) ·
+  `MenuBarFeature` / `SettingsFeature` (views) · `UIComponents` (shared
+  tiles/pane headers) · `MacAnalyzersApp` (thin shell) · `NotifierCLI` (the
+  bundled `notify` shim).
+- Every settings pane renders inside `PaneScaffold`
+  (`SettingsFeature/PaneScaffold.swift`); menu rows/components live in
+  `MenuBarFeature/MenuComponents.swift`. The engine stays bash — the app is a
+  control surface over the scripts + launchd, never a reimplementation.
+- Verify: `cd app && swift build`, then `./app/build.sh` and relaunch the app
+  to see it live.
+- v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
+  the toolbar backdrop — light band, doubled title); no
+  `.scrollEdgeEffectStyle(.hard)` in the Settings window;
+  `.listSectionSpacing` is iOS-only.
+
+## Branches, releases, upgrades
 
 `development` is the working branch and PR target; `main` is the release line.
 Both are protected (code-owner review required for PRs; owner pushes directly).
+
+- ANY commit or merge on `main` SHIPS: the post-commit/post-merge hook
+  (`scripts/release.sh`, installed by `scripts/install-git-hooks.sh`) pushes,
+  builds `mac-analyzers-v<V>.tar.gz` via `git archive`, and creates the
+  GitHub release. Same-version merges no-op (tag already exists).
+- Cut a release: bump `VERSION` (single source of truth) on `development`,
+  then merge development → main **in the main worktree**
+  (`.composure/workspaces/main`) — never by switching the root checkout.
+- Installed clones update via `./upgrade.command` (Finder double-clickable):
+  `git pull --ff-only` → `app/build.sh` → both `*-manage-agents.sh install`
+  → relaunch the app. It never touches `config.local.sh`.

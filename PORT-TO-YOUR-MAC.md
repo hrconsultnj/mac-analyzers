@@ -66,15 +66,22 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
    The launchd labels are the neutral `com.mac-analyzers.*` namespace.
 10. **Build the menu-bar app** — `./app/build.sh && open app/MacAnalyzers.app`
     (Command Line Tools only, no Xcode; needs macOS 26). This is the suite's
-    face for your user: native notifications with click-to-open-log, a glance
-    menu (kills today, recent events, pause/resume), and Settings that write
-    a marked managed block into `config.local.sh` — hand-written values
+    face for your user: actionable native notifications (Open Log / Stop
+    Process), a glance menu with Memory/Monitor/Storage tabs and per-process
+    Stop/Quit, and a System-Settings-style Settings window that writes a
+    marked managed block into `config.local.sh` — hand-written values
     outside the markers are never touched. It self-registers as a login item,
     and the plists' `AssociatedBundleIdentifiers` attribute the agents to it
     in Login Items. Skip this only on a headless / script-only setup — the
     engine runs fine alone: `lib/notify.sh` falls back to `alerter` (if
     installed) or a plain `osascript` banner, and `extras/swiftbar-plugin/`
     gives a no-app menu-bar surface.
+11. **Show your user `upgrade.command`** — from now on, updating is a Finder
+    double-click on `upgrade.command` at the repo root (or
+    `./upgrade.command` in a terminal): `git pull --ff-only`, rebuild the
+    app, re-run both manage-agents installers, relaunch the menu-bar app.
+    It never touches `config.local.sh`, so everything you calibrated in
+    steps 3–5 survives every upgrade.
 
 ## Safety invariants — keep these when you customize
 
