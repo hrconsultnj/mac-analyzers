@@ -16,7 +16,28 @@ public struct SettingsTabsView: View {
     /// State-backed path for the Logs stack (NavigationPath: it holds both
     /// LogKind pushes and RunRoute pushes for the nested run screens).
     @State private var logsPath = NavigationPath()
+    /// Path for the per-child stacks (.log(kind) sidebar entries). Reset on
+    /// every pane switch — the .id(kind) re-root and this reset happen in the
+    /// same update, never mid-animation.
+    @State private var childPath = NavigationPath()
     @State private var updateAvailable = false
+
+    /// Depth of whichever stack is on screen — drives the shell back chevron.
+    private var activeDepth: Int {
+        switch pane {
+        case .logs: logsPath.count
+        case .log: childPath.count
+        default: 0
+        }
+    }
+
+    private func popActive() {
+        switch pane {
+        case .logs: if !logsPath.isEmpty { logsPath.removeLast() }
+        case .log: if !childPath.isEmpty { childPath.removeLast() }
+        default: break
+        }
+    }
 
     public init() {}
 
@@ -50,14 +71,25 @@ public struct SettingsTabsView: View {
             .navigationSplitViewColumnWidth(min: 190, ideal: 205, max: 240)
         } detail: {
             detailView
+                // SHELL-level navigation, the System Settings anatomy: the
+                // back chevron lives in the window toolbar strip, never inside
+                // the pane (a nested stack's own bar floats over content).
+                .toolbar {
+                    if activeDepth > 0 {
+                        ToolbarItem(placement: .navigation) {
+                            Button {
+                                popActive()
+                            } label: {
+                                Image(systemName: "chevron.left")
+                                    .fontWeight(.semibold)
+                            }
+                            .help("Back")
+                        }
+                    }
+                }
         }
         .frame(minWidth: 780, minHeight: 620)
-        .onReceive(NotificationCenter.default.publisher(for: logsHomeSignal)) { _ in
-            // explicit back intent from the "All Logs" button: land on the
-            // landing screen AND move the sidebar highlight to Logs
-            pane = .logs
-            logsPath = NavigationPath()
-        }
+        .onChange(of: pane) { childPath = NavigationPath() }
         .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.openPaneInternal)) { note in
             // deep links from the menu bar ("Guard log" → the guard-log pane)
             guard let target = note.userInfo?["target"] as? String else { return }
@@ -169,12 +201,15 @@ public struct SettingsTabsView: View {
                 LogsHomeView()
                     .navigationDestination(for: LogKind.self) { k in
                         LogsSettingsView(kind: k)
+                            .navigationBarBackButtonHidden(true)
                     }
                     .navigationDestination(for: RunRoute.self) { route in
                         RunDetailView(route: route)
+                            .navigationBarBackButtonHidden(true)
                     }
                     .navigationDestination(for: ForensicsRoute.self) { route in
                         ForensicsDetailView(route: route)
+                            .navigationBarBackButtonHidden(true)
                     }
             }
         case .log(let kind):
@@ -182,13 +217,15 @@ public struct SettingsTabsView: View {
             // programmatic path surgery at all (replacing a path mid-animation
             // dropped pushes and landed users back on the landing screen).
             // Switching children just re-roots the stack with the new kind.
-            NavigationStack {
+            NavigationStack(path: $childPath) {
                 LogsSettingsView(kind: kind)
                     .navigationDestination(for: RunRoute.self) { route in
                         RunDetailView(route: route)
+                            .navigationBarBackButtonHidden(true)
                     }
                     .navigationDestination(for: ForensicsRoute.self) { route in
                         ForensicsDetailView(route: route)
+                            .navigationBarBackButtonHidden(true)
                     }
             }
             .id(kind)

@@ -105,7 +105,6 @@ struct ReapLogView: View {
                 }
             }
         }
-        .navigationBarBackButtonHidden(true)
         .onAppear(perform: load)
         .onChange(of: kind) { load() }
     }

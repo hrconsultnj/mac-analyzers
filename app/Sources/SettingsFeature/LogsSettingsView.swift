@@ -26,14 +26,6 @@ struct LogsSettingsView: View {
                      caption: "Newest runs first — pick one for the full detail. The file itself is never modified.") {
             Section {
                 HStack {
-                    Button {
-                        // explicit intent: land on the Logs screen AND move
-                        // the sidebar highlight there (signal, not inference)
-                        NotificationCenter.default.post(name: logsHomeSignal, object: nil)
-                    } label: {
-                        Label("All Logs", systemImage: "chevron.left")
-                    }
-                    .buttonStyle(.borderless)
                     Spacer()
                     if let url = kind.url {
                         Text(mtime(url)).font(.caption).foregroundStyle(.secondary)
@@ -81,7 +73,6 @@ struct LogsSettingsView: View {
                 }
             }
         }
-        .navigationBarBackButtonHidden(true)
         .onAppear(perform: load)
         .onChange(of: kind) { load() }
     }

@@ -72,7 +72,6 @@ struct LoginItemsView: View {
                 }
             }
         }
-        .navigationBarBackButtonHidden(true)
         .onAppear(perform: load)
     }
 

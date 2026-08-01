@@ -20,12 +20,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// --last 5m` shows whether the event is even delivered on a Dock click.
     public func applicationShouldHandleReopen(_ sender: NSApplication,
                                               hasVisibleWindows flag: Bool) -> Bool {
-        Self.log.info("applicationShouldHandleReopen fired — hasVisibleWindows: \(flag, privacy: .public)")
+        Self.log.notice("applicationShouldHandleReopen fired — hasVisibleWindows: \(flag, privacy: .public)")
         SettingsOpener.open()
         return true
     }
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        Self.log.notice("launched — delegate installed")
         NotificationPoster.shared.setup()
         NotifyBridge.start()
         startUpdateWatcher()

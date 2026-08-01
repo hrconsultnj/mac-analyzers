@@ -12,7 +12,6 @@ struct ForensicsRoute: Hashable {
 struct ForensicsDetailView: View {
 
     let route: ForensicsRoute
-    @Environment(\.dismiss) private var dismiss
     @State private var snapshot: ForensicsSnapshot?
 
     var body: some View {
@@ -20,12 +19,6 @@ struct ForensicsDetailView: View {
                      caption: snapshot?.header ?? (route.path as NSString).lastPathComponent) {
             Section {
                 HStack {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Label("Back", systemImage: "chevron.left")
-                    }
-                    .buttonStyle(.borderless)
                     Spacer()
                     Button("Open in TextEdit") {
                         GuardControl.openLog(URL(fileURLWithPath: route.path))
@@ -71,7 +64,6 @@ struct ForensicsDetailView: View {
                 }
             }
         }
-        .navigationBarBackButtonHidden(true)
         .onAppear { snapshot = ForensicsParser.parse(fileAt: route.path) }
     }
 }

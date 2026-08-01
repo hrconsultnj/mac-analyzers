@@ -7,7 +7,6 @@ import UIComponents
 struct RunDetailView: View {
 
     let route: RunRoute
-    @Environment(\.dismiss) private var dismiss
 
     private struct RunSection: Identifiable {
         let id: Int
@@ -43,12 +42,6 @@ struct RunDetailView: View {
                      caption: route.run.header) {
             Section {
                 HStack {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Label("All Runs", systemImage: "chevron.left")
-                    }
-                    .buttonStyle(.borderless)
                     Spacer()
                     Text("\(route.run.itemCount) line\(route.run.itemCount == 1 ? "" : "s")")
                         .font(.caption)
@@ -75,6 +68,5 @@ struct RunDetailView: View {
                 }
             }
         }
-        .navigationBarBackButtonHidden(true)
     }
 }

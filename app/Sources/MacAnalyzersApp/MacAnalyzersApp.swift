@@ -15,8 +15,37 @@ struct SettingsAnchorView: View {
             .frame(width: 1, height: 1)
             .onReceive(NotificationCenter.default.publisher(
                 for: NotifyChannel.openSettingsInternal)) { _ in
+                SettingsOpener.markHandled(by: "anchor-window")
                 openSettings()
             }
+    }
+}
+
+/// The status-bar chip. It ALSO hosts the open-settings receiver: os_log
+/// diagnosis (2026-08-01) showed the hidden 1×1 anchor window's publisher
+/// gets suspended with the window occluded, so Dock-click reopens died
+/// silently. The label is the one render tree that is alive and visible
+/// for the app's entire lifetime — its receiver always fires.
+struct MenuBarLabelView: View {
+    let killsToday: Int
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        Group {
+            if let icon = MacAnalyzersApp.menuBarIcon {
+                Image(nsImage: icon)
+            } else {
+                Image(systemName: "memorychip")
+            }
+            if killsToday > 0 {
+                Text("\(killsToday)")
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NotifyChannel.openSettingsInternal)) { _ in
+            SettingsOpener.markHandled(by: "menu-bar-label")
+            openSettings()
+        }
     }
 }
 
@@ -47,14 +76,7 @@ struct MacAnalyzersApp: App {
             // brand chip glyph as a TEMPLATE image (black+alpha, macOS tints
             // it for light/dark/translucency); SF-symbol fallback if missing.
             // The badge is the count of today's kills.
-            if let icon = Self.menuBarIcon {
-                Image(nsImage: icon)
-            } else {
-                Image(systemName: "memorychip")
-            }
-            if store.killsToday > 0 {
-                Text("\(store.killsToday)")
-            }
+            MenuBarLabelView(killsToday: store.killsToday)
         }
         .menuBarExtraStyle(.window)
 

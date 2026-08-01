@@ -128,7 +128,6 @@ struct StorageCleanView: View {
                 }
             }
         }
-        .navigationBarBackButtonHidden(true)
         .onAppear(perform: load)
     }
 

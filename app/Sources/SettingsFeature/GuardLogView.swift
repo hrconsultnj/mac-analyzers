@@ -48,7 +48,6 @@ struct GuardLogView: View {
                 }
             }
         }
-        .navigationBarBackButtonHidden(true)
         .onAppear(perform: load)
     }
 

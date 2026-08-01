@@ -27,9 +27,6 @@ struct RunRoute: Hashable {
     let run: LogRun
 }
 
-/// Sidebar/back coordination: "leave the log pane, land on the Logs screen."
-let logsHomeSignal = Notification.Name("com.mac-analyzers.logs-home")
-
 enum LogParser {
 
     /// Parse a log file into runs, newest first.

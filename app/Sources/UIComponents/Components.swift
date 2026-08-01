@@ -296,8 +296,8 @@ public struct PaneHeader: View {
 
     public var body: some View {
         VStack(spacing: 6) {
-            IconTile(symbol: symbol, color: color, side: 34)
-            Text(title).font(.title3.weight(.semibold))
+            IconTile(symbol: symbol, color: color, side: 44)
+            Text(title).font(.title2.weight(.bold))
             Text(caption)
                 .font(.callout)
                 .foregroundStyle(.secondary)
