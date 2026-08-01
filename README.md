@@ -288,6 +288,16 @@ Notice must stay with every copy. **Commercial use requires a separate
 license** — open an issue or reach out via GitHub. Contributions are welcome
 under the terms in [CONTRIBUTING.md](CONTRIBUTING.md).
 
+**Free and supporter builds.** Everything in this repository — the engine,
+the app, every analyzer and cleaner — is free and builds from source as-is.
+A small number of convenience features (things that summarize or automate
+on top of what the app already shows you) live in a separate, private
+package and appear only in supporter builds. Nothing in this repo is
+crippled or time-limited by that: if a feature is here, it works, forever,
+for everyone. The rule the project follows is simple — anything that
+**explains or audits what runs on your Mac stays free**, because that is
+the part you have to be able to trust and verify.
+
 **What this means for the app** (`app/`, the same license): the source is
 public so you can read exactly what runs on your Mac — audit it, build it
 for yourself, patch it, learn from it. What the license does **not** grant
