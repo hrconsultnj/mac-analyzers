@@ -15,6 +15,7 @@ struct LogsSettingsView: View {
         switch kind {
         case .guardLog: GuardLogView()
         case .loginItems: LoginItemsView()
+        case .spotlightAudit: SpotlightAuditView()
         case .storageClean: StorageCleanView()
         case .memoryClean, .reclaim: ReapLogView(kind: kind)
         case .janitor: StorageCleanView(kind: .janitor)

@@ -30,7 +30,7 @@ struct LogsHomeView: View {
         case .guardLog, .memoryClean, .reclaim: .memory
         case .storageClean: .storage
         case .janitor: .downloads
-        case .persistence, .loginItems, .forensics: .system
+        case .persistence, .loginItems, .spotlightAudit, .forensics: .system
         }
     }
 

@@ -322,6 +322,7 @@ public struct MenuContentView: View {
         HStack(spacing: 12) {
             Button("Storage log") { SettingsOpener.open(target: "log:storageClean") }
             Button("Login-items audit") { SettingsOpener.open(target: "log:loginItems") }
+            Button("Spotlight audit") { SettingsOpener.open(target: "log:spotlightAudit") }
             Spacer()
             Text("Last run \(runText(store.lastStorageCleanRun))")
                 .font(.caption)

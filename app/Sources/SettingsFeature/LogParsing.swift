@@ -108,6 +108,13 @@ enum LogParser {
                 pendingHeader = block.joined(separator: " · ")
                 continue
             }
+            if pendingHeader == nil, let last = result.last {
+                // A ====-wrapped block with no banner before it is the closing
+                // summary of the run above (DONE / DRY-RUN trailer), not a run.
+                result[result.count - 1] = LogRun(id: last.id, header: last.header,
+                                                  lines: last.lines + block)
+                continue
+            }
             let header = pendingHeader ?? block.first ?? "Run"
             let body = pendingHeader == nil ? Array(block.dropFirst()) : block
             result.append(LogRun(id: result.count, header: header, lines: body))

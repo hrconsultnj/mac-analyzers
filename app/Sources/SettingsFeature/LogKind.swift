@@ -4,7 +4,8 @@ import SwiftUI
 
 /// The suite's logs — sidebar children of the Logs item.
 enum LogKind: String, CaseIterable, Identifiable {
-    case guardLog, memoryClean, reclaim, storageClean, janitor, persistence, loginItems, forensics
+    case guardLog, memoryClean, reclaim, storageClean, janitor, persistence, loginItems,
+         spotlightAudit, forensics
     var id: String { rawValue }
 
     var title: String {
@@ -16,6 +17,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .janitor: "Downloads Janitor"
         case .persistence: "Persistence Changes"
         case .loginItems: "Login-Items Audit"
+        case .spotlightAudit: "Spotlight Audit"
         case .forensics: "Forensics"
         }
     }
@@ -29,6 +31,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .janitor: "trash"
         case .persistence: "person.badge.key"
         case .loginItems: "person.crop.circle.badge.questionmark"
+        case .spotlightAudit: "magnifyingglass"
         case .forensics: "stethoscope"
         }
     }
@@ -42,6 +45,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .janitor: .orange
         case .persistence: .red
         case .loginItems: .brown
+        case .spotlightAudit: .yellow
         case .forensics: .purple
         }
     }
@@ -55,6 +59,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .janitor: AnalyzersPaths.janitorLog
         case .persistence: AnalyzersPaths.persistenceLog
         case .loginItems: AnalyzersPaths.loginItemsAuditLog
+        case .spotlightAudit: AnalyzersPaths.spotlightAuditLog
         case .forensics: AnalyzersPaths.latestForensics()
         }
     }
