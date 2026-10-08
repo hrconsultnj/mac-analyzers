@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "detectedAt": "2026-10-05T19:27:29.813Z",
+  "probed": true,
+  "os": "macos",
+  "platform": "darwin",
+  "windows": false,
+  "wsl": false,
+  "shell": {
+    "gitBash": "n/a",
+    "insideGitBash": false,
+    "bashVersion": "5.3.12"
+  },
+  "terminal": {
+    "id": "unknown",
+    "wtSession": false,
+    "termProgram": null,
+    "legacyConsoleLikely": false
+  },
+  "toolchain": {
+    "node": "24.16.0",
+    "jq": "1.7.1-apple"
+  },
+  "color": {
+    "noColor": false,
+    "forceColor": null
+  },
+  "tier": "full",
+  "findings": []
+}
