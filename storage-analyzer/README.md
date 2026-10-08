@@ -13,6 +13,7 @@ cd ~/mac-analyzers/storage-analyzer    # run the ./ commands below from here
 | `storage-auto-clean.sh` | Automation-safe sweep for scheduling (protects active work) | dry-run |
 | `login-items-audit.sh` | Find + remove login items/agents whose app was uninstalled | dry-run |
 | `spotlight-audit.sh` | Spotlight status, stuck-vs-progressing verdict, dev-dir index fencing | dry-run |
+| `temp-clean.sh` | /tmp, /var and AI-agent leftovers (Claude Code, Codex, npx MCP servers) — mount-aware, reviewed | dry-run (Trash; `--permanent` opt-in) |
 | `tm-reclaim.sh` | Release snapshot-pinned space NOW + start a fresh TM backup | acts (no files touched) |
 | `storage-manage-agents.sh` | Install / remove the scheduled LaunchAgents | — |
 
@@ -69,6 +70,26 @@ backup then captures the post-cleanup state, so the deletions never linger as
 "pending" in snapshot history. Real backups on the TM disk are never touched;
 OS-update snapshots are left alone. Passwordless with the sudoers rule below.
 
+### …clear /tmp, /var and AI-agent leftovers
+```bash
+./temp-clean.sh                          # audit — what's there, what's ready, why the rest stays
+./temp-clean.sh --apply                  # move ready items to the Trash (receipts; Undo in the app)
+./temp-clean.sh --apply --permanent      # delete them instead — frees space immediately
+./temp-clean.sh --eject /private/tmp/X   # eject a disk image mounted inside temp
+```
+`du /tmp` lies when a disk image is mounted there: its contents are counted but
+are not on your disk. The audit lists mounted images separately with the file
+behind each one; an approved item that backs an image ejects it first (never
+forced — if it is busy, the item is left alone).
+
+Left alone, always: anything open right now, anything changed in the last 24 h
+(agent scratch: 3 days; npx tools: 14 days), other users' files, system and
+lock entries, live Claude Code sessions, and Codex/Claude app files while those
+apps are running. AI-agent history, settings and credentials are **sized,
+never touched** — Claude Code prunes its own transcripts after
+`cleanupPeriodDays`; Codex sessions are removed with `codex delete`. Knobs:
+`TEMP_CLEAN_*` and `ANALYZERS_AGENT_DIRS` in `config.local.sh`.
+
 ### …prune old dictation recordings (opt-in; set ANALYZERS_RECORDINGS_DIR)
 ```bash
 ./cleanup.sh --recordings-older-than 90            # dry run
@@ -83,7 +104,7 @@ Two LaunchAgents (installed & loaded; times are defaults — the Mac Analyzers
 app's Settings → Schedule pane edits them, and the edits survive reinstalls
 and upgrades):
 - **daily 08:00** → `--mode daily --apply --docker-running-only` — build caches idle >3 days (incl. any ANALYZERS_EXTRA_CACHE_GLOBS from config.local.sh), + a quick Docker prune **only if Docker is already running** (never boots it)
-- **every 3 days** → `--mode deep --apply --docker-images --prune-snapshots` — caches + node_modules of *idle, git-clean* repos; removes **all unused Docker images** (boots Docker if off, then shuts it back down); **thins TM snapshots** so freed space lands immediately
+- **every 3 days** → `--mode deep --apply --docker-images --prune-snapshots` — caches + node_modules of *idle* repos + finished worktrees (when enabled); removes **all unused Docker images** (boots Docker if off, then shuts it back down); **thins TM snapshots** so freed space lands immediately
 
 ```bash
 ./storage-manage-agents.sh status          # are they loaded? next run?
@@ -118,6 +139,29 @@ The rule **cannot** delete real backups or run anything but that one command.
 ./storage-auto-clean.sh --apply --docker-volumes    # + prune volumes — ⚠ DATA loss, manual only
 ```
 Tunables: `--cache-age-days N` (default 3) · `--nm-age-days N` (default 14).
+
+What else each run covers, set in `config.local.sh` (or the app's Settings › Storage):
+
+- **Turborepo caches are capped** per repo (`ANALYZERS_TURBO_CACHE_MAX_GB`, default 2) on every run —
+  turbo never evicts its cache, and an active repo is never idle long enough for the age rule.
+  A repo whose turbo is running is skipped. If one build adds GBs, check that your `turbo.json`
+  build outputs exclude `.next/dev/**` as well as `.next/cache/**`.
+- **node_modules** age and the clean-tree test are configurable (`ANALYZERS_NM_AGE_DAYS`,
+  `ANALYZERS_NM_REQUIRE_CLEAN`). A repo something live runs from — a process, a terminal or
+  agent session sitting in it, a loaded LaunchAgent — is never touched.
+- **Finished git worktrees** — the ones coding agents leave behind (`.composure/workspaces`,
+  `.claude/worktrees`, …) — are removed with `git worktree remove` in deep mode when
+  `ANALYZERS_WORKTREE_IDLE_DAYS` is set, but only when their work is **already merged** into the
+  current checkout or a base branch (development, develop, main, master — local or origin),
+  squash and rebase merges included (a trial `git merge-tree` that changes nothing). The branch
+  stays. Unmerged work is never removed, and neither is a worktree with uncommitted or untracked
+  files, one idle less than that many days, one a process or session runs from, or a locked one.
+  Ignored files are checked too — `git status` hides them but removing the worktree deletes
+  them — so one holding anything ignored that isn't a rebuildable build folder (an `.env`, a
+  local database, a key) is kept and the log names the files.
+- **Tool caches** (`ANALYZERS_TOOL_CACHES`) now include every app's `~/Library/Caches` folder,
+  never-booted simulator runtimes, Android emulator snapshots, aerial wallpaper downloads,
+  the Go module cache, Bun and CIPD caches — see `config.example.sh` for the ids.
 Logs to `~/mac-analyzers/reports/storage/auto-clean.log`. Fires a macOS
 notification each run via `../lib/notify.sh` (menu-bar app → alerter →
 osascript — see the root README's Notifications section; clicking one opens

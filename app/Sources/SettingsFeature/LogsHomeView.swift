@@ -28,7 +28,7 @@ struct LogsHomeView: View {
     private func bucket(_ kind: LogKind) -> Category {
         switch kind {
         case .guardLog, .memoryClean, .reclaim: .memory
-        case .storageClean: .storage
+        case .storageClean, .tempSpace: .storage
         case .janitor: .downloads
         case .persistence, .loginItems, .spotlightAudit, .forensics: .system
         }

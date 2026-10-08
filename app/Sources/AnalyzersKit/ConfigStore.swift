@@ -28,6 +28,11 @@ public struct StorageTunables: Equatable, Sendable {
     public var janitorDownloadsDays = 30       // JANITOR_DOWNLOADS_AGE_DAYS
     public var janitorScreenshotsDays = 14     // JANITOR_SCREENSHOTS_AGE_DAYS
     public var janitorKeepPatterns: [String] = []  // JANITOR_KEEP_PATTERNS (colon list)
+    // Code-project cleanup (node_modules / Turborepo cache).
+    public var nmAgeDays = 14                  // ANALYZERS_NM_AGE_DAYS
+    public var nmRequireClean = true           // ANALYZERS_NM_REQUIRE_CLEAN (1/0)
+    public var turboCacheMaxGB = 2             // ANALYZERS_TURBO_CACHE_MAX_GB
+    public var worktreeIdleDays = 0            // ANALYZERS_WORKTREE_IDLE_DAYS (0 = off)
     public init() {}
 }
 
@@ -133,6 +138,10 @@ public final class ConfigStore {
         if let v = value("JANITOR_SCREENSHOTS_AGE_DAYS").flatMap({ Int($0) }) {
             storage.janitorScreenshotsDays = v
         }
+        if let v = value("ANALYZERS_NM_AGE_DAYS").flatMap({ Int($0) }) { storage.nmAgeDays = v }
+        if let v = value("ANALYZERS_NM_REQUIRE_CLEAN") { storage.nmRequireClean = v != "0" }
+        if let v = value("ANALYZERS_TURBO_CACHE_MAX_GB").flatMap({ Int($0) }) { storage.turboCacheMaxGB = v }
+        if let v = value("ANALYZERS_WORKTREE_IDLE_DAYS").flatMap({ Int($0) }) { storage.worktreeIdleDays = v }
         if let v = value("JANITOR_KEEP_PATTERNS") {
             storage.janitorKeepPatterns = v.split(separator: ":")
                 .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
@@ -206,6 +215,10 @@ public final class ConfigStore {
         if !storage.janitorKeepPatterns.isEmpty {
             out += "JANITOR_KEEP_PATTERNS=\(shellQuote(storage.janitorKeepPatterns.joined(separator: ":")))\n"
         }
+        out += "ANALYZERS_NM_AGE_DAYS=\(storage.nmAgeDays)\n"
+        out += "ANALYZERS_NM_REQUIRE_CLEAN=\(storage.nmRequireClean ? 1 : 0)\n"
+        out += "ANALYZERS_TURBO_CACHE_MAX_GB=\(storage.turboCacheMaxGB)\n"
+        out += "ANALYZERS_WORKTREE_IDLE_DAYS=\(storage.worktreeIdleDays)\n"
         out += "ANALYZERS_NOTIFY_TIMEOUT=\(notify.timeoutSeconds)\n"
         out += "ANALYZERS_LOG_VIEWER=\(shellQuote(notify.logViewer))\n"
         out += Self.blockEnd + "\n"

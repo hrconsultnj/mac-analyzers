@@ -63,4 +63,8 @@ public extension AnalyzersPaths {
     /// `.metadata_never_index` markers directly (FileManager), which is
     /// exactly the manual reversal the script itself documents.
     static let spotlightAuditScript = suiteRoot.appending(path: "storage-analyzer/spotlight-audit.sh")
+    /// Temp + AI-agent leftovers: audit, reviewed Trash/permanent cleanup,
+    /// and ejecting disk images mounted inside temp folders. Dry run unless
+    /// --apply; --only-paths narrows an apply to the rows the user kept ticked.
+    static let tempCleanScript = suiteRoot.appending(path: "storage-analyzer/temp-clean.sh")
 }

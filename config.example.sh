@@ -41,11 +41,40 @@
 #ANALYZERS_SPOTLIGHT_ROOTS="$HOME/Projects $HOME/Work"
 
 # Tool-cache expansion pack (storage-auto-clean): comma list of opt-in ids.
-# Available: brew,pip,uv,cargo,gradle,deriveddata — all redownloadable cache.
+# Any run: brew,pip,uv,cargo,gradle,deriveddata,bun,cipd
+# Deep only: appcaches (every app's ~/Library/Caches folder, minus macOS's own,
+#   the protect list and anything written in the last hour), gomod,
+#   simulators (runtimes never booted, installed 7+ days ago), avd (Android
+#   emulator quick-boot snapshots), aerials (wallpaper videos unseen 14 days).
+# All redownloadable / rebuildable — never sources, never state.
 # ANALYZERS_TOOL_CACHES="brew,uv,deriveddata"
+#ANALYZERS_APPCACHE_KEEP="SomeApp|com\.vendor\..*"   # extra ~/Library/Caches names to keep (regex alts)
+
+# Code projects (storage-auto-clean, under the roots — default ~/Projects).
+#ANALYZERS_NM_AGE_DAYS=14          # node_modules of repos idle this many days (deep)
+#ANALYZERS_NM_REQUIRE_CLEAN=1      # 0 = also when the git tree has uncommitted changes
+#ANALYZERS_TURBO_CACHE_MAX_GB=2    # per-repo .turbo/cache cap, oldest entries go (every run)
+# Finished git worktrees (deep): removed with `git worktree remove` once their
+# work is ALREADY MERGED into the current checkout or a base branch (local or
+# origin; squash/rebase merges count). The branch stays. Never: unmerged work,
+# uncommitted or untracked files, ignored files that aren't build output (.env,
+# local databases, keys), locked worktrees, one a terminal/agent session sits
+# in. 0 = off.
+#ANALYZERS_WORKTREE_IDLE_DAYS=0
 
 # Downloads janitor (storage-analyzer/downloads-janitor.sh). Everything it
 # moves goes to the Trash, never deleted, and is listed for review first.
 # JANITOR_DOWNLOADS_AGE_DAYS=30      # top-level ~/Downloads items untouched this long
 # JANITOR_SCREENSHOTS_AGE_DAYS=14    # screenshot FILES older than this (folders never move)
 # JANITOR_KEEP_PATTERNS="*.dmg:Tax *"  # colon-separated globs that are never touched
+
+# Temp & AI-agent cleaner (storage-analyzer/temp-clean.sh). Dry run by default;
+# --apply moves to the Trash, --apply --permanent deletes. Nothing open, live,
+# recent, or someone else's is ever touched.
+# TEMP_CLEAN_MIN_AGE_HOURS=24        # /tmp, $TMPDIR and /var/tmp entries idle this long
+# TEMP_CLEAN_AGENT_SCRATCH_DAYS=3    # Claude Code / Codex scratch idle this long
+# TEMP_CLEAN_NPX_DAYS=14             # npx-run tools / MCP servers unused this long
+# TEMP_CLEAN_KEEP_PATTERNS="*.iso:my-build-*"   # colon-separated globs never touched
+# Extra AI-agent folders to SIZE (never cleaned) — e.g. a session archive.
+# Colon-separated.
+#ANALYZERS_AGENT_DIRS="$HOME/.my-agent/sessions:$HOME/.other-agent/history"

@@ -9,9 +9,21 @@
 #     are removed ONLY if the cache dir itself hasn't been written in N days
 #     (--cache-age-days, default 3). If a dev server/build ran recently, skip.
 #
+#   * Turborepo caches never evict themselves, and an active repo is never
+#     idle long enough for the rule above — so each repo's .turbo/cache is
+#     capped (ANALYZERS_TURBO_CACHE_MAX_GB, default 2): oldest entries beyond
+#     the cap go on every run. Skipped while turbo is running.
+#
 #   * node_modules is removed ONLY for STALE repos — no source file modified in
-#     M days (--nm-age-days, default 14) AND a clean git working tree. A repo
-#     with uncommitted changes or recent edits is left fully intact.
+#     M days (--nm-age-days / ANALYZERS_NM_AGE_DAYS, default 14) AND a clean
+#     git working tree (ANALYZERS_NM_REQUIRE_CLEAN=0 drops that second test —
+#     source files are never touched either way). A repo something live runs
+#     from (a process, or a loaded LaunchAgent) is always left intact.
+#
+#   * Tool caches (ANALYZERS_TOOL_CACHES, opt-in per id): package managers,
+#     every app's ~/Library/Caches folder, never-booted simulators, emulator
+#     snapshots, downloaded aerial wallpapers. Rebuildable / re-downloadable
+#     only — never sources, never state. The heavier ids run in deep mode.
 #
 #   * Package-manager caches: pnpm store prune drops UNREFERENCED data only,
 #     but `npm cache clean --force` empties the ENTIRE npm cache (_cacache).
@@ -35,7 +47,7 @@
 #   ./storage-auto-clean.sh --apply --docker-images                 # + remove ALL unused images (the big reclaim)
 #   ./storage-auto-clean.sh --apply --docker-volumes                # + prune volumes — ⚠ DATA loss; manual only
 #
-# Tunables: --cache-age-days N  --nm-age-days N  --snapshot-keep-days N
+# Tunables: --cache-age-days N  --nm-age-days N  --worktree-idle-days N  --snapshot-keep-days N
 #           --roots "dir1 dir2"  (default: ~/Projects)
 # Docker:   starts the container runtime (OrbStack or Docker Desktop, whichever
 #           backs the docker CLI here) only if not already running, prunes, then
@@ -73,6 +85,11 @@ ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_FILE="${LOG_DIR}/auto-clean.log"
 LOCK_FILE="${LOG_DIR}/.auto-clean.lock"
 
+# Knobs the app writes into config.local.sh; the CLI flags below still win.
+NM_AGE_DAYS="${ANALYZERS_NM_AGE_DAYS:-$NM_AGE_DAYS}"
+NM_REQUIRE_CLEAN="${ANALYZERS_NM_REQUIRE_CLEAN:-1}"
+TURBO_MAX_GB="${ANALYZERS_TURBO_CACHE_MAX_GB:-2}"
+
 BUILD_CACHE_NAMES=( .next .turbo dist build .vite .svelte-kit .nuxt .parcel-cache )
 
 # ---------- args ----------
@@ -89,6 +106,7 @@ while [[ $# -gt 0 ]]; do
     --docker-volumes)     DOCKER=1; DOCKER_VOLUMES=1 ;;
     --cache-age-days)     CACHE_AGE_DAYS="${2:-3}"; shift ;;
     --nm-age-days)        NM_AGE_DAYS="${2:-14}"; shift ;;
+    --worktree-idle-days) WT_IDLE_DAYS_FLAG="${2:-0}"; shift ;;
     --snapshot-keep-days) SNAPSHOT_KEEP_DAYS="${2:-5}"; shift ;;
     --roots)              ROOTS="${2:-}"; shift ;;
     --only-paths)         ONLY_PATHS="${2:-}"; shift ;;
@@ -111,7 +129,7 @@ if [[ -z "$ORIG_ARGS" ]] && { [[ -t 0 ]] || [[ "${FORCE_INTERACTIVE:-0}" == "1" 
   echo "  -------------------------------------------"
   echo "  1) Preview daily clean (stale build caches)"
   echo "  2) Apply daily clean"
-  echo "  3) Preview deep clean (+ node_modules of idle repos, package caches, TM)"
+  echo "  3) Preview deep clean (+ node_modules of idle repos, finished worktrees, package & app caches, TM)"
   echo "  4) Apply deep clean (+ thin TM snapshots, prune Docker images)"
   echo "  q) Quit"
   echo ""
@@ -137,7 +155,11 @@ if [[ -e "$LOCK_FILE" ]]; then
   fi
 fi
 echo "$$" > "$LOCK_FILE"
-trap 'rm -f "$LOCK_FILE"' EXIT
+cleanup_tmp() {
+  rm -f "$LOCK_FILE" ${RUNTIME_ROOTS_FILE:+"$RUNTIME_ROOTS_FILE"} \
+        ${STALE_LIST:+"$STALE_LIST"} ${ACTIVE_LIST:+"$ACTIVE_LIST"} ${WT_LIST:+"$WT_LIST"}
+}
+trap cleanup_tmp EXIT
 
 # ---------- helpers ----------
 TOTAL_KB=0
@@ -187,7 +209,9 @@ reclaim() {
   if [[ "$DRY_RUN" -eq 1 ]]; then
     log "  [DRY]     $(printf '%10s' "$(human "$kb")")  $p"
   else
-    if rm -rf "$p" 2>/dev/null; then
+    # some tools write their caches read-only (dotslash, Go modules) — give
+    # the owner write access back before the second attempt
+    if rm -rf "$p" 2>/dev/null || { chmod -R u+w "$p" 2>/dev/null; rm -rf "$p" 2>/dev/null; }; then
       log "  [DELETED] $(printf '%10s' "$(human "$kb")")  $p"
     else
       log "  [FAILED]  $(printf '%10s' "$(human "$kb")")  $p"
@@ -215,6 +239,58 @@ is_idle() {
            -o -name .svelte-kit -o -name .nuxt -o -name .parcel-cache \) -prune \
         -o -type f -mtime "-${days}" -print -quit 2>/dev/null)
   [[ -z "$hit" ]]
+}
+
+# cmd_reclaim <path> <kb> <command...> — reclaim() for things the owning tool
+# must remove itself (read-only Go module cache, simulator runtimes): same
+# approval check, same log lines, but runs <command> instead of rm -rf.
+cmd_reclaim() {
+  local p="$1" kb="$2"; shift 2
+  if ! approved "$p"; then
+    log "  [SKIP]    not in approved set  $p"
+    return 0
+  fi
+  TOTAL_KB=$((TOTAL_KB + kb))
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    log "  [DRY]     $(printf '%10s' "$(human "$kb")")  $p"
+  elif "$@" >>"$LOG_FILE" 2>&1; then
+    log "  [DELETED] $(printf '%10s' "$(human "$kb")")  $p"
+  else
+    log "  [FAILED]  $(printf '%10s' "$(human "$kb")")  $p"
+  fi
+}
+
+# protected <name> — the user's protect list (ANALYZERS_PROTECT_EXTRA, regex
+# alternatives) always wins, here as in the memory guard.
+protected() {
+  [[ -n "${ANALYZERS_PROTECT_EXTRA:-}" ]] || return 1
+  printf '%s\n' "$1" | grep -qiE -- "${ANALYZERS_PROTECT_EXTRA}"
+}
+
+# Repo roots something LIVE runs from — a running process whose command line
+# names a path under the roots, or a LOADED LaunchAgent pointing there. The
+# idle clock can't see these (a bridge or a backup job edits nothing), so
+# their node_modules are never removed. Built once, on first use.
+RUNTIME_ROOTS_FILE=""
+is_runtime_root() {
+  if [[ -z "$RUNTIME_ROOTS_FILE" ]]; then
+    RUNTIME_ROOTS_FILE="$(mktemp -t autoclean-runtime)"
+    local roots_re="" r loaded plist p rr
+    for r in $ROOTS; do roots_re="${roots_re:+${roots_re}|}$(printf '%s' "$r" | sed 's/[.[\*^$+?(){}|]/\\&/g')"; done
+    loaded="$(launchctl list 2>/dev/null | awk 'NR>1{print $3}')"
+    {
+      ps -axo command= 2>/dev/null
+      # working directories too: a shell or agent session sitting in a
+      # checkout names no path on its command line
+      lsof -a -u "$(id -u)" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | sed 's#$#/#'
+      for plist in "$HOME"/Library/LaunchAgents/*.plist; do
+        printf '%s\n' "$loaded" | grep -qxF "$(basename "$plist" .plist)" && cat "$plist"
+      done
+    } | grep -oE "(${roots_re})/[^ <\"']+" | sort -u | while IFS= read -r p; do
+      rr="$(repo_root "$p" || true)"; [[ -n "$rr" ]] && echo "$rr"
+    done | sort -u > "$RUNTIME_ROOTS_FILE"
+  fi
+  grep -qxF -- "$1" "$RUNTIME_ROOTS_FILE"
 }
 
 # Docker prune. If the daemon isn't running, start Docker Desktop, prune, then
@@ -285,7 +361,7 @@ docker_maint() {
 # ---------- header ----------
 log "=================================================================="
 log " storage-auto-clean.sh  |  mode=${MODE}  |  $([[ $DRY_RUN -eq 1 ]] && echo 'DRY RUN' || echo 'APPLY')  |  ${TS_NOW}"
-log " roots=${ROOTS}  cache>${CACHE_AGE_DAYS}d  nm>${NM_AGE_DAYS}d  snap-keep=${SNAPSHOT_KEEP_DAYS}d"
+log " roots=${ROOTS}  cache>${CACHE_AGE_DAYS}d  nm>${NM_AGE_DAYS}d$([[ "$NM_REQUIRE_CLEAN" == "1" ]] && echo '(clean)' || echo '(any)')  turbo<=${TURBO_MAX_GB}GB  snap-keep=${SNAPSHOT_KEEP_DAYS}d"
 log " input: ${INVOKED}"
 log "=================================================================="
 
@@ -306,6 +382,39 @@ for root in $ROOTS; do
     \) -prune 2>/dev/null)
 done
 
+# ---------- 1.2 Turborepo cache cap (both modes) ----------
+# turbo never evicts its local cache: every build adds a tarball of the task's
+# outputs, and a Next.js app whose turbo.json doesn't exclude .next/dev adds
+# GBs per build. A deleted entry is only a cache miss on the next build.
+TURBO_MAX_KB=$(( TURBO_MAX_GB * 1048576 ))
+group "1.2 Turborepo cache entries beyond ${TURBO_MAX_GB} GB per repo"
+# A running turbo is tied to its repo by the node_modules path it runs from;
+# one we can't place (a global install) pauses the cap everywhere.
+TURBO_PS="$(ps -axo command= 2>/dev/null | grep -E '(^|/)turbo (run|build|watch|daemon)' || true)"
+turbo_busy() {
+  [[ -n "$TURBO_PS" ]] || return 1
+  printf '%s\n' "$TURBO_PS" | grep -qF -- "$1/" && return 0
+  printf '%s\n' "$TURBO_PS" | grep -qv "/node_modules/"
+}
+for root in $ROOTS; do
+  [[ -d "$root" ]] || continue
+  while IFS= read -r cdir; do
+    case "$cdir" in */node_modules/*) continue ;; esac
+    trepo="$(repo_root "$cdir" || dirname "$(dirname "$cdir")")"
+    if turbo_busy "$trepo"; then log "  (turbo is running in ${trepo} — its cache left alone this run)"; continue; fi
+    entries=( "$cdir"/*.tar.zst "$cdir"/*.tar.gz )
+    [[ ${#entries[@]} -gt 0 ]] || continue   # never hand ls an empty list
+    kept=0
+    # newest first: keep entries until the cap, reclaim the rest
+    while IFS= read -r entry; do
+      kb=$(du -sk "$entry" 2>/dev/null | cut -f1); kb="${kb:-0}"
+      if (( kept + kb <= TURBO_MAX_KB )); then kept=$((kept + kb)); continue; fi
+      reclaim "$entry"
+      [[ "$DRY_RUN" -eq 0 && ! -e "$entry" ]] && rm -f "${entry%.tar.*}-meta.json"
+    done < <(ls -t "${entries[@]}")
+  done < <(find "$root" -type d -path "*/.turbo/cache" -prune 2>/dev/null)
+done
+
 # ---------- 1.5 Extra cache globs from config (both modes) ----------
 # App-generated per-project caches outside ~/Projects (set
 # ANALYZERS_EXTRA_CACHE_GLOBS in config.local.sh). Same age window as above.
@@ -324,16 +433,136 @@ else
   log "  (none configured)"
 fi
 
+# ---------- 1.8 Finished git worktrees (deep mode, opt-in) ----------
+# A worktree is a second checkout of a repo — coding agents create them by
+# the dozen (.composure/workspaces, .claude/worktrees, …). One whose work is
+# ALREADY MERGED into the current checkout or a base branch is removed with
+# `git worktree remove`; its branch stays. Kept: anything not merged yet,
+# uncommitted or untracked files, IGNORED files that aren't rebuildable
+# (.env, local databases, keys — on no branch and no remote), locked
+# worktrees, anything something live runs from (incl. a session sitting in
+# it), and anything touched in the last N days
+# (ANALYZERS_WORKTREE_IDLE_DAYS; 0 or unset = this section is off).
+WT_IDLE_DAYS="${WT_IDLE_DAYS_FLAG:-${ANALYZERS_WORKTREE_IDLE_DAYS:-0}}"
+WT_LIST=""
+if [[ "$MODE" == "deep" && "$WT_IDLE_DAYS" -gt 0 ]]; then
+  group "1.8 Git worktrees — already merged, clean, idle >${WT_IDLE_DAYS}d"
+  WT_LIST="$(mktemp -t autoclean-wt)"
+  wt_kept=0
+  # A worktree goes only when its work is ALREADY IN — merged into what the
+  # primary checkout has checked out, or into any base branch (development,
+  # develop, main, master; local or origin). One base alone would report every
+  # hotfix (merged to main) or GitHub-merged branch (local base behind) as
+  # unmerged. Unmerged work stays checked out, committed or not.
+  wt_targets() {  # <repo> -> merge targets, one per line
+    local b r
+    echo "HEAD"
+    for b in development develop main master; do
+      for r in "refs/heads/$b" "refs/remotes/origin/$b"; do
+        git -C "$1" rev-parse -q --verify "$r" >/dev/null 2>&1 && echo "$r"
+      done
+    done
+  }
+  wt_label() {  # <repo> <target>
+    if [[ "$2" == "HEAD" ]]; then
+      echo "the current checkout ($(git -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null))"
+    else
+      echo "${2#refs/*/}"
+    fi
+  }
+  wt_merged_into() {  # <repo> <sha> -> label of the first target that has it
+    local t tree
+    for t in $(wt_targets "$1"); do
+      git -C "$1" merge-base --is-ancestor "$2" "$t" 2>/dev/null \
+        && { wt_label "$1" "$t"; return 0; }
+    done
+    # Squash and rebase merges leave no ancestry. Trial-merge instead (nothing
+    # is written to any branch): if merging the worktree's commit into the
+    # target yields the target's own tree, its changes are already in.
+    for t in $(wt_targets "$1"); do
+      tree="$(git -C "$1" merge-tree --write-tree "$t" "$2" 2>/dev/null | head -1)"
+      [[ -n "$tree" && "$tree" == "$(git -C "$1" rev-parse "$t^{tree}" 2>/dev/null)" ]] \
+        && { echo "$(wt_label "$1" "$t") (squash or rebase merge)"; return 0; }
+    done
+    return 1
+  }
+  # Ignored files are invisible to `status --porcelain`, but `worktree remove`
+  # deletes them — and an .env, a local database or a key is on no branch and
+  # no remote. A worktree goes only when every ignored path is rebuildable.
+  WT_REBUILDABLE='node_modules|\.next|\.turbo|dist|build|out|\.output|\.vite|\.svelte-kit|\.nuxt|\.parcel-cache|\.cache|coverage|\.nyc_output|\.venv|venv|__pycache__|\.pytest_cache|\.mypy_cache|\.ruff_cache|\.tox|target|\.expo|\.gradle|Pods|DerivedData|\.build|\.swiftpm|\.pnpm-store|\.eslintcache|\.DS_Store|next-env\.d\.ts|.*\.tsbuildinfo|.*\.pyc|.*\.log'
+  wt_precious_ignored() {  # <worktree> -> ignored paths that are NOT rebuildable
+    git -C "$1" status --porcelain --ignored=matching 2>/dev/null | sed -n 's/^!! //p' \
+      | while IFS= read -r p; do
+          p="${p%/}"
+          printf '%s\n' "${p##*/}" | grep -qxE -- "$WT_REBUILDABLE" || echo "$p"
+        done
+  }
+  wt_consider() {  # <repo> <worktree> <head-sha> <branch|""> <locked 0|1>
+    local repo="$1" wt="$2" sha="$3" br="$4" locked="$5" ref why="" kb precious
+    [[ -d "$wt" ]] || return 0
+    # linked worktrees carry a .git FILE; a .git directory is a primary checkout
+    [[ -f "$wt/.git" ]] || return 0
+    [[ "$locked" == "1" ]] && { wt_kept=$((wt_kept+1)); return 0; }
+    [[ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]] && { wt_kept=$((wt_kept+1)); return 0; }
+    precious="$(wt_precious_ignored "$wt" | head -3 | tr '\n' ' ')"
+    if [[ -n "$precious" ]]; then
+      wt_kept=$((wt_kept+1))
+      log "  (kept ${wt} — ignored files that exist nowhere else: ${precious% })"
+      return 0
+    fi
+    is_runtime_root "$wt" && { wt_kept=$((wt_kept+1)); return 0; }
+    is_idle "$wt" "$WT_IDLE_DAYS" || { wt_kept=$((wt_kept+1)); return 0; }
+    # main/development checkouts follow the same rule: a release worktree at
+    # or behind origin/main is "already in" origin/main.
+    why="$(wt_merged_into "$repo" "$sha")" || { wt_kept=$((wt_kept+1)); return 0; }
+    why="merged into ${why}"
+    [[ -n "$br" ]] && why="${br} — ${why}"
+    echo "$wt" >> "$WT_LIST"
+    kb=$(du -sk "$wt" 2>/dev/null | cut -f1)
+    cmd_reclaim "$wt" "${kb:-0}" git -C "$repo" worktree remove "$wt"
+    log "              ↳ ${why}"
+  }
+  for root in $ROOTS; do
+    [[ -d "$root" ]] || continue
+    while IFS= read -r gitdir; do
+      repo="$(dirname "$gitdir")"
+      first=1; wt=""; sha=""; br=""; locked=0
+      while IFS= read -r line; do
+        case "$line" in
+          "worktree "*) wt="${line#worktree }"; sha=""; br=""; locked=0 ;;
+          "HEAD "*)     sha="${line#HEAD }" ;;
+          "branch "*)   br="${line#branch refs/heads/}" ;;
+          locked*)      locked=1 ;;
+          "")           [[ $first -eq 0 && -n "$wt" ]] && wt_consider "$repo" "$wt" "$sha" "$br" "$locked"
+                        first=0; wt="" ;;
+        esac
+      done < <(git -C "$repo" worktree list --porcelain 2>/dev/null; echo "")
+      [[ "$DRY_RUN" -eq 0 ]] && git -C "$repo" worktree prune 2>/dev/null
+    done < <(find "$root" \( -name node_modules -o -name .composure -o -name .claude \) -prune \
+               -o -type d -name .git -prune -print 2>/dev/null)
+  done
+  log "  (kept ${wt_kept} worktrees — uncommitted or ignored-but-precious files, unpushed base branch, locked, live, or recent)"
+fi
+
 # ---------- 2. node_modules of stale repos (deep mode only) ----------
 if [[ "$MODE" == "deep" ]]; then
-  group "2. node_modules of repos idle >${NM_AGE_DAYS}d with a clean git tree"
+  if [[ "$NM_REQUIRE_CLEAN" == "1" ]]; then
+    group "2. node_modules of repos idle >${NM_AGE_DAYS}d with a clean git tree"
+  else
+    group "2. node_modules of repos idle >${NM_AGE_DAYS}d (uncommitted changes allowed)"
+  fi
   STALE_LIST="$(mktemp -t autoclean-stale)"
   ACTIVE_LIST="$(mktemp -t autoclean-active)"
-  trap 'rm -f "$LOCK_FILE" "$STALE_LIST" "$ACTIVE_LIST"' EXIT
 
   for root in $ROOTS; do
     [[ -d "$root" ]] || continue
     while IFS= read -r nm; do
+      # already counted with its whole worktree in 1.8
+      if [[ -n "$WT_LIST" ]]; then
+        in_wt=0
+        while IFS= read -r w; do case "$nm" in "$w"/*) in_wt=1; break ;; esac; done < "$WT_LIST"
+        [[ $in_wt -eq 1 ]] && continue
+      fi
       rr="$(repo_root "$nm" || true)"
       [[ -n "$rr" ]] || rr="$(dirname "$nm")"   # no git? use parent dir
       # already classified?
@@ -341,9 +570,12 @@ if [[ "$MODE" == "deep" ]]; then
       grep -qxF "$rr" "$ACTIVE_LIST" 2>/dev/null && continue
       # classify this repo root once
       verdict="active"
-      if is_idle "$rr" "$NM_AGE_DAYS"; then
-        # idle by mtime — confirm clean git tree before trusting it
-        if [[ -d "$rr/.git" ]]; then
+      if is_runtime_root "$rr"; then
+        :   # something live runs from this repo — never idle, whatever mtime says
+      elif is_idle "$rr" "$NM_AGE_DAYS"; then
+        # idle by mtime — confirm clean git tree before trusting it (unless
+        # the user opted out: node_modules never holds their work)
+        if [[ "$NM_REQUIRE_CLEAN" == "1" && -d "$rr/.git" ]]; then
           if [[ -z "$(git -C "$rr" status --porcelain 2>/dev/null)" ]]; then
             verdict="stale"
           fi
@@ -365,28 +597,37 @@ fi
 if [[ "$MODE" == "deep" ]]; then
   group "3. Package-manager caches (prune unreferenced only)"
   if command -v pnpm >/dev/null 2>&1; then
+    # launchd starts us with cwd=/ (read-only system volume); pnpm writes a temp
+    # file into the cwd and dies with EROFS, so prune from $HOME.
     if [[ "$DRY_RUN" -eq 1 ]]; then log "  [DRY]     pnpm store prune"
-    else log "  running: pnpm store prune"; pnpm store prune >>"$LOG_FILE" 2>&1 || true; fi
+    elif [[ -n "$ONLY_PATHS" ]]; then log "  [SKIP]    pnpm store prune — not part of a reviewed selection"
+    else log "  running: pnpm store prune"; (cd "$HOME" && pnpm store prune) >>"$LOG_FILE" 2>&1 || true; fi
   fi
   if command -v npm >/dev/null 2>&1; then
     if [[ "$DRY_RUN" -eq 1 ]]; then log "  [DRY]     npm cache clean --force"
+    elif [[ -n "$ONLY_PATHS" ]]; then log "  [SKIP]    npm cache clean — not part of a reviewed selection"
     else log "  running: npm cache clean --force"; npm cache clean --force >>"$LOG_FILE" 2>&1 || true; fi
   fi
 fi
 
 # ---------- 3b. Tool caches — expansion pack (opt-in via config, either mode) ----------
-# ANALYZERS_TOOL_CACHES: comma list of enabled ids (brew,pip,uv,cargo,gradle,deriveddata).
+# ANALYZERS_TOOL_CACHES: comma list of enabled ids —
+#   either mode: brew,pip,uv,cargo,gradle,deriveddata,bun,cipd
+#   deep only:   appcaches,gomod,simulators,avd,aerials
 # Everything here is REDOWNLOADABLE/REBUILDABLE cache — never sources, never state.
 TOOL_CACHES="${ANALYZERS_TOOL_CACHES:-}"
 if [[ -n "$TOOL_CACHES" ]]; then
   group "3b. Tool caches (opt-in expansion pack)"
+  enabled() { [[ ",${TOOL_CACHES}," == *",$1,"* ]]; }
   tc_human() { awk -v k="$1" 'BEGIN{ if(k>=1048576) printf "%.1f GB",k/1048576; else if(k>=1024) printf "%.1f MB",k/1024; else printf "%d KB",k }'; }
   tool_cache() { # id  path  human-cmd-description  (apply command via eval of $4)
     local id="$1" path="$2" desc="$3" cmd="$4"
-    [[ ",${TOOL_CACHES}," == *",${id},"* ]] || return 0
+    enabled "$id" || return 0
     [[ -e "$path" ]] || { log "  (${id}: no cache at ${path})"; return 0; }
+    approved "$path" || { log "  [SKIP]    not in approved set  $path"; return 0; }
     local kb; kb="$(du -sk "$path" 2>/dev/null | cut -f1)"; [[ -z "$kb" ]] && kb=0
     local size; size="$(tc_human "$kb")"
+    TOTAL_KB=$((TOTAL_KB + kb))
     if [[ "$DRY_RUN" -eq 1 ]]; then
       log "  [DRY] ${size}  ${path}"
     else
@@ -395,13 +636,110 @@ if [[ -n "$TOOL_CACHES" ]]; then
       log "  [DELETED] ${size}  ${path}"
     fi
   }
-  BREW_CACHE="$(command -v brew >/dev/null 2>&1 && brew --cache 2>/dev/null || echo "${HOME}/Library/Caches/Homebrew")"
-  tool_cache brew        "$BREW_CACHE"                                        "brew cleanup --prune=all" "brew cleanup --prune=all"
   tool_cache pip         "${HOME}/Library/Caches/pip"                         "pip3 cache purge"         "pip3 cache purge"
   tool_cache uv          "${HOME}/.cache/uv"                                  "uv cache prune"           "uv cache prune"
   tool_cache cargo       "${HOME}/.cargo/registry/cache"                      "remove cargo registry cache" "rm -rf '${HOME}/.cargo/registry/cache'"
   tool_cache gradle      "${HOME}/.gradle/caches"                             "remove gradle caches"     "rm -rf '${HOME}/.gradle/caches'"
   tool_cache deriveddata "${HOME}/Library/Developer/Xcode/DerivedData"        "empty Xcode DerivedData"  "rm -rf '${HOME}/Library/Developer/Xcode/DerivedData'"
+  enabled cargo && reclaim "${HOME}/.cargo/registry/src"
+  enabled bun   && reclaim "${HOME}/.bun/install/cache"
+  enabled cipd  && reclaim "${HOME}/.cipd-cache-dir"
+
+  # Homebrew keeps old versions in the Cellar long after an upgrade, and
+  # HOMEBREW_CACHE may not exist at all — so cleanup runs either way.
+  if enabled brew && command -v brew >/dev/null 2>&1; then
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      est="$(HOMEBREW_NO_AUTO_UPDATE=1 brew cleanup -n --prune=all -s 2>/dev/null | grep -i 'would free' | tail -1)"
+      log "  [DRY]     brew cleanup --prune=all -s — ${est:-nothing to remove}"
+    elif [[ -n "$ONLY_PATHS" ]]; then
+      log "  [SKIP]    brew cleanup — not part of a reviewed selection"
+    else
+      log "  running: brew cleanup --prune=all -s"
+      HOMEBREW_NO_AUTO_UPDATE=1 brew cleanup --prune=all -s >>"$LOG_FILE" 2>&1 || true
+    fi
+  fi
+
+  if [[ "$MODE" == "deep" ]]; then
+    # Every app's cache folder. Skipped: macOS's own (com.apple.*, privacy-
+    # protected), the Claude app hosting live sessions, Playwright's browsers
+    # (tests break until reinstalled), the ids above, the protect list, extra
+    # names in ANALYZERS_APPCACHE_KEEP (regex alternatives), and anything
+    # written in the last hour — that app is using it right now.
+    if enabled appcaches; then
+      # dotslash: its downloaded executables carry macOS provenance
+      # protection — another process can't delete them, so don't try nightly
+      keep='com\.apple\..*|Claude.*|com\.anthropic\..*|claude-cli-nodejs|ms-playwright|CloudKit|FamilyCircle|familycircled|GeoServices|Homebrew|pip|dotslash'
+      [[ -n "${ANALYZERS_APPCACHE_KEEP:-}" ]] && keep="${keep}|${ANALYZERS_APPCACHE_KEEP}"
+      keep_re="^(${keep})\$"
+      for p in "$HOME"/Library/Caches/*; do
+        name="$(basename "$p")"
+        [[ "$name" =~ $keep_re ]] && continue
+        protected "$name" && continue
+        ls "$p" >/dev/null 2>&1 || continue                      # privacy-protected
+        [[ -n "$(find "$p" -mmin -60 -print -quit 2>/dev/null)" ]] && continue
+        reclaim "$p"
+      done
+    fi
+
+    if enabled gomod && command -v go >/dev/null 2>&1; then
+      gm="$(go env GOMODCACHE 2>/dev/null)"
+      if [[ -n "$gm" && -d "$gm" ]]; then
+        kb=$(du -sk "$gm" 2>/dev/null | cut -f1)
+        cmd_reclaim "$gm" "${kb:-0}" go clean -modcache   # module files are read-only
+      fi
+    fi
+
+    # Simulator runtimes never booted (no lastUsedAt) and installed 7+ days
+    # ago, removed through simctl — they live in system asset storage.
+    if enabled simulators && command -v xcrun >/dev/null 2>&1; then
+      rt_json="$(xcrun simctl runtime list -j 2>/dev/null)"
+      if [[ -n "$rt_json" ]]; then
+        while IFS='|' read -r uuid bytes path; do
+          [[ -n "$uuid" && -e "$path" ]] || continue
+          [[ -n "$(find "$path" -prune -mtime -7 -print 2>/dev/null)" ]] && continue
+          cmd_reclaim "$path" "$(( ${bytes:-0} / 1024 ))" xcrun simctl runtime delete "$uuid"
+        done < <(osascript -l JavaScript -e '
+          function run(argv) {
+            var o = JSON.parse(argv[0]), out = [];
+            for (var k in o) { var r = o[k];
+              if (r.lastUsedAt || r.deletable === false) continue;
+              out.push([r.identifier, r.sizeBytes || 0, r.path || ""].join("|")); }
+            return out.join("\n"); }' "$rt_json" 2>/dev/null)
+      fi
+      # simulators whose runtime is gone; listed in the preview, and — being one
+      # command, not paths — never run as part of a narrowed (reviewed) apply
+      n_unavail="$(xcrun simctl list devices unavailable 2>/dev/null | grep -c '(unavailable' || true)"
+      if [[ "${n_unavail:-0}" -gt 0 ]]; then
+        if [[ "$DRY_RUN" -eq 1 ]]; then
+          log "  [DRY]     xcrun simctl delete unavailable — ${n_unavail} simulator(s) whose runtime is gone"
+        elif [[ -n "$ONLY_PATHS" ]]; then
+          log "  [SKIP]    xcrun simctl delete unavailable — not part of a reviewed selection"
+        else
+          log "  running: xcrun simctl delete unavailable"
+          xcrun simctl delete unavailable >>"$LOG_FILE" 2>&1 || true
+        fi
+      fi
+    fi
+
+    # Android emulator quick-boot snapshots — only while no emulator runs;
+    # the next boot is a cold boot. The AVD itself (apps, data) stays.
+    if enabled avd; then
+      if pgrep -f "qemu-system|emulator64-|/emulator/emulator" >/dev/null 2>&1; then
+        log "  (avd: an emulator is running — snapshots kept)"
+      else
+        # default_boot only: snapshots the user saved by name are state, not cache
+        for s in "$HOME"/.android/avd/*.avd/snapshots/default_boot; do reclaim "$s"; done
+      fi
+    fi
+
+    # Aerial wallpaper videos not shown in 14 days; macOS re-downloads the
+    # one in use, so only rotation leftovers go.
+    if enabled aerials; then
+      av="$HOME/Library/Application Support/com.apple.wallpaper/aerials/videos"
+      while IFS= read -r f; do reclaim "$f"; done \
+        < <(find "$av" -type f -name '*.mov' -atime +14 2>/dev/null)
+    fi
+  fi
 fi
 
 # ---------- 3.5 Docker maintenance (when --docker; either mode) ----------

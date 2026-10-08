@@ -15,6 +15,11 @@ public struct TrashedItem: Identifiable, Sendable {
     }
 
     public let originalPath: String
+    /// The receipt log this came from — a restore writes its own receipt
+    /// back to the same log, so each cleaner's history stays whole.
+    public let ledger: URL
+    /// Which cleaner moved it ("Janitor" / "Temp & Agents"), for the Undo list.
+    public let source: String
     /// Where the janitor actually put it. Recorded in the receipt — never
     /// guessed from the basename, because a name collision means the Trash
     /// copy was renamed and the guess would point at a DIFFERENT file the
@@ -23,8 +28,14 @@ public struct TrashedItem: Identifiable, Sendable {
     public let sizeText: String
     public let restorability: Restorability
 
-    public var id: String { originalPath }
-    public var basename: String { (originalPath as NSString).lastPathComponent }
+    public var id: String { ledger.lastPathComponent + "|" + originalPath }
+    /// A family token ("<dir>/<family>*") stands for many siblings that went
+    /// into ONE Trash folder; restoring moves that folder's children back.
+    public var isGroup: Bool { originalPath.hasSuffix("*") }
+    public var basename: String {
+        let last = (originalPath as NSString).lastPathComponent
+        return isGroup ? String(last.dropLast()) + "…" : last
+    }
 }
 
 public enum UndoLedger {
@@ -33,10 +44,20 @@ public enum UndoLedger {
         FileManager.default.homeDirectoryForCurrentUser.appending(path: ".Trash")
     }
 
-    /// TRASHED receipts from the janitor log, newest first, excluding ones
-    /// that already carry a RESTORED receipt.
+    /// Every receipt log that records Trash moves, and the name shown for it.
+    public static let ledgers: [(url: URL, source: String)] = [
+        (AnalyzersPaths.janitorLog, "Janitor"),
+        (AnalyzersPaths.tempCleanLog, "Temp & Agents"),
+    ]
+
+    /// TRASHED receipts from every ledger, newest first within each, excluding
+    /// ones that already carry a RESTORED receipt.
     public static func trashedItems() -> [TrashedItem] {
-        guard let text = try? String(contentsOf: AnalyzersPaths.janitorLog, encoding: .utf8)
+        ledgers.flatMap { trashedItems(in: $0.url, source: $0.source) }
+    }
+
+    static func trashedItems(in ledger: URL, source: String) -> [TrashedItem] {
+        guard let text = try? String(contentsOf: ledger, encoding: .utf8)
         else { return [] }
         var restored: Set<String> = []
         var trashed: [(path: String, dest: String?, size: String)] = []
@@ -66,31 +87,53 @@ public enum UndoLedger {
                 let state: TrashedItem.Restorability
                 if let dest = entry.dest {
                     state = !fm.fileExists(atPath: dest) ? .trashCopyGone
-                          : fm.fileExists(atPath: entry.path) ? .pathOccupied
+                          : occupied(original: entry.path, trashCopy: dest) ? .pathOccupied
                           : .restorable
                 } else {
                     state = .destinationUnknown
                 }
-                return TrashedItem(originalPath: entry.path, trashPath: entry.dest,
+                return TrashedItem(originalPath: entry.path, ledger: ledger, source: source,
+                                   trashPath: entry.dest,
                                    sizeText: entry.size, restorability: state)
             }
     }
 
     public enum RestoreError: Error { case notRestorable }
 
-    /// Move the Trash copy back to its original path, receipt included.
+    /// A single item is blocked when something now sits at its old path; a
+    /// family is blocked when ANY of its members' old paths is taken — a
+    /// partial restore would leave the receipt claiming more than it did.
+    private static func occupied(original: String, trashCopy: String) -> Bool {
+        let fm = FileManager.default
+        guard original.hasSuffix("*") else { return fm.fileExists(atPath: original) }
+        let parent = (original as NSString).deletingLastPathComponent
+        let members = (try? fm.contentsOfDirectory(atPath: trashCopy)) ?? []
+        return members.contains { fm.fileExists(atPath: (parent as NSString).appendingPathComponent($0)) }
+    }
+
+    /// Move the Trash copy back to its original path, receipt included. A
+    /// family token moves each member of its Trash folder back into the
+    /// folder they came from, then removes the emptied Trash folder.
     public static func restore(_ item: TrashedItem) throws {
         guard item.restorability == .restorable,
               let trashPath = item.trashPath        // never guessed
         else { throw RestoreError.notRestorable }
-        try FileManager.default.moveItem(
-            at: URL(fileURLWithPath: trashPath),
-            to: URL(fileURLWithPath: item.originalPath))
-        appendReceipt("[RESTORED] \(item.sizeText)  \(item.originalPath)")
+        let fm = FileManager.default
+        if item.isGroup {
+            let parent = (item.originalPath as NSString).deletingLastPathComponent
+            for member in try fm.contentsOfDirectory(atPath: trashPath) {
+                try fm.moveItem(atPath: (trashPath as NSString).appendingPathComponent(member),
+                                toPath: (parent as NSString).appendingPathComponent(member))
+            }
+            try? fm.removeItem(atPath: trashPath)   // now empty
+        } else {
+            try fm.moveItem(at: URL(fileURLWithPath: trashPath),
+                            to: URL(fileURLWithPath: item.originalPath))
+        }
+        appendReceipt("[RESTORED] \(item.sizeText)  \(item.originalPath)", to: item.ledger)
     }
 
-    private static func appendReceipt(_ line: String) {
-        let url = AnalyzersPaths.janitorLog
+    private static func appendReceipt(_ line: String, to url: URL) {
         let data = Data((line + "\n").utf8)
         if let handle = try? FileHandle(forWritingTo: url) {
             handle.seekToEndOfFile()

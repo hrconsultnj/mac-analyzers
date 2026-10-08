@@ -4,8 +4,8 @@ import SwiftUI
 
 /// The suite's logs — sidebar children of the Logs item.
 enum LogKind: String, CaseIterable, Identifiable {
-    case guardLog, memoryClean, reclaim, storageClean, janitor, persistence, loginItems,
-         spotlightAudit, forensics
+    case guardLog, memoryClean, reclaim, storageClean, janitor, tempSpace, persistence,
+         loginItems, spotlightAudit, forensics
     var id: String { rawValue }
 
     var title: String {
@@ -15,6 +15,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .reclaim: "Memory Reclaim"
         case .storageClean: "Storage Auto-Clean"
         case .janitor: "Downloads Janitor"
+        case .tempSpace: "Temp & Agents"
         case .persistence: "Persistence Changes"
         case .loginItems: "Login-Items Audit"
         case .spotlightAudit: "Spotlight Audit"
@@ -29,6 +30,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .reclaim: "arrow.counterclockwise.circle"
         case .storageClean: "internaldrive"
         case .janitor: "trash"
+        case .tempSpace: "tray.full"
         case .persistence: "person.badge.key"
         case .loginItems: "person.crop.circle.badge.questionmark"
         case .spotlightAudit: "magnifyingglass"
@@ -43,6 +45,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .reclaim: .cyan
         case .storageClean: .indigo
         case .janitor: .orange
+        case .tempSpace: .mint
         case .persistence: .red
         case .loginItems: .brown
         case .spotlightAudit: .yellow
@@ -57,6 +60,7 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .reclaim: AnalyzersPaths.reclaimLog
         case .storageClean: AnalyzersPaths.storageAutoCleanLog
         case .janitor: AnalyzersPaths.janitorLog
+        case .tempSpace: AnalyzersPaths.tempCleanLog
         case .persistence: AnalyzersPaths.persistenceLog
         case .loginItems: AnalyzersPaths.loginItemsAuditLog
         case .spotlightAudit: AnalyzersPaths.spotlightAuditLog

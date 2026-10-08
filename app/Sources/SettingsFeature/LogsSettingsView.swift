@@ -16,6 +16,7 @@ struct LogsSettingsView: View {
         case .guardLog: GuardLogView()
         case .loginItems: LoginItemsView()
         case .spotlightAudit: SpotlightAuditView()
+        case .tempSpace: TempSpaceView()
         case .storageClean: StorageCleanView()
         case .memoryClean, .reclaim: ReapLogView(kind: kind)
         case .janitor: StorageCleanView(kind: .janitor)
