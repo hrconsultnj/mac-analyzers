@@ -88,7 +88,9 @@ enum LogParser {
     }
 
     /// Report-style logs: runs delimited by ===== separators; a short block
-    /// containing "|" is the header for the body block that follows.
+    /// containing "|" is the header for the body block that follows. Headers
+    /// run to 3 lines (title, settings, `input:`) — a body block never starts
+    /// with a "|" line, it opens on a `### ` group.
     private static func runBlocks(_ lines: [String]) -> [LogRun] {
         var blocks: [[String]] = []
         var current: [String] = []
@@ -104,7 +106,7 @@ enum LogParser {
         var result: [LogRun] = []
         var pendingHeader: String?
         for block in blocks {
-            if block.count <= 2, let first = block.first, first.contains("|") {
+            if block.count <= 3, let first = block.first, first.contains("|") {
                 pendingHeader = block.joined(separator: " · ")
                 continue
             }

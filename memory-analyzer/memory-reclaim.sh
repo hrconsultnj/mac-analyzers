@@ -52,7 +52,7 @@ APPS_LIST="${ANALYZERS_RECLAIM_APPS:-Opera,Google Chrome,Visual Studio Code,Chat
 
 SWEEP_RE='[Mm]cp|next-server|next dev|vite( |$)|pnpm( run)? dev|npm run dev|nodemon|turbo run dev|headless_shell|ms-playwright|--headless|(^|/)(node|npm|npx|bun|tsx|deno)( |$)'
 [[ -n "${ANALYZERS_MCP_EXTRA_RE:-}" ]] && SWEEP_RE="${SWEEP_RE}|${ANALYZERS_MCP_EXTRA_RE}"
-PROTECT_RE='.local/bin/claude|Claude.app|Visual Studio Code|Code Helper|zoom.us|ZoomCef|Docker|OrbStack|Opera.app|Google Chrome.app|Safari|WindowServer|loginwindow|mds|Finder|screencapture|QuickTime|CoreServices|iTerm'
+PROTECT_RE='.local/bin/claude|(^|/)claude( |$)|Claude.app|Visual Studio Code|Code Helper|zoom.us|ZoomCef|Docker|OrbStack|Opera.app|Google Chrome.app|Safari|WindowServer|loginwindow|mds|Finder|screencapture|QuickTime|CoreServices|iTerm'
 [[ -n "${ANALYZERS_PROTECT_EXTRA:-}" ]] && PROTECT_RE="${PROTECT_RE}|${ANALYZERS_PROTECT_EXTRA}"
 # NOTE: VS Code / Docker / browsers are protected from the PROCESS sweep —
 # they are only ever closed via the graceful --apps quit below.
@@ -122,22 +122,15 @@ fi
 # terminal — iTerm, VS Code, anywhere) and ChatGPT's codex app-server. Killing
 # their MCP servers (cortex, context7, shadcn, …) breaks the session's tools
 # until restart. Orphaned servers (parent session dead) are NOT exempt.
-PIDTABLE="$(ps axo pid=,ppid=)"
-# tr: macOS awk errors on literal newlines in -v values — keep this space-separated
-SESSION_ROOTS="$(ps axo pid=,args= | awk '
-  $0 ~ /awk|grep/ { next }
-  /\.local\/bin\/claude|ChatGPT\.app.*codex/ { print $1 }' | tr '\n' ' ')"
-EXEMPT="$(
-  if [[ -n "${SESSION_ROOTS// /}" ]]; then
-    echo "$PIDTABLE" | awk -v roots="$SESSION_ROOTS" '
-      BEGIN { n=split(roots, r, /[[:space:]]+/); for (i=1;i<=n;i++) if (r[i]!="") root[r[i]]=1 }
-      { pp[$1]=$2 }
-      END { for (pid in pp) { q=pid; while (q > 1 && q != "") {
-              if (q in root) { print pid; break }; q = pp[q] } }
-            for (p in root) print p }'
-  fi
-  echo "$$"
-)"
+# The finder lives in lib/live-sessions.sh (shared with memory-auto-clean.sh).
+# Without it there is no exemption, so refuse to sweep rather than run open.
+# shellcheck disable=SC1091
+if ! source "${ANALYZERS_ROOT}/lib/live-sessions.sh" 2>/dev/null; then
+  echo "FATAL: lib/live-sessions.sh is missing — refusing to sweep without the live-session exemption." >&2
+  exit 78
+fi
+SESSION_ROOTS="$(live_session_roots)"
+EXEMPT="$(live_session_exempt "$SESSION_ROOTS"; echo "$$")"
 SESS_COUNT="$(echo "$SESSION_ROOTS" | wc -w | tr -d ' ')"
 
 is_exempt() { echo "$EXEMPT" | grep -qx "$1"; }

@@ -18,7 +18,11 @@ welcome either way.
 2. The guard kills **dev tooling only** (its `KILLABLE_RE`); the protect list
    always wins; CPU is never a kill reason.
 3. Process sweeps must keep the **live AI-session exemption** (descendants of
-   running claude/codex processes are never touched).
+   running claude/codex processes are never touched). One narrow, opt-in
+   exception: with `ANALYZERS_DEV_REAP_SESSION_SERVERS=1` the dev pass may
+   stop a dev server such a session left running in the background once
+   nothing has used it for `ANALYZERS_DEV_SERVER_IDLE_MIN` — never its MCP
+   servers, never a command the session is waiting on.
 4. Nothing auto-deletes user content: no volumes, no Time Machine backups,
    no documents. The sudoers rule stays scoped to one exact command.
 5. Anything personal/machine-specific goes through `config.local.sh`

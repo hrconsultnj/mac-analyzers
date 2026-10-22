@@ -11,7 +11,7 @@ agents group under the app's identity there.
 |------|------|----------|
 | `analyze.sh` | "why is my RAM at N GB?" report | never |
 | `memory-guard.sh` | always-on spike listener — alerts / kills runaway dev processes | kills (safelist only) |
-| `memory-auto-clean.sh` | daily reaper — orphans, forgotten dev servers (scheduled, default 08:30) | with `--apply` |
+| `memory-auto-clean.sh` | daily reaper — orphans, forgotten dev servers (scheduled, default 08:30) — plus the **dev pass** (`--dev`) the guard runs every 2 min: idle emulators/simulators, build daemons, dev servers | with `--apply` |
 | `memory-reclaim.sh` | **manual "free my RAM now" button** — reboot effect, no reboot | with `--apply` |
 | `memory-manage-agents.sh` | install / remove / status / pause the LaunchAgents | — |
 
@@ -64,6 +64,9 @@ Polls kernel memory-pressure every 15s. Escalation ladder:
    safelisted offender (>500 MB only).
 5. **Sustained CPU hog** (>150% for 3 ticks ≈ 45s): notification only — CPU is
    never a kill reason (a hot build looks identical to a runaway).
+6. **Idle dev tooling** (every `GUARD_DEV_SWEEP_SECS`, default 120s): starts
+   `memory-auto-clean.sh --apply --dev --quiet` in the background — see the
+   dev pass below. It writes to `auto-clean.log` only when it stops something.
 
 **Safelist (killable):** node/npm/npx/bun/tsx/deno, next/vite/webpack/esbuild,
 vitest/jest, playwright + headless Chromium.
@@ -80,11 +83,31 @@ pane edits the guard tunables (hard cap, spike thresholds) in
 | § | Target | Default action |
 |---|--------|----------------|
 | 1 | Orphaned MCP servers (parent session died, PPID=1) | **kill** |
-| 2 | Other orphaned node/dev processes | report (`--orphans-all` to kill) |
+| 2 | Orphaned dev tooling — a tool tree whose parent is gone (tsc/vitest/esbuild workers, npx/pnpm wrappers) | **kill once idle 3 min**; busy ones reported (`--orphans-all` kills those too) |
 | 3 | Dev servers older than 24h (`--dev-age-hours`) | **kill** |
 | 4 | Playwright / headless Chromium >2h | **kill** |
 | 5 | MCP sets under LIVE sessions | report only |
 | 6 | VS Code helpers >250 MB up >2d | report only — "Developer: Reload Window" |
+| 7 | Emulators & simulators nobody drives (no build, test, adb/simctl/xcodebuild/expo run/maestro, Metro activity or window focus) for 20 min | **shut down** gracefully — device data and quick-boot snapshot kept |
+| 8 | Gradle / Kotlin daemons idle 5 min — only while **no Gradle build runs anywhere**, so another project's build is never hit | **stop** |
+| 9 | Leftovers of finished/failed native builds — Xcode build helpers, emulator plumbing — whose parent is gone | **kill once idle** |
+| 10 | Dev servers (Metro, next, vite, storybook…) with no client connected and no activity — 30 min while their project is open in a session or terminal (or they run in an active agent session's scratch folder), 3 min once not | **kill** (with the wrappers that would respawn them) |
+
+### The dev pass (`--dev`: sections 1, 2, 7–10)
+
+Judges what each process is **doing**, not who started it. A client connected
+to its ports or growing CPU time keeps it (CPU only ever keeps something alive
+— never a kill reason); the first idle sighting is remembered in
+`reports/memory/.dev-idle-state`, and it goes once idle past its grace. Live
+AI sessions keep their exemption; `ANALYZERS_DEV_REAP_SESSION_SERVERS=1` lets
+an idle dev server such a session left in the background go too.
+
+- **Automatic:** the guard runs it every 2 min (`GUARD_DEV_SWEEP_SECS`).
+- **After a failed native build:** `./memory-auto-clean.sh --apply --dev --now`
+  — no idle wait for build daemons and build leftovers (still never while a
+  build runs). Build scripts can call this from their failure path.
+- **Tune:** the `ANALYZERS_DEV_*` knobs in `config.example.sh`. Something you
+  start with `nohup` that must stay up belongs in `ANALYZERS_PROTECT_EXTRA`.
 
 ## memory-reclaim.sh — the big red button
 

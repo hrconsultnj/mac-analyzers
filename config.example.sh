@@ -78,3 +78,16 @@
 # Extra AI-agent folders to SIZE (never cleaned) — e.g. a session archive.
 # Colon-separated.
 #ANALYZERS_AGENT_DIRS="$HOME/.my-agent/sessions:$HOME/.other-agent/history"
+
+# Dev pass (memory-auto-clean.sh --dev — memory-guard.sh runs it every
+# GUARD_DEV_SWEEP_SECS). Stops dev tooling that has gone IDLE: no client
+# connected, no CPU activity, no build/test/driver using it. Busy tooling is
+# never touched. Started something with nohup that must stay up? Add it to
+# ANALYZERS_PROTECT_EXTRA.
+#GUARD_DEV_SWEEP_SECS=120              # 0 = the guard never runs the dev pass
+#ANALYZERS_DEV_DEVICE_IDLE_MIN=20      # emulators / simulators (x2 for a windowed emulator)
+#ANALYZERS_DEV_DAEMON_IDLE_MIN=5       # Gradle / Kotlin daemons, only while no Gradle build runs
+#ANALYZERS_DEV_SERVER_IDLE_MIN=30      # dev servers whose project is open in a session or terminal
+#ANALYZERS_DEV_ORPHAN_IDLE_MIN=3       # orphaned dev tools, and dev servers of closed projects
+#ANALYZERS_DEV_REAP_SESSION_SERVERS=0  # 1 = also idle dev servers an AI session left running
+#ANALYZERS_ADB=""                      # adb, if not on PATH or inside the emulator's own SDK
