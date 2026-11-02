@@ -230,10 +230,25 @@ with_timeout() {
   wait "$p"
 }
 
-# same_args <pid> <args-as-snapshotted> — guard against a recycled pid
+# same_args <pid> <args-as-snapshotted> — guard against a recycled pid.
+# Both sides are normalised (runs of spaces collapsed, ends trimmed) because a
+# process that rewrites its title (npm: `npm exec expo start …`) is padded
+# with a trailing space or followed by leftover env strings in ps's args=
+# column — the snapshot (awk-rebuilt, so already trimmed) then never matched
+# the live string byte-for-byte and a live idle Metro was logged [GONE] for
+# days. The pid is the same process when the live args START WITH the
+# snapshot's first <=60 chars (a tail is fine), on a word boundary when the
+# snapshot was shorter than 60 so `node` can't pass for `node server.js`.
+# A recycled pid runs a different command, so it still fails; no new
+# snapshot column or ps call is needed, and it is no looser than before for
+# any process whose args did not change.
 same_args() {
-  local now; now="$(ps -o args= -p "$1" 2>/dev/null | tr -s ' ')"
-  [[ -n "$now" && "${now:0:60}" == "$(echo "$2" | tr -s ' ' | cut -c1-60)" ]]
+  local now exp
+  now="$(ps -o args= -p "$1" 2>/dev/null | tr -s ' ')"; now="${now# }"; now="${now% }"
+  exp="$(printf '%s' "$2" | tr -s ' ' | cut -c1-60)"; exp="${exp# }"; exp="${exp% }"
+  [[ -n "$now" && -n "$exp" ]] || return 1
+  if [[ ${#exp} -ge 59 ]]; then [[ "${now:0:${#exp}}" == "$exp" ]]
+  else [[ "$now" == "$exp" || "$now" == "$exp "* ]]; fi
 }
 
 # reap_tree <root> <members> <rss_kb> <desc> <root_args> [term_wait] — one
