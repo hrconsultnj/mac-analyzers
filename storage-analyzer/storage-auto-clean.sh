@@ -628,7 +628,7 @@ if [[ "$MODE" == "deep" && "$WT_IDLE_DAYS" -gt 0 ]]; then
       fi
       if ! git -C "$wt" clean -fdq >>"$LOG_FILE" 2>&1 || [[ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]]; then
         log "  [FAILED]  $(printf '%10s' "$(human "$kb")")  $wt"
-        log "              ↳ the folder was reset to its branch tip, so its tracked edits now live ONLY in ${pin}; some untracked files could not be removed and stay in the folder — checkout kept. Put the edits back with: git -C '${wt}' checkout ${pin} -- ."
+        log "              ↳ the folder was reset to its branch tip, so its tracked edits now live ONLY in ${pin}; some untracked files could not be removed and stay in the folder — checkout kept. Put them back (edits, deletions and untracked files, all unstaged) with: git -C '${wt}' restore --source=${pin} --staged --worktree -- . && git -C '${wt}' reset -q"
         return 0
       fi
     fi
