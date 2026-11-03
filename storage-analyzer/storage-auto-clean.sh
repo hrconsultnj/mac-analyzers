@@ -272,7 +272,8 @@ protected() {
 # idle clock can't see these (a bridge or a backup job edits nothing), so
 # their node_modules are never removed. Built once, on first use.
 RUNTIME_ROOTS_FILE=""
-is_runtime_root() {
+is_runtime_root() {  # <dir> [fresh] — "fresh" rescans now instead of using the run's cached list
+  if [[ "${2:-}" == "fresh" && -n "$RUNTIME_ROOTS_FILE" ]]; then rm -f "$RUNTIME_ROOTS_FILE"; RUNTIME_ROOTS_FILE=""; fi
   if [[ -z "$RUNTIME_ROOTS_FILE" ]]; then
     RUNTIME_ROOTS_FILE="$(mktemp -t autoclean-runtime)"
     local roots_re="" r loaded plist p rr
@@ -611,13 +612,31 @@ if [[ "$MODE" == "deep" && "$WT_IDLE_DAYS" -gt 0 ]]; then
         log "              ↳ couldn't park its uncommitted changes — nothing was changed, left as it was"
         return 0
       fi
-      # the changes are pinned; now clear the checkout so git will remove it without --force
-      if ! { git -C "$wt" reset -q --hard HEAD && git -C "$wt" clean -fdq; } >>"$LOG_FILE" 2>&1 \
-         || [[ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]]; then
-        log "  [FAILED]  $(printf '%10s' "$(human "$kb")")  $wt"
-        log "              ↳ its changes are pinned as ${pin} AND still in the folder (it could not be cleared) — left as it was"
+      # The live-use list was built once at the start of the run. A session or process may have started in this
+      # checkout since: look again, right before anything is cleared, and leave it alone if so (the pin is a
+      # harmless extra copy of what is still in the folder).
+      if is_runtime_root "$wt" fresh; then
+        log "  [SKIP]    $(printf '%10s' "$(human "$kb")")  $wt"
+        log "              ↳ something started running in it just now — left as it was (its changes are also pinned as ${pin})"
         return 0
       fi
+      # the changes are pinned; now clear the checkout so git will remove it without --force
+      if ! git -C "$wt" reset -q --hard HEAD >>"$LOG_FILE" 2>&1; then
+        log "  [FAILED]  $(printf '%10s' "$(human "$kb")")  $wt"
+        log "              ↳ git reset failed: its changes are still in the folder AND pinned as ${pin} — left as it was"
+        return 0
+      fi
+      if ! git -C "$wt" clean -fdq >>"$LOG_FILE" 2>&1 || [[ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]]; then
+        log "  [FAILED]  $(printf '%10s' "$(human "$kb")")  $wt"
+        log "              ↳ the folder was reset to its branch tip, so its tracked edits now live ONLY in ${pin}; some untracked files could not be removed and stay in the folder — checkout kept. Put the edits back with: git -C '${wt}' checkout ${pin} -- ."
+        return 0
+      fi
+    fi
+    # a clean checkout has nothing to clear, but the same late look applies before it is removed
+    if [[ "$dirty" -eq 0 ]] && is_runtime_root "$wt" fresh; then
+      log "  [SKIP]    $(printf '%10s' "$(human "$kb")")  $wt"
+      log "              ↳ something started running in it just now — left as it was"
+      return 0
     fi
     # 3. remove the checkout; the branch is never touched
     if git -C "$repo" worktree remove "$wt" >>"$LOG_FILE" 2>&1; then
