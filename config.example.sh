@@ -101,9 +101,16 @@
 # a Supabase stack by its project_id in a repo's supabase/config.toml (repos of live sessions,
 # then repos under ANALYZERS_STACK_REPO_ROOTS), a Compose stack by its working_dir, else the
 # owner map below. The first sighting of an orphaned stack is remembered in
-# reports/memory/.stack-idle-state. Preview with: memory-auto-clean.sh --dev (dry run).
+# reports/memory/.stack-idle-state (only by a real run: a preview never starts the clock).
+# Preview with: memory-auto-clean.sh --dev (dry run).
 #ANALYZERS_DEV_STOP_IDLE_STACKS=0      # 1 = enable
 #ANALYZERS_STACK_IDLE_MIN=30           # minutes a project must have had no live session
 #ANALYZERS_STACK_PROTECT="my-project other-*"   # stack ids / project names never stopped (globs; space or comma separated). Always wins.
+# CAUTION — "live" is the PROCESS cwd of a claude/codex session or of an interactive terminal shell, resolved to its repo
+# (a linked git worktree counts as its repo). A session rooted in repo A that drives repo B's stack by absolute path
+# leaves B looking idle, and B's stack would be stopped after the grace. For every stack worked on from another
+# project, add an owner-map entry mapping it to the project you start the session in (below), or list it in
+# ANALYZERS_STACK_PROTECT. A stack is kept while ANY owner (the repo found automatically and every owner-map
+# project) has a live session.
 #ANALYZERS_STACK_OWNER_MAP="scratch-*=my-project"  # glob=project entries (space or comma separated) for stacks no repo config names, or that another project also uses. A stack is kept while ANY of its owners (the repo found automatically AND every owner-map project) has a live session. A project is a repo folder name or its full path.
 #ANALYZERS_STACK_REPO_ROOTS="$HOME/Projects"        # where to look for repos of stacks with no live session (searched 3 levels down)

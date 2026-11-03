@@ -109,6 +109,7 @@ STACK_PROTECT="${ANALYZERS_STACK_PROTECT:-}"
 STACK_OWNER_MAP="${ANALYZERS_STACK_OWNER_MAP:-}"
 STACK_REPO_ROOTS="${ANALYZERS_STACK_REPO_ROOTS:-$HOME/Projects}"
 STACK_STATE_FILE="${ANALYZERS_STACK_STATE_FILE:-${LOG_DIR}/.stack-idle-state}"
+STACK_STOP_BUDGET_S=180   # per stack: stop containers one by one until this many seconds are spent
 
 ORIG_ARGS="$*"
 while [[ $# -gt 0 ]]; do
@@ -169,7 +170,7 @@ if [[ -e "$LOCK_FILE" ]] && kill -0 "$(cat "$LOCK_FILE" 2>/dev/null)" 2>/dev/nul
   exit 0
 fi
 echo "$$" > "$LOCK_FILE"
-trap 'rm -f "$LOCK_FILE"' EXIT
+trap 'rm -f "$LOCK_FILE" "${STACK_STATE_FILE}.tmp.$$"' EXIT
 
 # live AI-session exemption (shared with memory-reclaim.sh) — no lib, no sweep
 # shellcheck disable=SC1091
@@ -880,6 +881,9 @@ dev_section server
 #       supabase/config.toml (repos of live sessions first, then repos under ANALYZERS_STACK_REPO_ROOTS);
 #   (b) Compose — label com.docker.compose.project.working_dir, resolved to its repo;
 #   (c) ANALYZERS_STACK_OWNER_MAP (config.local.sh) for custom isolated stacks, "glob=project" entries.
+# "Live" is a claude/codex session OR an interactive terminal shell whose cwd is in the project (a shell
+# left in a repo keeps its stack up). It is the PROCESS cwd: a session rooted in repo A that drives repo B's
+# stack by absolute path leaves B looking idle — map B to A in ANALYZERS_STACK_OWNER_MAP, or protect B.
 # A stack can have several owners — the repo (a)/(b) finds AND every owner-map project; it is kept while ANY of
 # them has a live session.
 # A stack that maps to nothing (OrbStack's own Kubernetes containers included) is reported, never stopped.
@@ -943,15 +947,28 @@ dev_idle_stacks() {
     || { log "  Docker is not answering — nothing to do."; return 0; }
   if [[ -z "$ps_out" ]]; then log "  no containers running."; return 0; fi
 
-  # ---- live projects: the main worktree of each live session's cwd (a linked worktree counts as its repo)
-  local -A LIVE_PATH=() LIVE_NAME=() PID_ROOT=() ST_KIND=() ST_ID=() ST_WD=() ST_CIDS=() ST_N=()
+  # ---- live projects: the main worktree of each live claude/codex session's cwd AND of each interactive
+  # terminal shell's cwd (a linked worktree counts as its repo). Who is looking is kept for the report.
+  local -A LIVE_PATH=() LIVE_NAME=() LIVE_SRC=() LIVE_NSRC=() PID_ROOT=() ST_KIND=() ST_ID=() ST_WD=() ST_CIDS=() ST_N=()
   local -a ST_KEYS=()
   local sroot cwd root unresolved=0 label
+  stack_mark_live() {  # <root> <source>
+    local r="$1" src="$2" nm="${1##*/}"
+    LIVE_PATH[$r]=1; LIVE_NAME[$nm]=1
+    [[ " ${LIVE_SRC[$r]:-} " == *" $src "* ]] || LIVE_SRC[$r]="${LIVE_SRC[$r]:+${LIVE_SRC[$r]} }$src"
+    [[ " ${LIVE_NSRC[$nm]:-} " == *" $src "* ]] || LIVE_NSRC[$nm]="${LIVE_NSRC[$nm]:+${LIVE_NSRC[$nm]} }$src"
+  }
   for sroot in $DEV_SESSION_ROOTS; do
     cwd="${DEV_CWD[$sroot]:-}"
     if [[ -z "$cwd" ]]; then unresolved=$((unresolved + 1)); continue; fi   # lookup failed: unknown project
     root="$(main_worktree "$cwd")"
-    [[ -n "$root" ]] && { LIVE_PATH[$root]=1; LIVE_NAME[${root##*/}]=1; }
+    [[ -n "$root" ]] && stack_mark_live "$root" claude
+  done
+  # a plain terminal with no AI session: `supabase start` run by hand keeps its stack alive
+  for sroot in $(echo "$DSNAP" | awk -F'\t' '$3 != "??" && $8 ~ /^-?(zsh|bash|fish|sh)( |$)|^\/bin\/(zsh|bash|sh)( |$)/ {print $1}'); do
+    cwd="${DEV_CWD[$sroot]:-}"; [[ -n "$cwd" ]] || continue
+    root="$(main_worktree "$cwd")"
+    [[ -n "$root" ]] && stack_mark_live "$root" terminal
   done
 
   # ---- group containers into stacks
@@ -995,7 +1012,7 @@ dev_idle_stacks() {
     while IFS=$'\t' read -r ts_key ts_val; do [[ -n "$ts_key" && -n "$ts_val" ]] && PREV[$ts_key]="$ts_val"; done < "$STACK_STATE_FILE"
   fi
   : > "$state_tmp"
-  local live n idle_s stopped failed c shown auto auto_how owner owners_txt names isl i
+  local live n idle_s stopped failed left budget_end c shown auto auto_how owner owners_txt names isl i
   local -a o_name=() o_how=() o_live=()
   for key in "${ST_KEYS[@]}"; do
     id="${ST_ID[$key]}"; kind="${ST_KIND[$key]}"; n="${ST_N[$key]}"
@@ -1007,21 +1024,20 @@ dev_idle_stacks() {
       compose)  [[ -n "${ST_WD[$key]}" ]] && { auto="$(main_worktree "${ST_WD[$key]}")"; [[ -n "$auto" ]] && auto_how="compose working_dir"; } ;;
     esac
     if [[ -n "$auto" ]]; then
-      isl=0; [[ -n "${LIVE_PATH[$auto]+x}" ]] && isl=1
-      o_name+=("${auto##*/}"); o_how+=("$auto_how"); o_live+=("$isl")
+      o_name+=("${auto##*/}"); o_how+=("$auto_how"); o_live+=("${LIVE_SRC[$auto]:-}")
     fi
     if [[ "$kind" != k8s ]]; then
       while IFS= read -r owner; do
         [[ -n "$owner" ]] || continue
         [[ "${owner##*/}" == "${auto##*/}" ]] && continue          # the same project twice
-        isl=0; [[ -n "${LIVE_NAME[${owner##*/}]+x}" || -n "${LIVE_PATH[$owner]+x}" ]] && isl=1
+        isl="${LIVE_SRC[$owner]:-${LIVE_NSRC[${owner##*/}]:-}}"
         o_name+=("${owner##*/}"); o_how+=("owner map"); o_live+=("$isl")
       done < <(stack_owners_for "$id")
     fi
     owners_txt=""; names=""
     for ((i = 0; i < ${#o_name[@]}; i++)); do
-      owners_txt+="${owners_txt:+; }${o_name[i]} (${o_how[i]}): $([[ "${o_live[i]}" == 1 ]] && echo 'live session' || echo 'no session')"
-      names+=" ${o_name[i]}"; [[ "${o_live[i]}" == 1 ]] && live=1
+      owners_txt+="${owners_txt:+; }${o_name[i]} (${o_how[i]}): $([[ -n "${o_live[i]}" ]] && echo "live (${o_live[i]// /, })" || echo 'no session')"
+      names+=" ${o_name[i]}"; [[ -n "${o_live[i]}" ]] && live=1
     done
     shown="$key  ${n} container$([[ $n -ne 1 ]] && echo s)"
 
@@ -1039,11 +1055,11 @@ dev_idle_stacks() {
       log "  [REPORT]  ${shown}  owners=${owners_txt}  live session: unknown  — keep: ${unresolved} live session(s) could not be placed in a project"; continue
     fi
     first="${PREV[$key]:-$NOW_TS}"
-    printf '%s\t%s\n' "$key" "$first" >> "$state_tmp"
+    [[ "$DRY_RUN" -eq 1 ]] || printf '%s\t%s\n' "$key" "$first" >> "$state_tmp"   # a preview never starts the clock
     idle_s=$((NOW_TS - first))
     local since; since="$(date -r "$first" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
     if (( idle_s < STACK_IDLE_MIN * 60 )); then
-      log "  [REPORT]  ${shown}  owners=${owners_txt}  orphaned since ${since} ($((idle_s / 60))m of ${STACK_IDLE_MIN}m)  — keep: grace"; continue
+      log "  [REPORT]  ${shown}  owners=${owners_txt}  orphaned since ${since}$([[ -z "${PREV[$key]:-}" && "$DRY_RUN" -eq 1 ]] && echo ' (first sighting; a dry run does not start the clock)') ($((idle_s / 60))m of ${STACK_IDLE_MIN}m)  — keep: grace"; continue
     fi
     if [[ -n "${ONLY_PIDS}" ]]; then
       log "  [SKIP]    not in approved set  ${shown}  owners=${owners_txt}"; continue
@@ -1052,14 +1068,17 @@ dev_idle_stacks() {
       log "  [DRY]     ${shown}  owners=${owners_txt}  orphaned since ${since} ($((idle_s / 60))m)  — would stop (containers kept, volumes untouched)"
       KILL_COUNT=$((KILL_COUNT + 1)); continue
     fi
-    stopped=0; failed=0
+    stopped=0; failed=0; left=0; budget_end=$((SECONDS + STACK_STOP_BUDGET_S))
     for c in ${ST_CIDS[$key]}; do
-      if with_timeout 90 docker stop "$c" >/dev/null 2>&1; then stopped=$((stopped + 1)); else failed=$((failed + 1)); fi
+      # one container at a time (a batched multi-id stop was rejected by OrbStack), 20 s grace each, and a time
+      # budget per stack so a wedged container cannot hold the guard's pass for minutes: the rest wait for the next pass
+      if (( SECONDS >= budget_end )); then left=$((left + 1)); continue; fi
+      if with_timeout 45 docker stop -t 20 "$c" >/dev/null 2>&1; then stopped=$((stopped + 1)); else failed=$((failed + 1)); fi
     done
-    log "  [QUIT]    ${shown}  owners=${owners_txt}  orphaned since ${since} ($((idle_s / 60))m)  — stopped ${stopped}/${n}$([[ $failed -gt 0 ]] && echo ", ${failed} failed") (containers kept, volumes untouched)"
+    log "  [QUIT]    ${shown}  owners=${owners_txt}  orphaned since ${since} ($((idle_s / 60))m)  — stopped ${stopped}/${n}$([[ $failed -gt 0 ]] && echo ", ${failed} failed")$([[ $left -gt 0 ]] && echo ", ${left} left for the next pass (time budget)") (containers kept, volumes untouched)"
     [[ $stopped -gt 0 ]] && KILL_COUNT=$((KILL_COUNT + 1))
   done
-  mv -f "$state_tmp" "$STACK_STATE_FILE"
+  if [[ "$DRY_RUN" -eq 1 ]]; then rm -f "$state_tmp"; else mv -f "$state_tmp" "$STACK_STATE_FILE"; fi
   return 0
 }
 

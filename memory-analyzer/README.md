@@ -109,7 +109,7 @@ an idle dev server such a session left in the background go too.
   build runs). Build scripts can call this from their failure path.
 - **Idle stacks (§11):** with `ANALYZERS_DEV_STOP_IDLE_STACKS=1` the pass also stops the
   Docker/Supabase stacks of projects nobody is working on. A project is live while a
-  claude/codex session sits in its repo (a linked git worktree counts as the repo, resolved
+  claude/codex session or an interactive terminal shell sits in its repo (a linked git worktree counts as the repo, resolved
   through the git common dir). A stack is mapped to its project by its Supabase `project_id`
   (the `supabase/config.toml` of a live session's repo, then of the repos under
   `ANALYZERS_STACK_REPO_ROOTS`), by its Compose `working_dir`, or by `ANALYZERS_STACK_OWNER_MAP`
@@ -118,7 +118,13 @@ an idle dev server such a session left in the background go too.
   session. The first time
   a stack is seen with no live session it is remembered in `reports/memory/.stack-idle-state`;
   it is stopped once that lasts `ANALYZERS_STACK_IDLE_MIN` (default 30). Unmapped stacks
-  (OrbStack's own Kubernetes containers included) are only reported. `ANALYZERS_STACK_PROTECT`
+  (OrbStack's own Kubernetes containers included) are only reported.
+  **Liveness is the process's working directory.** A session rooted in repo A that drives
+  repo B's stack by absolute path leaves B looking idle and its stack is stopped after the
+  grace: map B to A in `ANALYZERS_STACK_OWNER_MAP` (`B-stack=A`), or put B in
+  `ANALYZERS_STACK_PROTECT`. Containers stop one at a time (`docker stop -t 20`), with a
+  3-minute budget per stack per pass — the rest wait for the next pass — and a dry run never
+  starts the grace clock (only a real run records the first sighting). `ANALYZERS_STACK_PROTECT`
   always wins. If a live session's working directory cannot be read, nothing is stopped that
   pass. The dry run lists every stack with its project, mapping, live-session yes/no,
   orphaned-since and the keep / would-stop reason; `docker stop` is never batched and nothing
