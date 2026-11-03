@@ -100,8 +100,8 @@
 # Dev pass, section 11 — stop the Docker/Supabase stacks of projects you are NOT working on.
 # Opt-in: a stack is stopped (`docker stop`, one container at a time; nothing is removed,
 # volumes are never touched, Docker itself is never signalled) once its project has had no
-# live claude/codex session for ANALYZERS_STACK_IDLE_MIN. A session working in a git worktree
-# counts as its repo. Only stacks that map to a project are ever stopped; a stack that maps to
+# live claude/codex session or interactive terminal in it for ANALYZERS_STACK_IDLE_MIN. A
+# session or terminal working in a git worktree counts as its repo. Only stacks that map to a project are ever stopped; a stack that maps to
 # nothing (OrbStack's own Kubernetes containers included) is reported and kept. Mapping:
 # a Supabase stack by its project_id in a repo's supabase/config.toml (repos of live sessions,
 # then repos under ANALYZERS_STACK_REPO_ROOTS), a Compose stack by its working_dir, else the
@@ -109,7 +109,7 @@
 # reports/memory/.stack-idle-state (only by a real run: a preview never starts the clock).
 # Preview with: memory-auto-clean.sh --dev (dry run).
 #ANALYZERS_DEV_STOP_IDLE_STACKS=0      # 1 = enable
-#ANALYZERS_STACK_IDLE_MIN=30           # minutes a project must have had no live session
+#ANALYZERS_STACK_IDLE_MIN=30           # minutes a project must have had no live session or terminal
 #ANALYZERS_STACK_PROTECT="my-project other-*"   # stack ids / project names never stopped (globs; space or comma separated). Always wins.
 # CAUTION — "live" is the PROCESS cwd of a claude/codex session or of an interactive terminal shell, resolved to its repo
 # (a linked git worktree counts as its repo). A session rooted in repo A that drives repo B's stack by absolute path

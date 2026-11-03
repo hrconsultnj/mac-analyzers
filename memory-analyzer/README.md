@@ -92,7 +92,7 @@ pane edits the guard tunables (hard cap, spike thresholds) in
 | 8 | Gradle / Kotlin daemons idle 5 min — only while **no Gradle build runs anywhere**, so another project's build is never hit | **stop** |
 | 9 | Leftovers of finished/failed native builds — Xcode build helpers, emulator plumbing — whose parent is gone | **kill once idle** |
 | 10 | Dev servers (Metro, next, vite, storybook…) with no client connected and no activity — 30 min while their project is open in a session or terminal (or they run in an active agent session's scratch folder), 3 min once not | **kill** (with the wrappers that would respawn them) |
-| 11 | Docker / Supabase stacks whose project has had **no live claude/codex session** for 30 min (`ANALYZERS_STACK_IDLE_MIN`) — **opt-in** (`ANALYZERS_DEV_STOP_IDLE_STACKS=1`), dev pass only | **`docker stop`**, one container at a time — containers, volumes, images and Docker itself are never touched; a stack that maps to no project is reported and kept |
+| 11 | Docker / Supabase stacks whose project has had **no live claude/codex session or interactive terminal in it** for 30 min (`ANALYZERS_STACK_IDLE_MIN`) — **opt-in** (`ANALYZERS_DEV_STOP_IDLE_STACKS=1`), dev pass only | **`docker stop`**, one container at a time — containers, volumes, images and Docker itself are never touched; a stack that maps to no project is reported and kept |
 
 ### The dev pass (`--dev`: sections 1, 2, 7–11)
 
