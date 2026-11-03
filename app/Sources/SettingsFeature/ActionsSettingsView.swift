@@ -38,7 +38,7 @@ struct ActionsSettingsView: View {
             case .reclaim:
                 "Sweeps EVERY reclaimable dev process at once — no age threshold, a wider net than the guard uses. Live AI sessions are exempt; protected apps are never touched."
             case .storageClean:
-                "Removes stale build caches and trims oversized Turborepo caches; in deep mode also downloaded code for projects you haven't touched lately (node_modules), finished git worktrees, package-manager caches (npm's entire cache), the app and tool caches you enabled in Settings › Storage, and releases Time Machine snapshot space so the freed space shows up. Anything touched recently, uncommitted, or in use is skipped."
+                "Removes stale build caches and trims oversized Turborepo caches; in deep mode also downloaded code for projects you haven't touched lately (node_modules), idle git worktrees (never main — uncommitted work is parked first), package-manager caches (npm's entire cache), the app and tool caches you enabled in Settings › Storage, and releases Time Machine snapshot space so the freed space shows up. Anything touched recently or in use is skipped."
             case .janitor:
                 "Moves stale Downloads and old screenshots to the Trash — recoverable, keep-patterns honored, folders reviewed as units."
             case .tempClean:

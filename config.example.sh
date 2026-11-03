@@ -54,13 +54,17 @@
 #ANALYZERS_NM_AGE_DAYS=14          # node_modules of repos idle this many days (deep)
 #ANALYZERS_NM_REQUIRE_CLEAN=1      # 0 = also when the git tree has uncommitted changes
 #ANALYZERS_TURBO_CACHE_MAX_GB=2    # per-repo .turbo/cache cap, oldest entries go (every run)
-# Finished git worktrees (deep): removed with `git worktree remove` once their
-# work is ALREADY MERGED into the current checkout or a base branch (local or
-# origin; squash/rebase merges count). The branch stays. Never: unmerged work,
-# uncommitted or untracked files, ignored files that aren't build output (.env,
-# local databases, keys), locked worktrees, one a terminal/agent session sits
-# in. 0 = off.
+# Idle git worktrees (deep): removed with `git worktree remove` once idle this
+# many days, merged or not — nothing is lost: commits stay on the branch,
+# uncommitted/untracked changes are parked in the repo's git stash (pinned as
+# refs/parked/<worktree>-<time> so gc never expires them), and ignored
+# files that aren't build output (.env, local databases, keys, notes) are copied
+# to reports/storage/parked-worktrees/ first. Every removal is listed, with the
+# commands that undo it, in reports/storage/worktree-removals.md. Never: main
+# (the branch or a folder named main), locked worktrees, one with submodules,
+# one a terminal/agent session sits in. 0 = off.
 #ANALYZERS_WORKTREE_IDLE_DAYS=0
+#ANALYZERS_WORKTREE_PARK_MAX_MB=1024   # keep a worktree whose local-only files exceed this
 
 # Downloads janitor (storage-analyzer/downloads-janitor.sh). Everything it
 # moves goes to the Trash, never deleted, and is listed for review first.

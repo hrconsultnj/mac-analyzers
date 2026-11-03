@@ -297,7 +297,7 @@ public struct MenuContentView: View {
         storageRow(
             title: "Deep clean",
             detail: store.storageDeepSummary.map { "last: \($0)" } ?? "no runs yet",
-            sub: "\(ScheduleKit.describe(GuardControl.storageDeepLabel)) — + node_modules of idle repos, finished worktrees, package-manager and app caches, ALL unused Docker images, Time Machine snapshot thinning",
+            sub: "\(ScheduleKit.describe(GuardControl.storageDeepLabel)) — + node_modules of idle repos, idle worktrees (never main), package-manager and app caches, ALL unused Docker images, Time Machine snapshot thinning",
             label: GuardControl.storageDeepLabel,
             symbol: "wand.and.stars", color: .purple
         )

@@ -104,7 +104,7 @@ Two LaunchAgents (installed & loaded; times are defaults — the Mac Analyzers
 app's Settings → Schedule pane edits them, and the edits survive reinstalls
 and upgrades):
 - **daily 08:00** → `--mode daily --apply --docker-running-only` — build caches idle >3 days (incl. any ANALYZERS_EXTRA_CACHE_GLOBS from config.local.sh), + a quick Docker prune **only if Docker is already running** (never boots it)
-- **every 3 days** → `--mode deep --apply --docker-images --prune-snapshots` — caches + node_modules of *idle* repos + finished worktrees (when enabled); removes **all unused Docker images** (boots Docker if off, then shuts it back down); **thins TM snapshots** so freed space lands immediately
+- **every 3 days** → `--mode deep --apply --docker-images --prune-snapshots` — caches + node_modules of *idle* repos + idle worktrees, never main (when enabled); removes **all unused Docker images** (boots Docker if off, then shuts it back down); **thins TM snapshots** so freed space lands immediately
 
 ```bash
 ./storage-manage-agents.sh status          # are they loaded? next run?
@@ -149,16 +149,19 @@ What else each run covers, set in `config.local.sh` (or the app's Settings › S
 - **node_modules** age and the clean-tree test are configurable (`ANALYZERS_NM_AGE_DAYS`,
   `ANALYZERS_NM_REQUIRE_CLEAN`). A repo something live runs from — a process, a terminal or
   agent session sitting in it, a loaded LaunchAgent — is never touched.
-- **Finished git worktrees** — the ones coding agents leave behind (`.composure/workspaces`,
-  `.claude/worktrees`, …) — are removed with `git worktree remove` in deep mode when
-  `ANALYZERS_WORKTREE_IDLE_DAYS` is set, but only when their work is **already merged** into the
-  current checkout or a base branch (development, develop, main, master — local or origin),
-  squash and rebase merges included (a trial `git merge-tree` that changes nothing). The branch
-  stays. Unmerged work is never removed, and neither is a worktree with uncommitted or untracked
-  files, one idle less than that many days, one a process or session runs from, or a locked one.
-  Ignored files are checked too — `git status` hides them but removing the worktree deletes
-  them — so one holding anything ignored that isn't a rebuildable build folder (an `.env`, a
-  local database, a key) is kept and the log names the files.
+- **Idle git worktrees** — the ones coding agents leave behind (`.composure/workspaces`,
+  `.claude/worktrees`, …) — are removed with `git worktree remove` in deep mode once idle
+  `ANALYZERS_WORKTREE_IDLE_DAYS` days, merged or not, without losing anything: commits stay on
+  the branch (`git worktree add <path> <branch>` re-creates the checkout), uncommitted and
+  untracked changes are parked in the repo's git stash and pinned as `refs/parked/<worktree>-<time>`
+  (so `git gc` never expires them — `git for-each-ref refs/parked` lists them), and ignored files
+  that aren't build output (an `.env`, a local database, a key, notes) are copied to
+  `reports/storage/parked-worktrees/` first. Nothing prunes that folder or those refs: delete a
+  parked copy (`git update-ref -d refs/parked/…`, or the folder) once you no longer need it. Each removal is written to
+  `reports/storage/worktree-removals.md` with the exact commands that undo it. Never removed:
+  **main** (the branch, or a worktree folder named `main`), locked worktrees, ones with
+  submodules, a detached checkout whose commit no branch holds, and anything a process or a
+  terminal/agent session runs from or sits in.
 - **Tool caches** (`ANALYZERS_TOOL_CACHES`) now include every app's `~/Library/Caches` folder,
   never-booted simulator runtimes, Android emulator snapshots, aerial wallpaper downloads,
   the Go module cache, Bun and CIPD caches — see `config.example.sh` for the ids.
