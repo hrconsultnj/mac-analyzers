@@ -113,7 +113,9 @@ an idle dev server such a session left in the background go too.
   through the git common dir). A stack is mapped to its project by its Supabase `project_id`
   (the `supabase/config.toml` of a live session's repo, then of the repos under
   `ANALYZERS_STACK_REPO_ROOTS`), by its Compose `working_dir`, or by `ANALYZERS_STACK_OWNER_MAP`
-  (`glob=project`, from `config.local.sh`; an entry wins over automatic mapping). The first time
+  (`glob=project`, from `config.local.sh`). A stack can have several owners — the repo found
+  automatically and every owner-map project — and it is kept while **any** of them has a live
+  session. The first time
   a stack is seen with no live session it is remembered in `reports/memory/.stack-idle-state`;
   it is stopped once that lasts `ANALYZERS_STACK_IDLE_MIN` (default 30). Unmapped stacks
   (OrbStack's own Kubernetes containers included) are only reported. `ANALYZERS_STACK_PROTECT`

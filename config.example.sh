@@ -105,5 +105,5 @@
 #ANALYZERS_DEV_STOP_IDLE_STACKS=0      # 1 = enable
 #ANALYZERS_STACK_IDLE_MIN=30           # minutes a project must have had no live session
 #ANALYZERS_STACK_PROTECT="my-project other-*"   # stack ids / project names never stopped (globs; space or comma separated). Always wins.
-#ANALYZERS_STACK_OWNER_MAP="scratch-*=my-project"  # glob=project entries for stacks no repo config names; an entry wins over automatic mapping. A project is a repo folder name or its full path.
+#ANALYZERS_STACK_OWNER_MAP="scratch-*=my-project"  # glob=project entries (space or comma separated) for stacks no repo config names, or that another project also uses. A stack is kept while ANY of its owners (the repo found automatically AND every owner-map project) has a live session. A project is a repo folder name or its full path.
 #ANALYZERS_STACK_REPO_ROOTS="$HOME/Projects"        # where to look for repos of stacks with no live session (searched 3 levels down)

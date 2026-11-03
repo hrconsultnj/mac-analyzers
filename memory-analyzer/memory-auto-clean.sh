@@ -879,8 +879,9 @@ dev_section server
 #   (a) Supabase CLI containers — label com.supabase.cli.project = the project_id of some repo's
 #       supabase/config.toml (repos of live sessions first, then repos under ANALYZERS_STACK_REPO_ROOTS);
 #   (b) Compose — label com.docker.compose.project.working_dir, resolved to its repo;
-#   (c) ANALYZERS_STACK_OWNER_MAP (config.local.sh) for custom isolated stacks, "glob=project" entries;
-#       an explicit entry wins over (a) and (b).
+#   (c) ANALYZERS_STACK_OWNER_MAP (config.local.sh) for custom isolated stacks, "glob=project" entries.
+# A stack can have several owners — the repo (a)/(b) finds AND every owner-map project; it is kept while ANY of
+# them has a live session.
 # A stack that maps to nothing (OrbStack's own Kubernetes containers included) is reported, never stopped.
 # ANALYZERS_STACK_PROTECT always wins. Containers are stopped one at a time and are never removed; volumes,
 # images and networks are never touched, Docker itself is never signalled or started.
@@ -906,15 +907,15 @@ stack_scan_configs() {
              -not -path '*/node_modules/*' -not -path '*/.composure/*' -not -path '*/.git/*' 2>/dev/null)
 }
 
-# stack_owner_for <id> — the owner project named for this stack id by ANALYZERS_STACK_OWNER_MAP, if any
-stack_owner_for() {
+# stack_owners_for <id> — every owner project ANALYZERS_STACK_OWNER_MAP names for this stack id, one per line
+stack_owners_for() {
   local id="$1" entry pat
   for entry in ${STACK_OWNER_MAP//,/ }; do
     pat="${entry%%=*}"; [[ "$entry" == *=* && -n "$pat" ]] || continue
     # shellcheck disable=SC2053
-    if [[ "$id" == $pat ]]; then printf '%s\n' "${entry#*=}"; return 0; fi
+    [[ "$id" == $pat ]] && printf '%s\n' "${entry#*=}"
   done
-  return 1
+  return 0
 }
 
 # stack_protected <id…> — 0 when any argument matches an ANALYZERS_STACK_PROTECT pattern
@@ -994,57 +995,68 @@ dev_idle_stacks() {
     while IFS=$'\t' read -r ts_key ts_val; do [[ -n "$ts_key" && -n "$ts_val" ]] && PREV[$ts_key]="$ts_val"; done < "$STACK_STATE_FILE"
   fi
   : > "$state_tmp"
-  local proj_root owner how live n idle_s stopped failed c shown
+  local live n idle_s stopped failed c shown auto auto_how owner owners_txt names isl i
+  local -a o_name=() o_how=() o_live=()
   for key in "${ST_KEYS[@]}"; do
     id="${ST_ID[$key]}"; kind="${ST_KIND[$key]}"; n="${ST_N[$key]}"
-    proj_root=""; owner=""; how=""
-    # an explicit owner-map entry is the user's say-so and wins over what discovery would infer
-    if [[ "$kind" != k8s ]] && owner="$(stack_owner_for "$id")"; then
-      how="owner map"
-    else
-      owner=""
-      case "$kind" in
-        supabase) [[ -n "${PID_ROOT[$id]+x}" ]] && { proj_root="${PID_ROOT[$id]}"; how="project_id in ${proj_root##*/}/supabase/config.toml"; } ;;
-        compose)  [[ -n "${ST_WD[$key]}" ]] && { proj_root="$(main_worktree "${ST_WD[$key]}")"; [[ -n "$proj_root" ]] && how="compose working_dir"; } ;;
-      esac
+    o_name=(); o_how=(); o_live=(); live=0; auto=""; auto_how=""
+    # a stack can have several owners — the repo discovery finds (project_id / compose working_dir) AND every
+    # ANALYZERS_STACK_OWNER_MAP project; it is kept while ANY of them has a live session
+    case "$kind" in
+      supabase) [[ -n "${PID_ROOT[$id]+x}" ]] && { auto="${PID_ROOT[$id]}"; auto_how="project_id in ${auto##*/}/supabase/config.toml"; } ;;
+      compose)  [[ -n "${ST_WD[$key]}" ]] && { auto="$(main_worktree "${ST_WD[$key]}")"; [[ -n "$auto" ]] && auto_how="compose working_dir"; } ;;
+    esac
+    if [[ -n "$auto" ]]; then
+      isl=0; [[ -n "${LIVE_PATH[$auto]+x}" ]] && isl=1
+      o_name+=("${auto##*/}"); o_how+=("$auto_how"); o_live+=("$isl")
     fi
-    label="${proj_root:+${proj_root##*/}}"; label="${label:-${owner##*/}}"
+    if [[ "$kind" != k8s ]]; then
+      while IFS= read -r owner; do
+        [[ -n "$owner" ]] || continue
+        [[ "${owner##*/}" == "${auto##*/}" ]] && continue          # the same project twice
+        isl=0; [[ -n "${LIVE_NAME[${owner##*/}]+x}" || -n "${LIVE_PATH[$owner]+x}" ]] && isl=1
+        o_name+=("${owner##*/}"); o_how+=("owner map"); o_live+=("$isl")
+      done < <(stack_owners_for "$id")
+    fi
+    owners_txt=""; names=""
+    for ((i = 0; i < ${#o_name[@]}; i++)); do
+      owners_txt+="${owners_txt:+; }${o_name[i]} (${o_how[i]}): $([[ "${o_live[i]}" == 1 ]] && echo 'live session' || echo 'no session')"
+      names+=" ${o_name[i]}"; [[ "${o_live[i]}" == 1 ]] && live=1
+    done
     shown="$key  ${n} container$([[ $n -ne 1 ]] && echo s)"
 
-    if stack_protected "$id" "$key" "$label"; then
-      log "  [REPORT]  ${shown}  project=${label:-(none)}  — keep: on ANALYZERS_STACK_PROTECT"; continue
+    # shellcheck disable=SC2086
+    if stack_protected "$id" "$key" $names; then
+      log "  [REPORT]  ${shown}  owners=${owners_txt:-(none)}  — keep: on ANALYZERS_STACK_PROTECT"; continue
     fi
-    if [[ -z "$proj_root" && -z "$owner" ]]; then
-      log "  [REPORT]  ${shown}  owner=(unmapped)  — keep: an unmapped stack is never stopped"; continue
+    if [[ ${#o_name[@]} -eq 0 ]]; then
+      log "  [REPORT]  ${shown}  owners=(unmapped)  — keep: an unmapped stack is never stopped"; continue
     fi
-    live=0
-    if [[ -n "$proj_root" ]]; then [[ -n "${LIVE_PATH[$proj_root]+x}" ]] && live=1
-    else [[ -n "${LIVE_NAME[$owner]+x}" || -n "${LIVE_PATH[$owner]+x}" ]] && live=1; fi
     if [[ $live -eq 1 ]]; then
-      log "  [REPORT]  ${shown}  project=${label} (${how})  live session: yes  — keep"; continue
+      log "  [REPORT]  ${shown}  owners=${owners_txt}  — keep: an owner has a live session"; continue
     fi
     if [[ $unresolved -gt 0 ]]; then
-      log "  [REPORT]  ${shown}  project=${label} (${how})  live session: unknown  — keep: ${unresolved} live session(s) could not be placed in a project"; continue
+      log "  [REPORT]  ${shown}  owners=${owners_txt}  live session: unknown  — keep: ${unresolved} live session(s) could not be placed in a project"; continue
     fi
     first="${PREV[$key]:-$NOW_TS}"
     printf '%s\t%s\n' "$key" "$first" >> "$state_tmp"
     idle_s=$((NOW_TS - first))
     local since; since="$(date -r "$first" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
     if (( idle_s < STACK_IDLE_MIN * 60 )); then
-      log "  [REPORT]  ${shown}  project=${label} (${how})  live session: no  orphaned since ${since} ($((idle_s / 60))m of ${STACK_IDLE_MIN}m)  — keep: grace"; continue
+      log "  [REPORT]  ${shown}  owners=${owners_txt}  orphaned since ${since} ($((idle_s / 60))m of ${STACK_IDLE_MIN}m)  — keep: grace"; continue
     fi
     if [[ -n "${ONLY_PIDS}" ]]; then
-      log "  [SKIP]    not in approved set  ${shown}  project=${label}"; continue
+      log "  [SKIP]    not in approved set  ${shown}  owners=${owners_txt}"; continue
     fi
     if [[ "$DRY_RUN" -eq 1 ]]; then
-      log "  [DRY]     ${shown}  project=${label} (${how})  live session: no  orphaned since ${since} ($((idle_s / 60))m)  — would stop (containers kept, volumes untouched)"
+      log "  [DRY]     ${shown}  owners=${owners_txt}  orphaned since ${since} ($((idle_s / 60))m)  — would stop (containers kept, volumes untouched)"
       KILL_COUNT=$((KILL_COUNT + 1)); continue
     fi
     stopped=0; failed=0
     for c in ${ST_CIDS[$key]}; do
       if with_timeout 90 docker stop "$c" >/dev/null 2>&1; then stopped=$((stopped + 1)); else failed=$((failed + 1)); fi
     done
-    log "  [QUIT]    ${shown}  project=${label} (${how})  orphaned since ${since} ($((idle_s / 60))m)  — stopped ${stopped}/${n}$([[ $failed -gt 0 ]] && echo ", ${failed} failed") (containers kept, volumes untouched)"
+    log "  [QUIT]    ${shown}  owners=${owners_txt}  orphaned since ${since} ($((idle_s / 60))m)  — stopped ${stopped}/${n}$([[ $failed -gt 0 ]] && echo ", ${failed} failed") (containers kept, volumes untouched)"
     [[ $stopped -gt 0 ]] && KILL_COUNT=$((KILL_COUNT + 1))
   done
   mv -f "$state_tmp" "$STACK_STATE_FILE"
