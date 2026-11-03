@@ -92,8 +92,9 @@ pane edits the guard tunables (hard cap, spike thresholds) in
 | 8 | Gradle / Kotlin daemons idle 5 min — only while **no Gradle build runs anywhere**, so another project's build is never hit | **stop** |
 | 9 | Leftovers of finished/failed native builds — Xcode build helpers, emulator plumbing — whose parent is gone | **kill once idle** |
 | 10 | Dev servers (Metro, next, vite, storybook…) with no client connected and no activity — 30 min while their project is open in a session or terminal (or they run in an active agent session's scratch folder), 3 min once not | **kill** (with the wrappers that would respawn them) |
+| 11 | Docker / Supabase stacks whose project has had **no live claude/codex session** for 30 min (`ANALYZERS_STACK_IDLE_MIN`) — **opt-in** (`ANALYZERS_DEV_STOP_IDLE_STACKS=1`), dev pass only | **`docker stop`**, one container at a time — containers, volumes, images and Docker itself are never touched; a stack that maps to no project is reported and kept |
 
-### The dev pass (`--dev`: sections 1, 2, 7–10)
+### The dev pass (`--dev`: sections 1, 2, 7–11)
 
 Judges what each process is **doing**, not who started it. A client connected
 to its ports or growing CPU time keeps it (CPU only ever keeps something alive
@@ -106,6 +107,20 @@ an idle dev server such a session left in the background go too.
 - **After a failed native build:** `./memory-auto-clean.sh --apply --dev --now`
   — no idle wait for build daemons and build leftovers (still never while a
   build runs). Build scripts can call this from their failure path.
+- **Idle stacks (§11):** with `ANALYZERS_DEV_STOP_IDLE_STACKS=1` the pass also stops the
+  Docker/Supabase stacks of projects nobody is working on. A project is live while a
+  claude/codex session sits in its repo (a linked git worktree counts as the repo, resolved
+  through the git common dir). A stack is mapped to its project by its Supabase `project_id`
+  (the `supabase/config.toml` of a live session's repo, then of the repos under
+  `ANALYZERS_STACK_REPO_ROOTS`), by its Compose `working_dir`, or by `ANALYZERS_STACK_OWNER_MAP`
+  (`glob=project`, from `config.local.sh`; an entry wins over automatic mapping). The first time
+  a stack is seen with no live session it is remembered in `reports/memory/.stack-idle-state`;
+  it is stopped once that lasts `ANALYZERS_STACK_IDLE_MIN` (default 30). Unmapped stacks
+  (OrbStack's own Kubernetes containers included) are only reported. `ANALYZERS_STACK_PROTECT`
+  always wins. If a live session's working directory cannot be read, nothing is stopped that
+  pass. The dry run lists every stack with its project, mapping, live-session yes/no,
+  orphaned-since and the keep / would-stop reason; `docker stop` is never batched and nothing
+  is removed. Start a stopped stack again the usual way (`supabase start`, `docker compose up`).
 - **Tune:** the `ANALYZERS_DEV_*` knobs in `config.example.sh`. Something you
   start with `nohup` that must stay up belongs in `ANALYZERS_PROTECT_EXTRA`.
 

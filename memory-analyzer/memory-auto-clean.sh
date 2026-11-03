@@ -38,18 +38,23 @@
 # remembered in .dev-idle-state and the process goes once idle past its
 # grace. Live AI sessions keep their exemption (CONTRIBUTING.md invariant 3).
 #
-# --dev runs only sections 1, 2 and 7–10 — the fast pass memory-guard.sh runs
+# 11. (opt-in, ANALYZERS_DEV_STOP_IDLE_STACKS=1, --dev only) Docker/Supabase stacks of projects with no
+#     live AI session for ANALYZERS_STACK_IDLE_MIN — containers stopped (never removed), unmapped stacks kept.
+#
+# --dev runs only sections 1, 2 and 7–11 — the fast pass memory-guard.sh runs
 # every GUARD_DEV_SWEEP_SECS, and that build scripts call after a failure.
 #
 # SAFE BY DEFAULT: dry-run unless --apply. Never touches Zoom, browsers,
-# VS Code, Docker, Claude sessions, or anything on the protect list.
+# VS Code, Claude sessions, or anything on the protect list. Docker is left
+# alone too, except for the opt-in section 11, which only `docker stop`s the
+# containers of a stack no live session is working on (never removes anything).
 #
 # Usage:
 #   ./memory-auto-clean.sh                          # dry run
 #   ./memory-auto-clean.sh --apply                  # act
 #   ./memory-auto-clean.sh --apply --orphans-all    # also kill busy orphans
 #   ./memory-auto-clean.sh --dev-age-hours 48       # be laxer about dev servers
-#   ./memory-auto-clean.sh --apply --dev            # dev pass only (sections 1, 2, 7–10)
+#   ./memory-auto-clean.sh --apply --dev            # dev pass only (sections 1, 2, 7–11)
 #   ./memory-auto-clean.sh --apply --dev --now      # …and no idle wait for build
 #                                                   #    leftovers (after a failed build)
 #   ./memory-auto-clean.sh --apply --dev --quiet    # log/notify only when it reaps
@@ -97,6 +102,14 @@ DEV_BUSY_CPU_PCT=3      # CPU time growing faster than this % of one core = busy
 DEV_STATE_FILE="${LOG_DIR}/.dev-idle-state"
 DEV_NOTIFY_STAMP="${LOG_DIR}/.dev-notify-ts"
 
+# dev pass, section 11 (opt-in) — stop the Docker/Supabase stacks of projects with no live AI session
+DEV_STOP_IDLE_STACKS="${ANALYZERS_DEV_STOP_IDLE_STACKS:-0}"
+STACK_IDLE_MIN="${ANALYZERS_STACK_IDLE_MIN:-30}"
+STACK_PROTECT="${ANALYZERS_STACK_PROTECT:-}"
+STACK_OWNER_MAP="${ANALYZERS_STACK_OWNER_MAP:-}"
+STACK_REPO_ROOTS="${ANALYZERS_STACK_REPO_ROOTS:-$HOME/Projects}"
+STACK_STATE_FILE="${ANALYZERS_STACK_STATE_FILE:-${LOG_DIR}/.stack-idle-state}"
+
 ORIG_ARGS="$*"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -109,7 +122,7 @@ while [[ $# -gt 0 ]]; do
     --only-pids)      ONLY_PIDS="${2:?--only-pids needs a file}"; shift ;;
     --dev-age-hours)  DEV_AGE_HOURS="${2:-24}"; shift ;;
     --pw-age-hours)   PW_AGE_HOURS="${2:-2}"; shift ;;
-    -h|--help)        sed -n '2,55p' "$0"; exit 0 ;;
+    -h|--help)        sed -n '2,60p' "$0"; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
   shift
@@ -766,7 +779,7 @@ dev_evaluate
 log "=================================================================="
 log " memory auto-clean  |  $([[ $DRY_RUN -eq 1 ]] && echo 'DRY RUN' || echo 'APPLY')$([[ $DEV_ONLY -eq 1 ]] && echo '  |  dev pass')  |  ${TS_NOW}"
 if [[ "$DEV_ONLY" -eq 1 ]]; then
-  log " idle grace: devices ${DEV_DEVICE_IDLE_MIN}m  daemons $([[ $DEV_NOW -eq 1 ]] && echo 0 || echo "$DEV_DAEMON_IDLE_MIN")m  servers ${DEV_SERVER_IDLE_MIN}m/${DEV_ORPHAN_IDLE_MIN}m  orphans $([[ $DEV_NOW -eq 1 ]] && echo 0 || echo "$DEV_ORPHAN_IDLE_MIN")m"
+  log " idle grace: devices ${DEV_DEVICE_IDLE_MIN}m  daemons $([[ $DEV_NOW -eq 1 ]] && echo 0 || echo "$DEV_DAEMON_IDLE_MIN")m  servers ${DEV_SERVER_IDLE_MIN}m/${DEV_ORPHAN_IDLE_MIN}m  orphans $([[ $DEV_NOW -eq 1 ]] && echo 0 || echo "$DEV_ORPHAN_IDLE_MIN")m$([[ "$DEV_STOP_IDLE_STACKS" == 1 ]] && echo "  stacks ${STACK_IDLE_MIN}m")"
 else
   log " dev-age>${DEV_AGE_HOURS}h  pw-age>${PW_AGE_HOURS}h  orphans-all=${ORPHANS_ALL}"
 fi
@@ -859,6 +872,189 @@ dev_section buildleft plumbing
 # ---------- 10. Idle dev servers ----------
 group "10. Dev servers with no client and no activity — ${DEV_SERVER_IDLE_MIN}m while their project is open, ${DEV_ORPHAN_IDLE_MIN}m once not"
 dev_section server
+
+# =================== 11. idle Docker / Supabase stacks (opt-in) ===================
+# ANALYZERS_DEV_STOP_IDLE_STACKS=1: `docker stop` the containers of a stack whose project has had NO live
+# claude/codex session for ANALYZERS_STACK_IDLE_MIN. Only stacks that map to a project are ever considered:
+#   (a) Supabase CLI containers — label com.supabase.cli.project = the project_id of some repo's
+#       supabase/config.toml (repos of live sessions first, then repos under ANALYZERS_STACK_REPO_ROOTS);
+#   (b) Compose — label com.docker.compose.project.working_dir, resolved to its repo;
+#   (c) ANALYZERS_STACK_OWNER_MAP (config.local.sh) for custom isolated stacks, "glob=project" entries;
+#       an explicit entry wins over (a) and (b).
+# A stack that maps to nothing (OrbStack's own Kubernetes containers included) is reported, never stopped.
+# ANALYZERS_STACK_PROTECT always wins. Containers are stopped one at a time and are never removed; volumes,
+# images and networks are never touched, Docker itself is never signalled or started.
+
+# main_worktree <dir> — the main worktree's top level for a dir inside a repo or any of its linked
+# worktrees (via the git common dir); empty when the dir is not in a repo
+main_worktree() {
+  local d="$1" common
+  [[ -n "$d" && -d "$d" ]] || return 0
+  common="$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 0
+  [[ -n "$common" ]] || return 0
+  case "$common" in */.git) printf '%s\n' "${common%/.git}" ;; *) printf '%s\n' "$common" ;; esac
+}
+
+# stack_scan_configs <root> — "project_id<TAB>root" for each supabase/config.toml inside a repo
+stack_scan_configs() {
+  local root="$1" cfg pid
+  while IFS= read -r cfg; do
+    [[ -n "$cfg" ]] || continue
+    pid="$(awk -F'"' '/^project_id[[:space:]]*=/ { print $2; exit }' "$cfg" 2>/dev/null)"
+    [[ -n "$pid" ]] && printf '%s\t%s\n' "$pid" "$root"
+  done < <(find "$root" -maxdepth 4 -path '*/supabase/config.toml' -type f \
+             -not -path '*/node_modules/*' -not -path '*/.composure/*' -not -path '*/.git/*' 2>/dev/null)
+}
+
+# stack_owner_for <id> — the owner project named for this stack id by ANALYZERS_STACK_OWNER_MAP, if any
+stack_owner_for() {
+  local id="$1" entry pat
+  for entry in ${STACK_OWNER_MAP//,/ }; do
+    pat="${entry%%=*}"; [[ "$entry" == *=* && -n "$pat" ]] || continue
+    # shellcheck disable=SC2053
+    if [[ "$id" == $pat ]]; then printf '%s\n' "${entry#*=}"; return 0; fi
+  done
+  return 1
+}
+
+# stack_protected <id…> — 0 when any argument matches an ANALYZERS_STACK_PROTECT pattern
+stack_protected() {
+  local entry arg
+  for entry in ${STACK_PROTECT//,/ }; do
+    for arg in "$@"; do
+      # shellcheck disable=SC2053
+      [[ -n "$arg" && "$arg" == $entry ]] && return 0
+    done
+  done
+  return 1
+}
+
+dev_idle_stacks() {
+  if [[ "$DEV_STOP_IDLE_STACKS" != 1 ]]; then
+    log "  off — opt in with ANALYZERS_DEV_STOP_IDLE_STACKS=1 (config.local.sh)."; return 0
+  fi
+  command -v docker >/dev/null 2>&1 || { log "  docker is not installed — nothing to do."; return 0; }
+  # never start Docker: only look when its socket exists
+  [[ -S "$HOME/.orbstack/run/docker.sock" || -S /var/run/docker.sock ]] \
+    || { log "  Docker is not running — nothing to do."; return 0; }
+  local ps_out
+  ps_out="$(with_timeout 15 docker ps --format '{{.ID}}|{{.Names}}|{{.Label "com.supabase.cli.project"}}|{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.project.working_dir"}}|{{.Label "io.kubernetes.pod.name"}}' 2>/dev/null)" \
+    || { log "  Docker is not answering — nothing to do."; return 0; }
+  if [[ -z "$ps_out" ]]; then log "  no containers running."; return 0; fi
+
+  # ---- live projects: the main worktree of each live session's cwd (a linked worktree counts as its repo)
+  local -A LIVE_PATH=() LIVE_NAME=() PID_ROOT=() ST_KIND=() ST_ID=() ST_WD=() ST_CIDS=() ST_N=()
+  local -a ST_KEYS=()
+  local sroot cwd root unresolved=0 label
+  for sroot in $DEV_SESSION_ROOTS; do
+    cwd="${DEV_CWD[$sroot]:-}"
+    if [[ -z "$cwd" ]]; then unresolved=$((unresolved + 1)); continue; fi   # lookup failed: unknown project
+    root="$(main_worktree "$cwd")"
+    [[ -n "$root" ]] && { LIVE_PATH[$root]=1; LIVE_NAME[${root##*/}]=1; }
+  done
+
+  # ---- group containers into stacks
+  local cid name sb cp wd k8s key kind id
+  while IFS='|' read -r cid name sb cp wd k8s; do
+    [[ -n "$cid" ]] || continue
+    if [[ -n "$sb" ]]; then key="supabase:$sb"; kind=supabase; id="$sb"
+    elif [[ -n "$cp" ]]; then key="compose:$cp"; kind=compose; id="$cp"
+    elif [[ -n "$k8s" || "$name" == k8s_* ]]; then key="orbstack-k8s"; kind=k8s; id="orbstack-k8s"
+    else key="container:$name"; kind=container; id="$name"; fi
+    if [[ -z "${ST_KIND[$key]+x}" ]]; then ST_KEYS+=("$key"); ST_KIND[$key]="$kind"; ST_ID[$key]="$id"; ST_WD[$key]="$wd"; ST_N[$key]=0; ST_CIDS[$key]=""; fi
+    ST_CIDS[$key]+=" $cid"; ST_N[$key]=$((ST_N[$key] + 1))
+  done <<< "$ps_out"
+
+  # ---- supabase project_id -> repo: live sessions' repos first, the configured roots only if still needed
+  local need=0 line pid r d
+  for key in "${ST_KEYS[@]}"; do [[ "${ST_KIND[$key]}" == supabase ]] && need=1; done
+  if [[ $need -eq 1 ]]; then
+    for root in "${!LIVE_PATH[@]}"; do
+      while IFS=$'\t' read -r pid r; do [[ -n "$pid" && -z "${PID_ROOT[$pid]+x}" ]] && PID_ROOT[$pid]="$r"; done < <(stack_scan_configs "$root")
+    done
+    local unresolved_pid=0
+    for key in "${ST_KEYS[@]}"; do
+      [[ "${ST_KIND[$key]}" == supabase && -z "${PID_ROOT[${ST_ID[$key]}]+x}" ]] && unresolved_pid=1
+    done
+    if [[ $unresolved_pid -eq 1 ]]; then
+      for r in ${STACK_REPO_ROOTS}; do
+        [[ -d "$r" ]] || continue
+        while IFS= read -r d; do
+          d="${d%/.git}"
+          while IFS=$'\t' read -r pid root; do [[ -n "$pid" && -z "${PID_ROOT[$pid]+x}" ]] && PID_ROOT[$pid]="$root"; done < <(stack_scan_configs "$d")
+        done < <(find "$r" -maxdepth 3 -name .git -type d -prune 2>/dev/null)
+      done
+    fi
+  fi
+
+  # ---- judge each stack; remember when it was first seen orphaned
+  declare -A PREV=()
+  local first now_s state_tmp="${STACK_STATE_FILE}.tmp.$$" ts_key ts_val
+  if [[ -f "$STACK_STATE_FILE" ]]; then
+    while IFS=$'\t' read -r ts_key ts_val; do [[ -n "$ts_key" && -n "$ts_val" ]] && PREV[$ts_key]="$ts_val"; done < "$STACK_STATE_FILE"
+  fi
+  : > "$state_tmp"
+  local proj_root owner how live n idle_s stopped failed c shown
+  for key in "${ST_KEYS[@]}"; do
+    id="${ST_ID[$key]}"; kind="${ST_KIND[$key]}"; n="${ST_N[$key]}"
+    proj_root=""; owner=""; how=""
+    # an explicit owner-map entry is the user's say-so and wins over what discovery would infer
+    if [[ "$kind" != k8s ]] && owner="$(stack_owner_for "$id")"; then
+      how="owner map"
+    else
+      owner=""
+      case "$kind" in
+        supabase) [[ -n "${PID_ROOT[$id]+x}" ]] && { proj_root="${PID_ROOT[$id]}"; how="project_id in ${proj_root##*/}/supabase/config.toml"; } ;;
+        compose)  [[ -n "${ST_WD[$key]}" ]] && { proj_root="$(main_worktree "${ST_WD[$key]}")"; [[ -n "$proj_root" ]] && how="compose working_dir"; } ;;
+      esac
+    fi
+    label="${proj_root:+${proj_root##*/}}"; label="${label:-${owner##*/}}"
+    shown="$key  ${n} container$([[ $n -ne 1 ]] && echo s)"
+
+    if stack_protected "$id" "$key" "$label"; then
+      log "  [REPORT]  ${shown}  project=${label:-(none)}  — keep: on ANALYZERS_STACK_PROTECT"; continue
+    fi
+    if [[ -z "$proj_root" && -z "$owner" ]]; then
+      log "  [REPORT]  ${shown}  owner=(unmapped)  — keep: an unmapped stack is never stopped"; continue
+    fi
+    live=0
+    if [[ -n "$proj_root" ]]; then [[ -n "${LIVE_PATH[$proj_root]+x}" ]] && live=1
+    else [[ -n "${LIVE_NAME[$owner]+x}" || -n "${LIVE_PATH[$owner]+x}" ]] && live=1; fi
+    if [[ $live -eq 1 ]]; then
+      log "  [REPORT]  ${shown}  project=${label} (${how})  live session: yes  — keep"; continue
+    fi
+    if [[ $unresolved -gt 0 ]]; then
+      log "  [REPORT]  ${shown}  project=${label} (${how})  live session: unknown  — keep: ${unresolved} live session(s) could not be placed in a project"; continue
+    fi
+    first="${PREV[$key]:-$NOW_TS}"
+    printf '%s\t%s\n' "$key" "$first" >> "$state_tmp"
+    idle_s=$((NOW_TS - first))
+    local since; since="$(date -r "$first" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
+    if (( idle_s < STACK_IDLE_MIN * 60 )); then
+      log "  [REPORT]  ${shown}  project=${label} (${how})  live session: no  orphaned since ${since} ($((idle_s / 60))m of ${STACK_IDLE_MIN}m)  — keep: grace"; continue
+    fi
+    if [[ -n "${ONLY_PIDS}" ]]; then
+      log "  [SKIP]    not in approved set  ${shown}  project=${label}"; continue
+    fi
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      log "  [DRY]     ${shown}  project=${label} (${how})  live session: no  orphaned since ${since} ($((idle_s / 60))m)  — would stop (containers kept, volumes untouched)"
+      KILL_COUNT=$((KILL_COUNT + 1)); continue
+    fi
+    stopped=0; failed=0
+    for c in ${ST_CIDS[$key]}; do
+      if with_timeout 90 docker stop "$c" >/dev/null 2>&1; then stopped=$((stopped + 1)); else failed=$((failed + 1)); fi
+    done
+    log "  [QUIT]    ${shown}  project=${label} (${how})  orphaned since ${since} ($((idle_s / 60))m)  — stopped ${stopped}/${n}$([[ $failed -gt 0 ]] && echo ", ${failed} failed") (containers kept, volumes untouched)"
+    [[ $stopped -gt 0 ]] && KILL_COUNT=$((KILL_COUNT + 1))
+  done
+  mv -f "$state_tmp" "$STACK_STATE_FILE"
+  return 0
+}
+
+if [[ "$DEV_ONLY" -eq 1 ]]; then
+  group "11. Docker / Supabase stacks of projects with no live session for ${STACK_IDLE_MIN}m — containers stopped, never removed, volumes untouched"
+  dev_idle_stacks
+fi
 
 # ---------- summary ----------
 # --quiet with nothing reaped: no log entry, no notification

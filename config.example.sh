@@ -91,3 +91,19 @@
 #ANALYZERS_DEV_ORPHAN_IDLE_MIN=3       # orphaned dev tools, and dev servers of closed projects
 #ANALYZERS_DEV_REAP_SESSION_SERVERS=0  # 1 = also idle dev servers an AI session left running
 #ANALYZERS_ADB=""                      # adb, if not on PATH or inside the emulator's own SDK
+
+# Dev pass, section 11 — stop the Docker/Supabase stacks of projects you are NOT working on.
+# Opt-in: a stack is stopped (`docker stop`, one container at a time; nothing is removed,
+# volumes are never touched, Docker itself is never signalled) once its project has had no
+# live claude/codex session for ANALYZERS_STACK_IDLE_MIN. A session working in a git worktree
+# counts as its repo. Only stacks that map to a project are ever stopped; a stack that maps to
+# nothing (OrbStack's own Kubernetes containers included) is reported and kept. Mapping:
+# a Supabase stack by its project_id in a repo's supabase/config.toml (repos of live sessions,
+# then repos under ANALYZERS_STACK_REPO_ROOTS), a Compose stack by its working_dir, else the
+# owner map below. The first sighting of an orphaned stack is remembered in
+# reports/memory/.stack-idle-state. Preview with: memory-auto-clean.sh --dev (dry run).
+#ANALYZERS_DEV_STOP_IDLE_STACKS=0      # 1 = enable
+#ANALYZERS_STACK_IDLE_MIN=30           # minutes a project must have had no live session
+#ANALYZERS_STACK_PROTECT="my-project other-*"   # stack ids / project names never stopped (globs; space or comma separated). Always wins.
+#ANALYZERS_STACK_OWNER_MAP="scratch-*=my-project"  # glob=project entries for stacks no repo config names; an entry wins over automatic mapping. A project is a repo folder name or its full path.
+#ANALYZERS_STACK_REPO_ROOTS="$HOME/Projects"        # where to look for repos of stacks with no live session (searched 3 levels down)
