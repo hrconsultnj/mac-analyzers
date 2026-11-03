@@ -23,6 +23,12 @@ welcome either way.
    stop a dev server such a session left running in the background once
    nothing has used it for `ANALYZERS_DEV_SERVER_IDLE_MIN` — never its MCP
    servers, never a command the session is waiting on.
+   One more opt-in, container-level use of the live-session criterion: with
+   `ANALYZERS_DEV_STOP_IDLE_STACKS=1` the dev pass may `docker stop` (never
+   remove; never volumes, images or networks) the containers of a stack whose
+   owning project has had no live AI session for `ANALYZERS_STACK_IDLE_MIN`.
+   Unmapped stacks and `ANALYZERS_STACK_PROTECT` are never stopped, and it
+   never starts or signals Docker.
 4. Nothing auto-deletes user content: no volumes, no Time Machine backups,
    no documents. The sudoers rule stays scoped to one exact command.
 5. Anything personal/machine-specific goes through `config.local.sh`
