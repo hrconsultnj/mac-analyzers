@@ -78,7 +78,7 @@ struct StorageSettingsView: View {
                         Text(config.storage.worktreeIdleDays == 0
                              ? "Idle worktrees: off"
                              : "Remove worktrees idle \(config.storage.worktreeIdleDays) \(config.storage.worktreeIdleDays == 1 ? "day" : "days")")
-                        Text("Every idle worktree goes, merged or not, and nothing is lost: its commits stay on its branch, uncommitted changes are parked in the repo's git stash, and local-only files (an .env, a database, notes) are copied aside first. Each removal is listed with the commands that bring it back. Never removed: main, locked worktrees, or one a terminal or agent session is sitting in. Deep clean only.")
+                        Text("Every idle worktree goes, merged or not, and nothing is lost: its commits stay on its branch, uncommitted changes are parked as a pinned commit in the repo, and local-only files (an .env, a database, notes) are copied aside first. Each removal is listed with the commands that bring it back. Never removed: main, locked worktrees, or one a terminal or agent session is sitting in. Deep clean only.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

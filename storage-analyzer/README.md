@@ -153,8 +153,10 @@ What else each run covers, set in `config.local.sh` (or the app's Settings › S
   `.claude/worktrees`, …) — are removed with `git worktree remove` in deep mode once idle
   `ANALYZERS_WORKTREE_IDLE_DAYS` days, merged or not, without losing anything: commits stay on
   the branch (`git worktree add <path> <branch>` re-creates the checkout), uncommitted and
-  untracked changes are parked in the repo's git stash and pinned as `refs/parked/<worktree>-<time>`
-  (so `git gc` never expires them — `git for-each-ref refs/parked` lists them), and ignored files
+  untracked changes are parked as a commit pinned as `refs/parked/<worktree>-<time>`
+  (never in the repo's shared stash list, so another session's `git stash pop` cannot apply it,
+  and `git gc` never expires it — `git for-each-ref refs/parked` lists them; `git cherry-pick
+  --no-commit <ref>` brings one back), and ignored files
   that aren't build output (an `.env`, a local database, a key, notes) are copied to
   `reports/storage/parked-worktrees/` first. Nothing prunes that folder or those refs: delete a
   parked copy (`git update-ref -d refs/parked/…`, or the folder) once you no longer need it. Each removal is written to

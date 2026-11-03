@@ -441,8 +441,9 @@ fi
 #   * its commits stay on its branch — `git worktree add <path> <branch>`
 #     brings the checkout back (a detached checkout goes only when a branch
 #     or tag already holds its commit);
-#   * uncommitted and untracked changes are parked in the repo's git stash
-#     and pinned as refs/parked/<worktree>-<time>, so gc never expires them;
+#   * uncommitted and untracked changes are parked as a commit pinned under
+#     refs/parked/<worktree>-<time> (built with commit-tree, so the repo's
+#     shared stash list is never written to and gc never expires them);
 #   * ignored files that aren't build output (.env, local databases, keys,
 #     planning notes) are copied to reports/storage/parked-worktrees/ first.
 # Every removal lands in reports/storage/worktree-removals.md with the exact
@@ -522,7 +523,7 @@ if [[ "$MODE" == "deep" && "$WT_IDLE_DAYS" -gt 0 ]]; then
   }
   wt_consider() {  # <repo> <worktree> <head-sha> <branch|""> <locked 0|1>
     local repo="$1" wt="$2" sha="$3" br="$4" locked="$5"
-    local name why merged kb dirty precious pkb=0 park="" stash_sha="" pin="" rel restore
+    local name why merged kb dirty precious pkb=0 ukb=0 park="" pcommit="" pin="" rel restore note tmpidx ptree
     [[ -d "$wt" ]] || return 0
     # linked worktrees carry a .git FILE; a .git directory is a primary checkout
     [[ -f "$wt/.git" ]] || return 0
@@ -554,6 +555,15 @@ if [[ "$MODE" == "deep" && "$WT_IDLE_DAYS" -gt 0 ]]; then
         return 0
       fi
     fi
+    # untracked files are parked in the pinned commit too, so they get the same size cap
+    if [[ -n "$(git -C "$wt" ls-files -o --exclude-standard 2>/dev/null | head -1)" ]]; then
+      ukb="$(cd "$wt" && git ls-files -o --exclude-standard -z 2>/dev/null | xargs -0 du -sk 2>/dev/null | awk '{t += $1} END {print t + 0}')"
+      if (( ukb > WT_PARK_MAX_MB * 1024 )); then
+        wt_kept=$((wt_kept+1))
+        log "  (kept ${wt} — $(human "$ukb") of untracked files is over the ${WT_PARK_MAX_MB} MB parking limit)"
+        return 0
+      fi
+    fi
     echo "$wt" >> "$WT_LIST"
     kb=$(du -sk "$wt" 2>/dev/null | cut -f1); kb="${kb:-0}"
     if ! approved "$wt"; then log "  [SKIP]    not in approved set  $wt"; return 0; fi
@@ -561,7 +571,7 @@ if [[ "$MODE" == "deep" && "$WT_IDLE_DAYS" -gt 0 ]]; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
       log "  [DRY]     $(printf '%10s' "$(human "$kb")")  $wt"
       log "              ↳ ${why}"
-      [[ "$dirty" -gt 0 ]] && log "              ↳ ${dirty} uncommitted change(s) — parked in the repo's git stash first"
+      [[ "$dirty" -gt 0 ]] && log "              ↳ ${dirty} uncommitted change(s) — parked as a pinned commit first (not in the shared stash)"
       [[ -n "$precious" ]] && log "              ↳ $(printf '%s\n' "$precious" | grep -c .) local-only file(s), $(human "$pkb") — copied aside first: $(printf '%s\n' "$precious" | head -3 | tr '\n' ' ')"
       return 0
     fi
@@ -578,25 +588,34 @@ if [[ "$MODE" == "deep" && "$WT_IDLE_DAYS" -gt 0 ]]; then
         fi
       done <<< "$precious"
     fi
-    # 2. park uncommitted + untracked changes in the repo's stash (shared by
-    #    every worktree of the repo, so it outlives this checkout)
+    # 2. park uncommitted + untracked changes as a commit pinned under refs/parked/. It is built in a
+    #    throwaway index with commit-tree, so the repo's stash list (shared by every session and worktree,
+    #    where a bare `git stash pop` elsewhere would apply it, and where another session's entry could be
+    #    mistaken for ours) is never written to, and gc cannot expire it.
     if [[ "$dirty" -gt 0 ]]; then
-      if git -C "$wt" stash push -u -m "auto-clean $(date +%F) ${name} (${br:-detached})" >>"$LOG_FILE" 2>&1 \
-         && [[ -z "$(git -C "$wt" status --porcelain 2>/dev/null)" ]]; then
-        stash_sha="$(git -C "$wt" rev-parse -q --verify refs/stash)"
-        # A stash entry lives only in the stash reflog, which `git gc` expires
-        # after a few months — pin it to a ref of its own so the parked work
-        # outlives that. `git for-each-ref refs/parked` lists everything parked.
-        pin="refs/parked/$(printf '%s' "$name" | tr -c 'A-Za-z0-9_-' '-')-$(date +%Y%m%d-%H%M%S)"
-        if ! git -C "$repo" update-ref "$pin" "$stash_sha" >>"$LOG_FILE" 2>&1; then
-          git -C "$wt" stash pop >>"$LOG_FILE" 2>&1
-          log "  [FAILED]  $(printf '%10s' "$(human "$kb")")  $wt"
-          log "              ↳ couldn't pin its parked changes to a ref — left as it was"
-          return 0
-        fi
-      else
+      pin="refs/parked/$(printf '%s' "$name" | tr -c 'A-Za-z0-9_-' '-')-$(date +%Y%m%d-%H%M%S)"
+      tmpidx="$(mktemp -t wt-park-idx)"; rm -f "$tmpidx"
+      ptree="$(GIT_INDEX_FILE="$tmpidx" git -C "$wt" add -A >>"$LOG_FILE" 2>&1 \
+               && GIT_INDEX_FILE="$tmpidx" git -C "$wt" write-tree 2>>"$LOG_FILE")"
+      rm -f "$tmpidx"
+      pcommit=""
+      if [[ -n "$ptree" ]]; then
+        pcommit="$(printf 'auto-clean %s: uncommitted and untracked changes of %s (%s)\n' "$(date +%F)" "$name" "${br:-detached}" \
+                   | GIT_AUTHOR_NAME="mac-analyzers" GIT_AUTHOR_EMAIL="mac-analyzers@localhost" \
+                     GIT_COMMITTER_NAME="mac-analyzers" GIT_COMMITTER_EMAIL="mac-analyzers@localhost" \
+                     git -C "$wt" commit-tree "$ptree" -p HEAD 2>>"$LOG_FILE")"
+      fi
+      if [[ -z "$pcommit" ]] || ! git -C "$repo" update-ref "$pin" "$pcommit" >>"$LOG_FILE" 2>&1 \
+         || [[ "$(git -C "$repo" rev-parse -q --verify "${pin}^{commit}" 2>/dev/null)" != "$pcommit" ]]; then
         log "  [FAILED]  $(printf '%10s' "$(human "$kb")")  $wt"
-        log "              ↳ couldn't park its uncommitted changes — left as it was"
+        log "              ↳ couldn't park its uncommitted changes — nothing was changed, left as it was"
+        return 0
+      fi
+      # the changes are pinned; now clear the checkout so git will remove it without --force
+      if ! { git -C "$wt" reset -q --hard HEAD && git -C "$wt" clean -fdq; } >>"$LOG_FILE" 2>&1 \
+         || [[ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]]; then
+        log "  [FAILED]  $(printf '%10s' "$(human "$kb")")  $wt"
+        log "              ↳ its changes are pinned as ${pin} AND still in the folder (it could not be cleared) — left as it was"
         return 0
       fi
     fi
@@ -604,20 +623,24 @@ if [[ "$MODE" == "deep" && "$WT_IDLE_DAYS" -gt 0 ]]; then
     if git -C "$repo" worktree remove "$wt" >>"$LOG_FILE" 2>&1; then
       log "  [DELETED] $(printf '%10s' "$(human "$kb")")  $wt"
       log "              ↳ ${why}"
-      [[ -n "$pin" ]] && log "              ↳ uncommitted changes parked in git stash, pinned as ${pin}"
+      [[ -n "$pcommit" ]] && log "              ↳ uncommitted and untracked changes parked as a commit, pinned as ${pin}"
       [[ -n "$park" ]] && log "              ↳ local-only files copied to ${park}"
       restore="\`git -C '${repo}' worktree add '${wt}' ${br:-$sha}\`"
-      [[ -n "$pin" ]] && restore="${restore}, then \`git -C '${wt}' stash apply ${pin}\`"
+      [[ -n "$pcommit" ]] && restore="${restore}, then \`git -C '${wt}' cherry-pick --no-commit ${pin} && git -C '${wt}' reset -q\`"
       [[ -n "$park" ]] && restore="${restore}, then \`ditto '${park}' '${wt}'\`"
-      wt_manifest "| $(date '+%Y-%m-%d %H:%M') | \`${wt}\` | ${br:-detached ${sha:0:10}} | ${pin:+\`${pin}\`} | ${park:+\`${park}\`} | ${restore} |"
+      wt_manifest "| $(date '+%Y-%m-%d %H:%M') | \`${wt}\` | ${br:-detached ${sha:0:10}} | ${pcommit:+\`${pin}\`} | ${park:+\`${park}\`} | ${restore} |"
     else
-      # put the work back exactly as it was
-      if [[ -n "$stash_sha" ]]; then
-        git -C "$wt" stash pop >>"$LOG_FILE" 2>&1
-        git -C "$repo" update-ref -d "$pin" >>"$LOG_FILE" 2>&1
+      # put the work back exactly as it was (apply the pinned commit by SHA: no stash list involved)
+      note=""
+      if [[ -n "$pcommit" ]]; then
+        if git -C "$wt" cherry-pick --no-commit "$pcommit" >>"$LOG_FILE" 2>&1 && git -C "$wt" reset -q >>"$LOG_FILE" 2>&1; then
+          git -C "$repo" update-ref -d "$pin" >>"$LOG_FILE" 2>&1
+        else
+          note=" — its changes could not be put back automatically and stay pinned as ${pin} (git -C '${wt}' cherry-pick --no-commit ${pin})"
+        fi
       fi
       log "  [FAILED]  $(printf '%10s' "$(human "$kb")")  $wt"
-      log "              ↳ git refused to remove it — left as it was"
+      log "              ↳ git refused to remove it — left as it was${note}"
     fi
   }
   for root in $ROOTS; do
