@@ -25,3 +25,7 @@ license.lic
 .code-review-graph/
 
 # .composure/ is governed by .composure/.gitignore (campaigns/frameworks/research travel; graph/cortex/workspaces stay local)
+
+# machine-specific Composure state (re-probed per machine) and per-folder task markers
+.composure/environment.json
+**/.composure/current-task.json

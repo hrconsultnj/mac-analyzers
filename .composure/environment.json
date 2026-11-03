@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "detectedAt": "2026-10-05T19:27:29.813Z",
+  "detectedAt": "2026-10-22T03:56:18.061Z",
   "probed": true,
   "os": "macos",
   "platform": "darwin",
@@ -12,9 +12,9 @@
     "bashVersion": "5.3.12"
   },
   "terminal": {
-    "id": "unknown",
+    "id": "iterm.app",
     "wtSession": false,
-    "termProgram": null,
+    "termProgram": "iTerm.app",
     "legacyConsoleLikely": false
   },
   "toolchain": {
