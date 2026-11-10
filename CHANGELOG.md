@@ -33,6 +33,8 @@ heading becomes its version and title.
   without Homebrew, and the app's own Preview button on any Mac. It now runs
   everywhere; the checks for idle developer tools need a newer bash and say
   so when one is not installed.
+- Fixed: web-page processes belonging to Safari and other apps were listed
+  under the name "com" in the menu-bar process list.
 - Fixed: cleanups started from the app could stall on very large results.
   They also now find the same developer tools your scheduled cleanups use.
 

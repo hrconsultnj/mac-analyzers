@@ -16,9 +16,7 @@ public struct ForensicsProcessRow: Identifiable, Hashable, Sendable {
         ProcessGlossary.friendlyName(for: args) ?? shortName
     }
     public var shortName: String {
-        if let range = args.range(of: #"([^/]+)\.app"#, options: .regularExpression) {
-            return String(args[range].dropLast(4))
-        }
+        if let app = AppBundleName.first(in: args) { return app }
         return String(args.split(separator: " ").first.map {
             $0.split(separator: "/").last.map(String.init) ?? String($0)
         } ?? args)

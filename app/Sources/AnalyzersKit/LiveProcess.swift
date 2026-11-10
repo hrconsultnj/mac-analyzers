@@ -48,9 +48,7 @@ public struct LiveProcess: Identifiable, Sendable, Hashable {
     public var friendlyName: String {
         if isDev, let known = ProcessGlossary.friendlyName(for: rawName) { return known }
         if let label { return label }
-        if let range = rawName.range(of: #"([^/]+)\.app"#, options: .regularExpression) {
-            return String(rawName[range].dropLast(4))
-        }
+        if let app = AppBundleName.first(in: rawName) { return app }
         // bare binary name (helpers/daemons outside .app bundles)
         return String(rawName.split(separator: " ").first.map {
             $0.split(separator: "/").last.map(String.init) ?? String($0)
