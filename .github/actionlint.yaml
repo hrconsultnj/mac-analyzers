@@ -1,0 +1,7 @@
+# actionlint 1.7.12 predates these two GitHub-hosted labels (both are listed in
+# the runner-images README). Declaring them here stops the linter calling a
+# valid label unknown; drop an entry once actionlint knows it.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+    - xcode-27

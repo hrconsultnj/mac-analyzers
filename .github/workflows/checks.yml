@@ -1,0 +1,74 @@
+name: checks
+
+# These workflows VERIFY; they never publish. A release is cut locally with
+# scripts/cut-release.sh (the update-signing key stays in the owner's
+# keychain), so nothing here needs a secret or write access.
+#
+# Every check lives in scripts/check.sh — this file only provides the machine
+# and calls it. The same script runs in the pre-push hook, so a failure here
+# should already have been caught before the push.
+#
+# When it runs:
+#   push to development/main  only when a script, a workflow, the changelog,
+#                             VERSION or a test changed (a docs-only push
+#                             starts nothing)
+#   pull request              always, but cheaply: `--changed` picks the checks
+#                             the PR touches, and the secrets sweep always runs
+#                             (outside contributors do not have the hook)
+
+on:
+  pull_request:
+    branches: [development]
+  push:
+    branches: [development, main]
+    paths:
+      - '**.sh'
+      - '**.command'
+      - 'scripts/**'
+      - '.github/**'
+      - 'tests/**'
+      - 'memory-analyzer/tests/**'
+      - 'CHANGELOG.md'
+      - 'VERSION'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # a newer push supersedes an older run — except on main, which is never cancelled
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    # Pinned, not ubuntu-latest: the label is moving from Ubuntu 24.04 to 26.04
+    # until 2026-11-19, and the two images ship different shellcheck versions.
+    # 26.04 carries the same shellcheck as the maintainer's Mac.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1 — pinned to a commit: a tag can be moved, a commit cannot
+        with:
+          fetch-depth: 0   # PRs diff against their merge base
+
+      - name: Install actionlint
+        # Not preinstalled on the runner image. Pinned version, checksum verified.
+        run: |
+          v=1.7.12
+          curl -fsSL -o "$RUNNER_TEMP/actionlint.tgz" \
+            "https://github.com/rhysd/actionlint/releases/download/v${v}/actionlint_${v}_linux_amd64.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/actionlint.tgz" -C "$RUNNER_TEMP" actionlint
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Run the checks
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -n "$PR_BASE" ]; then
+            scripts/check.sh --changed "$PR_BASE...$PR_HEAD"
+          else
+            scripts/check.sh
+          fi
