@@ -94,6 +94,14 @@ Both are protected (code-owner review required for PRs; owner pushes directly).
   main worktree** (`.composure/workspaces/main`) — never by switching the
   root checkout. Never bump `VERSION` by hand without releasing: 2.65–2.67
   were bumped on development and never reached anyone.
+- `scripts/package.sh` builds the download for other people:
+  `dist/MacAnalyzers-<V>.dmg` (app + Applications shortcut), from a re-signed
+  COPY — it never installs and never changes the repo bundle's signature.
+  Signing level is automatic: a keychain "Developer ID Application" identity
+  (+ `MA_NOTARY_PROFILE` to notarize) when there is one, ad-hoc otherwise —
+  NEVER the personal Apple Development identity, which carries the
+  developer's email. Not attached to releases yet: a downloaded copy still
+  needs the in-app first-run/update path (see the app blueprint).
 - `CHANGELOG.md` is the single source for release notes: the GitHub release
   body AND the app's What's New (bundled by `build.sh`). Entries are written
   for someone who uses the app and has never seen the code — full sentences,

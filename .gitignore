@@ -29,3 +29,6 @@ license.lic
 # machine-specific Composure state (re-probed per machine) and per-folder task markers
 .composure/environment.json
 **/.composure/current-task.json
+
+# downloads built by scripts/package.sh
+dist/

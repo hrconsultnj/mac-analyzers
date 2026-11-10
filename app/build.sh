@@ -82,7 +82,11 @@ fi
 # repo copy is the build artifact / script-only fallback. A locally built app
 # carries no quarantine, so no DMG/notarization is involved.
 INSTALL="/Applications/MacAnalyzers.app"
-if ditto "$APP" "$INSTALL" 2>/dev/null; then
+# MA_NO_INSTALL=1: build the bundle and stop — scripts/package.sh uses this so
+# making a download for other people never touches the copy you are running.
+if [[ "${MA_NO_INSTALL:-0}" == "1" ]]; then
+  echo "not installed (MA_NO_INSTALL=1)"
+elif ditto "$APP" "$INSTALL" 2>/dev/null; then
   echo "installed: $INSTALL"
 else
   echo "note: could not install to /Applications (permissions?) — running from the repo copy still works"
