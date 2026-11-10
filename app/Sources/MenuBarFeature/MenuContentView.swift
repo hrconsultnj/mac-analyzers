@@ -10,8 +10,10 @@ import UIComponents
 ///   MenuMonitorTab.swift   the biggest processes right now
 ///   MenuStorageTab.swift   disk usage and the storage cleanups
 ///   MenuFooter.swift       the footer every tab shares, and shared helpers
+///   MenuJobsStrip.swift    the running job, above the tabs, only while there is one
 public struct MenuContentView: View {
     @Environment(GuardLogStore.self) var store
+    @Environment(JobStore.self) var jobs
     @Environment(\.openWindow) var openWindow
     @State private var tab: Tab = .memory
     @AppStorage("monitorRefreshSeconds") var monitorRefresh = 15
@@ -26,6 +28,7 @@ public struct MenuContentView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            MenuJobsStrip()
             Picker("", selection: $tab) {
                 ForEach(Tab.allCases, id: \.self) { Text($0.rawValue) }
             }
