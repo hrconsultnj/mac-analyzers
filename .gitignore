@@ -8,6 +8,7 @@ tasks-plans/
 # built app + icon artifacts (rebuild with app/build.sh / app/make-icon.sh)
 app/MacAnalyzers.app/
 app/.build/
+app/.build-pro/
 app/AppIcon.icns
 app/icon_1024.png
 
