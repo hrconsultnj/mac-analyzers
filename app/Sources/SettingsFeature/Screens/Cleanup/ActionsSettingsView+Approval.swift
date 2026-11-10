@@ -74,22 +74,14 @@ extension ActionsSettingsView {
     private var totalApprovable: Int { approvableKeys.count }
     var approvedCount: Int { approvableKeys.filter { !deselected.contains($0) }.count }
 
-    /// Writes the approved keys to a temp file and returns the engine flag.
-    /// Nothing deselected → no flag at all, so the common case runs exactly
-    /// the command it always did. Temp clean always sends the list: temp
-    /// folders change by the minute, and an item that crosses the age line
-    /// between preview and apply must not ride along unreviewed.
-    func approvalArgs() -> [String] {
-        guard !deselected.isEmpty || cleaner == .tempClean else { return [] }
-        let approved = approvableKeys.filter { !deselected.contains($0) }
-        let file = FileManager.default.temporaryDirectory
-            .appending(path: "mac-analyzers-approved-\(UUID().uuidString).txt")
-        guard (try? approved.joined(separator: "\n")
-            .write(to: file, atomically: true, encoding: .utf8)) != nil else { return [] }
-        switch cleaner {
-        case .memoryClean, .reclaim: return ["--only-pids", file.path]
-        case .storageClean, .janitor, .tempClean: return ["--only-paths", file.path]
-        }
+    /// What the user left ticked, for `JobStore.apply(from:approved:)`. The
+    /// kernel writes the approval file and passes the engine flag; nothing
+    /// deselected means no flag at all, so the common case runs exactly the
+    /// command it always did, and temp clean always sends its list (temp
+    /// folders change by the minute). A file that cannot be written stops the
+    /// apply: it can never widen it to "everything".
+    var approvedSet: ApprovedSet {
+        ApprovedSet(approvable: approvableKeys, deselected: deselected)
     }
 
     var isApplyingOrDone: Bool {

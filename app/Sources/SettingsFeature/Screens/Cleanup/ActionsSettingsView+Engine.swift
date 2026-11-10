@@ -2,38 +2,108 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// Talking to the engine: preview, apply, reading the latest run back, and
-/// resetting the screen.
+/// Talking to the engine through the job store: preview, apply, finding this
+/// cleaner's jobs again, reading the run back from the job, and resetting the
+/// screen. Nothing here runs a script itself.
 extension ActionsSettingsView {
 
-    func preview() async {
-        guard FileManager.default.isExecutableFile(atPath: cleaner.script.path) else {
-            phase = .failed("The cleaning tools aren't installed on this Mac (expected \(cleaner.script.path)).")
-            return
-        }
-        phase = .previewing
-        let result = await ActionRunner.run(script: cleaner.script, args: ["--dry-run"] + modeArgs)
-        guard result.exitCode == 0 else {
-            lastOutput = result.output
-            phase = .failed(ExitExplanation.explain(exitCode: result.exitCode, verb: "preview"))
-            return
-        }
-        lastOutput = result.output
-        parseLatestRun()
-        phase = .review
+    var jobOptions: JobOptions {
+        JobOptions(deep: cleaner == .storageClean && storageDeep,
+                   permanent: cleaner == .tempClean && tempPermanent)
     }
 
-    func apply() async {
-        phase = .applying
-        let result = await ActionRunner.run(script: cleaner.script,
-                                            args: ["--apply"] + modeArgs + approvalArgs())
-        lastOutput = result.output
-        guard result.exitCode == 0 else {
-            phase = .failed(ExitExplanation.explain(exitCode: result.exitCode, verb: "apply"))
+    /// Both jobs' stages, for `onChange`.
+    var jobStamps: [JobStamp] { [JobStamp(previewJob), JobStamp(applyJob)] }
+
+    // MARK: - starting jobs
+
+    func preview() {
+        resetRuns()
+        lastOutput = ""
+        applyJob = nil
+        previewJob = jobs.enqueue(JobRequest(kind: cleaner.jobKind, intent: .preview, options: jobOptions),
+                                  trigger: .user)
+        syncFromJobs()
+    }
+
+    /// Built from the finished preview with exactly what is ticked. The store
+    /// refuses anything else, and says why in the failure shown here.
+    func apply() {
+        guard let preview = previewJob else {
+            phase = .failed("There is no finished preview to apply. Preview again, then apply.")
             return
         }
-        parseLatestRun()
-        phase = .done(doneSummary)
+        lastOutput = ""
+        applyJob = jobs.apply(from: preview, approved: approvedSet)
+        syncFromJobs()
+    }
+
+    // MARK: - finding the jobs again
+
+    /// On appear and when the cleaner changes: take the store's jobs for this
+    /// cleaner, so a window that was closed and reopened shows the same
+    /// progress or the same result.
+    func adoptCurrentJobs() {
+        let kind = cleaner.jobKind
+        resetRuns()
+        previewJob = jobs.latest(kind, intents: [.preview])
+        let applied = jobs.latest(kind, intents: [.apply])
+        applyJob = newer(applied, than: previewJob) ? applied : nil
+        if let shown = applyJob ?? previewJob {
+            // the toggles must read what the job was started with
+            if cleaner == .storageClean { storageDeep = shown.request.options.deep }
+            if cleaner == .tempClean { tempPermanent = shown.request.options.permanent }
+        }
+        syncFromJobs()
+    }
+
+    private func newer(_ job: Job?, than other: Job?) -> Bool {
+        guard let job else { return false }
+        guard let other else { return true }
+        let order = jobs.jobs.map(\.id)
+        guard let mine = order.firstIndex(of: job.id), let theirs = order.firstIndex(of: other.id) else { return true }
+        return mine > theirs
+    }
+
+    // MARK: - reading a job into the screen
+
+    /// Puts the screen in the phase its job is in, and its run on screen.
+    func syncFromJobs() {
+        guard let job = applyJob ?? previewJob else { return }
+        switch job.state {
+        case .queued, .running:
+            phase = job.intent == .apply ? .applying : .previewing
+
+        case .succeeded(let outcome):
+            switch outcome.parsed {
+            case .reap(let run): reapRun = run
+            case .storage(let run): storageRun = run
+            case .temp(let run): tempRun = run
+            default: break
+            }
+            lastOutput = job.lines.joined(separator: "\n")
+            if job.intent == .apply {
+                phase = .done(doneSummary)
+                Task { await loadHistory() }
+            } else {
+                phase = .review
+            }
+
+        case .failed(let failure):
+            lastOutput = job.lines.joined(separator: "\n")
+            phase = .failed(failure.message)
+
+        case .cancelled(let partial):
+            lastOutput = job.lines.joined(separator: "\n")
+            if job.intent == .apply {
+                phase = .failed(partial
+                                ? "Stopped. Items already handled are listed in the receipts."
+                                : "Stopped before anything changed.")
+                Task { await loadHistory() }
+            } else {
+                resetToIdle()       // a preview you stopped has nothing to review
+            }
+        }
     }
 
     private var doneSummary: String {
@@ -62,28 +132,34 @@ extension ActionsSettingsView {
         }
     }
 
-    private func parseLatestRun() {
-        guard let latest = LogParser.runs(for: cleaner.logKind).first else {
-            reapRun = nil
-            storageRun = nil
-            tempRun = nil
-            return
-        }
-        switch cleaner {
-        case .memoryClean, .reclaim:
-            reapRun = ReapParser.parse(runHeader: latest.header, lines: latest.lines)
-        case .storageClean, .janitor:
-            storageRun = StorageCleanParser.parse(runHeader: latest.header, lines: latest.lines)
-        case .tempClean:
-            tempRun = TempCleanParser.parse(runHeader: latest.header, lines: latest.lines)
-        }
-    }
+    // MARK: - resetting
 
-    func resetToIdle() {
-        phase = .idle
+    private func resetRuns() {
         reapRun = nil
         storageRun = nil
         tempRun = nil
         deselected.removeAll()
+    }
+
+    /// Discard, "New preview" and "Try again": forget this review. The jobs
+    /// stay in the store and in Activity.
+    func resetToIdle() {
+        phase = .idle
+        previewJob = nil
+        applyJob = nil
+        resetRuns()
+    }
+}
+
+extension ActionsSettingsView.Cleaner {
+    /// The job kind that runs this cleaner.
+    var jobKind: JobKind {
+        switch self {
+        case .memoryClean: .memoryClean
+        case .reclaim: .reclaim
+        case .storageClean: .storageClean
+        case .janitor: .janitor
+        case .tempClean: .tempClean
+        }
     }
 }

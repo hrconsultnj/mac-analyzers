@@ -15,15 +15,17 @@ extension ActionsSettingsView {
                     lastRunText
                     Spacer()
                     Button("See what would be cleaned") {
-                        Task { await preview() }
+                        preview()
                     }
                     .buttonStyle(.glassProminent)
                 }
             case .previewing:
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Checking what could be cleaned — nothing is being changed yet…")
+                    Text(previewJob?.step ?? "Checking what could be cleaned — nothing is being changed yet…")
                         .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Stop") { previewJob?.cancel() }
                 }
             case .review:
                 HStack {
@@ -48,8 +50,10 @@ extension ActionsSettingsView {
             case .applying:
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Applying — receipts are being written to the log…")
+                    Text(applyJob?.step ?? "Applying — receipts are being written to the log…")
                         .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Stop") { applyJob?.cancel() }
                 }
             case .done(let summary):
                 HStack {
