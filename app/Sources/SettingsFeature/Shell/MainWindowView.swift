@@ -25,6 +25,10 @@ public struct MainWindowView: View {
         } detail: {
             detail
         }
+        // On the split view, not on the stack inside it: a toolbar attached
+        // to a NavigationStack itself (rather than to something inside it) is
+        // dropped, which left the window with no Back or Forward button at all.
+        .toolbar { HistoryToolbar(navigator: navigator) }
         .frame(minWidth: 780, minHeight: 620)
         .environment(navigator)
         .focusedSceneValue(\.navigator, navigator)
@@ -32,8 +36,11 @@ public struct MainWindowView: View {
             guard let target = note.userInfo?["target"] as? String else { return }
             DeepLinkRouter.open(target, in: navigator)
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
-            NavigationPersistence.save(navigator.location)
+        // Saved on every move, not only on close and quit: an app that is
+        // force-quit, or ended by a restart, gets no chance to say goodbye,
+        // and would reopen on wherever the window was last CLOSED.
+        .onChange(of: navigator.location) { _, location in
+            NavigationPersistence.save(location)
         }
         .onDisappear {
             NavigationPersistence.save(navigator.location)
@@ -51,7 +58,6 @@ public struct MainWindowView: View {
                 .navigationDestination(for: Route.self) { $0.destination }
         }
         .id(section)
-        .toolbar { HistoryToolbar(navigator: navigator) }
     }
 
     /// Bound to the section the stack was built for, not to whichever
