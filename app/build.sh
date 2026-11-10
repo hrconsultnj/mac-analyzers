@@ -108,7 +108,13 @@ INSTALL="/Applications/MacAnalyzers.app"
 # making a download for other people never touches the copy you are running.
 if [[ "${MA_NO_INSTALL:-0}" == "1" ]]; then
   echo "not installed (MA_NO_INSTALL=1)"
-elif ditto "$APP" "$INSTALL" 2>/dev/null; then
+elif ditto "$APP" "$INSTALL.new" 2>/dev/null \
+     && rm -rf "$INSTALL" && mv "$INSTALL.new" "$INSTALL"; then
+  # REPLACED, not copied over: copying a bundle onto the installed one keeps
+  # every file the new build no longer contains, so removed files lived on in
+  # /Applications forever and the installed copy's signature stopped
+  # verifying (files present that the seal does not list). A running app is
+  # unaffected — it keeps the files it already has open until it relaunches.
   echo "installed: $INSTALL"
 else
   echo "note: could not install to /Applications (permissions?) — running from the repo copy still works"
