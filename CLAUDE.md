@@ -1,6 +1,7 @@
 # CLAUDE.md — mac-analyzers
 
-Shell-script toolkit (bash 5, macOS-only, no dependencies) plus one compiled
+Shell-script toolkit (bash, macOS-only, no dependencies — every script MUST
+run under the bash macOS ships, `/bin/bash` 3.2; see the bash rule below) plus one compiled
 part: the SwiftUI menu-bar app in `app/` (SPM, Swift 6, macOS 26).
 Read `CONTRIBUTING.md` first — its **safety invariants are hard rules**:
 analyzers read-only, cleaners dry-run by default, guard kills dev-tooling only,
@@ -37,6 +38,14 @@ through `config.local.sh` (never hardcoded).
   knobs `ANALYZERS_NOTIFIER` / `ANALYZERS_LOG_VIEWER` / `ANALYZERS_NOTIFY_TIMEOUT`.
 - The app's Settings write ONLY the marked managed block in `config.local.sh`
   (user content outside markers untouched); memory saves kickstart the guard.
+- **Bash 3.2 rule.** macOS ships bash 3.2 and an app's PATH has no Homebrew,
+  so `#!/usr/bin/env bash` can land on 3.2 even on a Mac that has bash 5. A
+  script may use bash 4+ features (associative arrays, `mapfile`, `declare
+  -g`, `${x,,}`) ONLY behind a version check that re-execs into a newer bash
+  when one exists and otherwise skips that part with a plain logged line —
+  `memory-auto-clean.sh` is the model (`DEV_PASS_OK`). Verify every touched
+  script's dry-run under BOTH `bash` and `/bin/bash`; force the old-bash path
+  with `ANALYZERS_BASH_CANDIDATES=/nonexistent /bin/bash <script>`.
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
   output. There is no test suite; the dry-run IS the test. For the app:
   `cd app && swift build` (bundle assembly is `./app/build.sh` — no Xcode; it

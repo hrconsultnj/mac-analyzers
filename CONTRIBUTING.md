@@ -36,7 +36,9 @@ welcome either way.
 
 ## Practical checklist
 
-- `bash -n` passes on every changed script.
+- `bash -n` passes on every changed script — and so does `/bin/bash -n`.
+  macOS ships bash 3.2: run the dry-run under `/bin/bash` too. Anything that
+  needs bash 4+ goes behind a version check that falls back gracefully.
 - Run the changed script's dry-run and paste the (redacted) output in the PR.
 - Interactive menu still works (`FORCE_INTERACTIVE=1 printf 'q\n' | ./script`).
 - No usernames, hostnames, project names, or personal app lists in tracked
