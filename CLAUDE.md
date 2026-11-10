@@ -55,7 +55,7 @@ through `config.local.sh` (never hardcoded).
   bundled `notify` shim) · `AgentRunner` (the compiled launchd entry point —
   `execv`s the engine script for BTM attribution).
 - Every settings pane renders inside `PaneScaffold`
-  (`SettingsFeature/PaneScaffold.swift`); the sidebar is a brand card +
+  (`SettingsFeature/Shared/PaneScaffold.swift`); the sidebar is a brand card +
   START HERE (Setup) / SETTINGS / AUTOMATIC / WHAT'S HAPPENING /
   HISTORY & CLEANUP sections + Support/About/Update; every log gets a
   STRUCTURED pane (chips/cards/tables — see `GuardLogView`, `LoginItemsView`,
