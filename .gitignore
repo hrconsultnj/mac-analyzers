@@ -3,7 +3,6 @@
 .claude/
 *.log
 config.local.sh
-.composure/
 tasks-plans/
 
 # built app + icon artifacts (rebuild with app/build.sh / app/make-icon.sh)
@@ -21,3 +20,12 @@ CLAUDE.local.md
 
 # Pro license (never public)
 license.lic
+
+# Composure
+.code-review-graph/
+
+# .composure/ is governed by .composure/.gitignore (campaigns/frameworks/research travel; graph/cortex/workspaces stay local)
+
+# machine-specific Composure state (re-probed per machine) and per-folder task markers
+.composure/environment.json
+**/.composure/current-task.json

@@ -46,8 +46,12 @@ Form; no `.scrollEdgeEffectStyle(.hard)` in the Settings window;
 
 Work from `development`; PRs target `development`; `main` is releases — ANY
 commit/merge on main SHIPS (scripts/release.sh hook: push + tarball
-`mac-analyzers-v<V>.tar.gz` + GitHub release from `VERSION`). Cut a release by
-bumping VERSION on development, then merging development → main in the main
-worktree (`.composure/workspaces/main`). Installed clones upgrade via
+`mac-analyzers-v<V>.tar.gz` + GitHub release from `VERSION`, notes from that
+version's `CHANGELOG.md` entry). Cut a release ONLY with
+`scripts/cut-release.sh <version|patch|minor|major>`: it requires a What's New
+entry in `CHANGELOG.md` written for end users (checked by
+`scripts/changelog-check.sh` — full sentences, no commit shorthand, no code
+names), bumps VERSION, pushes development and merges development → main in the
+main worktree (`.composure/workspaces/main`). Installed clones upgrade via
 `./upgrade.command` (pull --ff-only, rebuild app, refresh agents, relaunch;
 `config.local.sh` untouched).

@@ -36,6 +36,29 @@ public enum GuardControl {
         kill(pid_t(proc.pid), SIGTERM)
     }
 
+    /// USER-initiated quit of a whole GROUP — "close Opera", not "end one of
+    /// its 30 processes". An app's main process gets the ⌘Q request and its
+    /// helpers leave with it (save prompts still appear); a tool's top-level
+    /// processes get the polite stop and take what they started with them.
+    /// Same contract as `stopProcess`: the user may stop their own things;
+    /// macOS's are never in scope (`QuitScope.unavailable`).
+    public static func quit(_ scope: CensusGroup.QuitScope) {
+        switch scope {
+        case .app(let mainPIDs):
+            for pid in mainPIDs {
+                if let app = NSRunningApplication(processIdentifier: pid_t(pid)) {
+                    app.terminate()
+                } else {
+                    kill(pid_t(pid), SIGTERM)
+                }
+            }
+        case .tools(let rootPIDs):
+            for pid in rootPIDs { kill(pid_t(pid), SIGTERM) }
+        case .unavailable:
+            break
+        }
+    }
+
     /// Relaunch just this app — the light alternative to a Mac restart: the
     /// detached child survives our exit and opens a fresh instance.
     public static func restartApp() {

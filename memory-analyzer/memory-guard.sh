@@ -13,6 +13,13 @@
 #                         this is the "package/playwright spiked" scenario.
 #   * Spike detection   → a safelisted process growing >400 MB per tick is
 #                         logged + notified before it becomes a problem.
+#   * Dev pass          → every GUARD_DEV_SWEEP_SECS (default 120) it starts
+#                         `memory-auto-clean.sh --apply --dev --quiet`, which
+#                         stops dev tooling that has gone IDLE — emulators and
+#                         simulators nobody drives, Gradle/Kotlin daemons with
+#                         no build running, leftovers of failed builds, dev
+#                         servers nobody is connected to. Busy tooling is never
+#                         touched. 0 = off.
 #
 # ONLY dev tooling is ever killed (node/npx/bun/next/vite/playwright/headless
 # chromium). Zoom, browsers, VS Code, Docker, Claude sessions, screen
@@ -55,12 +62,14 @@ SPIKE_MB="${GUARD_SPIKE_MB:-400}"             # growth per tick that flags a run
 SPIKE_MIN_MB="${GUARD_SPIKE_MIN_MB:-1024}"    # …once the process is at least this big
 CPU_HOG_PCT="${GUARD_CPU_HOG_PCT:-150}"       # %CPU that counts as a hog…
 CPU_HOG_TICKS="${GUARD_CPU_HOG_TICKS:-3}"     # …sustained for this many ticks → notify (NEVER kill)
+DEV_SWEEP_SECS="${GUARD_DEV_SWEEP_SECS:-120}" # run the idle-dev-tooling pass this often (0 = off)
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # what the guard is ALLOWED to kill (dev tooling only). Binary names are
 # anchored ((^|/)name( |$)) so `bun` can't substring-match "usbaudio.bundle".
 KILLABLE_RE='(^|/)(node|npm|npx|bun|tsx|deno)( |$)|next-server|next dev|vite|esbuild|webpack|turbo|tsup|vitest|jest|playwright|headless_shell|--headless|ms-playwright'
 # what it must NEVER kill, even if it also matches above (checked second, wins)
-PROTECT_RE='.local/bin/claude|Claude.app|Visual Studio Code|Code Helper|zoom.us|ZoomCef|Docker|OrbStack|Opera.app|Google Chrome.app|Safari|WindowServer|loginwindow|mds|Finder|screencapture|screencaptureui|QuickTime|CoreServices|iTerm'
+PROTECT_RE='.local/bin/claude|(^|/)claude( |$)|Claude.app|Visual Studio Code|Code Helper|zoom.us|ZoomCef|Docker|OrbStack|Opera.app|Google Chrome.app|Safari|WindowServer|loginwindow|mds|Finder|screencapture|screencaptureui|QuickTime|CoreServices|iTerm'
 [[ -n "${ANALYZERS_PROTECT_EXTRA:-}" ]] && PROTECT_RE="${PROTECT_RE}|${ANALYZERS_PROTECT_EXTRA}"
 
 # The protect list is the guard's most important safety property, and an
@@ -202,6 +211,7 @@ dump_forensics() {
 # ---------- main loop ----------
 LAST_WARN_TS=0
 LAST_KILL_TS=0
+LAST_DEV_SWEEP_TS=0
 log "guard started (pid $$, interval=${INTERVAL}s, hard-cap=${HARD_CAP_MB}MB)"
 
 # rotate log at ~5 MB on startup
@@ -214,6 +224,14 @@ tick() {
   local now level
   now=$(date +%s)
   level=$(sysctl -n kern.memorystatus_vm_pressure_level 2>/dev/null || echo 1)
+
+  # --- 0. idle dev tooling: hand off to the reaper in the background (it has
+  #        its own lock, so a slow pass never stacks; it logs only when it acts) ---
+  if [[ "$DEV_SWEEP_SECS" -gt 0 && $((now - LAST_DEV_SWEEP_TS)) -ge "$DEV_SWEEP_SECS" \
+        && -x "${SELF_DIR}/memory-auto-clean.sh" ]]; then
+    LAST_DEV_SWEEP_TS=$now
+    "${SELF_DIR}/memory-auto-clean.sh" --apply --dev --quiet </dev/null >/dev/null 2>&1 &
+  fi
 
   # snapshot of KILLABLE-and-not-PROTECTED candidates: pid \t rss_kb \t args
   local snap

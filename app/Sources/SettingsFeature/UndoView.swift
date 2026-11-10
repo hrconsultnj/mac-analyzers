@@ -4,8 +4,8 @@ import AnalyzersKit
 import UIComponents
 
 /// REVIEW › Undo — the ledger of reversibility. A kill-guard people trust
-/// is one that can un-kill: janitor items come back from the Trash with a
-/// click (receipt written), and guard-killed dev servers offer their
+/// is one that can un-kill: janitor and temp-clean items come back from the
+/// Trash with a click (receipt written), and guard-killed dev servers offer their
 /// logged command for relaunch.
 struct UndoView: View {
 
@@ -16,23 +16,27 @@ struct UndoView: View {
 
     var body: some View {
         PaneScaffold(symbol: "arrow.uturn.backward", color: .gray, title: "Undo",
-                     caption: "What can be brought back — janitor items restored from the Trash with a receipt, and the commands behind stopped dev servers.") {
-            Section("Moved to Trash by the Janitor") {
+                     caption: "What can be brought back — items the Janitor or Temp & Agents moved to the Trash, restored with a receipt, and the commands behind stopped dev servers.") {
+            Section("Moved to the Trash") {
                 if let restoreError {
                     Label(restoreError, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.red)
                         .font(.caption)
                 }
                 if trashed.isEmpty {
-                    Text("Nothing to restore — the Janitor hasn't moved anything to the Trash recently.")
+                    Text("Nothing to restore — nothing has been moved to the Trash by a cleaner recently.")
                         .foregroundStyle(.secondary)
                 }
                 ForEach(trashed) { item in
                     HStack(spacing: 8) {
-                        DataCard(appIcon: NSWorkspace.shared.icon(forFile: item.originalPath),
+                        DataCard(appIcon: NSWorkspace.shared.icon(
+                                    forFile: item.isGroup ? (item.trashPath ?? item.originalPath)
+                                                          : item.originalPath),
                                  title: item.basename,
                                  subtitle: item.originalPath,
-                                 trailing: item.sizeText)
+                                 trailing: item.sizeText,
+                                 badge: (item.source.uppercased(),
+                                         item.source == "Janitor" ? .orange : .mint))
                         switch item.restorability {
                         case .restorable:
                             Button("Restore") { restore(item) }

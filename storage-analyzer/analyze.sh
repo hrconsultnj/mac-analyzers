@@ -402,11 +402,20 @@ timed() {
 
   # ---------- 23. /private/var (system temp) ----------
   section "23. System Temp & Scratch"
+  echo "_On-disk sizes of what you can read (no sudo). Mounted disk images are excluded — their contents are not on this disk, though a plain \`du\` counts them. For what is safe to clear, run \`temp-clean.sh\`._"
   echo ""
   table_header
-  for p in /private/var/folders /private/tmp /private/var/log; do
-    [[ -e "$p" ]] && echo "| $(sudo -n du -sh "$p" 2>/dev/null | awk '{print $1}' || echo "?") | ${p} |"
+  for p in /private/tmp "$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null)" \
+           "$(getconf DARWIN_USER_CACHE_DIR 2>/dev/null)" /private/var/tmp \
+           /private/var/log /private/var/db/diagnostics; do
+    p="${p%/}"
+    [[ -n "$p" && -e "$p" ]] && echo "| $(du -xsh "$p" 2>/dev/null | awk '{print $1}') | ${p} |"
   done
+  TEMP_MOUNTS=$(mount | grep -cE ' on /private/(tmp|var/folders)/')
+  if [[ "${TEMP_MOUNTS:-0}" -gt 0 ]]; then
+    echo ""
+    echo "_${TEMP_MOUNTS} disk image(s) are mounted inside temp folders — eject them (\`temp-clean.sh --eject <mountpoint>\`) before removing the files behind them._"
+  fi
 
   # ====================================================================
   #  DECISION CLASSIFIER — "is this still used?" signals, oldest first
@@ -481,6 +490,184 @@ timed() {
     done
   } | sort -rn | head -30 | awk -F'\t' '{printf "| %s | %s | %s | %s |\n",$2,$3,$4,$5}'
 
+
+  # ---------- 28. Outside your home folder ----------
+  section "28. Outside Your Home Folder"
+  echo "_Space that lives outside \`${HOME_DIR}\` and is invisible to the home-folder sections above. Read-only, no sudo: anything unreadable without admin is skipped and not counted. 'Cleaned by' names the tool-cache id (Settings › Storage › Tool caches) or script that handles it._"
+
+  OX_TMP="$(mktemp)"
+  ox_kb_h() {
+    awk -v kb="$1" 'BEGIN{ if (kb>=1048576) printf "%.1f GB", kb/1048576; else if (kb>=1024) printf "%.0f MB", kb/1024; else printf "%d KB", kb }'
+  }
+  # table row for <path>; silent when missing/unreadable/empty; records KB in $OX_TMP
+  ox_row() {
+    local p="$1" hint="${2:--}" kb
+    [[ -e "$p" ]] || return 0
+    kb=$(du -sxk "$p" 2>/dev/null | awk '{print $1}')
+    [[ -n "$kb" && "$kb" -gt 0 ]] || return 0
+    echo "$kb" >> "$OX_TMP"
+    echo "| $(ox_kb_h "$kb") | ${p} | ${hint} |"
+  }
+
+  # --- 28a. System areas ---
+  BREW_PREFIX=""
+  command -v brew >/dev/null 2>&1 && BREW_PREFIX="$(brew --prefix 2>/dev/null)"
+  [[ -z "$BREW_PREFIX" && -d /opt/homebrew ]] && BREW_PREFIX=/opt/homebrew
+  echo ""
+  echo "### System areas"
+  echo ""
+  echo "| Size | Path | Cleaned by |"
+  echo "|------|------|------------|"
+  : > "$OX_TMP"
+  {
+    ox_row /Applications "uninstall in Finder (section 24 shows last-used)"
+    ox_row /System/Library/AssetsV2 "\`simulators\` tool cache (runtimes); macOS manages the rest"
+    ox_row /Library/Developer "\`simulators\` tool cache (CoreSimulator caches)"
+    [[ -n "$BREW_PREFIX" ]] && ox_row "$BREW_PREFIX" "\`brew\` tool cache (\`brew cleanup\`)"
+    [[ "$BREW_PREFIX" != "/usr/local" ]] && ox_row /usr/local "-"
+    ox_row /Library/Updates "macOS Software Update"
+    ox_row /private/var/vm "macOS-managed (swap / sleepimage), not removable"
+  } | awk -F'|' '{ v=$2; gsub(/ /,"",v); n=v+0; if (v ~ /GB/) n*=1048576; else if (v ~ /MB/) n*=1024; printf "%020.0f\t%s\n", n, $0 }' | sort -rn | cut -f2-
+  OX_MEASURED_KB=$(awk '{s+=$1} END{print s+0}' "$OX_TMP")
+
+  # --- 28b. Simulator runtimes ---
+  echo ""
+  echo "### Simulator runtimes"
+  echo ""
+  echo "| Size | Runtime | Last used |"
+  echo "|------|---------|-----------|"
+  if command -v xcrun >/dev/null 2>&1 && command -v osascript >/dev/null 2>&1; then
+    xcrun simctl runtime list -j 2>/dev/null | osascript -l JavaScript -e '
+      ObjC.import("Foundation");
+      var d = $.NSFileHandle.fileHandleWithStandardInput.readDataToEndOfFile;
+      var s = $.NSString.alloc.initWithDataEncoding(d, $.NSUTF8StringEncoding).js;
+      var o; try { o = JSON.parse(s); } catch (e) { o = {}; }
+      var rows = Object.keys(o).map(function (k) { return o[k]; });
+      rows.sort(function (a, b) { return (b.sizeBytes || 0) - (a.sizeBytes || 0); });
+      rows.map(function (r) {
+        var plat = String(r.platformIdentifier || "").replace("com.apple.platform.", "").replace("simulator", "");
+        var map = {iphone: "iOS", appletv: "tvOS", watch: "watchOS", xr: "visionOS"};
+        return [r.sizeBytes || 0, (map[plat] || plat) + " " + (r.version || "?") + " (" + (r.build || "?") + ")", r.lastUsedAt || "never"].join("\t");
+      }).join("\n");' 2>/dev/null \
+    | awk -F'\t' '
+        NF>=3 {
+          b=$1; gb=b/1073741824;
+          sz=(gb>=1)?sprintf("%.1f GB",gb):sprintf("%.0f MB",b/1048576);
+          lu=$3; if (lu=="never") lu="never ⚠"; else lu=substr(lu,1,10);
+          printf "| %s | %s | %s |\n", sz, $2, lu; n++ }
+        END { if (!n) print "| - | _(no runtimes installed, or simctl unavailable)_ | - |" }'
+  else
+    echo "| - | _(Xcode command line tools not installed)_ | - |"
+  fi
+  OX_DYLD_KB=$(du -sxk /Library/Developer/CoreSimulator/Caches/dyld 2>/dev/null | awk '{print $1}')
+  if [[ -n "${OX_DYLD_KB:-}" && "$OX_DYLD_KB" -gt 0 ]]; then
+    echo ""
+    echo "- dyld shared cache (regenerable): $(ox_kb_h "$OX_DYLD_KB") — \`/Library/Developer/CoreSimulator/Caches/dyld\`"
+  fi
+  echo ""
+  echo "_Never-booted runtimes (⚠) are removed by the \`simulators\` tool cache (Settings › Storage)._"
+
+  # --- 28c. Apple-downloaded assets ---
+  echo ""
+  echo "### Apple-downloaded assets (top 8)"
+  echo ""
+  echo "_\`/System/Library/AssetsV2\`: on-demand macOS downloads (simulator runtimes, dictionaries, voices, documentation, ML models). Only the simulator-runtime folder is removable by us; macOS manages the rest._"
+  echo ""
+  echo "| Size | Asset | Cleaned by |"
+  echo "|------|-------|------------|"
+  if [[ -d /System/Library/AssetsV2 ]]; then
+    du -sxk /System/Library/AssetsV2/*/ 2>/dev/null | sort -rn | head -n 8 \
+      | awk '{ kb=$1; $1=""; sub(/^ /,""); sub(/\/$/,""); n=$0; sub(/.*\//,"",n); sub(/^com_apple_MobileAsset_/,"",n);
+          sz=(kb>=1048576)?sprintf("%.1f GB",kb/1048576):(kb>=1024)?sprintf("%.0f MB",kb/1024):sprintf("%d KB",kb);
+          hint=(n ~ /SimulatorRuntime/)?"`simulators`":"-";
+          printf "| %s | %s | %s |\n", sz, n, hint }'
+  else
+    echo "| - | _(not present)_ | - |"
+  fi
+
+  # --- 28d. Package managers & SDKs outside home ---
+  echo ""
+  echo "### Package managers & SDKs outside home"
+  echo ""
+  echo "| Size | Path | Cleaned by |"
+  echo "|------|------|------------|"
+  if [[ -n "$BREW_PREFIX" ]]; then
+    for sub in share Cellar; do
+      [[ -d "$BREW_PREFIX/$sub" ]] || continue
+      du -sxk "$BREW_PREFIX/$sub"/* 2>/dev/null | sort -rn | head -n 6 \
+        | awk -v pre="$BREW_PREFIX/$sub/" '$1<1024{next} { kb=$1; $1=""; sub(/^ /,""); sub(pre,"");
+            sz=(kb>=1048576)?sprintf("%.1f GB",kb/1048576):(kb>=1024)?sprintf("%.0f MB",kb/1024):sprintf("%d KB",kb);
+            printf "| %s | %s%s | `brew` (uninstall / `brew cleanup`) |\n", sz, pre, $0 }'
+    done
+  fi
+  OX_SEEN_SDK=""
+  for sdk in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" "${BREW_PREFIX:+$BREW_PREFIX/share/android-commandlinetools}" "${HOME_DIR}/Library/Android/sdk"; do
+    [[ -n "$sdk" && -d "$sdk" ]] || continue
+    case "$OX_SEEN_SDK" in *"|$sdk|"*) continue;; esac
+    OX_SEEN_SDK="${OX_SEEN_SDK}|${sdk}|"
+    echo "| $(ox_kb_h "$(du -sxk "$sdk" 2>/dev/null | awk '{print $1}')") | Android SDK: ${sdk} | - |"
+    for part in ndk system-images emulator build-tools; do
+      [[ -d "$sdk/$part" ]] || continue
+      echo "| $(ox_kb_h "$(du -sxk "$sdk/$part" 2>/dev/null | awk '{print $1}')") | &nbsp;&nbsp;↳ ${part} | \`sdkmanager --uninstall\` (old versions) |"
+    done
+  done
+
+  # --- 28e. Installers & disk images ---
+  echo ""
+  echo "### Installers & disk images"
+  echo ""
+  echo "| Size | Path | Note |"
+  echo "|------|------|------|"
+  OX_INST=$(
+  for app in /Applications/Install\ macOS*.app /Applications/Install\ OS\ X*.app; do
+    [[ -d "$app" ]] || continue
+    echo "| $(ox_kb_h "$(du -sxk "$app" 2>/dev/null | awk '{print $1}')") | ${app} | re-downloadable from Apple |"
+  done
+  for dir in /Applications "${HOME_DIR}/Downloads" "${HOME_DIR}/Desktop"; do
+    [[ -d "$dir" ]] || continue
+    find "$dir" -maxdepth 2 -type f \( -iname '*.dmg' -o -iname '*.iso' \) -size +500M 2>/dev/null | while IFS= read -r f; do
+      printf "%s\t%s\n" "$(stat -f '%z' "$f" 2>/dev/null)" "$f"
+    done
+  done | sort -rn | awk -F'\t' '{ printf "| %.1f GB | %s | disk image, delete once installed |\n", $1/1073741824, $2 }'
+  )
+  if [[ -n "$OX_INST" ]]; then echo "$OX_INST"; else echo "| - | _(no installers or disk images over 500 MB found)_ | - |"; fi
+
+  # --- 28f. Emulators, wallpapers & VM disks (in $HOME but system-like caches) ---
+  echo ""
+  echo "### Emulators, wallpapers & VM disks (inside your home, but behave like system caches)"
+  echo ""
+  echo "| Size | Path | Cleaned by |"
+  echo "|------|------|------------|"
+  for avd in "${HOME_DIR}"/.android/avd/*.avd; do
+    [[ -d "$avd" ]] || continue
+    echo "| $(ox_kb_h "$(du -sxk "$avd" 2>/dev/null | awk '{print $1}')") | ~${avd#${HOME_DIR}} | Android Studio › Device Manager (the emulator itself) |"
+    [[ -d "$avd/snapshots/default_boot" ]] && echo "| $(ox_kb_h "$(du -sxk "$avd/snapshots/default_boot" 2>/dev/null | awk '{print $1}')") | &nbsp;&nbsp;↳ quick-boot snapshot | \`avd\` tool cache |"
+  done
+  AERIALS="${HOME_DIR}/Library/Application Support/com.apple.wallpaper/aerials/videos"
+  [[ -d "$AERIALS" ]] && echo "| $(ox_kb_h "$(du -sxk "$AERIALS" 2>/dev/null | awk '{print $1}')") | ~${AERIALS#${HOME_DIR}} | \`aerials\` tool cache |"
+  # sparse disk images: ls shows the apparent size, du the real blocks in use
+  for img in "${HOME_DIR}"/Library/Group\ Containers/*orbstack*/data/data.img* \
+             "${HOME_DIR}/Library/Containers/com.docker.docker/Data/vms"; do
+    [[ -e "$img" ]] || continue
+    ox_img_kb=$(du -sk "$img" 2>/dev/null | awk '{print $1}')
+    echo "| $(ox_kb_h "${ox_img_kb:-0}") | ~${img#${HOME_DIR}} (real use; \`ls\` shows a larger sparse size) | \`docker system prune\` / container settings |"
+  done
+
+  # --- 28g. Accounting ---
+  echo ""
+  echo "### Accounting"
+  echo ""
+  OX_DATA_KB=$(df -k /System/Volumes/Data 2>/dev/null | awk 'NR==2{print $3}')
+  if [[ -n "${OX_DATA_KB:-}" ]]; then
+    OX_REST_KB=$(( OX_DATA_KB - OX_MEASURED_KB ))
+    [[ "$OX_REST_KB" -lt 0 ]] && OX_REST_KB=0
+    echo "| Size | What |"
+    echo "|------|------|"
+    echo "| $(ox_kb_h "$OX_DATA_KB") | Used on /System/Volumes/Data (\`df\`) |"
+    echo "| $(ox_kb_h "$OX_MEASURED_KB") | Measured outside home (System areas table) |"
+    echo "| $(ox_kb_h "$OX_REST_KB") | Remainder: your home folder (sections 1-27) plus what is unreadable without admin (system databases, other apps' sandboxes, snapshots) |"
+  fi
+  rm -f "$OX_TMP"
   echo ""
   echo "---"
   echo ""

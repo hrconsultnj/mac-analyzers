@@ -1,0 +1,33 @@
+# Composure — .composure/.gitignore · single source of truth for what travels.
+# TRACKED across machines & apps: campaigns/ (active), frameworks/, research/,
+#   project configs (no-bandaids.json, sentinel.json, …), and this file.
+# IGNORED (per-machine / rebuildable / noise) below. The repo's ROOT .gitignore
+#   must NOT blanket-ignore .composure/* — that overrides this file and drops
+#   campaigns/frameworks/research. Composure auto-heals a legacy root blanket.
+
+# Rebuildable code graph (large, machine-absolute paths)
+graph/
+
+# Cortex memory (per-developer; canonical store at ~/.composure/cortex/)
+cortex/
+cortex.db*
+
+# Worktrees / scratch — node_modules-like volume + noise, never committed
+workspaces/
+
+# Ephemeral session state + locks
+current-task.json
+last-health-check
+orient-shown
+hook-activity.log
+task-sync-debug.jsonl
+*.lock
+
+# Completed campaigns archive stays local; ACTIVE campaigns/*.json travel
+campaigns/archived/
+
+# Local safety copies — .bak/.orig files and pre-migration snapshots (see AGENTS.md "Backups"). Never tracked.
+backups/
+
+# In-repo launch kickoffs (session-launcher.mjs writes here so a sandboxed runtime can read its own kickoff file). Per-machine, ephemeral. Never tracked.
+panel-state/

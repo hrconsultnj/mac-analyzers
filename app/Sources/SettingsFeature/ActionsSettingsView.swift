@@ -10,15 +10,16 @@ import UIComponents
 struct ActionsSettingsView: View {
 
     enum Cleaner: String, Hashable, CaseIterable {
-        case memoryClean, reclaim, storageClean, janitor
+        case memoryClean, reclaim, storageClean, janitor, tempClean
 
         /// The two storage-shaped cleaners share the review renderer.
         var isStorageShaped: Bool { self == .storageClean || self == .janitor }
 
-        /// Can the user get it back? Only the janitor uses the Trash; the
+        /// Can the user get it back? The janitor and temp clean use the Trash
+        /// (temp clean unless permanent is chosen — see `recoverableNow`); the
         /// storage cleaner deletes, and stopping a process is not undoable
         /// (the command can be re-run, which is not the same thing).
-        var isRecoverable: Bool { self == .janitor }
+        var isRecoverable: Bool { self == .janitor || self == .tempClean }
 
         var title: String {
             switch self {
@@ -26,6 +27,7 @@ struct ActionsSettingsView: View {
             case .reclaim: "Memory Reclaim"
             case .storageClean: "Storage Clean"
             case .janitor: "Janitor"
+            case .tempClean: "Temp & Agents"
             }
         }
 
@@ -36,9 +38,11 @@ struct ActionsSettingsView: View {
             case .reclaim:
                 "Sweeps EVERY reclaimable dev process at once — no age threshold, a wider net than the guard uses. Live AI sessions are exempt; protected apps are never touched."
             case .storageClean:
-                "Removes stale build caches; in deep mode also downloaded code for projects you haven't touched lately (node_modules), package-manager caches (npm's entire cache), all unused container images, and Time Machine snapshot thinning. Anything touched recently is skipped."
+                "Removes stale build caches and trims oversized Turborepo caches; in deep mode also downloaded code for projects you haven't touched lately (node_modules), idle git worktrees (never main — uncommitted work is parked first), package-manager caches (npm's entire cache), the app and tool caches you enabled in Settings › Storage, and releases Time Machine snapshot space so the freed space shows up. Anything touched recently or in use is skipped."
             case .janitor:
                 "Moves stale Downloads and old screenshots to the Trash — recoverable, keep-patterns honored, folders reviewed as units."
+            case .tempClean:
+                "Clears idle leftovers in /tmp, your temp folder and /var/tmp, plus AI-agent scratch (Claude Code, Codex, the Claude app, npx-run tools). Never anything open, recent, live, or someone else's; agent history and settings are never touched. A file behind a mounted disk image ejects it first."
             }
         }
 
@@ -48,6 +52,7 @@ struct ActionsSettingsView: View {
             case .reclaim: "arrow.3.trianglepath"
             case .storageClean: "internaldrive.fill"
             case .janitor: "trash"
+            case .tempClean: "tray.full"
             }
         }
 
@@ -57,6 +62,7 @@ struct ActionsSettingsView: View {
             case .reclaim: .teal
             case .storageClean: .indigo
             case .janitor: .orange
+            case .tempClean: .mint
             }
         }
 
@@ -66,6 +72,7 @@ struct ActionsSettingsView: View {
             case .reclaim: AnalyzersPaths.reclaimScript
             case .storageClean: AnalyzersPaths.storageCleanScript
             case .janitor: AnalyzersPaths.janitorScript
+            case .tempClean: AnalyzersPaths.tempCleanScript
             }
         }
 
@@ -75,6 +82,7 @@ struct ActionsSettingsView: View {
             case .reclaim: .reclaim
             case .storageClean: .storageClean
             case .janitor: .janitor
+            case .tempClean: .tempSpace
             }
         }
     }
@@ -95,6 +103,7 @@ struct ActionsSettingsView: View {
         let header: String
         let reap: ReapRun?
         let storage: StorageCleanRun?
+        let temp: TempCleanRun?
     }
 
     @Binding var preselect: String?
@@ -106,16 +115,32 @@ struct ActionsSettingsView: View {
     @State private var deselected: Set<String> = []
     @State private var reapRun: ReapRun?
     @State private var storageRun: StorageCleanRun?
+    @State private var tempRun: TempCleanRun?
     @State private var confirmingApply = false
+    /// Temp only: the second, plain-words confirmation a permanent delete
+    /// gets on top of the usual one.
+    @State private var confirmingPermanent = false
     @State private var sortByName = false
     @State private var history: [HistoryRun] = []
     @State private var lastOutput = ""
     /// Storage only: deep mode adds stale node_modules + TM snapshot report
     /// (the engine's --mode deep), vs daily's build-caches-only pass.
     @State private var storageDeep = false
+    /// Temp only: delete instead of moving to the Trash (the engine's --permanent).
+    @State private var tempPermanent = false
 
     private var modeArgs: [String] {
-        cleaner == .storageClean && storageDeep ? ["--mode", "deep"] : []
+        switch cleaner {
+        case .storageClean: storageDeep ? ["--mode", "deep", "--prune-snapshots"] : []
+        case .tempClean: tempPermanent ? ["--permanent"] : []
+        case .memoryClean, .reclaim, .janitor: []
+        }
+    }
+
+    /// Recoverable for THIS run — temp clean stops being so when permanent
+    /// is chosen, and every label and confirmation must say which.
+    private var recoverableNow: Bool {
+        cleaner.isRecoverable && !(cleaner == .tempClean && tempPermanent)
     }
 
     var body: some View {
@@ -127,8 +152,8 @@ struct ActionsSettingsView: View {
                     selection: $cleaner
                 )
                 HStack(spacing: 6) {
-                    BadgeCapsule(text: cleaner.isRecoverable ? "GOES TO TRASH" : "PERMANENT",
-                                 color: cleaner.isRecoverable ? .orange : .red)
+                    BadgeCapsule(text: recoverableNow ? "GOES TO TRASH" : "PERMANENT",
+                                 color: recoverableNow ? .orange : .red)
                     Text(cleaner.blurb)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -138,6 +163,17 @@ struct ActionsSettingsView: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Deep mode")
                             Text("Also downloaded code for projects you haven't touched lately (node_modules), and the Time Machine snapshot report.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .disabled(phase != .idle)
+                }
+                if cleaner == .tempClean {
+                    Toggle(isOn: $tempPermanent) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Delete permanently")
+                            Text("Frees the space immediately — no Trash, no Undo. You'll be asked twice.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -160,16 +196,30 @@ struct ActionsSettingsView: View {
         }
         .confirmationDialog(applyPrompt, isPresented: $confirmingApply, titleVisibility: .visible) {
             Button(applyButtonTitle, role: .destructive) {
-                Task { await apply() }
+                if cleaner == .tempClean && tempPermanent {
+                    confirmingPermanent = true
+                } else {
+                    Task { await apply() }
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             // The first sentence must say whether this can be taken back.
             // "Everything is logged" was doing that job badly while storage
             // clean does rm -rf and an Undo row sits three rows away.
-            Text(cleaner.isRecoverable
+            Text(recoverableNow
                  ? "These move to the Trash, so you can put them back — from the Undo screen or from Finder. Everything is logged; protected lists always win."
-                 : "This is PERMANENT — these files are deleted, not moved to the Trash, and Undo cannot bring them back. They are rebuildable: your tools recreate them when needed. Everything is logged; protected lists always win.")
+                 : cleaner == .tempClean
+                    ? "This is PERMANENT — these items are deleted, not moved to the Trash, and Undo cannot bring them back. Temp files and agent scratch are disposable by design, but check the list for anything of yours. Everything is logged."
+                    : "This is PERMANENT — these files are deleted, not moved to the Trash, and Undo cannot bring them back. They are rebuildable: your tools recreate them when needed. Everything is logged; protected lists always win.")
+        }
+        .alert("Delete permanently — this can't be undone", isPresented: $confirmingPermanent) {
+            Button("Delete \(ByteSize.format(tempSelectedBytes))", role: .destructive) {
+                Task { await apply() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("\(approvedCount) item\(approvedCount == 1 ? "" : "s") will be removed from this Mac for good. To keep a way back, cancel and turn off Delete permanently — they will go to the Trash instead.")
         }
     }
 
@@ -206,7 +256,7 @@ struct ActionsSettingsView: View {
                     Label(reviewHeadline, systemImage: "eye")
                         .font(.callout.weight(.medium))
                     Spacer()
-                    if cleaner.isStorageShaped {
+                    if cleaner.isStorageShaped || cleaner == .tempClean {
                         Picker("", selection: $sortByName) {
                             Text("Size").tag(false)
                             Text("Name").tag(true)
@@ -347,6 +397,97 @@ struct ActionsSettingsView: View {
                         }
                     }
                 }
+            case .tempClean:
+                tempReviewSections
+            }
+        }
+    }
+
+    // MARK: - temp review (grouped by where things live, like the log pane)
+
+    @ViewBuilder private var tempReviewSections: some View {
+        if let run = tempRun {
+            if phase == .review, !run.readyItems.isEmpty {
+                Section { selectionBar }
+            }
+            let ejecting = run.readyItems.filter { !$0.ejects.isEmpty && !deselected.contains($0.path) }
+            if phase == .review, !ejecting.isEmpty {
+                Section {
+                    ForEach(ejecting) { item in
+                        DataCard(symbol: "opticaldiscdrive", color: .purple,
+                                 title: "\(item.displayName) backs mounted disk images",
+                                 subtitle: "Applying ejects them first (never forced): "
+                                     + item.ejects.map { ($0 as NSString).lastPathComponent }.joined(separator: ", "),
+                                 badge: ("EJECTS FIRST", .purple))
+                    }
+                }
+            }
+            let shown = run.items.filter { $0.isReady || $0.wasActedOn || $0.status == .failed }
+            ForEach(run.sections, id: \.self) { section in
+                let rows = shown.filter { $0.section == section }.sorted {
+                    sortByName
+                        ? $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+                        : $0.sizeBytes > $1.sizeBytes
+                }
+                if !rows.isEmpty {
+                    Section("\(section) — \(ByteSize.format(rows.reduce(0) { $0 + $1.sizeBytes }))") {
+                        ForEach(rows) { item in
+                            selectable(item.isReady ? item.path : nil, name: item.displayName) {
+                                tempRow(item)
+                            }
+                        }
+                    }
+                }
+            }
+            let leftAlone = run.items.filter {
+                [.recent, .inUse, .protected, .notYours].contains($0.status)
+            }.reduce(0) { $0 + $1.count }
+            if leftAlone > 0 {
+                Section {
+                    Label("\(leftAlone) item\(leftAlone == 1 ? "" : "s") left alone this run — recent, in use, a live session, or not yours. Logs › Temp & Agents says why for each.",
+                          systemImage: "shield")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func tempRow(_ item: TempItem) -> some View {
+        let exists = !item.isGroup && FileManager.default.fileExists(atPath: item.path)
+        var bits: [String] = []
+        if item.isGroup { bits.append("\(item.count) items") }
+        if let reason = item.reason { bits.append(reason) }
+        let subtitle = bits.isEmpty ? item.path : bits.joined(separator: " · ")
+        let badge: (String, Color) = switch item.status {
+        case .trashed: ("TRASHED", .orange)
+        case .deleted: ("DELETED", .red)
+        case .failed: ("FAILED", .red)
+        default: recoverableNow ? ("WOULD TRASH", .blue) : ("WOULD DELETE", .red)
+        }
+        return HStack(spacing: 6) {
+            Group {
+                if exists {
+                    DataCard(appIcon: NSWorkspace.shared.icon(forFile: item.path),
+                             title: item.displayName, subtitle: subtitle,
+                             trailing: ByteSize.format(item.sizeBytes), badge: badge)
+                } else {
+                    DataCard(symbol: item.isGroup ? "square.stack.3d.up" : "doc", color: badge.1,
+                             title: item.displayName, subtitle: subtitle,
+                             trailing: ByteSize.format(item.sizeBytes), badge: badge)
+                }
+            }
+            .help(item.path)
+            if exists || item.isGroup {
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting(
+                        [URL(fileURLWithPath: item.isGroup ? item.parentPath : item.path)])
+                } label: {
+                    Image(systemName: "magnifyingglass.circle")
+                }
+                .buttonStyle(.borderless)
+                .help("Show in Finder")
+                .accessibilityLabel("Show in Finder")
             }
         }
     }
@@ -405,7 +546,15 @@ struct ActionsSettingsView: View {
         case .memoryClean, .reclaim: dryReapItems.compactMap { $0.pid.map(String.init) }
         case .storageClean, .janitor:
             storageRun?.items.filter { $0.status == .dry }.map(\.path) ?? []
+        case .tempClean:
+            tempRun?.readyItems.map(\.path) ?? []
         }
+    }
+
+    /// Bytes still ticked in a temp review — what the permanent alert names.
+    private var tempSelectedBytes: Int64 {
+        tempRun?.readyItems.filter { !deselected.contains($0.path) }
+            .reduce(0) { $0 + $1.sizeBytes } ?? 0
     }
 
     private var totalApprovable: Int { approvableKeys.count }
@@ -413,9 +562,11 @@ struct ActionsSettingsView: View {
 
     /// Writes the approved keys to a temp file and returns the engine flag.
     /// Nothing deselected → no flag at all, so the common case runs exactly
-    /// the command it always did.
+    /// the command it always did. Temp clean always sends the list: temp
+    /// folders change by the minute, and an item that crosses the age line
+    /// between preview and apply must not ride along unreviewed.
     private func approvalArgs() -> [String] {
-        guard !deselected.isEmpty else { return [] }
+        guard !deselected.isEmpty || cleaner == .tempClean else { return [] }
         let approved = approvableKeys.filter { !deselected.contains($0) }
         let file = FileManager.default.temporaryDirectory
             .appending(path: "mac-analyzers-approved-\(UUID().uuidString).txt")
@@ -423,7 +574,7 @@ struct ActionsSettingsView: View {
             .write(to: file, atomically: true, encoding: .utf8)) != nil else { return [] }
         switch cleaner {
         case .memoryClean, .reclaim: return ["--only-pids", file.path]
-        case .storageClean, .janitor: return ["--only-paths", file.path]
+        case .storageClean, .janitor, .tempClean: return ["--only-paths", file.path]
         }
     }
 
@@ -458,6 +609,13 @@ struct ActionsSettingsView: View {
             return dryStorageBytes == 0
                 ? "Nothing stale to remove."
                 : "Would free \(ByteSize.format(dryStorageBytes))"
+        case .tempClean:
+            let bytes = tempRun?.readyBytes ?? 0
+            return bytes == 0
+                ? "Nothing ready to clear."
+                : recoverableNow
+                    ? "Would move \(ByteSize.format(bytes)) to the Trash"
+                    : "Would delete \(ByteSize.format(bytes)) permanently"
         }
     }
 
@@ -469,6 +627,9 @@ struct ActionsSettingsView: View {
             "Apply — free \(ByteSize.format(dryStorageBytes))"
         case .janitor:
             "Apply — trash \(ByteSize.format(dryStorageBytes))"
+        case .tempClean:
+            recoverableNow ? "Apply — trash \(ByteSize.format(tempSelectedBytes))"
+                           : "Apply — delete \(ByteSize.format(tempSelectedBytes))"
         }
     }
 
@@ -480,6 +641,10 @@ struct ActionsSettingsView: View {
             "Remove the listed caches (\(ByteSize.format(dryStorageBytes)))?"
         case .janitor:
             "Move the listed items (\(ByteSize.format(dryStorageBytes))) to the Trash?"
+        case .tempClean:
+            recoverableNow
+                ? "Move the ticked items (\(ByteSize.format(tempSelectedBytes))) to the Trash?"
+                : "Permanently delete the ticked items (\(ByteSize.format(tempSelectedBytes)))?"
         }
     }
 
@@ -543,6 +708,12 @@ struct ActionsSettingsView: View {
                 .map(\.sizeBytes).reduce(0, +) ?? 0
             return trashed == 0 ? "Done — nothing needed tidying."
                                 : "Moved \(ByteSize.format(trashed)) to the Trash — recoverable there."
+        case .tempClean:
+            let acted = tempRun?.actedBytes ?? 0
+            if acted == 0 { return "Done — nothing was cleared." }
+            return tempPermanent
+                ? "Deleted \(ByteSize.format(acted)) permanently. Receipts in the log."
+                : "Moved \(ByteSize.format(acted)) to the Trash — restore from Undo; the space returns when the Trash is emptied."
         }
     }
 
@@ -550,6 +721,7 @@ struct ActionsSettingsView: View {
         guard let latest = LogParser.runs(for: cleaner.logKind).first else {
             reapRun = nil
             storageRun = nil
+            tempRun = nil
             return
         }
         switch cleaner {
@@ -557,6 +729,8 @@ struct ActionsSettingsView: View {
             reapRun = ReapParser.parse(runHeader: latest.header, lines: latest.lines)
         case .storageClean, .janitor:
             storageRun = StorageCleanParser.parse(runHeader: latest.header, lines: latest.lines)
+        case .tempClean:
+            tempRun = TempCleanParser.parse(runHeader: latest.header, lines: latest.lines)
         }
     }
 
@@ -633,7 +807,7 @@ struct ActionsSettingsView: View {
                             Text(run.header)
                                 .font(.callout.weight(.medium))
                                 .lineLimit(1)
-                            if let summary = run.reap?.summary ?? run.storage?.summary {
+                            if let summary = run.reap?.summary ?? run.storage?.summary ?? run.temp?.summary {
                                 Text(summary)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -661,18 +835,28 @@ struct ActionsSettingsView: View {
                 pathRow(item)
             }
         }
+        if let temp = run.temp {
+            let rows = temp.dryRun ? temp.readyItems : temp.actedItems
+            ForEach(rows.sorted { $0.sizeBytes > $1.sizeBytes }.prefix(15)) { item in
+                tempRow(item)
+            }
+        }
     }
 
     private func loadHistory() async {
         let logKind = cleaner.logKind
         let storageShaped = cleaner.isStorageShaped
+        let tempShaped = cleaner == .tempClean
         await awaitLoad({
             LogParser.runs(for: logKind).prefix(10).enumerated().map { index, run in
                 HistoryRun(id: index, header: run.header,
-                           reap: storageShaped ? nil
+                           reap: storageShaped || tempShaped ? nil
                                : ReapParser.parse(runHeader: run.header, lines: run.lines),
                            storage: storageShaped
                                ? StorageCleanParser.parse(runHeader: run.header, lines: run.lines)
+                               : nil,
+                           temp: tempShaped
+                               ? TempCleanParser.parse(runHeader: run.header, lines: run.lines)
                                : nil)
             }
         }) { history = $0 }
@@ -682,6 +866,7 @@ struct ActionsSettingsView: View {
         phase = .idle
         reapRun = nil
         storageRun = nil
+        tempRun = nil
         deselected.removeAll()
     }
 

@@ -40,11 +40,11 @@ public struct ProcessRow: View {
         HStack(spacing: 6) {
             processIcon
                 .accessibilityHidden(true)  // decorative — friendlyName below already names it
-            Text(proc.residentText)
+            Text(proc.memoryText)
                 // weight carries the "large" signal too — colour alone misses colourblind users
-                .font(.callout.monospacedDigit().weight(proc.residentMB > 4096 ? .semibold : .regular))
-                .foregroundStyle(proc.residentMB > 4096 ? .orange : .secondary)
-                .frame(width: 54, alignment: .trailing)
+                .font(.callout.monospacedDigit().weight(proc.memoryMB > 4096 ? .semibold : .regular))
+                .foregroundStyle(proc.memoryMB > 4096 ? .orange : .secondary)
+                .frame(width: 62, alignment: .trailing)
             VStack(alignment: .leading, spacing: 0) {
                 Text(proc.friendlyName).font(.callout).lineLimit(1)
                 if proc.friendlyName != proc.rawName {
@@ -55,20 +55,30 @@ public struct ProcessRow: View {
                 }
             }
             Spacer(minLength: 4)
-            Button(stopping ? "…" : (proc.isDev ? "Stop" : "Quit")) {
-                stopping = true
-                GuardControl.stopProcess(proc)
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(1.5))
-                    afterStop()
-                    stopping = false
+            if proc.canQuit {
+                Button(stopping ? "…" : (proc.isDev ? "Stop" : "Quit")) {
+                    stopping = true
+                    GuardControl.stopProcess(proc)
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(1.5))
+                        afterStop()
+                        stopping = false
+                    }
                 }
+                .controlSize(.small)
+                .disabled(stopping)
+                .help(proc.isDev
+                      ? "Stops this dev process — it's asked to quit, so it can restart on its own next build or session. (Technically: SIGTERM, not a forced kill.)"
+                      : "Ask this app to quit gracefully — same as ⌘Q, save dialogs still appear")
+            } else {
+                // part of macOS: either the request can't reach it, or it
+                // would take the session down with it (see LiveProcess.canQuit)
+                Image(systemName: "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .help("Part of macOS — not something to quit from here")
+                    .accessibilityLabel("Part of macOS, not quittable here")
             }
-            .controlSize(.small)
-            .disabled(stopping)
-            .help(proc.isDev
-                  ? "Stops this dev process — it's asked to quit, so it can restart on its own next build or session. (Technically: SIGTERM, not a forced kill.)"
-                  : "Ask this app to quit gracefully — same as ⌘Q, save dialogs still appear")
         }
     }
 
@@ -82,6 +92,52 @@ public struct ProcessRow: View {
             IconTile(symbol: proc.isDev ? "hammer.fill" : "gearshape.fill",
                      color: proc.isDev ? .blue : .gray)
         }
+    }
+}
+
+/// One bar, several shares of a whole — where a fixed quantity (physical
+/// memory) is right now. Segments keep their order; anything the segments
+/// don't cover shows as empty track. The bar is the glance; every number it
+/// encodes must also appear as text beside it (colour alone reaches no one
+/// using VoiceOver or who can't tell the hues apart).
+public struct StackedBar: View {
+    public struct Segment: Identifiable {
+        public let id: String
+        public let value: Double
+        public let color: Color
+
+        public init(id: String, value: Double, color: Color) {
+            self.id = id
+            self.value = value
+            self.color = color
+        }
+    }
+
+    let segments: [Segment]
+    let total: Double
+
+    public init(segments: [Segment], total: Double) {
+        self.segments = segments
+        self.total = total
+    }
+
+    public var body: some View {
+        GeometryReader { geo in
+            HStack(spacing: 1) {
+                ForEach(segments) { segment in
+                    if total > 0, segment.value > 0 {
+                        Rectangle()
+                            .fill(segment.color.gradient)
+                            .frame(width: max(2, geo.size.width * segment.value / total))
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .background(Tokens.Surface.track)
+            .clipShape(Capsule())
+        }
+        .frame(height: 10)
+        .accessibilityHidden(true)  // the legend rows carry every value as text
     }
 }
 

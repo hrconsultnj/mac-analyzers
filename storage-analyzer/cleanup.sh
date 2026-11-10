@@ -9,7 +9,8 @@
 #   ./cleanup.sh --execute    # actually delete (asks for confirmation once)
 #   ./cleanup.sh --execute --yes   # delete without the confirmation prompt
 #
-# Optional extra block (OFF by default), prune old recording folders:
+# Recordings mode (opt-in; isolated — the cache/log groups are skipped),
+# prune old recording folders:
 #   ./cleanup.sh --recordings-older-than 90            # dry run
 #   ./cleanup.sh --recordings-older-than 90 --execute  # delete
 #
@@ -264,6 +265,27 @@ if [[ "$APP_MODE" -eq 1 ]]; then
   exit 0
 fi
 
+# --- RECORDINGS MODE: --recordings-older-than prunes recordings ONLY ---
+# Isolated like app mode: asking to prune recordings must never also sweep
+# build caches out from under running dev servers. Requires
+# ANALYZERS_RECORDINGS_DIR in config.local.sh.
+if [[ -n "$REC_DAYS" ]]; then
+  group "Recordings older than ${REC_DAYS} days  (cache/log groups skipped)"
+  REC_DIR="${ANALYZERS_RECORDINGS_DIR:-}"
+  if [[ -n "$REC_DIR" && -d "$REC_DIR" ]]; then
+    while IFS= read -r d; do reclaim "$d"; done \
+      < <(find "$REC_DIR" -mindepth 1 -maxdepth 1 -type d -mtime "+${REC_DAYS}" 2>/dev/null)
+  else
+    echo "  (ANALYZERS_RECORDINGS_DIR not set — skipping)"
+  fi
+  echo ""
+  echo "=================================================================="
+  echo " Recordings total identified: $(human "$TOTAL_KB")"
+  [[ "$DRY_RUN" -eq 1 ]] && echo " DRY RUN. Re-run with --execute to delete."
+  echo "=================================================================="
+  exit 0
+fi
+
 # ---------------------------------------------------------------------------
 if [[ "$SKIP_BUILD" -eq 1 ]]; then
   group "1. Next.js / Turbo build caches  — SKIPPED (--skip-build-caches)"
@@ -338,20 +360,6 @@ if [[ -n "${ANALYZERS_DEPRECATED_PATHS+x}" ]]; then
   for p in "${ANALYZERS_DEPRECATED_PATHS[@]}"; do reclaim "$p"; done
 else
   echo "  (none configured)"
-fi
-
-# ---------------------------------------------------------------------------
-# OPTIONAL — dated recording folders older than N days. OFF unless requested,
-# and requires ANALYZERS_RECORDINGS_DIR in config.local.sh.
-if [[ -n "$REC_DAYS" ]]; then
-  group "7. Recordings older than ${REC_DAYS} days  (OPT-IN)"
-  REC_DIR="${ANALYZERS_RECORDINGS_DIR:-}"
-  if [[ -n "$REC_DIR" && -d "$REC_DIR" ]]; then
-    while IFS= read -r d; do reclaim "$d"; done \
-      < <(find "$REC_DIR" -mindepth 1 -maxdepth 1 -type d -mtime "+${REC_DAYS}" 2>/dev/null)
-  else
-    echo "  (ANALYZERS_RECORDINGS_DIR not set — skipping)"
-  fi
 fi
 
 # ---------------------------------------------------------------------------

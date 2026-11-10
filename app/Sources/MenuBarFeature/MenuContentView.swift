@@ -297,7 +297,7 @@ public struct MenuContentView: View {
         storageRow(
             title: "Deep clean",
             detail: store.storageDeepSummary.map { "last: \($0)" } ?? "no runs yet",
-            sub: "\(ScheduleKit.describe(GuardControl.storageDeepLabel)) — + node_modules of idle repos, package-manager caches, ALL unused Docker images, Time Machine snapshot thinning",
+            sub: "\(ScheduleKit.describe(GuardControl.storageDeepLabel)) — + node_modules of idle repos, idle worktrees (never main), package-manager and app caches, ALL unused Docker images, Time Machine snapshot thinning",
             label: GuardControl.storageDeepLabel,
             symbol: "wand.and.stars", color: .purple
         )
@@ -311,6 +311,8 @@ public struct MenuContentView: View {
                 .help("Preview what storage clean would remove, review, then apply")
             Button("Janitor…") { SettingsOpener.open(target: "actions:janitor") }
                 .help("Stale Downloads and old screenshots — to the Trash, reviewed first")
+            Button("Temp…") { SettingsOpener.open(target: "actions:tempClean") }
+                .help("Idle /tmp, /var and AI-agent leftovers — to the Trash, reviewed first")
             Button("Memory…") { SettingsOpener.open(target: "actions:memoryClean") }
                 .help("Close helper processes whose app already closed — reviewed first")
             Spacer()
@@ -322,6 +324,8 @@ public struct MenuContentView: View {
         HStack(spacing: 12) {
             Button("Storage log") { SettingsOpener.open(target: "log:storageClean") }
             Button("Login-items audit") { SettingsOpener.open(target: "log:loginItems") }
+            Button("Spotlight audit") { SettingsOpener.open(target: "log:spotlightAudit") }
+            Button("Temp & agents") { SettingsOpener.open(target: "log:tempSpace") }
             Spacer()
             Text("Last run \(runText(store.lastStorageCleanRun))")
                 .font(.caption)

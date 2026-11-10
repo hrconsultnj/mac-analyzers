@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "detectedAt": "2026-10-22T03:56:18.061Z",
+  "probed": true,
+  "os": "macos",
+  "platform": "darwin",
+  "windows": false,
+  "wsl": false,
+  "shell": {
+    "gitBash": "n/a",
+    "insideGitBash": false,
+    "bashVersion": "5.3.12"
+  },
+  "terminal": {
+    "id": "iterm.app",
+    "wtSession": false,
+    "termProgram": "iTerm.app",
+    "legacyConsoleLikely": false
+  },
+  "toolchain": {
+    "node": "24.16.0",
+    "jq": "1.7.1-apple"
+  },
+  "color": {
+    "noColor": false,
+    "forceColor": null
+  },
+  "tier": "full",
+  "findings": []
+}

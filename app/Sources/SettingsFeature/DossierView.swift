@@ -42,7 +42,7 @@ struct DossierView: View {
                 DataCard(symbol: "memorychip", color: .blue,
                          title: "Memory in use",
                          subtitle: "pid \(live.pid)",
-                         trailing: live.residentText,
+                         trailing: live.memoryText,
                          live: true)
             } else {
                 DataCard(symbol: "moon.zzz", color: .gray,
@@ -133,7 +133,14 @@ struct DossierView: View {
         await awaitLoad({ () -> (LiveProcess?, EnergyEntry?, DiskIOEntry?, [GuardEvent], [NetworkTalker]) in
             let needle = name.lowercased()
             let procs = LiveStats.snapshot(limit: 60, minimumMB: 16)
-            let liveMatch = procs.first { pid != nil && $0.pid == pid }
+            // by pid first, at any size and whoever owns it — the ranked
+            // list only carries the biggest rows, so a small or macOS-owned
+            // process opened from the Monitor read as "not running"
+            // (a pid can be recycled by an unrelated program, so the name
+            // has to agree before the pid is believed)
+            let liveMatch = pid.flatMap { LiveStats.process(pid: $0) }
+                .flatMap { $0.friendlyName.lowercased() == needle
+                    || $0.rawName.lowercased().contains(needle) ? $0 : nil }
                 ?? procs.first { $0.friendlyName.lowercased() == needle
                     || $0.rawName.lowercased().contains(needle) }
             let livePid = liveMatch?.pid ?? pid

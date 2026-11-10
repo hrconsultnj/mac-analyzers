@@ -10,21 +10,44 @@ public struct LiveProcess: Identifiable, Sendable, Hashable {
     public let rawName: String
     public let kind: Kind
     public let ppid: Int
+    /// Memory footprint in bytes — Activity Monitor's "Memory" column. Set by
+    /// the full census; nil on the guard-facing lists, which stay on
+    /// `residentMB` because resident size is what the guard acts on.
+    public let footprintBytes: Int64?
+    /// The process's OWN name ("Opera Helper (Renderer)") where the census
+    /// knows it — without it every helper in a family reads as its app.
+    public let label: String?
+    /// false where a Quit button has no business appearing: processes owned
+    /// by macOS or another account (the request can't reach them), and
+    /// macOS's own services running as the user — quitting `loginwindow`
+    /// logs you out on the spot. They are shown and measured, never offered.
+    public let canQuit: Bool
     public var id: Int { pid }
 
-    public init(pid: Int, residentMB: Int, rawName: String, kind: Kind, ppid: Int = 0) {
+    public init(pid: Int, residentMB: Int, rawName: String, kind: Kind, ppid: Int = 0,
+                footprintBytes: Int64? = nil, label: String? = nil, canQuit: Bool = true) {
         self.pid = pid
         self.residentMB = residentMB
         self.rawName = rawName
         self.kind = kind
         self.ppid = ppid
+        self.footprintBytes = footprintBytes
+        self.label = label
+        self.canQuit = canQuit
     }
 
     public var isDev: Bool { kind == .devTool }
 
+    /// The number a row shows and sorts by: footprint when the census
+    /// measured it, resident size otherwise.
+    public var memoryBytes: Int64 { footprintBytes ?? Int64(residentMB) * 1_048_576 }
+    public var memoryMB: Int { Int(memoryBytes / 1_048_576) }
+    public var memoryText: String { MemorySize.text(memoryBytes) }
+
     /// Human name: glossary for dev tooling, .app bundle name for apps.
     public var friendlyName: String {
         if isDev, let known = ProcessGlossary.friendlyName(for: rawName) { return known }
+        if let label { return label }
         if let range = rawName.range(of: #"([^/]+)\.app"#, options: .regularExpression) {
             return String(rawName[range].dropLast(4))
         }
@@ -35,6 +58,19 @@ public struct LiveProcess: Identifiable, Sendable, Hashable {
     }
 
     public var residentText: String { String(format: "%.1f GB", Double(residentMB) / 1024) }
+}
+
+/// One formatter for every memory figure on screen. Sizes under a gigabyte
+/// stay in megabytes — "0.0 GB" for a 40 MB helper says nothing, and small
+/// processes are exactly the ones that add up unnoticed.
+public enum MemorySize {
+    public static func text(_ bytes: Int64) -> String {
+        let mb = Double(bytes) / 1_048_576
+        if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
+        if mb >= 10 { return String(format: "%.0f MB", mb) }
+        if mb >= 1 { return String(format: "%.1f MB", mb) }
+        return bytes > 0 ? "<1 MB" : "0 MB"
+    }
 }
 
 /// Boot-volume capacity right now (the "purgeable-aware" free-space number —
@@ -148,17 +184,39 @@ public enum LiveStats {
         snapshot(limit: 24, minimumMB: 256).filter(\.isDev).prefix(limit).map { $0 }
     }
 
+    /// One process by pid, at ANY size and whoever owns it — the dossier's
+    /// lookup. The ranked lists above only carry the biggest rows, so a small
+    /// or system-owned process read from them looked "not running".
+    public static func process(pid: Int) -> LiveProcess? {
+        guard pid > 0, pid <= Int(Int32.max) else { return nil }
+        let pid32 = Int32(pid)
+        guard let identity = ProcTable.identity(of: pid32) else { return nil }
+        let usage = ProcTable.usage(of: pid32)
+        let footprint = usage.map { Int64($0.footprint) }
+            ?? PrivilegedFootprints.current()[pid32]
+        let command = ProcTable.commandLine(of: pid32)
+        let isDev = isDevKillable(command)
+        let path = ProcTable.executablePath(of: pid32)
+        return LiveProcess(pid: pid,
+                           residentMB: Int((usage?.resident ?? 0) / 1_048_576),
+                           rawName: String(command.prefix(100)),
+                           kind: isDev ? .devTool : .app,
+                           ppid: identity.ppid,
+                           footprintBytes: footprint,
+                           // its own name, as the census rows show it
+                           label: isDev || path.hasPrefix("pid ")
+                               ? nil : (path as NSString).lastPathComponent,
+                           canQuit: identity.uid == getuid()
+                               && !MemoryCensus.isSystemPath(path))
+    }
+
     // MARK: - helper grouping
 
     /// Ancestry climb stops at shells/terminals/launchd: a dev server spawned
     /// from a terminal is its own story, not "part of iTerm" — while Chrome/
     /// Code/OrbStack helpers genuinely belong under their parent app.
-    private static let groupStopPattern =
+    static let groupStopPattern =
         #"(^|/)-?(zsh|bash|sh|fish|login|tmux|screen|launchd)( |$)|iTerm|Apple Terminal|Terminal\.app"#
-
-    public static func groupedSnapshot(limit: Int = 30, minimumMB: Int = 128) -> [ProcessGroup] {
-        group(ProcTable.sweep(minimumMB: min(minimumMB, 32)), limit: limit, minimumMB: minimumMB)
-    }
 
     /// Family grouping over an ALREADY-swept table, so callers that need
     /// several views of the process list pay for one sweep, not three.

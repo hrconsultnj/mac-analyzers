@@ -48,6 +48,45 @@ struct StorageSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section {
+                Stepper(value: $config.storage.nmAgeDays, in: 1...60) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Remove node_modules after \(config.storage.nmAgeDays) idle \(config.storage.nmAgeDays == 1 ? "day" : "days")")
+                        Text("A repo counts as idle when none of its source files changed — build output doesn't count. Reinstall with your package manager.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Toggle(isOn: $config.storage.nmRequireClean) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Only when the git tree is clean")
+                        Text("Off: idle repos lose node_modules even with uncommitted changes — your source files are never touched either way.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Stepper(value: $config.storage.turboCacheMaxGB, in: 1...50) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Turborepo cache cap: \(config.storage.turboCacheMaxGB) GB per repo")
+                        Text("Each build adds an entry; the oldest beyond the cap are removed on every run, even in active repos. Never while turbo is running.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Stepper(value: $config.storage.worktreeIdleDays, in: 0...60) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(config.storage.worktreeIdleDays == 0
+                             ? "Idle worktrees: off"
+                             : "Remove worktrees idle \(config.storage.worktreeIdleDays) \(config.storage.worktreeIdleDays == 1 ? "day" : "days")")
+                        Text("Every idle worktree goes, merged or not, and nothing is lost: its commits stay on its branch, uncommitted changes are parked as a pinned commit in the repo, and local-only files (an .env, a database, notes) are copied aside first. Each removal is listed with the commands that bring it back. Never removed: main, locked worktrees, or one a terminal or agent session is sitting in. Deep clean only.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Code projects")
+            }
+
             // The janitor is the ONE cleaner that touches documents rather
             // than rebuildable caches, and its settings were reachable only by
             // hand-editing a shell file — so the pane's promise that keep
@@ -146,6 +185,7 @@ struct StorageSettingsView: View {
 /// tool_cache registrations.
 enum ToolCache: String, CaseIterable, Identifiable {
     case brew, pip, uv, cargo, gradle, deriveddata
+    case appcaches, gomod, bun, cipd, simulators, avd, aerials
     var id: String { rawValue }
 
     var title: String {
@@ -156,17 +196,31 @@ enum ToolCache: String, CaseIterable, Identifiable {
         case .cargo: "Cargo registry cache"
         case .gradle: "Gradle caches"
         case .deriveddata: "Xcode DerivedData"
+        case .appcaches: "App caches (~/Library/Caches)"
+        case .gomod: "Go module cache"
+        case .bun: "Bun install cache"
+        case .cipd: "CIPD cache"
+        case .simulators: "Unused simulators"
+        case .avd: "Android emulator snapshots"
+        case .aerials: "Downloaded aerial wallpapers"
         }
     }
 
     var detail: String {
         switch self {
-        case .brew: "brew cleanup --prune=all — old bottles and downloads."
+        case .brew: "brew cleanup --prune=all -s — old versions, bottles and downloads."
         case .pip: "pip3 cache purge — wheel downloads."
         case .uv: "uv cache prune — unreferenced entries only."
-        case .cargo: "Removes ~/.cargo/registry/cache — re-fetched on demand."
+        case .cargo: "Removes ~/.cargo/registry cache and sources — re-fetched on demand."
         case .gradle: "Removes ~/.gradle/caches — next build re-downloads."
         case .deriveddata: "Empties DerivedData — Xcode rebuilds indexes."
+        case .appcaches: "Every app's cache folder except macOS system caches, your protect list, and anything written in the last hour. Apps rebuild them."
+        case .gomod: "go clean -modcache — modules re-download on the next build."
+        case .bun: "Removes ~/.bun/install/cache — re-downloaded on install."
+        case .cipd: "Removes ~/.cipd-cache-dir — toolchain downloads, re-fetched on demand."
+        case .simulators: "Simulator runtimes never booted (installed 7+ days ago) and devices whose runtime is gone. Xcode re-downloads on demand."
+        case .avd: "Quick-boot snapshots, only while no emulator runs — the next boot is a cold boot."
+        case .aerials: "Aerial videos not shown in 14 days — macOS re-downloads the one you use."
         }
     }
 }
