@@ -367,7 +367,7 @@ struct TempSpaceView: View {
         runPhase = .running("Auditing /tmp, /var and agent folders — nothing is being changed…")
         let result = await ActionRunner.run(script: AnalyzersPaths.tempCleanScript, args: ["--dry-run"])
         guard result.exitCode == 0 else {
-            runPhase = .failed(ActionsSettingsView.explain(exitCode: result.exitCode, verb: "run the audit"))
+            runPhase = .failed(ExitExplanation.explain(exitCode: result.exitCode, verb: "run the audit"))
             return
         }
         runPhase = .done("Audit complete.")
@@ -384,7 +384,7 @@ struct TempSpaceView: View {
         let result = await ActionRunner.run(script: AnalyzersPaths.tempCleanScript,
                                             args: ["--eject", mount.mountPoint])
         guard result.exitCode == 0 else {
-            runPhase = .failed(ActionsSettingsView.explain(exitCode: result.exitCode, verb: "eject \(name)"))
+            runPhase = .failed(ExitExplanation.explain(exitCode: result.exitCode, verb: "eject \(name)"))
             return
         }
         await load(force: true)

@@ -135,7 +135,7 @@ struct ReportsSettingsView: View {
         defer { running = nil }
         let result = await ActionRunner.run(script: kind.script, args: [])
         guard result.exitCode == 0 else {
-            error = ActionsSettingsView.explain(exitCode: result.exitCode, verb: "write the report")
+            error = ExitExplanation.explain(exitCode: result.exitCode, verb: "write the report")
             return
         }
         await LoadCoordinator.shared.invalidateAll()

@@ -394,7 +394,7 @@ struct SpotlightAuditView: View {
         runPhase = .running("Running audit — nothing is being changed…")
         let result = await ActionRunner.run(script: AnalyzersPaths.spotlightAuditScript, args: ["--dry-run"])
         guard result.exitCode == 0 else {
-            runPhase = .failed(ActionsSettingsView.explain(exitCode: result.exitCode, verb: "run the audit"))
+            runPhase = .failed(ExitExplanation.explain(exitCode: result.exitCode, verb: "run the audit"))
             return
         }
         runPhase = .done("Audit complete.")
@@ -409,7 +409,7 @@ struct SpotlightAuditView: View {
         runPhase = .running("Fencing unfenced dev directories…")
         let result = await ActionRunner.run(script: AnalyzersPaths.spotlightAuditScript, args: ["--apply"])
         guard result.exitCode == 0 else {
-            runPhase = .failed(ActionsSettingsView.explain(exitCode: result.exitCode, verb: "apply fences"))
+            runPhase = .failed(ExitExplanation.explain(exitCode: result.exitCode, verb: "apply fences"))
             return
         }
         runPhase = .done("Fences applied.")
