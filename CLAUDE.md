@@ -54,10 +54,20 @@ through `config.local.sh` (never hardcoded).
   tiles/pane headers) · `MacAnalyzersApp` (thin shell) · `NotifierCLI` (the
   bundled `notify` shim) · `AgentRunner` (the compiled launchd entry point —
   `execv`s the engine script for BTM attribution).
-- Every settings pane renders inside `PaneScaffold`
-  (`SettingsFeature/Shared/PaneScaffold.swift`); the sidebar is a brand card +
-  START HERE (Setup) / SETTINGS / AUTOMATIC / WHAT'S HAPPENING /
-  HISTORY & CLEANUP sections + Support/About/Update; every log gets a
+- Every form screen renders inside `PaneScaffold`
+  (`SettingsFeature/Shared/PaneScaffold.swift`). The main window is
+  `SettingsFeature/Shell/`: `MainWindowView` over one `Navigator` (selection,
+  a path per section, ONE back/forward history recorded only in its four
+  mutators `select` / `push` / `setPath` / `open`); the sidebar is a plain
+  `List` built from `SettingsFeature/Groups/<Group>Group.swift` — each group
+  file owns its `SectionID`s, rows, screens, route payloads and deep-link
+  aliases, and `Shell/SectionRegistry.swift` only fixes the group order, so
+  parallel work edits one group file each. Screens navigate through the
+  `Navigator` in the environment (`push(.memory(.dossier(…)))`,
+  `open(target: "log:guardLog")`), never by posting a notification.
+  `Shell/DeepLinkRouter.swift` resolves every target string (the URL scheme,
+  `--pane` and the in-process `com.mac-analyzers.open-pane` notification all
+  land there). Every log gets a
   STRUCTURED pane (chips/cards/tables — see `GuardLogView`, `LoginItemsView`,
   `StorageCleanView`, `ReapLogView`, `ForensicsDetailView`) with
   "Open in TextEdit" as the raw escape hatch; menu rows/components live in

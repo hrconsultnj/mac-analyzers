@@ -35,9 +35,13 @@ config bridge, launchd/schedule control, update checker) · NotifierKit
 (notifications) · MenuBarFeature / SettingsFeature (views) · UIComponents
 (shared tiles/headers) · MacAnalyzersApp (thin shell) · NotifierCLI (`notify`
 shim) · AgentRunner (compiled launchd doorway — execv's the engine script).
-Every settings pane uses PaneScaffold (sidebar: brand card + CONFIGURE /
-SCHEDULE / OBSERVE sections; every log is a structured pane, TextEdit as
-escape hatch); menu rows live in MenuComponents.swift; the engine stays
+Every form screen uses PaneScaffold. The main window is `SettingsFeature/Shell/`
+(`MainWindowView`, one `Navigator` owning selection, per-section paths and a
+single back/forward history) over a sidebar built from `Groups/<Group>Group.swift`
+files — each group owns its section ids, rows, screens, routes and deep-link
+aliases, and `Shell/SectionRegistry.swift` only fixes the group order. Deep-link
+strings resolve in `Shell/DeepLinkRouter.swift`. Every log is a structured
+screen, TextEdit as escape hatch; menu rows live in MenuComponents.swift; the engine stays
 bash — the app is a control surface, never a reimplementation. Verify
 `cd app && swift build`, then `./app/build.sh` (rebuild + reinstall to
 /Applications) and relaunch. UI traps (v2.7.1): pane header stays INSIDE the
