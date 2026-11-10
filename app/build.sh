@@ -44,6 +44,14 @@ cp Info.plist "$APP/Contents/Info.plist"
 # app can compare itself against the latest GitHub release
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(tr -d ' \n' < ../VERSION)" \
   "$APP/Contents/Info.plist" 2>/dev/null || true
+# Build stamp: the version only changes at a release, so two builds made an
+# hour apart look identical on screen. The Update screen shows this instead:
+# which commit this copy was built from (marked when the working tree had
+# uncommitted changes) and when.
+REVISION="$(git -C .. rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+[[ -n "$(git -C .. status --porcelain 2>/dev/null)" ]] && REVISION="$REVISION, with local changes"
+/usr/libexec/PlistBuddy -c "Add :MABuildRevision string $REVISION" \
+  -c "Add :MABuildDate string $(date '+%b %-d at %H:%M')" "$APP/Contents/Info.plist" 2>/dev/null || true
 cp "$BIN/MacAnalyzersApp" "$APP/Contents/MacOS/MacAnalyzersApp"
 cp "$BIN/NotifierCLI" "$APP/Contents/MacOS/notify"
 cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"

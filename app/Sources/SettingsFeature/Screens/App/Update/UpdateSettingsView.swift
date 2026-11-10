@@ -22,6 +22,14 @@ struct UpdateSettingsView: View {
                      caption: "See what version you have, what is new, and install the latest.") {
             Section {
                 LabeledContent("Installed version") { Text("v\(installed)").monospacedDigit() }
+                if let build = UpdateChecker.installedBuild {
+                    LabeledContent("Build") {
+                        Text(build)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                    .help("Which exact build this copy is. The version number only changes when a release is published.")
+                }
                 LabeledContent("Latest release") {
                     Text(latest.map { "v\($0)" } ?? (checking ? "checking…" : "—"))
                         .monospacedDigit()

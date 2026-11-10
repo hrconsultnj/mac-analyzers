@@ -12,6 +12,14 @@ heading becomes its version and title.
 
 - What's New is easier to read: entries are set as flowing paragraphs with
   real lists, and older releases can now be opened as well as the newest.
+- Fixed: reinstalling or upgrading the app left behind files that newer
+  versions no longer include, which could stop macOS from verifying the
+  installed copy. Installing now replaces the app cleanly.
+- Building the app from source no longer asks for access to your keychain.
+- Mac Analyzers keeps all of its records in your mac-analyzers folder, so
+  nothing is lost when the app updates.
+- The Update screen shows exactly which build you are running, not only the
+  version number.
 
 ## v2.68.0 — See where all of your memory goes
 
