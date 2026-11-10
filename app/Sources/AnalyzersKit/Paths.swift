@@ -1,9 +1,11 @@
-import AppKit
 import Foundation
-import os
 
 /// Canonical file locations shared by every module. Mirrors the bash suite's
 /// layout (~/mac-analyzers/reports/{memory,storage}, ~/scripts/config.local.sh).
+///
+/// This file is the paths only. Next to it:
+///   Navigation/NotifyChannel.swift   the notification names the app and CLI share
+///   Navigation/SettingsOpener.swift  opening the Settings window from anywhere
 public enum AnalyzersPaths {
     public static let home = FileManager.default.homeDirectoryForCurrentUser
 
@@ -90,55 +92,5 @@ public enum AnalyzersPaths {
 
     public static func modificationDate(of url: URL) -> Date? {
         try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
-    }
-}
-
-/// Name of the distributed notification the CLI shim posts and the app observes.
-public enum NotifyChannel {
-    public static let name = "com.mac-analyzers.notify"
-    public static let appBundleID = "com.mac-analyzers.app"
-    /// In-process signal: "open the Settings window" (Dock click, notification
-    /// default action). Posted by AppKit code, observed by the SwiftUI anchor
-    /// window, which holds the openSettings environment action.
-    public static let openSettingsInternal = Notification.Name("com.mac-analyzers.open-settings")
-    /// In-process signal: "navigate Settings to this pane" — userInfo["target"]
-    /// carries a route string ("activity", "logs", "log:<kind>", "monitor").
-    public static let openPaneInternal = Notification.Name("com.mac-analyzers.open-pane")
-}
-
-/// Opens the Settings window from ANY entry point, optionally deep-linking
-/// to a pane. Belt and braces: SwiftUI route via the anchor window, plus a
-/// delayed AppKit fallback when no settings window materialized.
-@MainActor
-public enum SettingsOpener {
-    private static let log = Logger(subsystem: "com.mac-analyzers.app",
-                                    category: "settings-opener")
-
-    /// Receivers of the open-settings signal report in here — the log tells
-    /// us which render tree was actually awake to handle a reopen.
-    public static func markHandled(by receiver: String) {
-        log.notice("open-settings signal handled by \(receiver, privacy: .public)")
-    }
-
-    public static func open(target: String? = nil) {
-        log.notice("open(target: \(target ?? "nil", privacy: .public)) — windows before: \(NSApp.windows.count)")
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        // The signal is answered by the menu-bar LABEL's receiver (always
-        // alive/visible — os_log diagnosis 2026-08-01; the hidden anchor
-        // window's publisher suspends while occluded), which openWindow()s
-        // the settings Window scene.
-        NotificationCenter.default.post(name: NotifyChannel.openSettingsInternal, object: nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            let settingsUp = NSApp.windows.contains {
-                $0.isVisible && ($0.identifier?.rawValue.lowercased().contains("settings") ?? false)
-            }
-            log.notice("post-open check — settings visible: \(settingsUp, privacy: .public), windows: \(NSApp.windows.count)")
-            NSApp.activate(ignoringOtherApps: true)
-            if let target {
-                NotificationCenter.default.post(name: NotifyChannel.openPaneInternal,
-                                                object: nil, userInfo: ["target": target])
-            }
-        }
     }
 }

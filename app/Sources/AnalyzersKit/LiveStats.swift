@@ -1,97 +1,11 @@
 import Foundation
 
-/// Live system facts the menu reads on open — the same signals the guard
-/// watches, so what you see is what the guard decides on.
-public struct LiveProcess: Identifiable, Sendable, Hashable {
-    public enum Kind: Sendable { case devTool, app }
-
-    public let pid: Int
-    public let residentMB: Int
-    public let rawName: String
-    public let kind: Kind
-    public let ppid: Int
-    /// Memory footprint in bytes — Activity Monitor's "Memory" column. Set by
-    /// the full census; nil on the guard-facing lists, which stay on
-    /// `residentMB` because resident size is what the guard acts on.
-    public let footprintBytes: Int64?
-    /// The process's OWN name ("Opera Helper (Renderer)") where the census
-    /// knows it — without it every helper in a family reads as its app.
-    public let label: String?
-    /// false where a Quit button has no business appearing: processes owned
-    /// by macOS or another account (the request can't reach them), and
-    /// macOS's own services running as the user — quitting `loginwindow`
-    /// logs you out on the spot. They are shown and measured, never offered.
-    public let canQuit: Bool
-    public var id: Int { pid }
-
-    public init(pid: Int, residentMB: Int, rawName: String, kind: Kind, ppid: Int = 0,
-                footprintBytes: Int64? = nil, label: String? = nil, canQuit: Bool = true) {
-        self.pid = pid
-        self.residentMB = residentMB
-        self.rawName = rawName
-        self.kind = kind
-        self.ppid = ppid
-        self.footprintBytes = footprintBytes
-        self.label = label
-        self.canQuit = canQuit
-    }
-
-    public var isDev: Bool { kind == .devTool }
-
-    /// The number a row shows and sorts by: footprint when the census
-    /// measured it, resident size otherwise.
-    public var memoryBytes: Int64 { footprintBytes ?? Int64(residentMB) * 1_048_576 }
-    public var memoryMB: Int { Int(memoryBytes / 1_048_576) }
-    public var memoryText: String { MemorySize.text(memoryBytes) }
-
-    /// Human name: glossary for dev tooling, .app bundle name for apps.
-    public var friendlyName: String {
-        if isDev, let known = ProcessGlossary.friendlyName(for: rawName) { return known }
-        if let label { return label }
-        if let range = rawName.range(of: #"([^/]+)\.app"#, options: .regularExpression) {
-            return String(rawName[range].dropLast(4))
-        }
-        // bare binary name (helpers/daemons outside .app bundles)
-        return String(rawName.split(separator: " ").first.map {
-            $0.split(separator: "/").last.map(String.init) ?? String($0)
-        } ?? rawName)
-    }
-
-    public var residentText: String { String(format: "%.1f GB", Double(residentMB) / 1024) }
-}
-
-/// One formatter for every memory figure on screen. Sizes under a gigabyte
-/// stay in megabytes — "0.0 GB" for a 40 MB helper says nothing, and small
-/// processes are exactly the ones that add up unnoticed.
-public enum MemorySize {
-    public static func text(_ bytes: Int64) -> String {
-        let mb = Double(bytes) / 1_048_576
-        if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
-        if mb >= 10 { return String(format: "%.0f MB", mb) }
-        if mb >= 1 { return String(format: "%.1f MB", mb) }
-        return bytes > 0 ? "<1 MB" : "0 MB"
-    }
-}
-
-/// Boot-volume capacity right now (the "purgeable-aware" free-space number —
-/// the same important-usage figure Finder shows, not raw df).
-public struct DiskUsage: Sendable, Equatable {
-    public let totalBytes: Int64
-    public let freeBytes: Int64
-
-    public var usedBytes: Int64 { totalBytes - freeBytes }
-    public var usedFraction: Double {
-        totalBytes > 0 ? Double(usedBytes) / Double(totalBytes) : 0
-    }
-    public var usedText: String { Self.gb(usedBytes) }
-    public var totalText: String { Self.gb(totalBytes) }
-    public var freeText: String { Self.gb(freeBytes) }
-
-    static func gb(_ bytes: Int64) -> String {
-        String(format: "%.0f GB", Double(bytes) / 1_000_000_000)
-    }
-}
-
+/// Live queries over the process table, memory pressure and the boot volume.
+///
+/// This file is the queries only. The values they return live next to it:
+///   LiveProcess.swift   one process, and a parent with its helpers (ProcessGroup)
+///   MemorySize.swift    the one formatter for memory figures
+///   DiskUsage.swift     boot-volume capacity
 public enum LiveStats {
 
     public static func diskUsage() -> DiskUsage? {
@@ -283,20 +197,4 @@ public enum LiveStats {
         }
         return groups.sorted { $0.totalMB > $1.totalMB }.prefix(limit).map { $0 }
     }
-}
-
-/// A parent process with its heavy helpers rolled underneath — the Monitor
-/// pane's Activity-Monitor-beating view: one row per APP, expandable.
-public struct ProcessGroup: Identifiable, Sendable {
-    public let parent: LiveProcess
-    public let children: [LiveProcess]
-    public var id: Int { parent.pid }
-
-    public init(parent: LiveProcess, children: [LiveProcess]) {
-        self.parent = parent
-        self.children = children
-    }
-
-    public var totalMB: Int { parent.residentMB + children.map(\.residentMB).reduce(0, +) }
-    public var totalText: String { String(format: "%.1f GB", Double(totalMB) / 1024) }
 }
