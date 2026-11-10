@@ -17,6 +17,7 @@ struct SetupSettingsView: View {
 
     @Environment(GuardLogStore.self) var store
     @Environment(Navigator.self) var navigator
+    @Environment(JobStore.self) var jobs
     @State var report: SetupReport?
     @State var working: String?
     @State var message: String?

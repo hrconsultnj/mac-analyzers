@@ -93,16 +93,18 @@ extension SetupSettingsView {
         store.reload()
     }
 
-    /// Runs both installers. They are sudo-free by design — everything they
-    /// touch is in the user's own launchd domain.
+    /// Runs both installers as one tracked job, so it shows in the toolbar and
+    /// Activity, can be stopped there, and finishes even if this window closes.
+    /// They are sudo-free by design — everything they touch is in the user's
+    /// own launchd domain.
     private func installAgents() async -> (ok: Bool, text: String) {
-        for script in ["memory-analyzer/memory-manage-agents.sh",
-                       "storage-analyzer/storage-manage-agents.sh"] {
-            let url = AnalyzersPaths.suiteRoot.appending(path: script)
-            guard FileManager.default.isExecutableFile(atPath: url.path) else {
-                return (false, "Could not find \(script) — the app's copy of the analyzer scripts is incomplete.")
-            }
-            _ = await ActionRunner.run(script: url, args: ["install"])
+        let job = jobs.enqueue(JobRequest(kind: .installAgents, intent: .run), trigger: .user)
+        await job.waitUntilFinished()
+        if case .cancelled = job.state {
+            return (false, "Stopped. Some background jobs may already be installed — the list below shows which.")
+        }
+        if let message = job.failureMessage, job.exitCode == 127 {
+            return (false, message)      // the engine scripts are missing; nothing else to prove
         }
         // prove it rather than announce it
         let status = await Task.detached(priority: .userInitiated) { EngineStatus.probe() }.value
