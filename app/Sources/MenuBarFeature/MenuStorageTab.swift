@@ -1,0 +1,115 @@
+import SwiftUI
+import AnalyzersKit
+import UIComponents
+
+/// The Storage tab: disk usage and the storage cleanups.
+extension MenuContentView {
+
+    // MARK: - Storage tab
+
+    @ViewBuilder var storageTab: some View {
+        sectionLabel("STORAGE NOW")
+        if let disk = store.disk {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    IconTile(symbol: "internaldrive.fill", color: .indigo)
+                        .accessibilityHidden(true)  // decorative — "Macintosh HD" below already names it
+                    Text("Macintosh HD")
+                        .font(.callout.weight(.medium))
+                    Text("\(disk.usedText) of \(disk.totalText) used")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(disk.freeText) free")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(disk.usedFraction > 0.9 ? .red : .primary)
+                }
+                CapacityBar(fraction: disk.usedFraction)
+            }
+        } else {
+            Text("Couldn't read the boot volume.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        if let last = store.lastCleanDiskState {
+            HStack(spacing: 6) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("At last clean (\(runText(store.lastStorageCleanRun))): \(last)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .help("What the storage log recorded when the scheduled clean last ran — compare with the live bar above")
+        }
+
+        Divider()
+
+        sectionLabel("SCHEDULED CLEANS")
+        storageRow(
+            title: "Daily clean",
+            detail: store.storageDailySummary.map { "last: \($0)" } ?? "no runs yet",
+            sub: "\(ScheduleKit.describe(GuardControl.storageCleanLabel)) — stale build caches only",
+            label: GuardControl.storageCleanLabel,
+            symbol: "sparkles", color: .green
+        )
+        storageRow(
+            title: "Deep clean",
+            detail: store.storageDeepSummary.map { "last: \($0)" } ?? "no runs yet",
+            sub: "\(ScheduleKit.describe(GuardControl.storageDeepLabel)) — + node_modules of idle repos, idle worktrees (never main), package-manager and app caches, ALL unused Docker images, Time Machine snapshot thinning",
+            label: GuardControl.storageDeepLabel,
+            symbol: "wand.and.stars", color: .purple
+        )
+
+        Divider()
+
+        // the bigger, reviewed cleans — dry-run → review → apply in the app
+        sectionLabel("REVIEW & CLEAN")
+        HStack(spacing: 12) {
+            Button("Storage…") { SettingsOpener.open(target: "actions:storageClean") }
+                .help("Preview what storage clean would remove, review, then apply")
+            Button("Janitor…") { SettingsOpener.open(target: "actions:janitor") }
+                .help("Stale Downloads and old screenshots — to the Trash, reviewed first")
+            Button("Temp…") { SettingsOpener.open(target: "actions:tempClean") }
+                .help("Idle /tmp, /var and AI-agent leftovers — to the Trash, reviewed first")
+            Button("Memory…") { SettingsOpener.open(target: "actions:memoryClean") }
+                .help("Close helper processes whose app already closed — reviewed first")
+            Spacer()
+        }
+        .controlSize(.regular)
+
+        Divider()
+
+        HStack(spacing: 12) {
+            Button("Storage log") { SettingsOpener.open(target: "log:storageClean") }
+            Button("Login-items audit") { SettingsOpener.open(target: "log:loginItems") }
+            Button("Spotlight audit") { SettingsOpener.open(target: "log:spotlightAudit") }
+            Button("Temp & agents") { SettingsOpener.open(target: "log:tempSpace") }
+            Spacer()
+            Text("Last run \(runText(store.lastStorageCleanRun))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .controlSize(.regular)
+    }
+
+    private func storageRow(title: String, detail: String, sub: String, label: String,
+                            symbol: String, color: Color) -> some View {
+        HStack(alignment: .center) {
+            IconTile(symbol: symbol, color: color)
+                .accessibilityHidden(true)  // decorative — title below already names the row
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 6) {
+                    Text(title).font(.callout.weight(.medium))
+                    Text(detail).font(.callout).foregroundStyle(.secondary)
+                }
+                Text(sub).font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Run now") { GuardControl.runNow(label) }
+                .controlSize(.regular)
+                .help("Same run the schedule would do — dry-run-safe rules apply")
+        }
+    }
+}
