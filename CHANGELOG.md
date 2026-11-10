@@ -20,6 +20,8 @@ heading becomes its version and title.
   nothing is lost when the app updates.
 - The Update screen shows exactly which build you are running, not only the
   version number.
+- Fixed: cleanups started from the app could stall on very large results.
+  They also now find the same developer tools your scheduled cleanups use.
 
 ## v2.68.0 — See where all of your memory goes
 

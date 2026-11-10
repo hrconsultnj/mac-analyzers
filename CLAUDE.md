@@ -71,6 +71,17 @@ through `config.local.sh` (never hardcoded).
   `agent-runner --probe-setup` prints the Setup checklist as text.
   `agent-runner --probe-memory [--all]` prints the Monitor pane's memory
   census as text (where memory is + every process group with its total).
+  `agent-runner --probe-job <kind> [--cancel-after <s>]` runs one tracked job
+  headless through the same kernel the app uses (`AnalyzersKit/Jobs/`) and
+  prints its lines, the log block it was matched to and how it ended.
+  Cleaners run as a PREVIEW (dry run) only: `--apply` is refused against the
+  real engine and exists solely for `--probe-job-script <test script>`.
+- Jobs kernel rules (`AnalyzersKit/Jobs/`): one engine lane (jobs queue);
+  `JobStore.enqueue` refuses `.apply` for cleaners — `apply(from: preview,
+  approved:)` is the only constructor, so an unreviewed apply cannot be
+  built; cancel terminates the whole descendant tree; engine scripts are
+  executed directly (their own `#!/usr/bin/env bash`) with the launchd
+  plists' PATH — never forced through `/bin/bash`, which is 3.2.
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;
