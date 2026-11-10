@@ -16,9 +16,13 @@ extension FocusedValues {
 }
 
 extension View {
-    /// A screen's hook into View › Refresh and View › Find.
+    /// A screen's hook into View › Refresh and View › Find. A screen that is
+    /// covered by something pushed on top passes `isActive: false`, so the
+    /// menu never acts on a table nobody can see.
     func screenActions(refresh: (@MainActor @Sendable () -> Void)? = nil,
-                       find: (@MainActor @Sendable () -> Void)? = nil) -> some View {
-        focusedSceneValue(\.screenActions, ScreenActions(refresh: refresh, find: find))
+                       find: (@MainActor @Sendable () -> Void)? = nil,
+                       isActive: Bool = true) -> some View {
+        focusedSceneValue(\.screenActions,
+                          isActive ? ScreenActions(refresh: refresh, find: find) : nil)
     }
 }

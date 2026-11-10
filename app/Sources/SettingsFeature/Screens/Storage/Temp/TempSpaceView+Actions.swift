@@ -42,7 +42,7 @@ extension TempSpaceView {
     }
 
     func openActions() {
-        navigator.open(target: "actions:tempClean")
+        navigator.push(.storage(.review(ActionsSettingsView.Cleaner.tempClean.rawValue)))
     }
 
     // MARK: - load

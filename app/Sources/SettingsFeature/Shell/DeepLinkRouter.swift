@@ -7,24 +7,40 @@ import os
 /// Three inputs reach it, all with the same strings: `macanalyzers://pane/<target>`,
 /// `--pane <target>`, and the in-process `com.mac-analyzers.open-pane`
 /// notification (which the Pro overlay posts raw with `"support"`). Each group
-/// answers the aliases for its own screens; the router just asks them in
-/// order, so a target is never listed in two places.
+/// declares the targets for its own screens as data; the router consults every
+/// group's fixed aliases first and only then the dynamic resolvers, so a
+/// prefix rule in one group can never shadow an exact target in another.
 @MainActor
-enum DeepLinkRouter {
-
-    enum Resolution: Equatable {
-        case main(Location)
-        case unknown
-    }
+public enum DeepLinkRouter {
 
     private static let log = Logger(subsystem: "com.mac-analyzers.app", category: "router")
 
     static func resolve(_ target: String) -> Resolution {
         let key = target.trimmingCharacters(in: .whitespacesAndNewlines)
         for group in SectionRegistry.groups {
-            if let location = group.resolve(key) { return .main(location) }
+            if let resolution = group.aliases[key] { return resolution }
+        }
+        for group in SectionRegistry.groups {
+            if let resolution = group.resolveDynamic?(key) { return resolution }
         }
         return .unknown
+    }
+
+    /// Which window a link belongs in. Asked by the always-alive receivers
+    /// BEFORE any window is opened, so a link to a preference never has to
+    /// bring up the main window first. Every preference link still lands in
+    /// the main window (the interim Settings rows) until a Settings window
+    /// exists; that phase returns `.preferences` here and edits only
+    /// `PreferencesGroup`.
+    public enum LinkWindow: Equatable {
+        case main
+        case preferences(tab: String)
+    }
+
+    public static func window(for target: String?) -> LinkWindow {
+        guard let target, case .preferences(let tab) = resolve(target) else { return .main }
+        log.notice("preferences tab \(tab, privacy: .public) has no window of its own yet — using the main window")
+        return .main
     }
 
     /// Resolves and navigates; an unknown target is logged and ignored.
@@ -32,6 +48,9 @@ enum DeepLinkRouter {
         switch resolve(target) {
         case .main(let location):
             navigator.open(location)
+        case .preferences(let tab):
+            // no Settings window yet: the interim row stands in for the tab
+            navigator.open(PreferencesGroup.interimLocation(forTab: tab))
         case .unknown:
             log.notice("ignored unknown deep-link target \(target, privacy: .public)")
         }

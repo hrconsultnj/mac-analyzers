@@ -8,11 +8,15 @@ import Foundation
 /// Payloads are identifiers, never models: a route has to survive a restart
 /// (`Codable`) and compare cheaply (`Hashable`) for the stack to diff it.
 enum Route: Hashable, Codable {
+    case overview(OverviewRoute)
     case memory(MemoryRoute)
     case storage(StorageRoute)
     case system(SystemRoute)
     case history(HistoryRoute)
     case app(AppRoute)
+    /// One run inside an engine log. Shared: Activity and the System group
+    /// both push it.
+    case run(RunReference)
     /// A tracked job, by id. Its screen arrives with Activity.
     case job(UUID)
 }

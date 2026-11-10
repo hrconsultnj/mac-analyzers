@@ -11,8 +11,7 @@ extension MenuContentView {
     var footer: some View {
         HStack {
             Button {
-                NSApp.setActivationPolicy(.regular)
-                NSApp.activate(ignoringOtherApps: true)
+                ActivationPolicy.windowOpening()
                 openWindow(id: "main")
             } label: {
                 Label("Settings…", systemImage: "gearshape")

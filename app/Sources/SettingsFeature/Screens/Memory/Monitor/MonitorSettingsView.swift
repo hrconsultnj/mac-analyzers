@@ -112,7 +112,8 @@ struct MonitorSettingsView: View {
         .searchable(text: $search, prompt: "Filter by name")
         .searchFocused($searchFocused)
         .screenActions(refresh: { Task { await load() } },
-                       find: { searchFocused = true })
+                       find: { searchFocused = true },
+                       isActive: navigator.path.isEmpty)
         .onChange(of: lens) { Task { await load() } }
         .task { await load() }
         .task(id: refresh) {

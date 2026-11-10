@@ -19,7 +19,10 @@ enum HistoryGroup {
             SidebarRow(undo, "Undo", symbol: "arrow.uturn.backward"),
         ],
         root: screen,
-        resolve: resolve)
+        aliases: [
+            "trends": .main(Location(trends)),
+            "undo": .main(Location(undo)),
+        ])
 
     @ViewBuilder private static func screen(_ section: SectionID) -> some View {
         switch section {
@@ -32,14 +35,6 @@ enum HistoryGroup {
     @ViewBuilder static func destination(for route: HistoryRoute) -> some View {
         switch route {
         case .trends(let route): trendsDestination(route)
-        }
-    }
-
-    private static func resolve(_ target: String) -> Location? {
-        switch target {
-        case "trends": Location(trends)
-        case "undo": Location(undo)
-        default: nil
         }
     }
 }

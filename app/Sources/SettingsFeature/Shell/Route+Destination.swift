@@ -8,11 +8,13 @@ extension Route {
     @MainActor @ViewBuilder var destination: some View {
         Group {
             switch self {
+            case .overview(let route): OverviewGroup.destination(for: route)
             case .memory(let route): MemoryGroup.destination(for: route)
             case .storage(let route): StorageGroup.destination(for: route)
             case .system(let route): SystemGroup.destination(for: route)
             case .history(let route): HistoryGroup.destination(for: route)
             case .app(let route): AppGroup.destination(for: route)
+            case .run(let run): RunDetailView(route: run)
             case .job(let id): JobPlaceholderView(id: id)
             }
         }

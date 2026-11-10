@@ -1,17 +1,14 @@
 import SwiftUI
-import AnalyzersKit
 #if canImport(ProKit)
 import ProKit
 #endif
 
 /// The sidebar: a list of plain labels grouped by the registry, selection
 /// bound to the navigator. Picking a row calls `select`; picking the row that
-/// is already selected does nothing.
+/// is already selected does nothing. Badges and the work behind them belong to
+/// the groups; this view only draws what they say.
 struct SidebarView: View {
     let navigator: Navigator
-
-    @State private var updateAvailable = false
-    @State private var setupNeedsAttention = false
 
     var body: some View {
         List(selection: selection) {
@@ -29,14 +26,12 @@ struct SidebarView: View {
         .safeAreaInset(edge: .bottom) { ProBadgeSlot() }
         #endif
         .task {
-            if let latest = await UpdateChecker.latestVersion() {
-                updateAvailable = UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion)
+            // each group feeds its own badges; one slow probe never holds up another
+            await withTaskGroup(of: Void.self) { tasks in
+                for group in SectionRegistry.groups where group.load != nil {
+                    tasks.addTask { await group.load?() }
+                }
             }
-        }
-        .task {
-            // cheap version of the checklist: is anything actually broken?
-            let engine = await Task.detached(priority: .utility) { EngineStatus.probe() }.value
-            setupNeedsAttention = !engine.isFullyInstalled
         }
     }
 
@@ -49,19 +44,8 @@ struct SidebarView: View {
     private func rows(_ group: SidebarGroup) -> some View {
         ForEach(group.rows) { row in
             Label(row.title, systemImage: row.symbol)
-                .badge(badge(row.badge))
+                .badge(row.badge?().map { Text($0) })
                 .tag(row.section)
-        }
-    }
-
-    // The Setup row STAYS after everything is green — permissions get
-    // withdrawn and background jobs get unloaded without asking. Only the
-    // badge goes away.
-    private func badge(_ badge: SidebarBadge?) -> Text? {
-        switch badge {
-        case .needsAttention: setupNeedsAttention ? Text("!") : nil
-        case .updateAvailable: updateAvailable ? Text("1") : nil
-        case nil: nil
         }
     }
 }

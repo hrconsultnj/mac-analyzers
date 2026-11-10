@@ -21,7 +21,12 @@ enum PreferencesGroup {
             SidebarRow(schedule, "Schedule", symbol: "calendar.badge.clock"),
         ],
         root: screen,
-        resolve: resolve)
+        aliases: [
+            "memory": .main(Location(memory)),
+            "storage": .main(Location(storage)),
+            "notifications": .main(Location(notifications)),
+            "schedule": .main(Location(schedule)),
+        ])
 
     @ViewBuilder private static func screen(_ section: SectionID) -> some View {
         switch section {
@@ -33,13 +38,15 @@ enum PreferencesGroup {
         }
     }
 
-    private static func resolve(_ target: String) -> Location? {
-        switch target {
-        case "memory": Location(memory)
+    /// Where a preferences tab lands while there is no Settings window. The
+    /// phase that builds the window changes the aliases above to
+    /// `.preferences(tab:)` and nothing outside this file.
+    static func interimLocation(forTab tab: String) -> Location {
+        switch tab {
         case "storage": Location(storage)
         case "notifications": Location(notifications)
         case "schedule": Location(schedule)
-        default: nil
+        default: Location(memory)
         }
     }
 }

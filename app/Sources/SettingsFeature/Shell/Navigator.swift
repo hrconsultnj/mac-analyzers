@@ -28,8 +28,11 @@ final class Navigator {
     init(initial: Location) {
         section = initial.section
         paths = [initial.section: initial.path]
-        history = [initial]
-        cursor = 0
+        // Back must reach a section's root before it leaves the section, so a
+        // window restored onto a pushed screen starts with its root behind it.
+        let stops = initial.path.isEmpty ? [initial] : [Location(initial.section), initial]
+        history = stops
+        cursor = stops.count - 1
     }
 
     var path: [Route] { paths[section] ?? [] }
@@ -62,6 +65,15 @@ final class Navigator {
         guard newPath != path else { return }
         paths[section] = newPath
         record()
+    }
+
+    /// The same write, from the stack that belongs to `owner`. A stack that
+    /// is on its way out can still write (an empty path, say) while Back,
+    /// Forward or a sidebar pick has already made another section current;
+    /// that write must not land in the new section.
+    func setPath(_ newPath: [Route], in owner: SectionID) {
+        guard owner == section else { return }
+        setPath(newPath)
     }
 
     /// A deep link: a full location. It always replaces that section's path,
@@ -97,10 +109,19 @@ final class Navigator {
 
     /// Appends the settled location. A new navigation after going back drops
     /// the forward stops; an unchanged location is not a stop.
+    ///
+    /// Invariant: from any location with a pushed screen, Back reaches that
+    /// section's root before it leaves the section. Pushed screens have no
+    /// system back button, so arriving on one from another section (a deep
+    /// link, a sidebar pick onto a section that kept its stack) records the
+    /// root first; otherwise the root would be unreachable.
     private func record() {
         let here = location
         guard history[cursor] != here else { return }
         history.removeSubrange((cursor + 1)...)
+        if !here.path.isEmpty, history[cursor].section != here.section {
+            history.append(Location(here.section))
+        }
         history.append(here)
         if history.count > Self.historyLimit {
             history.removeFirst(history.count - Self.historyLimit)

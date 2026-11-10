@@ -4,6 +4,18 @@ import NotifierKit
 import MenuBarFeature
 import SettingsFeature
 
+/// Opens the window a link belongs in. The router is asked first, before any
+/// window exists, so a link never has to bring up the main window just to
+/// find out it belongs elsewhere. Today every link belongs in the main window;
+/// when preferences get a window of their own, its case opens here.
+@MainActor
+private func openLinkWindow(for note: Notification, using openWindow: OpenWindowAction) {
+    switch DeepLinkRouter.window(for: note.userInfo?["target"] as? String) {
+    case .main, .preferences:
+        openWindow(id: "main")
+    }
+}
+
 /// Invisible view that turns the internal open-window signal into an
 /// actual openWindow() call (with the activation dance already done by
 /// the poster of the signal).
@@ -14,14 +26,14 @@ struct SettingsAnchorView: View {
         Color.clear
             .frame(width: 1, height: 1)
             .onReceive(NotificationCenter.default.publisher(
-                for: NotifyChannel.openSettingsInternal)) { _ in
+                for: NotifyChannel.openSettingsInternal)) { note in
                 SettingsOpener.markHandled(by: "anchor-window")
-                openWindow(id: "main")
+                openLinkWindow(for: note, using: openWindow)
             }
     }
 }
 
-/// The status-bar chip. It ALSO hosts the open-settings receiver: os_log
+/// The status-bar chip. It ALSO hosts the open-window receiver: os_log
 /// diagnosis (2026-08-01) showed the hidden 1×1 anchor window's publisher
 /// gets suspended with the window occluded, so Dock-click reopens died
 /// silently. The label is the one render tree that is alive and visible
@@ -49,9 +61,9 @@ struct MenuBarLabelView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(
-            for: NotifyChannel.openSettingsInternal)) { _ in
+            for: NotifyChannel.openSettingsInternal)) { note in
             SettingsOpener.markHandled(by: "menu-bar-label")
-            openWindow(id: "main")
+            openLinkWindow(for: note, using: openWindow)
         }
     }
 }

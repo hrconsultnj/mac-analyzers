@@ -2,13 +2,15 @@ import SwiftUI
 
 /// What can be pushed in the Storage group.
 enum StorageRoute: Hashable, Codable, Sendable {
-    /// The interim Actions screen with one cleaner chosen (its raw value).
-    case cleaner(String)
+    /// The review-then-apply screen with one cleaner chosen (its raw value).
+    case review(String)
 }
 
-/// Disk, Caches & Builds, Downloads, Temp & Agents, Spotlight — plus the
-/// interim Actions row that hosts the review-then-apply screen until each
-/// task has its own. Time Machine and Unused Apps arrive with their screens.
+/// Disk, Caches & Builds, Downloads, Temp & Agents and Spotlight. Time
+/// Machine and Unused Apps arrive with their screens.
+///
+/// Interim: Caches & Builds IS the review screen for the storage cleaner;
+/// Downloads and Temp & Agents reach theirs by pushing it from their own row.
 @MainActor
 enum StorageGroup {
 
@@ -17,7 +19,10 @@ enum StorageGroup {
     static let downloads = SectionID("downloads")
     static let temp = SectionID("temp")
     static let spotlight = SectionID("spotlight")
-    static let actions = SectionID("actions")
+
+    private static let storageClean = ActionsSettingsView.Cleaner.storageClean.rawValue
+    private static let janitor = ActionsSettingsView.Cleaner.janitor.rawValue
+    private static let tempClean = ActionsSettingsView.Cleaner.tempClean.rawValue
 
     static let group = SidebarGroup(
         title: "Storage",
@@ -27,44 +32,55 @@ enum StorageGroup {
             SidebarRow(downloads, "Downloads", symbol: "arrow.down.circle"),
             SidebarRow(temp, "Temp & Agents", symbol: "tray.full"),
             SidebarRow(spotlight, "Spotlight", symbol: "magnifyingglass"),
-            SidebarRow(actions, "Actions", symbol: "checklist"),
         ],
         root: screen,
-        resolve: resolve)
+        aliases: [
+            "disk": .main(Location(disk)),
+            // the storage-clean LOG is what StorageCleanView shows, and it is
+            // hosted under Disk until Disk has its own screen
+            "log:storageClean": .main(Location(disk)),
+            "caches": .main(Location(caches)),
+            "actions:storageClean": .main(Location(caches)),
+            "downloads": .main(Location(downloads)),
+            "log:janitor": .main(Location(downloads)),
+            "actions:janitor": .main(Location(downloads, path: [.storage(.review(janitor))])),
+            "temp": .main(Location(temp)),
+            "log:tempSpace": .main(Location(temp)),
+            "actions:tempClean": .main(Location(temp, path: [.storage(.review(tempClean))])),
+            "spotlight": .main(Location(spotlight)),
+            "log:spotlightAudit": .main(Location(spotlight)),
+        ])
 
     @ViewBuilder private static func screen(_ section: SectionID) -> some View {
         switch section {
         case disk: StorageCleanView()
-        case caches: ActionsSettingsView(preselect: .constant(ActionsSettingsView.Cleaner.storageClean.rawValue))
-        case downloads: StorageCleanView(kind: .janitor)
+        case caches: ActionsSettingsView(preselect: .constant(storageClean))
+        case downloads: DownloadsRoot()
         case temp: TempSpaceView()
         case spotlight: SpotlightAuditView()
-        case actions: ActionsSettingsView(preselect: .constant(nil))
         default: EmptyView()
         }
     }
 
     @ViewBuilder static func destination(for route: StorageRoute) -> some View {
         switch route {
-        case .cleaner(let raw): ActionsSettingsView(preselect: .constant(raw))
+        case .review(let cleaner): ActionsSettingsView(preselect: .constant(cleaner))
         }
     }
+}
 
-    private static func resolve(_ target: String) -> Location? {
-        switch target {
-        case "disk": return Location(disk)
-        case "caches", "log:storageClean": return Location(caches)
-        case "downloads", "log:janitor": return Location(downloads)
-        case "temp", "log:tempSpace": return Location(temp)
-        case "spotlight", "log:spotlightAudit": return Location(spotlight)
-        case "actions": return Location(actions)
-        default:
-            // "actions:<cleaner>" — the cleaner rides in the location, so a
-            // link to the screen you are already on still switches it
-            guard target.hasPrefix("actions:") else { return nil }
-            let raw = String(target.dropFirst("actions:".count))
-            guard ActionsSettingsView.Cleaner(rawValue: raw) != nil else { return Location(actions) }
-            return Location(actions, path: [.storage(.cleaner(raw))])
-        }
+private struct DownloadsRoot: View {
+    @Environment(Navigator.self) private var navigator
+
+    var body: some View {
+        StorageCleanView(kind: .janitor)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Review…") {
+                        navigator.push(.storage(.review(ActionsSettingsView.Cleaner.janitor.rawValue)))
+                    }
+                    .help("Preview what the janitor would move to the Trash, then apply it")
+                }
+            }
     }
 }

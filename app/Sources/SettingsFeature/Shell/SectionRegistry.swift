@@ -5,15 +5,19 @@ import SwiftUI
 @MainActor
 enum SectionRegistry {
 
-    static let groups: [SidebarGroup] = [
-        OverviewGroup.group,
-        MemoryGroup.group,
-        StorageGroup.group,
-        SystemGroup.group,
-        HistoryGroup.group,
-        PreferencesGroup.group,
-        AppGroup.group,
-    ]
+    static let groups: [SidebarGroup] = {
+        let groups = [
+            OverviewGroup.group,
+            MemoryGroup.group,
+            StorageGroup.group,
+            SystemGroup.group,
+            HistoryGroup.group,
+            PreferencesGroup.group,
+            AppGroup.group,
+        ]
+        assertNoDuplicates(in: groups)
+        return groups
+    }()
 
     /// Opened when there is nothing to restore.
     static var home: Location { Location(OverviewGroup.overview) }
@@ -27,7 +31,23 @@ enum SectionRegistry {
             ?? OverviewGroup.group.root(OverviewGroup.overview)
     }
 
-    static func row(for section: SectionID) -> SidebarRow? {
-        groups.lazy.flatMap(\.rows).first { $0.section == section }
+    /// Two groups claiming the same target or section is a mistake that would
+    /// otherwise be settled silently by group order. Checked once, in debug
+    /// builds, the first time the registry is used.
+    private static func assertNoDuplicates(in groups: [SidebarGroup]) {
+        #if DEBUG
+        var targets = Set<String>()
+        var sections = Set<SectionID>()
+        for group in groups {
+            for target in group.aliases.keys {
+                assert(targets.insert(target).inserted,
+                       "deep-link target \"\(target)\" is claimed by more than one group")
+            }
+            for section in group.sections {
+                assert(sections.insert(section).inserted,
+                       "section \"\(section.rawValue)\" is owned by more than one group")
+            }
+        }
+        #endif
     }
 }

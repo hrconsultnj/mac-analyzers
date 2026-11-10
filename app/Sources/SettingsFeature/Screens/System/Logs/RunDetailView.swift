@@ -7,7 +7,7 @@ import UIComponents
 struct RunDetailView: View {
 
     let route: RunReference
-    /// Found again by its header: a route holds an identifier, not the run.
+    /// Found again from the reference: a route holds an identifier, not the run.
     @State private var run: LogRun?
     @State private var notFound = false
 
@@ -73,9 +73,12 @@ struct RunDetailView: View {
             }
         }
         .task {
-            let log = route.log, header = route.header
-            await awaitLoad({ LogParser.runs(for: log).first { $0.header == header } },
-                            key: "run:\(log.rawValue):\(header)") { run = $0; notFound = ($0 == nil) }
+            let reference = route
+            await awaitLoad({ reference.resolve(in: LogParser.runs(for: reference.log)) },
+                            key: "run:\(reference.log.rawValue):\(reference.index):\(reference.header)") {
+                run = $0
+                notFound = ($0 == nil)
+            }
         }
     }
 }

@@ -12,7 +12,10 @@ import AnalyzersKit
 ///   DeepLinkRouter.swift     target strings to locations
 ///   AppCommands.swift        the menu bar
 public struct MainWindowView: View {
-    @State private var navigator = Navigator(initial: NavigationPersistence.restore())
+    /// Holds the navigator so it is built once, on first use, instead of on
+    /// every re-creation of this view struct.
+    @State private var session = Session()
+    private var navigator: Navigator { session.navigator }
 
     public init() {}
 
@@ -34,7 +37,7 @@ public struct MainWindowView: View {
         }
         .onDisappear {
             NavigationPersistence.save(navigator.location)
-            ActivationPolicy.mainWindowClosed()
+            ActivationPolicy.windowClosed()
         }
     }
 
@@ -42,15 +45,23 @@ public struct MainWindowView: View {
     /// reads it, and its own pops and pushes are written back through
     /// `setPath`. Re-created per section so each starts from its own path.
     private var detail: some View {
-        NavigationStack(path: pathBinding) {
-            SectionRegistry.root(for: navigator.section)
+        let section = navigator.section
+        return NavigationStack(path: pathBinding(for: section)) {
+            SectionRegistry.root(for: section)
                 .navigationDestination(for: Route.self) { $0.destination }
         }
-        .id(navigator.section)
+        .id(section)
         .toolbar { HistoryToolbar(navigator: navigator) }
     }
 
-    private var pathBinding: Binding<[Route]> {
-        Binding(get: { navigator.path }, set: { navigator.setPath($0) })
+    /// Bound to the section the stack was built for, not to whichever
+    /// section is current when it writes.
+    private func pathBinding(for section: SectionID) -> Binding<[Route]> {
+        Binding(get: { navigator.paths[section] ?? [] },
+                set: { navigator.setPath($0, in: section) })
+    }
+
+    @MainActor private final class Session {
+        lazy var navigator = Navigator(initial: NavigationPersistence.restore())
     }
 }
