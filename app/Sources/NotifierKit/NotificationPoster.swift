@@ -11,6 +11,9 @@ import UserNotifications
 /// where the actionable buttons live). Buttons: "Open Log" for the receipt,
 /// and — when the sender attached a live pid — "Stop Process" right from the
 /// notification.
+///
+/// This file is the posting side. Clicks are handled next to it:
+///   NotificationPoster+Delegate.swift   Open Log, Stop Process, body click
 @MainActor
 public final class NotificationPoster: NSObject {
 
@@ -20,8 +23,8 @@ public final class NotificationPoster: NSObject {
     private static let eventCategory = "MA_EVENT"
     private static let actionableCategory = "MA_ACTIONABLE"
     private static let openAppAction = "OPEN_APP"
-    private static let openLogAction = "OPEN_LOG"
-    private static let stopProcessAction = "STOP_PROC"
+    static let openLogAction = "OPEN_LOG"
+    static let stopProcessAction = "STOP_PROC"
 
     /// Call once at app launch: delegate, categories, authorization.
     public func setup() {
@@ -111,14 +114,14 @@ public final class NotificationPoster: NSObject {
 
     // MARK: - click handling helpers
 
-    fileprivate func openApp() {
+    func openApp() {
         SettingsOpener.open()
     }
 
     /// Verified stop: the pid must still exist AND its command line must
     /// still contain the token from notification time — a recycled pid never
     /// gets a stray signal.
-    fileprivate func stopProcess(pid: Int, token: String) {
+    func stopProcess(pid: Int, token: String) {
         let ps = Process()
         ps.executableURL = URL(fileURLWithPath: "/bin/ps")
         ps.arguments = ["-p", String(pid), "-o", "args="]
@@ -143,47 +146,5 @@ public final class NotificationPoster: NSObject {
         post(title: "Mac Analyzers", subtitle: token,
              message: "Stop signal sent (pid \(pid)).",
              sound: nil, logPath: nil)
-    }
-}
-
-extension NotificationPoster: UNUserNotificationCenterDelegate {
-
-    public nonisolated func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse,
-        withCompletionHandler done: @escaping () -> Void
-    ) {
-        let info = response.notification.request.content.userInfo
-        let logPath = info["log"] as? String
-        let pid = info["pid"] as? Int
-        let token = info["token"] as? String ?? ""
-        let paneTarget = info["pane"] as? String
-        let action = response.actionIdentifier
-        Task { @MainActor in
-            let poster = NotificationPoster.shared
-            switch action {
-            case Self.openLogAction:
-                if let logPath { GuardControl.openLog(URL(fileURLWithPath: logPath)) }
-            case Self.stopProcessAction:
-                if let pid { poster.stopProcess(pid: pid, token: token) }
-            default:
-                // body click or "Open Mac Analyzers" → the app; a pane
-                // target (e.g. update notifications) deep-links to its screen
-                if let paneTarget {
-                    SettingsOpener.open(target: paneTarget)
-                } else {
-                    poster.openApp()
-                }
-            }
-        }
-        done()
-    }
-
-    public nonisolated func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification,
-        withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void
-    ) {
-        done([.banner, .sound])
     }
 }
