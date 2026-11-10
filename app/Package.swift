@@ -32,6 +32,9 @@ let package = Package(
         ),
         // compiled launchd entry point (BTM attribution) — execs the engine
         .executableTarget(name: "AgentRunner", dependencies: ["AnalyzersKit"]),
+        // development tool, never bundled: renders a real screen to a PNG in a
+        // window that is never on a display (see Sources/SnapshotRunner/main.swift)
+        .executableTarget(name: "SnapshotRunner", dependencies: ["AnalyzersKit", "SettingsFeature"]),
         // features ("pages/components")
         .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit", "UIComponents"]),
         .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "NotifierKit", "UIComponents"] + proTargetDependencies),

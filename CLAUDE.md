@@ -87,6 +87,16 @@ through `config.local.sh` (never hardcoded).
   `open -g "macanalyzers://pane/<target>"` — the URL scheme reaches a RUNNING
   app, unlike `--args --pane`, which macOS only delivers at launch. Nav cost is
   measured from `log show --predicate 'category == "nav"'`.
+  **Look at a screen without taking over the Mac:**
+  `app/.build/debug/SnapshotRunner <target> <out.png> [--size 1100x720] [--wait 3]`
+  renders the REAL main window (real stores, real data) for any deep-link
+  target into a PNG, in a window placed outside every display — it never
+  activates, never shows in the Dock, never moves focus. Built by `swift
+  build`, never bundled into the app. Use it while building a screen and
+  before calling it done (the blueprint's screen acceptance bar requires
+  it); the owner's screen is not a test fixture. It cannot click: anything
+  interactive (a running job, a confirmation, the menu-bar panel) still
+  needs an on-screen check, and those are asked for first.
   `agent-runner --probe-setup` prints the Setup checklist as text.
   `agent-runner --probe-memory [--all]` prints the Monitor pane's memory
   census as text (where memory is + every process group with its total).
