@@ -22,16 +22,50 @@ public struct RawProc: Sendable {
 
 public enum ProcTable {
 
-    public static func sweep(minimumMB: Int) -> [RawProc] {
-        var pids = [Int32](repeating: 0, count: 8192)
-        let byteCount = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.stride))
-        guard byteCount > 0 else { return [] }
-        let count = min(Int(byteCount) / MemoryLayout<Int32>.stride, pids.count)
+    /// Every live pid — the ONE place the table is listed.
+    ///
+    /// `proc_listallpids` takes a buffer size in BYTES but returns a COUNT of
+    /// pids. Reading that count as a byte length (and dividing by four again)
+    /// made every sweep stop a quarter of the way through the table — on a
+    /// Mac with ~1,000 processes, roughly 750 of them were never looked at.
+    public static func allPIDs() -> [Int32] {
+        let estimate = proc_listallpids(nil, 0)
+        guard estimate > 0 else { return [] }
+        // headroom: processes can appear between the size query and the read
+        var pids = [Int32](repeating: 0, count: Int(estimate) + 128)
+        let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.stride))
+        guard count > 0 else { return [] }
+        return Array(pids.prefix(min(Int(count), pids.count)))
+    }
 
+    /// Memory the kernel accounts to one process. `footprint` is the number
+    /// Activity Monitor's Memory column shows (private + compressed, counted
+    /// once); `resident` is RSS, the number the guard acts on. nil when the
+    /// kernel refuses — it only answers for processes the user owns.
+    public static func usage(of pid: Int32) -> (resident: UInt64, footprint: UInt64)? {
+        var usage = rusage_info_current()
+        let ok = withUnsafeMutablePointer(to: &usage) { ptr -> Int32 in
+            ptr.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
+                proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, $0)
+            }
+        }
+        guard ok == 0 else { return nil }
+        return (usage.ri_resident_size, usage.ri_phys_footprint)
+    }
+
+    /// Parent + owner, readable for EVERY process (unlike memory, the kernel
+    /// does not restrict this to the user's own). nil when the pid is gone.
+    public static func identity(of pid: Int32) -> (ppid: Int, uid: UInt32)? {
+        var info = proc_bsdshortinfo()
+        let size = Int32(MemoryLayout<proc_bsdshortinfo>.stride)
+        guard proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, &info, size) == size else { return nil }
+        return (Int(info.pbsi_ppid), info.pbsi_uid)
+    }
+
+    public static func sweep(minimumMB: Int) -> [RawProc] {
         var result: [RawProc] = []
         result.reserveCapacity(64)
-        for index in 0..<count {
-            let pid = pids[index]
+        for pid in allPIDs() {
             guard pid > 500 else { continue }
 
             // memory first — cheap, and it filters out almost everything
@@ -72,7 +106,7 @@ public enum ProcTable {
                        command: executablePath(of: pid32))
     }
 
-    private static func parentPID(of pid: Int32) -> Int {
+    static func parentPID(of pid: Int32) -> Int {
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.stride
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
@@ -80,25 +114,35 @@ public enum ProcTable {
         return Int(info.kp_eproc.e_ppid)
     }
 
+    /// KERN_ARGMAX never changes while the system is up — ask once.
+    private static let argMax: Int = {
+        var value: Int32 = 0
+        var size = MemoryLayout<Int32>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_ARGMAX]
+        return sysctl(&mib, 2, &value, &size, nil, 0) == 0 && value > 0 ? Int(value) : 0
+    }()
+
     /// Full argv via KERN_PROCARGS2 (what `ps -o args` shows), falling back
     /// to the executable path. Only called for processes over the floor.
-    private static func commandLine(of pid: Int32) -> String {
-        var argMax: Int32 = 0
-        var size = MemoryLayout<Int32>.stride
-        var mibMax: [Int32] = [CTL_KERN, KERN_ARGMAX]
-        guard sysctl(&mibMax, 2, &argMax, &size, nil, 0) == 0, argMax > 0 else {
-            return executablePath(of: pid)
-        }
-        var buffer = [CChar](repeating: 0, count: Int(argMax))
-        var bufferSize = Int(argMax)
+    ///
+    /// The buffer is deliberately NOT zero-filled: it is ARGMAX (1 MB) and
+    /// the kernel writes only the bytes it reports back, so clearing it first
+    /// cost a megabyte of memset per process — fine for a few dozen rows,
+    /// wasteful for the full census.
+    static func commandLine(of pid: Int32) -> String {
+        guard argMax > MemoryLayout<Int32>.stride else { return executablePath(of: pid) }
+        let buffer = UnsafeMutableRawPointer.allocate(
+            byteCount: argMax, alignment: MemoryLayout<Int32>.alignment)
+        defer { buffer.deallocate() }
+        var bufferSize = argMax
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
-        guard sysctl(&mib, 3, &buffer, &bufferSize, nil, 0) == 0,
+        guard sysctl(&mib, 3, buffer, &bufferSize, nil, 0) == 0,
               bufferSize > MemoryLayout<Int32>.stride
         else { return executablePath(of: pid) }
 
         // layout: [argc: Int32][exec path\0][padding \0s][argv0\0][argv1\0]…
-        let argc = buffer.withUnsafeBytes { $0.load(as: Int32.self) }
-        let bytes = buffer.prefix(bufferSize).map { UInt8(bitPattern: $0) }
+        let argc = buffer.load(as: Int32.self)
+        let bytes = UnsafeRawBufferPointer(start: buffer, count: bufferSize)
         var cursor = MemoryLayout<Int32>.stride
         func nextString() -> String? {
             while cursor < bytes.count, bytes[cursor] == 0 { cursor += 1 }
@@ -117,7 +161,7 @@ public enum ProcTable {
         return joined.isEmpty ? executablePath(of: pid) : joined
     }
 
-    private static func executablePath(of pid: Int32) -> String {
+    static func executablePath(of pid: Int32) -> String {
         var buffer = [CChar](repeating: 0, count: 4096)
         let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
         guard length > 0 else { return "pid \(pid)" }

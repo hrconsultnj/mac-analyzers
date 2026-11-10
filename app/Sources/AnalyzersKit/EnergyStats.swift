@@ -38,14 +38,8 @@ public enum EnergyStats {
 
     /// Top disk-I/O processes among live ones, by bytes WRITTEN desc.
     public static func diskSnapshot(limit: Int = 25) -> [DiskIOEntry] {
-        var pids = [Int32](repeating: 0, count: 4096)
-        let byteCount = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.stride))
-        guard byteCount > 0 else { return [] }
-        let count = Int(byteCount) / MemoryLayout<Int32>.stride
-
         var entries: [DiskIOEntry] = []
-        for i in 0..<min(count, pids.count) {
-            let pid = pids[i]
+        for pid in ProcTable.allPIDs() {
             guard pid > 500 else { continue }
             var info = rusage_info_current()
             let result = withUnsafeMutablePointer(to: &info) { ptr -> Int32 in
@@ -71,14 +65,8 @@ extension EnergyStats {
     /// Top energy consumers among live processes, descending. Cumulative
     /// since each process launched — same honesty note as the network pane.
     public static func snapshot(limit: Int = 25) -> [EnergyEntry] {
-        var pids = [Int32](repeating: 0, count: 4096)
-        let byteCount = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.stride))
-        guard byteCount > 0 else { return [] }
-        let count = Int(byteCount) / MemoryLayout<Int32>.stride
-
         var entries: [EnergyEntry] = []
-        for i in 0..<min(count, pids.count) {
-            let pid = pids[i]
+        for pid in ProcTable.allPIDs() {
             guard pid > 500 else { continue }
             var info = rusage_info_current()
             let result = withUnsafeMutablePointer(to: &info) { ptr -> Int32 in

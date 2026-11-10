@@ -39,6 +39,44 @@ if args.first == "--probe-setup" {
     exit(report.isUsable ? 0 : 1)
 }
 
+// `agent-runner --probe-memory [--all]` prints the Monitor pane's full
+// memory census as text: where physical memory is, then every process group
+// with its total. Same numbers the pane shows; `--all` lists every group
+// instead of the 40 largest.
+if args.first == "--probe-memory" {
+    let census = MemoryCensus.take()
+    if let memory = census.breakdown {
+        print("in use \(MemorySize.text(memory.usedBytes)) of \(MemorySize.text(memory.totalBytes))"
+              + "  =  app \(MemorySize.text(memory.appBytes))"
+              + " + wired \(MemorySize.text(memory.wiredBytes))"
+              + " + compressed \(MemorySize.text(memory.compressedBytes))"
+              + " (holding \(MemorySize.text(memory.compressedOriginalBytes)))")
+        print("cached files \(MemorySize.text(memory.cachedBytes))"
+              + " · free \(MemorySize.text(memory.freeBytes))")
+    }
+    print("\(census.processCount) processes in \(census.groups.count) groups hold"
+          + " \(MemorySize.text(census.totalBytes))"
+          + " · \(census.unmeasuredCount) could not be measured")
+    for category in CensusGroup.Category.allCases {
+        let groups = census.groups(in: category)
+        print("\n\(category.title): \(MemorySize.text(census.totalBytes(in: category)))"
+              + " · \(census.processCount(in: category)) processes · \(groups.count) groups")
+        let shown = args.contains("--all") ? groups : Array(groups.prefix(40))
+        for group in shown {
+            let size = MemorySize.text(group.totalBytes)
+            let pad = String(repeating: " ", count: max(0, 9 - size.count))
+            print("  \(pad)\(size)  ×\(group.members.count)  \(group.name)"
+                  + ((group.partsSummary ?? group.role).map { "  — \($0)" } ?? ""))
+        }
+        if shown.count < groups.count {
+            let rest = groups.dropFirst(shown.count)
+            print("  … \(rest.count) smaller groups hold"
+                  + " \(MemorySize.text(rest.reduce(0) { $0 + $1.totalBytes }))")
+        }
+    }
+    exit(0)
+}
+
 guard let script = args.first,
       FileManager.default.isExecutableFile(atPath: script) else {
     FileHandle.standardError.write(
