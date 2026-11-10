@@ -95,7 +95,8 @@ Both are protected (code-owner review required for PRs; owner pushes directly).
   root checkout. Never bump `VERSION` by hand without releasing: 2.65–2.67
   were bumped on development and never reached anyone.
 - `scripts/package.sh` builds the download for other people:
-  `dist/MacAnalyzers-<V>.dmg` (app + Applications shortcut), from a re-signed
+  `dist/MacAnalyzers-<V>.dmg` (app + Applications shortcut) and the matching
+  `.zip` (what an installed copy downloads to update), from a re-signed
   COPY — it never installs and never changes the repo bundle's signature.
   Signing level is automatic: a keychain "Developer ID Application" identity
   (+ `MA_NOTARY_PROFILE` to notarize) when there is one, ad-hoc otherwise —
