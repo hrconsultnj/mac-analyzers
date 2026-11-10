@@ -52,7 +52,7 @@ struct LogsSettingsView: View {
             }
             Section {
                 ForEach(runs) { run in
-                    NavigationLink(value: Route.system(.run(RunRoute(log: kind, header: run.header)))) {
+                    NavigationLink(value: Route.system(.run(RunReference(log: kind, header: run.header)))) {
                         VStack(alignment: .leading, spacing: 1) {
                             HStack(spacing: 6) {
                                 if let badge = run.summary.flatMap(LogParser.badge(for:)) {

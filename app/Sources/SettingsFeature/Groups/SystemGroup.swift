@@ -2,7 +2,7 @@ import SwiftUI
 import AnalyzersKit
 
 /// A run inside one engine log, found again by its header line.
-struct RunRoute: Hashable, Codable {
+struct RunReference: Hashable, Codable {
     let log: EngineLog
     let header: String
 
@@ -33,7 +33,7 @@ struct RunRoute: Hashable, Codable {
 
 /// What can be pushed in the System group.
 enum SystemRoute: Hashable, Codable {
-    case run(RunRoute)
+    case run(RunReference)
     /// The persistence-change log (what was added to or removed from startup).
     case changes
 }

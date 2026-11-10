@@ -6,7 +6,7 @@ import UIComponents
 /// become section titles) with badge-capsule rows — a screen, not a dump.
 struct RunDetailView: View {
 
-    let route: RunRoute
+    let route: RunReference
     /// Found again by its header: a route holds an identifier, not the run.
     @State private var run: LogRun?
     @State private var notFound = false
