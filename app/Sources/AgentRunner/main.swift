@@ -81,9 +81,9 @@ if args.first == "--probe-memory" {
 // tracked job through the same kernel the app uses and prints its output as it
 // arrives, then how it ended and which log block it was matched to. Cleaners
 // run as a preview (a dry run). `--apply` builds the apply from that preview,
-// exactly as the app does, and is refused against the real engine unless
-// MA_PROBE_ALLOW_APPLY=1 — it exists to exercise the apply path with a test
-// script.
+// exactly as the app does, and is ALWAYS refused against the real engine: it
+// exists only to exercise the apply path with a test script. Nothing in this
+// binary can apply a real clean that no person has reviewed.
 //
 // Undocumented test hooks (support never needs these):
 //   --probe-job-script <path>   run this script instead of the engine's, with
@@ -145,7 +145,7 @@ if args.first == "--probe-job" {
         exit(1)
     }
     let wantsApply = args.contains("--apply")
-    if wantsApply && script == nil && ProcessInfo.processInfo.environment["MA_PROBE_ALLOW_APPLY"] != "1" {
+    if wantsApply && script == nil {
         fail("refusing --apply against the real engine: the probe previews only. Apply from the app, "
              + "or pass --probe-job-script with a test script.")
     }
