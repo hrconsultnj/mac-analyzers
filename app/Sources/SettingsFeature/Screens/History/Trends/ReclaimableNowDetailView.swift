@@ -3,8 +3,6 @@ import AnalyzersKit
 import UIComponents
 
 struct ReclaimableNowDetailView: View {
-    let period: TrendsModel.Period
-
     @State private var items: [StoragePathItem] = []
 
     var body: some View {

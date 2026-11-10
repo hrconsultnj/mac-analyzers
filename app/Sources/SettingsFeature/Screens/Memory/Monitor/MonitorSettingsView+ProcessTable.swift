@@ -62,8 +62,8 @@ extension MonitorSettingsView {
                                         : "Quit \(proc.friendlyName)")
                             }
                             Button {
-                                dossierPath.append(DossierRoute(name: proc.friendlyName,
-                                                                pid: proc.pid))
+                                navigator.push(.memory(.dossier(
+                                    DossierRoute(name: proc.friendlyName, pid: proc.pid))))
                             } label: { Image(systemName: "info.circle") }
                                 .buttonStyle(.borderless)
                                 .help("What this process is doing")
@@ -79,7 +79,8 @@ extension MonitorSettingsView {
                     if let pid = selection.first,
                        let proc = standaloneProcs.first(where: { $0.pid == pid }) {
                         Button("Dossier…") {
-                            dossierPath.append(DossierRoute(name: proc.friendlyName, pid: proc.pid))
+                            navigator.push(.memory(.dossier(
+                                DossierRoute(name: proc.friendlyName, pid: proc.pid))))
                         }
                         if proc.canQuit {
                             Button(proc.isDev ? "Stop" : "Quit") { stop(proc) }

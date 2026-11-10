@@ -16,6 +16,7 @@ import UIComponents
 struct HomeSettingsView: View {
 
     @Environment(GuardLogStore.self) var store
+    @Environment(Navigator.self) var navigator
     @State var trends: TrendsSnapshot?
     @State var latestRelease: String?
     @State var runway: ForecastModel.Runway?
@@ -61,7 +62,6 @@ struct HomeSettingsView: View {
     }
 
     func openPane(_ target: String) {
-        NotificationCenter.default.post(name: NotifyChannel.openPaneInternal,
-                                        object: nil, userInfo: ["target": target])
+        navigator.open(target: target)
     }
 }

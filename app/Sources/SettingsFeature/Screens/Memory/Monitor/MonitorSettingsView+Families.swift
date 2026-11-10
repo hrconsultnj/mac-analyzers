@@ -19,8 +19,8 @@ extension MonitorSettingsView {
                         group: group,
                         reload: { Task { await load() } },
                         openDossier: { process in
-                            dossierPath.append(DossierRoute(name: process.friendlyName,
-                                                            pid: process.pid))
+                            navigator.push(.memory(.dossier(
+                                DossierRoute(name: process.friendlyName, pid: process.pid))))
                         })
                 }
                 if folded {

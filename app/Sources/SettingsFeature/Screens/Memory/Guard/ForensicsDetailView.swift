@@ -17,7 +17,7 @@ struct ForensicsBrowserView: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(files, id: \.absoluteString) { file in
-                    NavigationLink(value: LogRoute.forensics(ForensicsRoute(path: file.path))) {
+                    NavigationLink(value: Route.memory(.forensics(ForensicsRoute(path: file.path)))) {
                         DataCard(symbol: "stethoscope", color: .purple,
                                  title: file.lastPathComponent,
                                  subtitle: AnalyzersPaths.modificationDate(of: file)
@@ -35,7 +35,7 @@ struct ForensicsBrowserView: View {
 }
 
 /// Push target for a forensics snapshot from the guard pane.
-struct ForensicsRoute: Hashable {
+struct ForensicsRoute: Hashable, Codable, Sendable {
     let path: String
 }
 

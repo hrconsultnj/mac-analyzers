@@ -103,7 +103,7 @@ struct TrendsSettingsView: View {
                 ("internaldrive.fill", .indigo,
                  ByteSize.format(snap.storageFreedBytes), "Disk reclaimed", TrendsRoute.diskReclaimed(period)),
                 ("sparkles", .teal,
-                 ByteSize.format(snap.latestReclaimableBytes), "Reclaimable right now", TrendsRoute.reclaimableNow(period)),
+                 ByteSize.format(snap.latestReclaimableBytes), "Reclaimable right now", TrendsRoute.reclaimableNow),
             ])
         }
         if !snap.days.isEmpty {
@@ -133,7 +133,7 @@ struct TrendsSettingsView: View {
         if !snap.offenders.isEmpty {
             Section("Repeat offenders") {
                 ForEach(snap.offenders) { offender in
-                    NavigationLink(value: TrendsRoute.offender(offender.name, period)) {
+                    NavigationLink(value: Route.history(.trends(.offender(offender.name, period)))) {
                         DataCard(symbol: "flame.fill", color: .orange,
                                  title: offender.name,
                                  subtitle: "\(offender.count) event\(offender.count == 1 ? "" : "s") in this window",
@@ -151,7 +151,7 @@ struct TrendsSettingsView: View {
                                  count: min(stats.count, 4)),
                   spacing: 10) {
             ForEach(stats, id: \.label) { stat in
-                NavigationLink(value: stat.route) {
+                NavigationLink(value: Route.history(.trends(stat.route))) {
                     VStack(spacing: 3) {
                         Image(systemName: stat.symbol)
                             .foregroundStyle(stat.color)

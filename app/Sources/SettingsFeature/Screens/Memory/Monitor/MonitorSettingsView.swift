@@ -12,7 +12,7 @@ struct MonitorSettingsView: View {
     enum Lens: Hashable { case memory, energy, diskIO }
 
     @State var lens: Lens = .memory
-    @Binding var dossierPath: [DossierRoute]
+    @Environment(Navigator.self) var navigator
     @State var census: MemoryCensus?
     /// nil = everything; otherwise one kind of owner.
     @State var scope: CensusGroup.Category?
@@ -25,6 +25,7 @@ struct MonitorSettingsView: View {
     /// Same instance the delegate keeps alive — one watcher, many surfaces.
     var thermal: ThermalWatcher { ThermalWatcher.shared }
     @State var search = ""
+    @FocusState var searchFocused: Bool
     @AppStorage("monitorRefreshSeconds") var refresh = 15
     /// Standalone-process table state — the family disclosure tree below
     /// has no equivalent, since a Table can't express nesting.
@@ -109,6 +110,9 @@ struct MonitorSettingsView: View {
             }
         }
         .searchable(text: $search, prompt: "Filter by name")
+        .searchFocused($searchFocused)
+        .screenActions(refresh: { Task { await load() } },
+                       find: { searchFocused = true })
         .onChange(of: lens) { Task { await load() } }
         .task { await load() }
         .task(id: refresh) {

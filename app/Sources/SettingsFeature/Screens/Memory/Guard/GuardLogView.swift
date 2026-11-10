@@ -80,7 +80,7 @@ struct GuardLogView: View {
     @ViewBuilder private func row(for event: GuardEvent) -> some View {
         if case .forensics(let path) = event.kind {
             // pushes the in-app forensics screen (stat cards + process table)
-            NavigationLink(value: LogRoute.forensics(ForensicsRoute(path: path))) {
+            NavigationLink(value: Route.memory(.forensics(ForensicsRoute(path: path)))) {
                 DataCard(symbol: "stethoscope", color: .purple,
                          title: event.title,
                          subtitle: "\(event.subtitle) · \(time(event))",

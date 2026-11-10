@@ -22,6 +22,7 @@ struct LogsHomeView: View {
         let summary: String?
     }
 
+    @Environment(Navigator.self) private var navigator
     @State private var category: Category = .all
     @State private var facts: [String: LogFact] = [:]
 
@@ -136,9 +137,7 @@ struct LogsHomeView: View {
     // MARK: - plumbing
 
     private func open(_ kind: LogKind) {
-        NotificationCenter.default.post(
-            name: NotifyChannel.openPaneInternal, object: nil,
-            userInfo: ["target": "log:\(kind.rawValue)"])
+        navigator.open(target: "log:\(kind.rawValue)")
     }
 
     private func chipColor(_ category: Category) -> Color {

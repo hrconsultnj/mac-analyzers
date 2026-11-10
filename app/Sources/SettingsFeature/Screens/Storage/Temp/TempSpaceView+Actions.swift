@@ -42,9 +42,7 @@ extension TempSpaceView {
     }
 
     func openActions() {
-        NotificationCenter.default.post(
-            name: NotifyChannel.openPaneInternal, object: nil,
-            userInfo: ["target": "actions:tempClean"])
+        navigator.open(target: "actions:tempClean")
     }
 
     // MARK: - load

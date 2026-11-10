@@ -8,6 +8,8 @@ import ProKit
 /// About pane: the in-app documentation — how the guard decides, what is
 /// (and deliberately isn't) measured. Same PaneScaffold as every pane.
 struct AboutSettingsView: View {
+    @Environment(Navigator.self) private var navigator
+
     var body: some View {
         PaneScaffold(symbol: "questionmark.circle.fill", color: .gray, title: "About",
                      caption: "How Mac Analyzers decides, measures, and writes everything down.") {
@@ -42,9 +44,7 @@ struct AboutSettingsView: View {
                     }
                     Spacer()
                     Button("Open…") {
-                        NotificationCenter.default.post(
-                            name: NotifyChannel.openPaneInternal, object: nil,
-                            userInfo: ["target": "uninstall"])
+                        navigator.open(target: "uninstall")
                     }
                 }
             }

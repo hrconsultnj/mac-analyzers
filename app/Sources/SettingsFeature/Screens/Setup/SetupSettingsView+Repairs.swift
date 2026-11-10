@@ -77,8 +77,7 @@ extension SetupSettingsView {
             }
 
         case .openPane(let target):
-            NotificationCenter.default.post(name: NotifyChannel.openPaneInternal,
-                                            object: nil, userInfo: ["target": target])
+            navigator.open(target: target)
 
         case .openFullDiskAccess:
             open("x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles")

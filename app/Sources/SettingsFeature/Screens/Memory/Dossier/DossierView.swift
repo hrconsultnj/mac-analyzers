@@ -3,7 +3,7 @@ import AnalyzersKit
 import UIComponents
 
 /// Push target: everything the suite knows about one process/app.
-struct DossierRoute: Hashable {
+struct DossierRoute: Hashable, Codable, Sendable {
     let name: String
     let pid: Int?
 }

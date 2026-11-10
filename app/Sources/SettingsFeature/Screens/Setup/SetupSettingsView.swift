@@ -16,6 +16,7 @@ import UIComponents
 struct SetupSettingsView: View {
 
     @Environment(GuardLogStore.self) var store
+    @Environment(Navigator.self) var navigator
     @State var report: SetupReport?
     @State var working: String?
     @State var message: String?

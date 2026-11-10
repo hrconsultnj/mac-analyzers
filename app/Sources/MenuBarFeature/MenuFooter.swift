@@ -13,7 +13,7 @@ extension MenuContentView {
             Button {
                 NSApp.setActivationPolicy(.regular)
                 NSApp.activate(ignoringOtherApps: true)
-                openWindow(id: "settings")
+                openWindow(id: "main")
             } label: {
                 Label("Settings…", systemImage: "gearshape")
             }

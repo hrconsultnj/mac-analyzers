@@ -4,8 +4,8 @@ import NotifierKit
 import MenuBarFeature
 import SettingsFeature
 
-/// Invisible view that turns the internal open-settings signal into an
-/// actual openSettings() call (with the activation dance already done by
+/// Invisible view that turns the internal open-window signal into an
+/// actual openWindow() call (with the activation dance already done by
 /// the poster of the signal).
 struct SettingsAnchorView: View {
     @Environment(\.openWindow) private var openWindow
@@ -16,7 +16,7 @@ struct SettingsAnchorView: View {
             .onReceive(NotificationCenter.default.publisher(
                 for: NotifyChannel.openSettingsInternal)) { _ in
                 SettingsOpener.markHandled(by: "anchor-window")
-                openWindow(id: "settings")
+                openWindow(id: "main")
             }
     }
 }
@@ -51,22 +51,7 @@ struct MenuBarLabelView: View {
         .onReceive(NotificationCenter.default.publisher(
             for: NotifyChannel.openSettingsInternal)) { _ in
             SettingsOpener.markHandled(by: "menu-bar-label")
-            openWindow(id: "settings")
-        }
-    }
-}
-
-/// Cmd-, and the app-menu "Settings…" item — a regular Window scene doesn't
-/// get these for free the way the Settings scene did.
-struct SettingsCommands: Commands {
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some Commands {
-        CommandGroup(replacing: .appSettings) {
-            Button("Settings…") {
-                SettingsOpener.open()
-            }
-            .keyboardShortcut(",", modifiers: .command)
+            openWindow(id: "main")
         }
     }
 }
@@ -114,17 +99,18 @@ struct MacAnalyzersApp: App {
         .defaultPosition(.center)
         .windowResizability(.contentSize)
 
-        // A REGULAR Window scene, not Settings: the Settings scene ignores
-        // windowToolbarStyle and stacks a centered title over the nav
-        // buttons. System Settings itself is a plain window — only a plain
-        // window gives the single-row strip: [back][forward] Title.
-        Window("Mac Analyzers", id: "settings") {
-            SettingsTabsView()
+        // The main window: one instance, so openWindow fronts it. A regular
+        // Window scene (not Settings), so it takes the unified toolbar with
+        // [back][forward] leading and the title. Never opens at launch — the
+        // app is a menu-bar app until something asks for the window.
+        Window("Mac Analyzers", id: "main") {
+            MainWindowView()
                 .environment(store)
                 .environment(config)
         }
         .windowToolbarStyle(.unified(showsTitle: true))
-        .defaultSize(width: 900, height: 710)
-        .commands { SettingsCommands() }
+        .defaultSize(width: 1100, height: 720)
+        .defaultLaunchBehavior(.suppressed)
+        .commands { AppCommands() }
     }
 }

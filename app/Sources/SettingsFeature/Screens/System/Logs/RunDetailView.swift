@@ -7,6 +7,9 @@ import UIComponents
 struct RunDetailView: View {
 
     let route: RunRoute
+    /// Found again by its header: a route holds an identifier, not the run.
+    @State private var run: LogRun?
+    @State private var notFound = false
 
     private struct RunSection: Identifiable {
         let id: Int
@@ -24,7 +27,7 @@ struct RunDetailView: View {
             }
             currentLines = []
         }
-        for line in route.run.lines {
+        for line in run?.lines ?? [] {
             if line.hasPrefix("### ") {
                 flush()
                 currentTitle = String(line.dropFirst(4))
@@ -37,13 +40,14 @@ struct RunDetailView: View {
     }
 
     var body: some View {
-        PaneScaffold(symbol: route.kind.symbol, color: route.kind.tileColor,
-                     title: route.kind.title,
-                     caption: route.run.header) {
+        PaneScaffold(symbol: route.log.symbol, color: route.log.tileColor,
+                     title: route.log.title,
+                     caption: route.header) {
             Section {
                 HStack {
                     Spacer()
-                    Text("\(route.run.itemCount) line\(route.run.itemCount == 1 ? "" : "s")")
+                    Text(run.map { "\($0.itemCount) line\($0.itemCount == 1 ? "" : "s")" }
+                         ?? (notFound ? "This run is no longer in the log" : ""))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -67,6 +71,11 @@ struct RunDetailView: View {
                     }
                 }
             }
+        }
+        .task {
+            let log = route.log, header = route.header
+            await awaitLoad({ LogParser.runs(for: log).first { $0.header == header } },
+                            key: "run:\(log.rawValue):\(header)") { run = $0; notFound = ($0 == nil) }
         }
     }
 }

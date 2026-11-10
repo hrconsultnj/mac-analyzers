@@ -17,6 +17,8 @@ import UIComponents
 ///   TempSpaceView+Actions.swift            Run audit, eject, open Actions, and loading the latest audit.
 struct TempSpaceView: View {
 
+    @Environment(Navigator.self) var navigator
+
     enum Filter: String, CaseIterable {
         case ready = "Ready"
         case leftAlone = "Left alone"

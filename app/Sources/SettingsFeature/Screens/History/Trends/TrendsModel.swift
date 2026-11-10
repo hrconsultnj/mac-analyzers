@@ -65,7 +65,7 @@ struct OffenderTimeline {
 
 enum TrendsModel {
 
-    enum Period: CaseIterable {
+    enum Period: CaseIterable, Codable, Sendable {
         case day1, day3, day7, day14, day30, day90, all
 
         /// The full-width tabs; everything else lives behind the ellipsis.

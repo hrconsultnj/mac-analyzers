@@ -27,7 +27,7 @@ public enum SettingsOpener {
         NotificationCenter.default.post(name: NotifyChannel.openSettingsInternal, object: nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             let settingsUp = NSApp.windows.contains {
-                $0.isVisible && ($0.identifier?.rawValue.lowercased().contains("settings") ?? false)
+                $0.isVisible && ($0.identifier?.rawValue.lowercased().contains("main") ?? false)
             }
             log.notice("post-open check — settings visible: \(settingsUp, privacy: .public), windows: \(NSApp.windows.count)")
             NSApp.activate(ignoringOtherApps: true)
