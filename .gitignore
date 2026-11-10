@@ -9,6 +9,9 @@ tasks-plans/
 app/MacAnalyzers.app/
 app/.build/
 app/.build-pro/
+# …and the same folders wherever a build is started from by mistake
+**/.build/
+**/.build-pro/
 app/AppIcon.icns
 app/icon_1024.png
 
