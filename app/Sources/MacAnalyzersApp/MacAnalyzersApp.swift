@@ -42,6 +42,7 @@ struct MenuBarLabelView: View {
     let killsToday: Int
     let history: PressureHistory
     let updates: UpdateState
+    let jobs: JobStore
     @AppStorage("menuSparklineEnabled") private var sparklineEnabled = true
     @Environment(\.openWindow) private var openWindow
 
@@ -64,6 +65,7 @@ struct MenuBarLabelView: View {
         // The label is alive for the app's whole life, so it starts the
         // release checks that every reader of `UpdateState` shares.
         .task { updates.startChecking() }
+        .notifyWhenJobsFinish(jobs)
         .onReceive(NotificationCenter.default.publisher(
             for: NotifyChannel.openSettingsInternal)) { note in
             SettingsOpener.markHandled(by: "menu-bar-label")
@@ -107,7 +109,7 @@ struct MacAnalyzersApp: App {
             // it for light/dark/translucency); SF-symbol fallback if missing.
             // The badge is the count of today's kills.
             MenuBarLabelView(killsToday: store.killsToday, history: pressureHistory,
-                             updates: updates)
+                             updates: updates, jobs: jobs)
         }
         .menuBarExtraStyle(.window)
 
