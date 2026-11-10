@@ -3,10 +3,10 @@ import AnalyzersKit
 import SwiftUI
 
 /// The suite's logs — sidebar children of the Logs item.
-enum LogKind: String, CaseIterable, Identifiable {
-    case guardLog, memoryClean, reclaim, storageClean, janitor, tempSpace, persistence,
-         loginItems, spotlightAudit, forensics
-    var id: String { rawValue }
+typealias LogKind = EngineLog
+
+/// How each engine log looks: title, symbol and tile colour.
+extension EngineLog {
 
     var title: String {
         switch self {
@@ -50,21 +50,6 @@ enum LogKind: String, CaseIterable, Identifiable {
         case .loginItems: .brown
         case .spotlightAudit: .yellow
         case .forensics: .purple
-        }
-    }
-
-    var url: URL? {
-        switch self {
-        case .guardLog: AnalyzersPaths.guardLog
-        case .memoryClean: AnalyzersPaths.memoryAutoCleanLog
-        case .reclaim: AnalyzersPaths.reclaimLog
-        case .storageClean: AnalyzersPaths.storageAutoCleanLog
-        case .janitor: AnalyzersPaths.janitorLog
-        case .tempSpace: AnalyzersPaths.tempCleanLog
-        case .persistence: AnalyzersPaths.persistenceLog
-        case .loginItems: AnalyzersPaths.loginItemsAuditLog
-        case .spotlightAudit: AnalyzersPaths.spotlightAuditLog
-        case .forensics: AnalyzersPaths.latestForensics()
         }
     }
 }
