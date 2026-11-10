@@ -39,6 +39,12 @@ welcome either way.
 - `bash -n` passes on every changed script — and so does `/bin/bash -n`.
   macOS ships bash 3.2: run the dry-run under `/bin/bash` too. Anything that
   needs bash 4+ goes behind a version check that falls back gracefully.
+- `scripts/check.sh` passes (syntax, shellcheck, secrets sweep, release-notes
+  format, tests; `scripts/install-git-hooks.sh` runs it before every push).
+  Pull requests run the same script on GitHub: a Linux machine runs the
+  checks that do not need a Mac, and a Mac runs the engine tests and the app
+  build when your change touches a script, a test or the app. Running
+  `scripts/check.sh` on your own Mac first tells you the same thing sooner.
 - Run the changed script's dry-run and paste the (redacted) output in the PR.
 - Interactive menu still works (`FORCE_INTERACTIVE=1 printf 'q\n' | ./script`).
 - No usernames, hostnames, project names, or personal app lists in tracked

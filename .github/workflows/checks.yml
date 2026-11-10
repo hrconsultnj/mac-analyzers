@@ -1,0 +1,65 @@
+name: checks
+
+# Who this is for: pull requests. The maintainer's own pushes are checked on
+# the maintainer's Mac by the pre-push hook (scripts/install-git-hooks.sh),
+# which runs the same script, scripts/check.sh, before anything leaves that
+# machine — so a push starts nothing here, and a release is cut and checked
+# locally (scripts/cut-release.sh). A pull request comes from someone who does
+# not have that hook; this is where their change is checked.
+#
+# What this Linux machine can judge, and so what it runs: shell syntax, the
+# linter, the secrets sweep, the release-notes format, the workflow files.
+# What it cannot: the engine tests and the app build. The project is
+# macOS-only, so scripts/check.sh reports those two as "not run" here, and
+# mac.yml runs them on a Mac when a pull request touches them.
+#
+# These workflows VERIFY; they never publish, and need no secret and no write
+# access. Every check lives in scripts/check.sh — this file only provides the
+# machine and calls it.
+
+on:
+  pull_request:
+    branches: [development]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true   # a newer commit on the pull request supersedes the older run
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    # Pinned, not ubuntu-latest: the label is moving from Ubuntu 24.04 to 26.04
+    # until 2026-11-19, and the two images ship different shellcheck versions.
+    # 26.04 carries the same shellcheck as the maintainer's Mac.
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1 — pinned to a commit: a tag can be moved, a commit cannot
+        with:
+          fetch-depth: 0   # a pull request is diffed against its merge base
+
+      - name: Install actionlint
+        # Not preinstalled on the runner image. Pinned version, checksum verified.
+        run: |
+          v=1.7.12
+          curl -fsSL -o "$RUNNER_TEMP/actionlint.tgz" \
+            "https://github.com/rhysd/actionlint/releases/download/v${v}/actionlint_${v}_linux_amd64.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/actionlint.tgz" -C "$RUNNER_TEMP" actionlint
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Run the checks
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        # A pull request runs the checks its files touch (the secrets sweep
+        # always runs); a run started by hand runs all of them.
+        run: |
+          if [ -n "$PR_BASE" ]; then
+            scripts/check.sh --changed "$PR_BASE...$PR_HEAD"
+          else
+            scripts/check.sh
+          fi

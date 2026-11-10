@@ -46,8 +46,28 @@ through `config.local.sh` (never hardcoded).
   `memory-auto-clean.sh` is the model (`DEV_PASS_OK`). Verify every touched
   script's dry-run under BOTH `bash` and `/bin/bash`; force the old-bash path
   with `ANALYZERS_BASH_CANDIDATES=/nonexistent /bin/bash <script>`.
+- **Checks and CI.** Every check lives in `scripts/check.sh` (`--list` names
+  them; `--changed <a>..<b>` runs only what a range touched; names plus
+  `--changed` narrows to those names). **The gate for our own pushes is this
+  Mac, not GitHub:** the pre-push hook (`scripts/install-git-hooks.sh`) runs
+  the script and refuses a push that fails, and `scripts/cut-release.sh`
+  runs all of it before a release. A push starts NO workflow — the project
+  is macOS-only, so the Mac is the one machine that can judge all of it, and
+  a cloud run after the push could only repeat it. So: never
+  `git push --no-verify`, and on a fresh clone run
+  `scripts/install-git-hooks.sh` before the first push (without it nothing
+  checks a push). The workflows (`.github/workflows/`) exist for PULL
+  REQUESTS, whose authors lack the hook: `checks.yml` on Linux runs what
+  Linux can judge (syntax, shellcheck, secrets, release-notes format,
+  actionlint) and reports the engine tests and the app build as "not run";
+  `mac.yml` runs those on a Mac runner (bash 3.2 syntax, engine tests,
+  `swift build`) only when a pull request touches a script, a test or the
+  app. Both only call `scripts/check.sh` and only verify. After changing a
+  workflow, prove it on a pull request (or start it by hand once it is on
+  `main`) and watch it to the end: `gh run watch <id> --exit-status`.
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
-  output. There is no test suite; the dry-run IS the test. For the app:
+  output. The one automated suite is `memory-analyzer/tests/`; otherwise the
+  dry-run IS the test. For the app:
   `cd app && swift build` (bundle assembly is `./app/build.sh` — no Xcode; it
   signs with an Apple Development identity when present, ad-hoc fallback, and
   installs to `/Applications/MacAnalyzers.app` — the canonical run location;
@@ -87,6 +107,16 @@ through `config.local.sh` (never hardcoded).
   `open -g "macanalyzers://pane/<target>"` — the URL scheme reaches a RUNNING
   app, unlike `--args --pane`, which macOS only delivers at launch. Nav cost is
   measured from `log show --predicate 'category == "nav"'`.
+  **Look at a screen without taking over the Mac:**
+  `app/.build/debug/SnapshotRunner <target> <out.png> [--size 1100x720] [--wait 3]`
+  renders the REAL main window (real stores, real data) for any deep-link
+  target into a PNG, in a window placed outside every display — it never
+  activates, never shows in the Dock, never moves focus. Built by `swift
+  build`, never bundled into the app. Use it while building a screen and
+  before calling it done (the blueprint's screen acceptance bar requires
+  it); the owner's screen is not a test fixture. It cannot click: anything
+  interactive (a running job, a confirmation, the menu-bar panel) still
+  needs an on-screen check, and those are asked for first.
   `agent-runner --probe-setup` prints the Setup checklist as text.
   `agent-runner --probe-memory [--all]` prints the Monitor pane's memory
   census as text (where memory is + every process group with its total).

@@ -14,6 +14,12 @@ location; the repo `app/` bundle is build artifact + fallback, and
 item all prefer `/Applications`. Reports/logs write to
 `reports/{memory,storage}/` inside the repo (gitignored).
 
+Checks: `scripts/check.sh` is the one place every check lives. The pre-push
+hook runs it on the Mac and refuses a push that fails — that is the gate for
+our own pushes, so never use `git push --no-verify`. A push starts no GitHub
+workflow; the workflows run the same script for pull requests only (Linux for
+what Linux can judge, a Mac runner for the engine tests and the app build).
+
 Hard rules (from CONTRIBUTING.md, enforced in review):
 
 1. Analyzers are read-only; cleaners are dry-run unless `--apply`/`--execute`.
