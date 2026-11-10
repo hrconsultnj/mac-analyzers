@@ -62,39 +62,6 @@ func trendsDestination(_ route: TrendsRoute) -> some View {
 
 // MARK: - shared GuardEvent row styling (GuardLogView's house style)
 
-private func eventSymbol(for event: GuardEvent) -> String {
-    switch event.kind {
-    case .killed: "xmark.octagon.fill"
-    case .spike: "arrow.up.right"
-    case .capExceeded: "gauge.with.needle"
-    case .pressureWarning, .pressureCritical: "exclamationmark.triangle.fill"
-    case .cpuHog: "cpu"
-    case .forensics: "stethoscope"
-    case .warning: "exclamationmark.triangle"
-    }
-}
-
-private func eventColor(for event: GuardEvent) -> Color {
-    switch event.kind {
-    case .killed, .pressureCritical: .red
-    case .spike, .capExceeded, .pressureWarning, .warning: .orange
-    case .cpuHog, .forensics: .purple
-    }
-}
-
-private func eventBadge(for event: GuardEvent) -> (String, Color)? {
-    switch event.kind {
-    case .killed: ("KILLED", .red)
-    case .spike: ("SPIKE", .orange)
-    case .capExceeded: ("OVER CAP", .orange)
-    case .pressureWarning: ("PRESSURE", .orange)
-    case .pressureCritical: ("CRITICAL", .red)
-    case .cpuHog: ("CPU", .purple)
-    case .forensics: nil
-    case .warning: ("WARN", .orange)
-    }
-}
-
 private func eventTime(_ event: GuardEvent) -> String {
     event.date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
 }
@@ -131,11 +98,11 @@ private struct GuardEventListDetailView: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(events) { event in
-                    DataCard(symbol: eventSymbol(for: event), color: eventColor(for: event),
+                    DataCard(symbol: event.symbol, color: event.tint,
                              title: event.title,
                              subtitle: eventSubtitleWithTime(event),
                              trailing: event.residentText,
-                             badge: eventBadge(for: event),
+                             badge: event.badge,
                              live: event.isProcessStillRunning)
                 }
             }
@@ -275,11 +242,11 @@ private struct OffenderDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(timeline.events) { event in
-                        DataCard(symbol: eventSymbol(for: event), color: eventColor(for: event),
+                        DataCard(symbol: event.symbol, color: event.tint,
                                  title: event.title,
                                  subtitle: eventSubtitleWithTime(event),
                                  trailing: event.residentText,
-                                 badge: eventBadge(for: event),
+                                 badge: event.badge,
                                  live: event.isProcessStillRunning)
                     }
                 }

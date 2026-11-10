@@ -87,11 +87,11 @@ struct GuardLogView: View {
                          badge: ("REPORT", .purple))
             }
         } else {
-            DataCard(symbol: symbol(for: event), color: color(for: event),
+            DataCard(symbol: event.symbol, color: event.tint,
                      title: event.title,
                      subtitle: subtitleWithTime(event),
                      trailing: event.residentText,
-                     badge: badge(for: event),
+                     badge: event.badge,
                      live: event.isProcessStillRunning)
         }
     }
@@ -114,39 +114,6 @@ struct GuardLogView: View {
         case .reports: .purple
         case .pressure: .orange
         case .cpu: .purple
-        }
-    }
-
-    private func symbol(for event: GuardEvent) -> String {
-        switch event.kind {
-        case .killed: "xmark.octagon.fill"
-        case .spike: "arrow.up.right"
-        case .capExceeded: "gauge.with.needle"
-        case .pressureWarning, .pressureCritical: "exclamationmark.triangle.fill"
-        case .cpuHog: "cpu"
-        case .forensics: "stethoscope"
-        case .warning: "exclamationmark.triangle"
-        }
-    }
-
-    private func color(for event: GuardEvent) -> Color {
-        switch event.kind {
-        case .killed, .pressureCritical: .red
-        case .spike, .capExceeded, .pressureWarning, .warning: .orange
-        case .cpuHog, .forensics: .purple
-        }
-    }
-
-    private func badge(for event: GuardEvent) -> (String, Color)? {
-        switch event.kind {
-        case .killed: ("KILLED", .red)
-        case .spike: ("SPIKE", .orange)
-        case .capExceeded: ("OVER CAP", .orange)
-        case .pressureWarning: ("PRESSURE", .orange)
-        case .pressureCritical: ("CRITICAL", .red)
-        case .cpuHog: ("CPU", .purple)
-        case .forensics: nil
-        case .warning: ("WARN", .orange)
         }
     }
 
