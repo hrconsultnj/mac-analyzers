@@ -24,7 +24,8 @@ final class SetupBadge {
 /// The three rows above the groups: where things stand (Overview), what has
 /// run (Activity), and whether the app is set up (Setup).
 ///
-/// Interim: Activity hosts the Logs landing, whose rows call the navigator.
+/// Activity hosts `ActivityView`: every run, whoever started it, with a pushed
+/// screen per job (`Route.job`).
 @MainActor
 enum OverviewGroup {
 
@@ -58,7 +59,7 @@ enum OverviewGroup {
     @ViewBuilder private static func screen(_ section: SectionID) -> some View {
         switch section {
         case overview: HomeSettingsView()
-        case activity: LogsHomeView()
+        case activity: ActivityView()
         case setup: SetupSettingsView()
         default: EmptyView()
         }
@@ -70,13 +71,13 @@ enum OverviewGroup {
         }
     }
 
-    /// `job:<uuid>` lands on Activity. The pushed job screen (`Route.job`)
-    /// arrives with the Activity screen; until then Activity's root is the
-    /// closest honest place, and the link is never reported as unknown.
+    /// `job:<uuid>` lands on Activity with that job's screen pushed. The router
+    /// cannot know which jobs exist (the store belongs to the app), so the job
+    /// screen is the one that sends an id it cannot find back to Activity's root.
     private static func resolveDynamic(_ target: String) -> Resolution? {
         guard target.hasPrefix("job:"),
-              UUID(uuidString: String(target.dropFirst("job:".count))) != nil
+              let id = UUID(uuidString: String(target.dropFirst("job:".count)))
         else { return nil }
-        return .main(Location(activity))
+        return .main(Location(activity, path: [.job(id)]))
     }
 }
