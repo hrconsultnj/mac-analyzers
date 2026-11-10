@@ -26,7 +26,12 @@ public struct EngineResult: Sendable {
 ///   interleaving is exactly what the script produced.
 /// - Lines are delivered in order, in batches, at most ten times a second.
 /// - The environment is the scheduled runs': `PATH` as in the launchd plists,
-///   `HOME`, working directory = the script's folder, interpreter `/bin/bash`.
+///   `HOME`, working directory = the script's folder.
+/// - The script is started the way the scheduled runs start it: executed
+///   directly, so its `#!/usr/bin/env bash` shebang picks the bash on that
+///   PATH. (Forcing `/bin/bash` runs macOS's bash 3.2, which cannot run
+///   `memory-auto-clean.sh` — it uses associative arrays.) A script without
+///   the executable bit falls back to `/bin/bash`.
 public final class EngineProcess: @unchecked Sendable {
     // @unchecked Sendable: every mutable field below is read and written only
     // while holding `lock`; the immutable fields are set once in `init`.
@@ -54,7 +59,7 @@ public final class EngineProcess: @unchecked Sendable {
     private let collectOutput: Bool
     private let outputLimit: Int
     private let flushInterval: TimeInterval
-    private let interpreter: URL
+    private let interpreter: URL?
     private let queue = DispatchQueue(label: "engine-process.flush")
 
     private let lock = NSLock()
@@ -69,7 +74,8 @@ public final class EngineProcess: @unchecked Sendable {
     private var continuation: AsyncStream<[String]>.Continuation?
 
     /// `flushInterval` of 0.1 is the "at most ten times a second" rule.
-    public init(script: URL, args: [String], interpreter: URL = URL(fileURLWithPath: "/bin/bash"),
+    /// `interpreter` forces an interpreter; nil (the default) honors the shebang.
+    public init(script: URL, args: [String], interpreter: URL? = nil,
                 collectOutput: Bool = false, outputLimit: Int = 8_000_000,
                 flushInterval: TimeInterval = 0.1) {
         self.script = script
@@ -100,8 +106,16 @@ public final class EngineProcess: @unchecked Sendable {
         let pipe = Pipe()
         let reading = pipe.fileHandleForReading
         let child = Process()
-        child.executableURL = interpreter
-        child.arguments = [script.path] + args
+        if let interpreter {
+            child.executableURL = interpreter
+            child.arguments = [script.path] + args
+        } else if FileManager.default.isExecutableFile(atPath: script.path) {
+            child.executableURL = script
+            child.arguments = args
+        } else {
+            child.executableURL = URL(fileURLWithPath: "/bin/bash")
+            child.arguments = [script.path] + args
+        }
         child.currentDirectoryURL = script.deletingLastPathComponent()
         child.environment = Self.engineEnvironment()
         child.standardOutput = pipe
