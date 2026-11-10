@@ -9,6 +9,16 @@ public enum UpdateChecker {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
     }
 
+    /// Which build this copy is: "a1b2c3d · Nov 10 at 17:05". The version
+    /// alone can't say — it only moves at a release, and many builds share it.
+    /// nil for a copy assembled without the build script.
+    public static var installedBuild: String? {
+        guard let revision = Bundle.main.object(forInfoDictionaryKey: "MABuildRevision") as? String
+        else { return nil }
+        let date = Bundle.main.object(forInfoDictionaryKey: "MABuildDate") as? String
+        return date.map { "\(revision) · \($0)" } ?? revision
+    }
+
     /// Latest release version ("2.9.0"), cached for 6 h unless forced.
     /// A cached value OLDER than the installed build is nonsense (local
     /// builds outrun the cache) — treated as stale and refetched.

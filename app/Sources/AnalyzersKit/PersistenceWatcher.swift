@@ -7,10 +7,8 @@ import os
 /// change this suite exists to surface. Report-only, never acts.
 public enum PersistenceWatcher {
 
-    public static let stateFile = AnalyzersPaths.suiteRoot
-        .appending(path: "reports/persistence-state.json")
-    public static let logFile = AnalyzersPaths.suiteRoot
-        .appending(path: "reports/persistence.log")
+    public static let stateFile = AnalyzersPaths.userRecord("persistence-state.json")
+    public static let logFile = AnalyzersPaths.userRecord("persistence.log")
 
     private static var watchedDirs: [URL] {
         [FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/LaunchAgents"),
@@ -90,5 +88,5 @@ public enum PersistenceWatcher {
 }
 
 public extension AnalyzersPaths {
-    static let persistenceLog = suiteRoot.appending(path: "reports/persistence.log")
+    static let persistenceLog = userRecord("persistence.log")
 }

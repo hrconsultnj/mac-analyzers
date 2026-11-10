@@ -40,8 +40,7 @@ public final class PressureHistory {
     /// reports/baselines.json: one running mean of memory-in-use per day.
     /// Collection starts now so future "this isn't normal for your Mac"
     /// features have history on day one.
-    private static let baselinesFile = AnalyzersPaths.suiteRoot
-        .appending(path: "reports/baselines.json")
+    private static let baselinesFile = AnalyzersPaths.userRecord("baselines.json")
 
     private struct DayBaseline: Codable {
         var date: String
