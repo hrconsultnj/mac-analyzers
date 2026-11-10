@@ -42,7 +42,10 @@ files — each group owns its section ids, rows, screens, routes and deep-link
 aliases, and `Shell/SectionRegistry.swift` only fixes the group order. Deep-link
 strings resolve in `Shell/DeepLinkRouter.swift`. Every log is a structured
 screen, TextEdit as escape hatch; menu rows live in MenuComponents.swift; the engine stays
-bash — the app is a control surface, never a reimplementation. Verify
+bash — the app is a control surface, never a reimplementation. Every engine
+action is a tracked job from the one `JobStore` the app owns (a cleaner apply
+only via `JobStore.apply(from:approved:)`); Activity lists every run, and the
+window toolbar and menu panel show the running job. Verify
 `cd app && swift build`, then `./app/build.sh` (rebuild + reinstall to
 /Applications) and relaunch. UI traps (v2.7.1): pane header stays INSIDE the
 Form; no `.scrollEdgeEffectStyle(.hard)` in the Settings window;

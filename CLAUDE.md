@@ -101,6 +101,20 @@ through `config.local.sh` (never hardcoded).
   built; cancel terminates the whole descendant tree; engine scripts are
   executed directly (their own `#!/usr/bin/env bash`) with the launchd
   plists' PATH — never forced through `/bin/bash`, which is 3.2.
+- Jobs on screen: `MacAnalyzersApp` owns the ONE `JobStore` and ONE
+  `UpdateState` and injects both into the main window and the menu-bar panel;
+  a screen never creates a store. Every button that starts an engine script
+  enqueues a job (`ActionRunner` is no longer called from a screen) and a
+  converted screen finds its job again by kind on appear (`Shared/JobAdoption`).
+  A cleaner apply goes only through `JobStore.apply(from:approved:)` with an
+  `ApprovedSet` — a list that cannot be written stops the apply. Activity
+  (`Screens/Activity/`) is a `Table` of every job plus every run in the engine
+  logs, joined with the job index in `AnalyzersKit/Activity/ActivityJoin` so a
+  run is listed once; the shell's `.status` toolbar item
+  (`JobStatusToolbarItem`, attached to the split view, never to a stack) and
+  the menu panel's `MenuJobsStrip` show the running job, and `job:<uuid>`
+  opens it (`Route.job`). `agent-runner --probe-activity [--real]` prints
+  Activity's rows; `--probe-pid-recycle` proves a stop refuses a recycled pid.
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;
