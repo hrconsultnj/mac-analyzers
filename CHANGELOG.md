@@ -20,6 +20,13 @@ heading becomes its version and title.
   nothing is lost when the app updates.
 - The Update screen shows exactly which build you are running, not only the
   version number.
+- Fixed: the memory cleanup stopped before doing anything on Macs that only
+  have the version of bash that comes with macOS — which is every Mac
+  without Homebrew, and the app's own Preview button on any Mac. It now runs
+  everywhere; the checks for idle developer tools need a newer bash and say
+  so when one is not installed.
+- Fixed: cleanups started from the app could stall on very large results.
+  They also now find the same developer tools your scheduled cleanups use.
 
 ## v2.68.0 — See where all of your memory goes
 

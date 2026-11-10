@@ -2,7 +2,7 @@
 
 <!-- [PORTABLE-OPERATIONAL] -->
 
-Bash 5 / macOS shell suites (`memory-analyzer/`, `storage-analyzer/`, shared
+Bash / macOS shell suites (must run under the system `/bin/bash` 3.2 — bash 4+ features only behind a version check that re-execs or skips, as `memory-auto-clean.sh` does) (`memory-analyzer/`, `storage-analyzer/`, shared
 `lib/notify.sh`) — no deps, no test framework: `bash -n` plus the script's own
 dry-run is the verification loop. `app/` is the one compiled part: a SwiftUI
 menu-bar app (SPM, Swift 6, macOS 26) assembled by `app/build.sh` without

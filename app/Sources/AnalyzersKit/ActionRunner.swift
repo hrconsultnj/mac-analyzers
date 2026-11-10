@@ -1,9 +1,12 @@
 import Foundation
 
-/// Runs an engine cleaner script and captures its output. The engine stays
-/// bash and stays the authority: scripts are dry-run by default and only act
-/// under --apply, so the app can never make them do more than a user could
-/// from the terminal. Runs land in the same logs the log panes read.
+/// Runs an engine script and captures its output, for the call sites that have
+/// not moved to tracked jobs yet. A thin wrapper over `EngineProcess`, which
+/// reads output while the script runs (no stall on large output), uses the
+/// same `PATH` the scheduled runs get, and stops cleanly. The engine stays bash
+/// and stays the authority: scripts are dry-run by default and only act under
+/// --apply, so the app can never make them do more than a user could from the
+/// terminal. Runs land in the same logs the log panes read.
 public enum ActionRunner {
 
     public struct RunResult: Sendable {
@@ -12,36 +15,8 @@ public enum ActionRunner {
     }
 
     public static func run(script: URL, args: [String]) async -> RunResult {
-        // A missing engine used to arrive as exit code -1 with the reason
-        // buried in the output string, which every caller then rendered as
-        // "the script stopped with code -1". Say it plainly instead.
-        guard FileManager.default.isReadableFile(atPath: script.path) else {
-            return RunResult(
-                exitCode: 127,
-                output: "engine missing: \(script.lastPathComponent) was not found at \(script.path)")
-        }
-        return await withCheckedContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/bash")
-            process.arguments = [script.path] + args
-            process.currentDirectoryURL = script.deletingLastPathComponent()
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = pipe
-            process.terminationHandler = { finished in
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                continuation.resume(returning: RunResult(
-                    exitCode: finished.terminationStatus,
-                    output: String(data: data, encoding: .utf8) ?? ""))
-            }
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(returning: RunResult(
-                    exitCode: -1,
-                    output: "could not launch \(script.lastPathComponent): \(error.localizedDescription)"))
-            }
-        }
+        let result = await EngineProcess(script: script, args: args, collectOutput: true).run()
+        return RunResult(exitCode: result.exitCode, output: result.output)
     }
 }
 
