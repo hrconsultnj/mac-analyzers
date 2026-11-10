@@ -10,6 +10,14 @@ without an entry here — see `scripts/cut-release.sh`.
 Notes for the release being worked on collect here. When it ships, this
 heading becomes its version and title.
 
+- A new main window. The sidebar is organised by what you want to look at
+  (Memory, Storage, System, History) and can be hidden. Back and Forward
+  remember everywhere you have been, across sections (Command-[ and
+  Command-]), and a new Go menu jumps straight to Overview, Activity, Monitor
+  and Disk. The window reopens where you left it.
+- Each cleanup now lives with the thing it cleans: Caches & Builds,
+  Downloads, Temp & Agents and Memory Cleanup each have their own review,
+  instead of one shared Actions screen.
 - What's New is easier to read: entries are set as flowing paragraphs with
   real lists, and older releases can now be opened as well as the newest.
 - Fixed: reinstalling or upgrading the app left behind files that newer
