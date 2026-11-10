@@ -47,13 +47,24 @@ through `config.local.sh` (never hardcoded).
   script's dry-run under BOTH `bash` and `/bin/bash`; force the old-bash path
   with `ANALYZERS_BASH_CANDIDATES=/nonexistent /bin/bash <script>`.
 - **Checks and CI.** Every check lives in `scripts/check.sh` (`--list` names
-  them; `--changed <a>..<b>` runs only what a range touched). Run it before
-  pushing — the pre-push hook (`scripts/install-git-hooks.sh`) does it for
-  you and refuses a push that fails — and after every push watch the run to
-  its end (`gh run watch <id> --exit-status`) and report the result; a red
-  run is the pusher's next task. A docs-only push starts no workflow. The
-  workflows (`.github/workflows/`) only call `scripts/check.sh` and only
-  verify; a release is still cut locally.
+  them; `--changed <a>..<b>` runs only what a range touched; names plus
+  `--changed` narrows to those names). **The gate for our own pushes is this
+  Mac, not GitHub:** the pre-push hook (`scripts/install-git-hooks.sh`) runs
+  the script and refuses a push that fails, and `scripts/cut-release.sh`
+  runs all of it before a release. A push starts NO workflow — the project
+  is macOS-only, so the Mac is the one machine that can judge all of it, and
+  a cloud run after the push could only repeat it. So: never
+  `git push --no-verify`, and on a fresh clone run
+  `scripts/install-git-hooks.sh` before the first push (without it nothing
+  checks a push). The workflows (`.github/workflows/`) exist for PULL
+  REQUESTS, whose authors lack the hook: `checks.yml` on Linux runs what
+  Linux can judge (syntax, shellcheck, secrets, release-notes format,
+  actionlint) and reports the engine tests and the app build as "not run";
+  `mac.yml` runs those on a Mac runner (bash 3.2 syntax, engine tests,
+  `swift build`) only when a pull request touches a script, a test or the
+  app. Both only call `scripts/check.sh` and only verify. After changing a
+  workflow, prove it on a pull request (or start it by hand once it is on
+  `main`) and watch it to the end: `gh run watch <id> --exit-status`.
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
   output. The one automated suite is `memory-analyzer/tests/`; otherwise the
   dry-run IS the test. For the app:

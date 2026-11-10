@@ -1,7 +1,5 @@
 # mac-analyzers
 
-[![ci](https://github.com/hrconsultnj/mac-analyzers/actions/workflows/ci.yml/badge.svg?branch=development)](https://github.com/hrconsultnj/mac-analyzers/actions/workflows/ci.yml)
-
 **Your Mac's RAM and disk, explained and defended.** A self-maintaining
 toolkit for macOS that tells you *why* Activity Monitor says 23 GB, kills the
 runaway dev process before your Zoom call freezes, reaps the orphaned servers

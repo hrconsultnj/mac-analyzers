@@ -6,12 +6,17 @@
 #   scripts/check.sh --changed <a>..<b>    only the checks whose inputs changed
 #                                          in that git range (any range git
 #                                          diff accepts, e.g. origin/x...HEAD)
+#   scripts/check.sh <name>... --changed <a>..<b>
+#                                          of the named checks, only the ones
+#                                          whose inputs changed in that range
 #   scripts/check.sh --list                the checks, one per line, with
 #                                          what each one covers
 #
-# The pre-push hook (scripts/install-git-hooks.sh) and the GitHub workflows
-# both call this script, so a check added here runs in both places and no
-# check logic lives anywhere else.
+# The pre-push hook (scripts/install-git-hooks.sh) is the gate for the
+# maintainer's own pushes: it runs this script on the Mac, the only machine
+# that can judge all of it. The GitHub workflows run the same script for pull
+# requests, whose authors do not have that hook. No check logic lives
+# anywhere else.
 #
 # Output: one line per check — ✓ passed, ✗ failed (its output follows),
 # – not run (with the reason; a check that did not run is never a pass) —
@@ -45,7 +50,7 @@ describe() {
     lint)      echo "shellcheck: error severity fails the check, warnings are printed" ;;
     secrets)   echo "curated secret-pattern sweep over every tracked file" ;;
     changelog) echo "CHANGELOG.md has a '## Next' section or an entry for VERSION, and that entry reads as release notes" ;;
-    tests)     echo "every executable under memory-analyzer/tests/ and tests/" ;;
+    tests)     echo "every executable under memory-analyzer/tests/ and tests/ (macOS only; skipped, visibly, elsewhere)" ;;
     workflows) echo "actionlint on .github/workflows (optional: skipped, visibly, when not installed)" ;;
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
@@ -161,21 +166,34 @@ check_changelog() {
 }
 
 check_tests() {
-  local f n=0 bad=0
+  # The engine is macOS-only and its tests assert what macOS `ps` prints for a
+  # process that renamed itself; Linux `ps` answers differently, so a run there
+  # proves nothing about the engine. Not run is reported as not run.
+  if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: the engine tests need macOS"; return 2; fi
+  local f n=0 bad=0 unrun=0
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     [ -f "$f" ] && [ -x "$f" ] || continue
-    n=$((n + 1))
     if ! "$ROOT/$f" >"$TMP/test.out" 2>&1; then
-      bad=$((bad + 1))
+      n=$((n + 1)); bad=$((bad + 1))
       { echo "--- $f (exit non-zero)"; cat "$TMP/test.out"; } >>"$OUT"
+    elif head -n 1 "$TMP/test.out" | grep -q '^SKIP'; then
+      # a test that bowed out (a tool it needs is missing) did not pass
+      unrun=$((unrun + 1))
+      { echo "--- $f did not run"; head -n 1 "$TMP/test.out"; } >>"$OUT"
+    else
+      n=$((n + 1))
     fi
   done <<EOF
 $(git ls-files -- 'memory-analyzer/tests/*' 'tests/*')
 EOF
-  if [ "$n" -eq 0 ]; then DETAIL="skipped: no executable test scripts found"; return 2; fi
   if [ "$bad" -gt 0 ]; then DETAIL="$bad of $n test scripts failed"; return 1; fi
+  if [ "$n" -eq 0 ] && [ "$unrun" -gt 0 ]; then
+    DETAIL="skipped: $(head -n 2 "$OUT" | tail -n 1 | sed 's/^SKIP[: ]*//')"; return 2
+  fi
+  if [ "$n" -eq 0 ]; then DETAIL="skipped: no executable test scripts found"; return 2; fi
   DETAIL="$n test script(s)"
+  [ "$unrun" -gt 0 ] && DETAIL="$DETAIL, $unrun did not run"
   return 0
 }
 
@@ -274,16 +292,15 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-if [ -n "$names" ] && [ -n "$range" ]; then
-  echo "check.sh: name checks OR use --changed, not both" >&2; exit 2
-fi
-
 # ── selection ───────────────────────────────────────────────────────────────
-selected="$ALL"
+# Names say WHICH checks belong to this run; --changed then keeps, of those,
+# the ones whose inputs changed. A check outside the named set is not part of
+# the run at all; one inside it that --changed left out is printed as not run.
+scope="$ALL"
+[ -n "$names" ] && scope="$names"
+selected="$scope"
 reason_unselected=""
-if [ -n "$names" ]; then
-  selected="$names"
-elif [ -n "$range" ]; then
+if [ -n "$range" ]; then
   if git diff --name-only "$range" >"$TMP/changed" 2>"$TMP/changed.err"; then
     want_script=0; want_changelog=0; want_app=0
     while IFS= read -r f; do
@@ -294,7 +311,7 @@ elif [ -n "$range" ]; then
       case "$f" in app/*) want_app=1 ;; esac
     done <"$TMP/changed"
     selected=""
-    for n in $ALL; do
+    for n in $scope; do
       case "$n" in
         syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
         changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
@@ -312,11 +329,11 @@ fi
 # ── run ─────────────────────────────────────────────────────────────────────
 passed=0; failed=0; skipped=0; failed_names=""
 for n in $ALL; do
+  # a check you did not ask for by name is not part of this run at all
+  case " $scope " in *" $n "*) ;; *) continue ;; esac
   case " $selected " in
     *" $n "*) ;;
     *)
-      # a check you did not ask for by name is not part of this run at all
-      [ -n "$names" ] && continue
       printf '– %s — not run: %s\n' "$n" "$reason_unselected"
       skipped=$((skipped + 1))
       continue ;;
