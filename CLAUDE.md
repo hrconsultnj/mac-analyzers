@@ -46,8 +46,17 @@ through `config.local.sh` (never hardcoded).
   `memory-auto-clean.sh` is the model (`DEV_PASS_OK`). Verify every touched
   script's dry-run under BOTH `bash` and `/bin/bash`; force the old-bash path
   with `ANALYZERS_BASH_CANDIDATES=/nonexistent /bin/bash <script>`.
+- **Checks and CI.** Every check lives in `scripts/check.sh` (`--list` names
+  them; `--changed <a>..<b>` runs only what a range touched). Run it before
+  pushing — the pre-push hook (`scripts/install-git-hooks.sh`) does it for
+  you and refuses a push that fails — and after every push watch the run to
+  its end (`gh run watch <id> --exit-status`) and report the result; a red
+  run is the pusher's next task. A docs-only push starts no workflow. The
+  workflows (`.github/workflows/`) only call `scripts/check.sh` and only
+  verify; a release is still cut locally.
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
-  output. There is no test suite; the dry-run IS the test. For the app:
+  output. The one automated suite is `memory-analyzer/tests/`; otherwise the
+  dry-run IS the test. For the app:
   `cd app && swift build` (bundle assembly is `./app/build.sh` — no Xcode; it
   signs with an Apple Development identity when present, ad-hoc fallback, and
   installs to `/Applications/MacAnalyzers.app` — the canonical run location;

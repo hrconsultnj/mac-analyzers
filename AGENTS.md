@@ -14,6 +14,11 @@ location; the repo `app/` bundle is build artifact + fallback, and
 item all prefer `/Applications`. Reports/logs write to
 `reports/{memory,storage}/` inside the repo (gitignored).
 
+Checks: `scripts/check.sh` is the one place every check lives (the pre-push
+hook and the GitHub workflows both call it). Run it before pushing, and after a
+push watch the run to its end (`gh run watch <id> --exit-status`) and report
+the result — a red run is the pusher's next task.
+
 Hard rules (from CONTRIBUTING.md, enforced in review):
 
 1. Analyzers are read-only; cleaners are dry-run unless `--apply`/`--execute`.
