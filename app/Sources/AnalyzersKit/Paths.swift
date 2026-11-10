@@ -12,6 +12,41 @@ public enum AnalyzersPaths {
     public static let memoryReports = home.appending(path: "mac-analyzers/reports/memory")
     public static let storageReports = home.appending(path: "mac-analyzers/reports/storage")
 
+    /// Where the APP WRITES its own records — never the bundle. Always the
+    /// user's folder, whichever copy of the engine is being read from.
+    public static let userRoot = home.appending(path: "mac-analyzers")
+    public static let userReports = userRoot.appending(path: "reports")
+
+    /// Where the engine scripts are read from (the clone, or the bundle).
+    /// Earlier builds wrote some records under here.
+    static var legacyReports: URL { suiteRoot.appending(path: "reports") }
+
+    /// The app-written record `name` under `userReports`, created on demand.
+    /// First use carries an older copy across from the engine's own `reports`
+    /// folder (see `carryOver`).
+    static func userRecord(_ name: String) -> URL {
+        let new = userReports.appending(path: name)
+        carryOver(from: legacyReports.appending(path: name), to: new)
+        return new
+    }
+
+    /// Copies `old` to `new` when they are different files, `old` exists and
+    /// `new` does not. Never deletes `old` (it may sit in a signed bundle) and
+    /// never overwrites `new`. Does nothing when both resolve to one path.
+    @discardableResult
+    static func carryOver(from old: URL, to new: URL) -> Bool {
+        let fm = FileManager.default
+        let oldPath = old.standardizedFileURL.resolvingSymlinksInPath().path
+        let newPath = new.standardizedFileURL.resolvingSymlinksInPath().path
+        guard oldPath != newPath,
+              fm.fileExists(atPath: old.path),
+              !fm.fileExists(atPath: new.path)
+        else { return false }
+        try? fm.createDirectory(at: new.deletingLastPathComponent(),
+                                withIntermediateDirectories: true)
+        return (try? fm.copyItem(at: old, to: new)) != nil
+    }
+
     public static let guardLog = memoryReports.appending(path: "guard.log")
     public static let memoryAutoCleanLog = memoryReports.appending(path: "auto-clean.log")
     public static let reclaimLog = memoryReports.appending(path: "reclaim.log")
