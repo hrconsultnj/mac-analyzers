@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# package.sh — build the download other people install: MacAnalyzers-<V>.dmg,
-# a disk image with the app and a shortcut to the Applications folder.
+# package.sh — build the downloads other people get:
+#   MacAnalyzers-<V>.dmg   what a new user downloads: the app next to a
+#                          shortcut to the Applications folder
+#   MacAnalyzers-<V>.zip   the same signed app as an archive — what an
+#                          installed copy downloads to update itself
 #
-#   scripts/package.sh                 # → dist/MacAnalyzers-<version>.dmg
-#   scripts/package.sh --out ~/Desktop # write it somewhere else
+#   scripts/package.sh                 # → dist/MacAnalyzers-<version>.{dmg,zip}
+#   scripts/package.sh --out ~/Desktop # write them somewhere else
 #
 # It never touches the copy of the app you are running (the build is not
 # installed) and never changes app/MacAnalyzers.app's signature — the image
@@ -39,7 +42,7 @@ out="$root/dist"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) out="${2:?--out needs a folder}"; shift 2 ;;
-    -h|--help) sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "package: unknown option '$1'" >&2; exit 2 ;;
   esac
 done
@@ -110,9 +113,20 @@ if [[ "$level" == "Developer ID" ]]; then
   fi
 fi
 
-size="$(du -h "$dmg" | awk '{print $1}')"
-echo "→ $dmg ($size)"
-echo "  sha256 $(shasum -a 256 "$dmg" | awk '{print $1}')"
+# ── 5. the update archive: the SAME signed app, zipped ─────────────────────
+# (made after stapling, so an update carries the notarization ticket too;
+#  --sequesterRsrc --keepParent is the form updaters expect, symlinks intact)
+if [[ "$level" == "Developer ID, notarized" ]]; then
+  xcrun stapler staple "$app" >/dev/null
+fi
+zip="$out/MacAnalyzers-$version.zip"
+rm -f "$zip"
+ditto -c -k --sequesterRsrc --keepParent "$app" "$zip"
+
+for artifact in "$dmg" "$zip"; do
+  echo "→ $artifact ($(du -h "$artifact" | awk '{print $1}'))"
+  echo "  sha256 $(shasum -a 256 "$artifact" | awk '{print $1}')"
+done
 case "$level" in
   "Developer ID, notarized")
     echo "  First launch on someone else's Mac: one \"Open\" click." ;;

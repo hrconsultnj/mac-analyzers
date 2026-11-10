@@ -28,8 +28,14 @@ fi
 
 APP="MacAnalyzers.app"
 
-swift build -c release
-BIN="$(swift build --show-bin-path -c release)"
+# --disable-keychain + no git credential helper: SwiftPM's default is to look
+# in the macOS keychain for a saved login whenever it downloads from a host,
+# and git asks its keychain helper the same question — which puts a "wants to
+# use your confidential information" prompt in front of whoever is building.
+# Everything this build downloads is public, so it never needs a credential.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0=
+swift build -c release --disable-keychain
+BIN="$(swift build --show-bin-path -c release --disable-keychain)"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
