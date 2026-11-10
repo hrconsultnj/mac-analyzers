@@ -45,13 +45,11 @@ cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"
 [[ -f AppIcon.icns ]] || ./make-icon.sh
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
-# Bundled changelog: release-note commits (subjects starting vN.N) ARE the
-# notes — newest 20, attribution footers stripped.
-git -C .. log --first-parent -E --grep='^v[0-9]+\.[0-9]+' -n 60 \
-    --format='## %s%n%n%b%n' development 2>/dev/null \
-  | grep -vE '^(Co-Authored-By:|Claude-Session:)' \
-  | awk '/^## v[0-9]/{count++} count>20{exit} {print}' \
-  > "$APP/Contents/Resources/CHANGELOG.md" || true
+# Bundled changelog: the newest 20 entries of the repo's CHANGELOG.md — the
+# same file each GitHub release publishes, so the app's What's New and the
+# release page can never say different things.
+awk '/^## v[0-9]/{count++} count>20{exit} count>0{print}' ../CHANGELOG.md \
+  > "$APP/Contents/Resources/CHANGELOG.md" 2>/dev/null || true
 
 # Bundled engine: the bash suite ships INSIDE the app, so a downloaded copy
 # works without cloning anything. The manage-agents installers hydrate

@@ -69,6 +69,8 @@ through `config.local.sh` (never hardcoded).
   app, unlike `--args --pane`, which macOS only delivers at launch. Nav cost is
   measured from `log show --predicate 'category == "nav"'`.
   `agent-runner --probe-setup` prints the Setup checklist as text.
+  `agent-runner --probe-memory [--all]` prints the Monitor pane's memory
+  census as text (where memory is + every process group with its total).
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;
@@ -82,10 +84,22 @@ Both are protected (code-owner review required for PRs; owner pushes directly).
 - ANY commit or merge on `main` SHIPS: the post-commit/post-merge hook
   (`scripts/release.sh`, installed by `scripts/install-git-hooks.sh`) pushes,
   builds `mac-analyzers-v<V>.tar.gz` via `git archive`, and creates the
-  GitHub release. Same-version merges no-op (tag already exists).
-- Cut a release: bump `VERSION` (single source of truth) on `development`,
-  then merge development → main **in the main worktree**
-  (`.composure/workspaces/main`) — never by switching the root checkout.
+  GitHub release with that version's `CHANGELOG.md` entry as its notes.
+  Same-version merges no-op (tag already exists).
+- Cut a release with `scripts/cut-release.sh <version|patch|minor|major>`
+  (`--dry-run` to rehearse) — the ONE way to ship. It refuses to start
+  without a What's New entry for the new version in `CHANGELOG.md` that
+  passes `scripts/changelog-check.sh`, then bumps `VERSION` (single source
+  of truth), pushes development, and merges development → main **in the
+  main worktree** (`.composure/workspaces/main`) — never by switching the
+  root checkout. Never bump `VERSION` by hand without releasing: 2.65–2.67
+  were bumped on development and never reached anyone.
+- `CHANGELOG.md` is the single source for release notes: the GitHub release
+  body AND the app's What's New (bundled by `build.sh`). Entries are written
+  for someone who uses the app and has never seen the code — full sentences,
+  what changed for THEM, no commit shorthand, no code names. The gate runs
+  three times (cut-release, the pre-merge-commit hook on main, release.sh),
+  so a hand-made merge cannot ship without one either.
 - Installed clones update via `./upgrade.command` (Finder double-clickable):
   `git pull --ff-only` → `app/build.sh` (reinstalls to /Applications) → both
   `*-manage-agents.sh install` → relaunch the app (prefers the /Applications
