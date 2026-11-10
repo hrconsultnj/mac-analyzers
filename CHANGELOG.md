@@ -18,6 +18,8 @@ heading becomes its version and title.
 - Building the app from source no longer asks for access to your keychain.
 - Mac Analyzers keeps all of its records in your mac-analyzers folder, so
   nothing is lost when the app updates.
+- The Update screen shows exactly which build you are running, not only the
+  version number.
 
 ## v2.68.0 — See where all of your memory goes
 
