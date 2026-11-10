@@ -33,3 +33,6 @@ license.lic
 
 # downloads built by scripts/package.sh
 dist/
+
+# a build started from the repository root by mistake
+/.build/
