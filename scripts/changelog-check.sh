@@ -63,8 +63,9 @@ if [[ -z "$heading" ]]; then
   cat >&2 <<EOF
 changelog: no entry for v$version in CHANGELOG.md.
 
-Add one at the top of the list, written for someone who uses the app and has
-never seen the code:
+Rename the "## Next" heading at the top to this version and give it a title
+(or add the entry there), written for someone who uses the app and has never
+seen the code:
 
   ## v$version — One sentence saying what is better now
 

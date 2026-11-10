@@ -6,16 +6,11 @@ import UIComponents
 /// repo's upgrade.command (runs in Terminal so progress is visible).
 struct UpdateSettingsView: View {
 
-    /// One release's notes, parsed from the bundled changelog.
-    struct ReleaseNote: Identifiable {
-        let title: String
-        let body: String
-        var id: String { title }
-    }
-
     @State private var latest: String?
     @State private var checking = false
     @State private var notes: [ReleaseNote] = []
+    /// Which entries the reader opened or closed, by entry id.
+    @State private var expanded: [String: Bool] = [:]
 
     private var installed: String { UpdateChecker.installedVersion }
     private var updateAvailable: Bool {
@@ -24,7 +19,7 @@ struct UpdateSettingsView: View {
 
     var body: some View {
         PaneScaffold(symbol: "arrow.down.circle.fill", color: .green, title: "Update",
-                     caption: "Keep Mac Analyzers current, straight from the repo.") {
+                     caption: "See what version you have, what is new, and install the latest.") {
             Section {
                 LabeledContent("Installed version") { Text("v\(installed)").monospacedDigit() }
                 LabeledContent("Latest release") {
@@ -61,12 +56,8 @@ struct UpdateSettingsView: View {
             if !notes.isEmpty {
                 Section("What's New") {
                     ForEach(Array(notes.enumerated()), id: \.element.id) { index, note in
-                        DisclosureGroup(isExpanded: .constant(index == 0).animation()) {
-                            Text(note.body)
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .textSelection(.enabled)
+                        DisclosureGroup(isExpanded: expansion(of: note, isNewest: index == 0)) {
+                            ReleaseNoteBody(note: note)
                         } label: {
                             Text(note.title)
                                 .font(.callout.weight(.medium))
@@ -77,7 +68,7 @@ struct UpdateSettingsView: View {
         }
         .task {
             UserDefaults.standard.set(installed, forKey: "lastSeenChangelog")
-            await awaitLoad({ Self.loadNotes() }) { notes = $0 }
+            await awaitLoad({ ReleaseNote.bundled() }) { notes = $0 }
         }
         .task {
             // always fresh when the pane opens — the cache is for background
@@ -88,19 +79,12 @@ struct UpdateSettingsView: View {
         }
     }
 
-    /// Bundled at build time from the release-note commits; each "## vX.Y…"
-    /// header starts one release.
-    private nonisolated static func loadNotes() -> [ReleaseNote] {
-        guard let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md"),
-              let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
-        return text.components(separatedBy: "## ")
-            .filter { $0.hasPrefix("v") }
-            .compactMap { block in
-                let lines = block.split(separator: "\n", omittingEmptySubsequences: false)
-                guard let first = lines.first else { return nil }
-                let body = lines.dropFirst().joined(separator: "\n")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                return ReleaseNote(title: String(first), body: body.isEmpty ? "—" : body)
-            }
+    /// The newest entry starts open; every entry can be opened and closed.
+    /// (The binding used to be a constant, so older releases could never be
+    /// read at all — their arrows did nothing.)
+    private func expansion(of note: ReleaseNote, isNewest: Bool) -> Binding<Bool> {
+        Binding(
+            get: { expanded[note.id] ?? isNewest },
+            set: { expanded[note.id] = $0 })
     }
 }

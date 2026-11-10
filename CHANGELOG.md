@@ -5,6 +5,14 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## Next
+
+Notes for the release being worked on collect here. When it ships, this
+heading becomes its version and title.
+
+- What's New is easier to read: entries are set as flowing paragraphs with
+  real lists, and older releases can now be opened as well as the newest.
+
 ## v2.68.0 — See where all of your memory goes
 
 The Monitor screen now accounts for every running process instead of only
