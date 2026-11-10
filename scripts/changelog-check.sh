@@ -81,7 +81,11 @@ fi
 # ── the title ──────────────────────────────────────────────────────────────
 [[ "$heading" == *" — "* ]] || fail "the heading needs a title: \"## v$version — What is better now\""
 if [[ -n "$title" ]]; then
-  [[ "$title" =~ ^[A-Z0-9\"\'“‘] ]] || fail "the title starts lowercase: \"$title\""
+  # (the pattern lives in a variable: quotes inside a [[ =~ ]] expression are
+  #  legal bash but unparseable for shellcheck, which CI gates on)
+  # shellcheck disable=SC1112  # the curly quotes are deliberate: a title may open with them
+  title_start='^[A-Z0-9"“‘'"'"']'
+  [[ "$title" =~ $title_start ]] || fail "the title starts lowercase: \"$title\""
   (( $(wc -w <<<"$title") >= 3 )) || fail "the title is too short to say anything: \"$title\""
 fi
 
