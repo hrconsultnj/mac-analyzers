@@ -56,8 +56,24 @@ awk '/^## v[0-9]/{count++} count>20{exit} count>0{print}' ../CHANGELOG.md \
 # __SUITE_DIR__ from their own location, so they run unchanged from in here.
 ENGINE="$APP/Contents/Resources/engine"
 mkdir -p "$ENGINE"
+# Only files that belong to the project go in: tracked files plus new ones
+# git would accept. A plain recursive copy also swept up whatever happened to
+# sit in those folders on the build machine — editor and assistant session
+# state, local planning notes, .DS_Store — and shipped it inside the app.
 for dir in memory-analyzer storage-analyzer network-analyzer lib; do
-  [[ -d "../$dir" ]] && cp -R "../$dir" "$ENGINE/"
+  [[ -d "../$dir" ]] || continue
+  if git -C .. rev-parse --git-dir >/dev/null 2>&1; then
+    (cd .. && git ls-files -z --cached --others --exclude-standard -- "$dir") \
+      | while IFS= read -r -d '' file; do
+          [[ -f "../$file" && "$file" != */tests/* ]] || continue
+          mkdir -p "$ENGINE/$(dirname "$file")"
+          cp -p "../$file" "$ENGINE/$file"
+        done
+  else
+    # a source download with no git history: copy, minus the usual strays
+    rsync -a --exclude 'tasks-plans' --exclude '.composure' --exclude '.claude' \
+      --exclude '.DS_Store' --exclude 'tests' "../$dir" "$ENGINE/"
+  fi
 done
 cp ../config.example.sh "$ENGINE/" 2>/dev/null || true
 cp ../VERSION "$ENGINE/" 2>/dev/null || true
