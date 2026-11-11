@@ -120,7 +120,5 @@ import os
           refused(store.apply(from: fallback, approved: ApprovedSet(approvable: plists, deselected: []))))
 
     print(failures == 0 ? "all login-removal rules hold" : "\(failures) login-removal rule(s) broken")
-    // `exit` runs no `defer`: remove the temporary folder before leaving
-    try? FileManager.default.removeItem(at: dir)
     exit(failures == 0 ? 0 : 1)
 }
