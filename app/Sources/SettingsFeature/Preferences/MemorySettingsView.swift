@@ -80,10 +80,12 @@ struct MemorySettingsView: View {
             }
 
             Section {
-                FullWidthSegments(
-                    options: ProcessListTab.allCases.map { ($0, $0.rawValue) },
-                    selection: $processListTab
-                )
+                // a choice between two lists, not categories: a segmented picker in the form
+                Picker("List", selection: $processListTab) {
+                    ForEach(ProcessListTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
 
                 Text(processListTab == .protected
                      ? "Never stopped by the guard or the reapers — matched against process names."

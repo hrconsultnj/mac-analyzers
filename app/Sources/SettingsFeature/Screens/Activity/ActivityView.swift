@@ -58,7 +58,8 @@ struct ActivityView: View {
         // that same click; the field no longer holds the keyboard until Escape.
         .onChange(of: selection) { searchFocused = false }
         .onChange(of: filter.scope) { searchFocused = false }
-        .scopeTabsToolbar(screen: "activity", items: scopeTabs, selection: $filter.scope)
+        // only while Activity's own list is showing: under a pushed screen its tabs are hidden, so Command-2 must not change them
+        .scopeTabsToolbar(screen: "activity", items: scopeTabs, selection: $filter.scope, isActive: navigator.path.isEmpty)
         .onKeyPress(.return) {
             guard let row = selection.flatMap(rowFor) else { return .ignored }
             RunRowActions(store: store, navigator: navigator, model: model).open(row)
@@ -76,7 +77,7 @@ struct ActivityView: View {
             try? await Task.sleep(for: .seconds(max(1, expiry.timeIntervalSinceNow + 1)))
             await model.refresh(store: store)
         }
-        .onChange(of: storeStamp) { Task { await model.refresh(store: store) } }
+        .onChange(of: storeStamp) { Task { await model.refreshIfNeeded(store: store, maxAge: 0) } }
     }
 
     /// A deep link's scope, search or folded days, applied once.

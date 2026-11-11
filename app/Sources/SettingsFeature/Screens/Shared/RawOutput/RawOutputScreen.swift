@@ -1,6 +1,7 @@
 import AppKit
 import AnalyzersKit
 import SwiftUI
+import UIComponents
 
 /// What a raw-output screen shows: one run found in a log, one tracked job, or
 /// a whole log. Codable so the screen survives a relaunch like any other route
@@ -10,6 +11,9 @@ enum RawOutputSubject: Hashable, Codable {
     case job(UUID)
     /// An `EngineLog` raw value; the screen shows the end of that log.
     case log(String)
+    /// A file (a report as written). `fromTop: true` reads and opens at the beginning, the way a
+    /// document is read; false reads the end and opens at the newest line, the way a log is.
+    case file(URL, fromTop: Bool)
 }
 
 /// The raw text of a run, a job or a log, inside the app: searchable, selectable,
@@ -21,6 +25,11 @@ enum RawOutputSubject: Hashable, Codable {
 /// or open it by link: `raw:<log raw value>`, for example `raw:storageClean`.
 /// A run or a job gets there from its row's menu ("Show Raw Output") or from its own
 /// screen. A whole log shows its last `RawOutputScreen.tailLength` lines and says so.
+///
+/// Which source: a run or job you already hold, `.run` / `.job`; an engine log, `.log` (its end,
+/// newest line first in view); any other file, `.file(url, fromTop:)` — `fromTop: true` for a
+/// document (a report, read from its first line, "First 5,000 lines" when cut), `false` for a
+/// file that grows at the end like a log.
 struct RawOutputScreen: View {
     let subject: RawOutputSubject
 
@@ -34,7 +43,7 @@ struct RawOutputScreen: View {
     @State private var log: LoadedLog?
     private var model: ActivityModel { .shared }
 
-    private struct LoadedLog { var lines: [String]; var cut: Bool }
+    private struct LoadedLog { var lines: [String]; var cut: Bool; var fromTop = false }
 
     /// The text, or nil while it is still being found.
     private var found: (lines: [String], cut: Bool)? {
@@ -43,18 +52,26 @@ struct RawOutputScreen: View {
             guard model.hasLoaded else { return nil }
             return model.logRun(for: reference).map { ($0.lines, false) }
         case .job(let id):
-            if let job = store.jobs.first(where: { $0.id == id }) { return (job.lines, false) }
+            if let job = store.jobs.first(where: { $0.id == id }) {
+                // a job keeps only its last lines: say so when it has dropped some
+                return (job.lines, job.receivedLineCount > job.lines.count)
+            }
             guard model.hasLoaded else { return nil }
             return model.rows.first { $0.jobID == id }.map { (model.lines(for: $0), false) }
-        case .log:
+        case .log, .file:
             return log.map { ($0.lines, $0.cut) }
         }
+    }
+
+    private var fromTop: Bool {
+        if case .file(_, let top) = subject { return top }
+        return false
     }
 
     private var isGone: Bool {
         switch subject {
         case .run, .job: model.hasLoaded && found == nil
-        case .log: false
+        case .log, .file: false
         }
     }
 
@@ -63,6 +80,7 @@ struct RawOutputScreen: View {
         case .run(let reference): model.row(for: reference)?.displayTitle ?? Names.log(reference.log)
         case .job(let id): model.rows.first { $0.jobID == id }?.displayTitle ?? "Job"
         case .log(let raw): EngineLog(rawValue: raw).map(Names.log) ?? raw
+        case .file(let url, _): url.lastPathComponent
         }
     }
 
@@ -100,11 +118,11 @@ struct RawOutputScreen: View {
                 ContentUnavailableView.search(text: query)
             } else {
                 VStack(spacing: 0) {
-                    RunLinesView(lines: matching, anchorBottom: true)
+                    RunLinesView(lines: matching, anchorBottom: !fromTop)
                     if found.cut {
-                        Text("Last \(found.lines.count.formatted()) lines")
+                        Text("\(fromTop ? "First" : "Last") \(found.lines.count.formatted()) lines")
                             .font(.caption).foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.vertical, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.vertical, Tokens.Space.xs)
                     }
                 }
             }
@@ -128,7 +146,25 @@ struct RawOutputScreen: View {
             guard let url = EngineLog(rawValue: raw)?.url else { log = LoadedLog(lines: [], cut: false); return }
             let keep = Self.tailLength, bytes = Self.tailBytes
             log = await Task.detached(priority: .userInitiated) { Self.readTail(url, lines: keep, bytes: bytes) }.value
+        case .file(let url, let top):
+            let keep = Self.tailLength, bytes = Self.tailBytes
+            log = await Task.detached(priority: .userInitiated) {
+                top ? Self.readHead(url, lines: keep, bytes: bytes) : Self.readTail(url, lines: keep, bytes: bytes)
+            }.value
         }
+    }
+
+    /// The first `lines` lines of a document, from the first `bytes` bytes, decoded leniently.
+    nonisolated private static func readHead(_ url: URL, lines keep: Int, bytes: Int) -> LoadedLog {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return LoadedLog(lines: [], cut: false, fromTop: true) }
+        defer { try? handle.close() }
+        let data = (try? handle.read(upToCount: bytes)) ?? Data()
+        var all = String(decoding: data, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let size = (try? handle.seekToEnd()) ?? 0
+        let truncated = size > UInt64(bytes)
+        // the window may end mid-line: that last piece is not a whole line
+        if truncated, !all.isEmpty { all.removeLast() }
+        return LoadedLog(lines: Array(all.prefix(keep)), cut: truncated || all.count > keep, fromTop: true)
     }
 
     /// The last `lines` lines, found by reading the last `bytes` bytes (not the whole

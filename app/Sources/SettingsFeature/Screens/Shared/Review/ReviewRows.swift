@@ -65,7 +65,7 @@ struct ReviewNode: Identifiable, Hashable, Sendable {
     var sortName: String { title }
 
     /// The fold's id can never equal a group's: groups are `group:<name>`.
-    static let foldID = "fold:empty"
+    static let foldID = RowGroup<ReviewRow>.emptyID
 
     init(row: ReviewRow) {
         id = row.id; title = row.name; bytes = row.bytes; iconPath = row.iconPath; valueText = row.valueText
@@ -91,24 +91,24 @@ struct ReviewNode: Identifiable, Hashable, Sendable {
         children = members
     }
 
-    /// The tree for these rows: rows that name a group sit under it; groups with
-    /// something to choose come first and groups with nothing to choose last; rows
-    /// that are nothing (0 bytes) fold into one closed group at the very end.
+    /// The tree for these rows, grouped and folded by `RowGroup.make` (one rule, one fold):
+    /// groups with something to choose come first and groups with nothing to choose last;
+    /// the fold of rows that are nothing is closed at the very end; a row that names no
+    /// group stays flat.
     static func tree(_ rows: [ReviewRow], order: [KeyPathComparator<ReviewNode>]) -> [ReviewNode] {
-        let sizesKnown = rows.contains { $0.bytes != nil }
-        let empty = sizesKnown ? rows.filter { $0.bytes == 0 } : []
-        let emptyIDs = Set(empty.map(\.id))
-        let live = rows.filter { !emptyIDs.contains($0.id) }
-        let grouped = Dictionary(grouping: live.filter { $0.group != nil }, by: { $0.group ?? "" })
-        let groups = grouped.map { name, members in
-            ReviewNode(group: name, id: "group:\(name)", members: members.map(ReviewNode.init(row:)).sorted(using: order))
+        var top: [ReviewNode] = []
+        var fold: ReviewNode?
+        for group in RowGroup.make(rows, group: \.group, bytes: \.bytes, emptyTitle: Names.Review.nothingToFree) {
+            let members = group.rows.map(ReviewNode.init(row:)).sorted(using: order)
+            if group.isFolded {
+                fold = ReviewNode(group: group.title, id: foldID, members: members)
+            } else if group.id.hasPrefix("row:"), let only = members.first {
+                top.append(only)
+            } else {
+                top.append(ReviewNode(group: group.title, id: group.id, members: members))
+            }
         }
-        let loose = live.filter { $0.group == nil }.map(ReviewNode.init(row:))
-        let sorted = (groups + loose).sorted(using: order)
-        var top = sorted.filter { !$0.isKept } + sorted.filter(\.isKept)
-        if !empty.isEmpty {
-            top.append(ReviewNode(group: Names.Review.nothingToFree, id: foldID, members: empty.map(ReviewNode.init(row:))))
-        }
-        return top
+        let sorted = top.sorted(using: order)
+        return sorted.filter { !$0.isKept } + sorted.filter(\.isKept) + (fold.map { [$0] } ?? [])
     }
 }
