@@ -35,6 +35,17 @@ without an entry here — see `scripts/cut-release.sh`.
   once the Trash is emptied it is gone from iCloud and from your other
   devices. They are listed under "Only in iCloud" with their real size, and the
   run's summary says how many were left.
+- Two new screens under Storage. Unused Apps finds the apps you have not
+  opened for six months or more, grouped by how long ago, each with what goes
+  with it: its Application Support, caches and preferences. Tick the apps to
+  remove and they go to the Trash with their files, so Undo can bring them
+  back; the confirmation names every app. An app that macOS has no record of,
+  that runs in the background (a login item, launch agent, helper or system
+  extension, a menu-bar tool), that is running, or that has other apps inside
+  it is listed but never offered. In Terminal, `cleanup.sh --stale-apps
+  --execute` only removes a list you wrote yourself; apps found by their date
+  are removed only from a review in the app. Old Recordings lists recording
+  folders older than 90 days by the month they were made.
 - Spotlight lists your developer folders by project with a checkbox to fence
   or unfence each one, and Fence and Unfence for a whole selection. Fence All
   names the folders it will fence and fences exactly those, not whatever a new

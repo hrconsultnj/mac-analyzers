@@ -55,6 +55,43 @@ public enum StorageFixtures {
                              detail: "13 developer folders still indexed.")])
     }
 
+    /// What a preview of unused apps shows: the apps by how long since they were opened.
+    public static func unusedApps() -> StorageRows {
+        func app(_ name: String, _ opened: String?, _ items: [(String, String)]) -> [String] {
+            var lines = ["### APP: \(name)   (bundle: com.example.\(name.replacingOccurrences(of: " ", with: "")))"]
+            if let opened { lines.append("last launched (Spotlight): \(opened)") }
+            lines.append("[APP]     /Applications/\(name).app")
+            lines.append("[DRY]       \(items[0].0)  /Applications/\(name).app")
+            for item in items.dropFirst() { lines.append("[DRY]       \(item.0)  ~/Library/\(item.1)") }
+            return lines
+        }
+        let day = { (days: Int) in DateFormatter.fixtureDay.string(from: Date().addingTimeInterval(-Double(days) * 86_400)) }
+        var lines: [String] = []
+        lines += app("Old Editor", day(520), [("1.2 GB", ""), ("640 MB", "Application Support/Old Editor"), ("90 MB", "Caches/com.example.OldEditor"), ("12 KB", "Preferences/com.example.OldEditor.plist")])
+        lines += app("Screen Recorder", day(410), [("310 MB", ""), ("4.1 GB", "Application Support/Screen Recorder"), ("22 MB", "Caches/com.example.ScreenRecorder")])
+        lines += app("Photo Tool", day(230), [("880 MB", ""), ("120 MB", "Containers/com.example.PhotoTool")])
+        lines += app("Video Converter", day(200), [("250 MB", ""), ("30 MB", "Caches/com.example.VideoConverter")])
+        lines += app("Chat Client", nil, [("410 MB", ""), ("1.0 GB", "Application Support/Chat Client")])
+        lines += ["### APP: Notes Sync   (bundle: com.example.NotesSync)", "last launched (Spotlight): \(day(300))", "[APP]     /Applications/Notes Sync.app",
+                  "[DRY]       95 MB  /Applications/Notes Sync.app", "  ⚠ Notes Sync appears to be RUNNING — quit it first; skipping this app."]
+        // apps that cannot be judged are listed and kept, with the reason
+        lines += ["### APP: VPN Client   (bundle: com.example.VPNClient)", "last launched (Spotlight): \(day(260))", "[APP]     /Applications/VPN Client.app",
+                  "[KEEP]    Has a system extension"]
+        lines += ["### APP: Menu Tool   (bundle: com.example.MenuTool)", "[APP]     /Applications/Menu Tool.app",
+                  "[KEEP]    macOS has no record of when this was last opened"]
+        return UnusedReview.apps(lines: lines.map { $0.trimmingCharacters(in: .whitespaces) })
+    }
+
+    /// What a preview of old recordings shows: folders by the month they were made.
+    public static func recordings() -> StorageRows {
+        let months = ["Standup 2026-05", "Client call 2026-05", "Demo 2026-06", "All hands 2026-06", "Interview 2026-07"]
+        let lines = months.enumerated().map { "[DRY]     \(String(format: "%.1f", Double($0.offset) + 0.8)) GB  \(home)/Recordings/\($0.element)" }
+        let dates = ["May 2026", "May 2026", "June 2026", "June 2026", "July 2026"]
+        return UnusedReview.recordings(lines: lines, info: { path in
+            months.firstIndex { path.hasSuffix($0) }.flatMap { DateFormatter.fixtureMonth.date(from: dates[$0]) }
+        })
+    }
+
     public static func downloads() -> StorageRows {
         var lines = ["### Downloads (untouched 60+ days)"]
         let documents = ["Invoice March.pdf", "Tax Notes.docx", "Lease.pdf", "Receipt 4821.pdf", "Meeting Notes.txt"]
@@ -137,4 +174,13 @@ public enum StorageFixtures {
         ]
         return DownloadReview.build(lines: lines, results: true).rows
     }
+}
+
+private extension DateFormatter {
+    static let fixtureDay: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f
+    }()
+    static let fixtureMonth: DateFormatter = {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "MMMM yyyy"; return f
+    }()
 }

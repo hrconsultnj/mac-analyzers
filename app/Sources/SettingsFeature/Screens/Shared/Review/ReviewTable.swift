@@ -13,6 +13,9 @@ struct ReviewConfirmation {
     var message: String
     /// A second sentence for a delete that cannot be undone; nil when the first is enough.
     var permanent: String?
+    /// When set ("Apps to remove"), the dialog's message also names every ticked row: "Apps to remove: A, B,
+    /// and C." For a review whose rows a person should see by name before agreeing.
+    var namesRows: String?
 }
 
 /// The review before a cleanup, as a table: a tick per row, rows grouped under the
@@ -258,7 +261,8 @@ struct ReviewTable: View {
                 verb: confirmation.verb, destination: confirmation.destination, count: now.rows.count,
                 bytes: now.hasSizes ? now.bytes : nil, alsoActs: alsoActs, actingNames: names),
             countText: now.countText,
-            actingLine: alsoActs.flatMap { ReviewWording.fullActingLine(alsoActs: $0, names: names) })
+            actingLine: alsoActs.flatMap { ReviewWording.fullActingLine(alsoActs: $0, names: names) }
+                ?? confirmation.namesRows.map { "\($0): \(ReviewWording.fullNames(now.rows.map(\.name)))." })
         asking = true
     }
 

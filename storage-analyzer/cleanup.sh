@@ -24,6 +24,30 @@
 #   ./cleanup.sh --stale-apps --execute                 # remove them (asks per app)
 #   ./cleanup.sh --app "Loom" --app "Framer" --execute  # target specific apps
 #
+# REVIEWED LIST (the app's Unused Apps and Recordings screens): --only-paths FILE
+# acts only on the items whose exact path is a whole line of FILE. For apps the
+# key is the app bundle's path (its whole footprint goes with it); for
+# recordings it is the folder's path. The script still finds everything itself,
+# so a list can only shrink what is touched; an empty list touches nothing.
+#   ./cleanup.sh --stale-apps --execute --yes --only-paths /tmp/approved.txt
+# App and recordings runs write their blocks to reports/storage/cleanup-apps.log
+# and cleanup-recordings.log.
+#
+# With no list configured in config.local.sh (ANALYZERS_STALE_APPS), --stale-apps LOOKS for
+# unused apps itself: apps in /Applications and ~/Applications (ANALYZERS_APP_DIRS: other
+# folders, colon-separated) that Spotlight says were last opened ANALYZERS_STALE_APP_DAYS days
+# ago (default 180) or more. Found by a date is not chosen by a person, so:
+#   * they are only LISTED. Removing them needs a reviewed list (--only-paths, which the Mac
+#     Analyzers app writes from what you tick); `--stale-apps --execute` without one refuses
+#     (exit 78). Name apps yourself with --app, or list them in ANALYZERS_STALE_APPS, to
+#     remove them from Terminal;
+#   * an app that cannot be judged is kept and shown as such, never removed: one that is
+#     running, that runs on its own (login item, launch agent or daemon, helper tool, system
+#     extension, menu-bar or background-only app), that has other apps inside it, that is not a
+#     plain folder in an install folder, or that macOS has no usable record for (no index
+#     entry, indexing off).
+# Removed apps and their files go to the Trash, with a receipt Undo can read.
+#
 # Everything in the main groups is either a regenerable build/cache artifact
 # or a path YOU configured as deprecated in config.local.sh. Nothing here is
 # irreplaceable content.
@@ -39,6 +63,7 @@ DO_STALE_APPS=0
 LIST_APP=""
 APP_TARGETS=()
 SKIP_BUILD=0
+ONLY_PATHS=""
 
 # optional per-machine config (gitignored) — see config.example.sh at repo root
 ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -49,13 +74,19 @@ ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 [[ -f "$HOME/mac-analyzers/config.local.sh" && "${ANALYZERS_ROOT}" != "$HOME/mac-analyzers" ]] \
   && source "$HOME/mac-analyzers/config.local.sh"
 
+# the launch inventory shared with the login items audit (only discovery needs it)
+LAUNCH_LIB="${ANALYZERS_ROOT}/lib/launch-items.sh"
+
 # Curated "stale apps" come from config.local.sh (ANALYZERS_STALE_APPS) — run
 # analyze.sh §24 (apps by last-opened) to build your list. Only acts with
 # --stale-apps, and even then it's a dry run until --execute.
 STALE_APPS=()
+STALE_DISCOVERED=0     # 1 when the list was FOUND by a date, not written by the person
+PURGE_DISCOVERED=0     # 1 while purge_app works on a found app
 [[ -n "${ANALYZERS_STALE_APPS+x}" ]] && STALE_APPS=( "${ANALYZERS_STALE_APPS[@]}" )
 
 ORIG_ARGS="$*"
+ORIG_ARR=( "$@" )
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --execute) DRY_RUN=0 ;;
@@ -65,10 +96,47 @@ while [[ $# -gt 0 ]]; do
     --stale-apps) DO_STALE_APPS=1 ;;
     --list-app) LIST_APP="${2:-}"; shift ;;
     --skip-build-caches) SKIP_BUILD=1 ;;
+    --only-paths) ONLY_PATHS="${2:-}"; shift ;;
     *) echo "Unknown arg: $1"; exit 1 ;;
   esac
   shift
 done
+
+# --only-paths <file>: act ONLY on items whose path is a whole line of the file. Looked for
+# before `source`, so a missing file or library says why and stops (exit 78) instead of dying silently.
+if [[ -n "${ONLY_PATHS}" ]]; then
+  if [[ ! -f "${ONLY_PATHS}" ]]; then
+    echo "FATAL: --only-paths file not found: ${ONLY_PATHS}" >&2
+    exit 78
+  fi
+  if [[ ! -f "${ANALYZERS_ROOT}/lib/approved-list.sh" ]] || ! source "${ANALYZERS_ROOT}/lib/approved-list.sh" 2>/dev/null; then
+    echo "FATAL: lib/approved-list.sh is missing — refusing to run with a reviewed list it cannot check." >&2
+    exit 78
+  fi
+  approved_list_load "${ONLY_PATHS}"
+fi
+approved() {  # approved <key>: in the reviewed list, or there is none
+  [[ -z "${ONLY_PATHS}" ]] && return 0
+  approved_list_has "$1"
+}
+
+# App and recordings runs are kept in a log of their own, so History and Activity can find them.
+# The run starts again with its output piped through `tee`, which keeps the exit status and means
+# the log is complete when this process ends.
+RUN_KIND=""
+if [[ -n "$LIST_APP" || ${#APP_TARGETS[@]} -gt 0 || "$DO_STALE_APPS" -eq 1 ]]; then RUN_KIND="apps"
+elif [[ -n "$REC_DAYS" ]]; then RUN_KIND="recordings"; fi
+if [[ -n "$RUN_KIND" && -z "${CLEANUP_SCRIPT_TEED:-}" ]]; then
+  CLEANUP_LOG_DIR="${HOME}/mac-analyzers/reports/storage"
+  mkdir -p "$CLEANUP_LOG_DIR"
+  CLEANUP_SCRIPT_TEED=1 "${BASH:-bash}" "$0" "${ORIG_ARR[@]}" 2>&1 | tee -a "${CLEANUP_LOG_DIR}/cleanup-${RUN_KIND}.log"
+  exit "${PIPESTATUS[0]}"
+fi
+if [[ -n "$RUN_KIND" ]]; then
+  echo "=================================================================="
+  echo "cleanup | ${RUN_KIND} | $([[ "$DRY_RUN" -eq 1 ]] && echo 'DRY RUN' || echo 'APPLY') | $(date '+%Y-%m-%d %H:%M:%S')"
+  echo "=================================================================="
+fi
 
 # ---------- interactive menu (double-click / bare terminal run) ----------
 INTERACTIVE=0
@@ -204,9 +272,20 @@ purge_app() {
   app="$(resolve_app_path "$app_in")"
   name="$(basename "${app%.app}")"
   bid="$(resolve_bid "$app")"
+  # the reviewed list's key for an app is its bundle's path; the whole footprint goes with it
+  if ! approved "$app"; then
+    group "APP: ${name}   (bundle: ${bid:-unknown})"
+    echo "  [SKIP] not in approved set  ${app}"
+    return 0
+  fi
   group "APP: ${name}   (bundle: ${bid:-unknown})"
+  printf "  [APP]     %s\n" "$app"
   lu=$(mdls -name kMDItemLastUsedDate -raw "$app" 2>/dev/null)
   [[ -n "$lu" && "$lu" != "(null)" ]] && echo "  last launched (Spotlight): ${lu%% *}"
+  if [[ "$PURGE_DISCOVERED" -eq 1 ]]; then
+    local keep; keep="$(discovered_keep_reason "$app" "$bid")"
+    if [[ -n "$keep" ]]; then printf "  [KEEP]    %s\n" "$keep"; return 0; fi
+  fi
   if pgrep -x "$name" >/dev/null 2>&1 || pgrep -f "/${name}.app/Contents/MacOS/" >/dev/null 2>&1; then
     echo "  ⚠ ${name} appears to be RUNNING — quit it first; skipping this app."
     return 0
@@ -226,7 +305,89 @@ purge_app() {
     read -r ans </dev/tty 2>/dev/null || ans="n"
     [[ "$ans" =~ ^[Yy]$ ]] || { echo "  skipped."; return 0; }
   fi
-  for p in "${APP_PATHS[@]}"; do rm -rf "$p" 2>/dev/null && printf "  [DELETED] %s\n" "${p/#${HOME_DIR}/~}"; done
+  for p in "${APP_PATHS[@]}"; do
+    kb=$(du -sk "$p" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"
+    if ! trash_item "$p" "$kb"; then printf "  [FAILED]  %s\n" "${p/#${HOME_DIR}/~}"; fi
+  done
+}
+
+# fill STALE_APPS from the Mac itself when none was configured: apps Spotlight last saw opened
+# ANALYZERS_STALE_APP_DAYS days ago or more, and apps it has no record of (purge_app decides which of
+# those can be offered: see discovered_keep_reason). Nothing here removes anything.
+discover_stale_apps() {
+  local days="${ANALYZERS_STALE_APP_DAYS:-180}" app lu cutoff ts dirs dir
+  cutoff=$(( $(date +%s) - days * 86400 ))
+  STALE_APPS=()
+  STALE_DISCOVERED=1
+  IFS=: read -r -a dirs <<< "${ANALYZERS_APP_DIRS:-/Applications:${HOME_DIR}/Applications}"
+  for dir in "${dirs[@]}"; do
+    for app in "$dir"/*.app; do
+      [[ -d "$app" || -L "$app" ]] || continue
+      lu=$(mdls -name kMDItemLastUsedDate -raw "$app" 2>/dev/null)
+      if [[ -n "$lu" && "$lu" != "(null)" ]]; then
+        ts=$(date -j -f "%Y-%m-%d %H:%M:%S %z" "$lu" +%s 2>/dev/null) || { STALE_APPS+=( "$app" ); continue; }   # unreadable date: listed, and kept
+        [[ "$ts" -lt "$cutoff" ]] && STALE_APPS+=( "$app" )
+      else
+        STALE_APPS+=( "$app" )     # no record of use: listed, then kept or "never opened" (below)
+      fi
+    done
+  done
+}
+
+# Why a FOUND app must not be offered for removal; prints the reason, nothing when it can be.
+# When in doubt the answer is a reason: only an app that can be shown to be unused is offered.
+discovered_keep_reason() {
+  local app="$1" bid="$2" days="${ANALYZERS_STALE_APP_DAYS:-180}" cutoff lu added ts why index
+  cutoff=$(( $(date +%s) - days * 86400 ))
+  case "$bid" in com.apple.*) echo "Part of macOS"; return ;; esac
+  [[ -z "$bid" ]] && { echo "macOS cannot say what this app is, so it is kept"; return; }
+  if [[ -L "$app" ]]; then echo "Lives on another volume or is a link, so it is kept"; return; fi
+  [[ -d "$app/Contents" ]] || { echo "Not a plain app folder, so it is kept"; return; }
+  # runs on its own: the one inventory the login items audit reads
+  # shellcheck source=../lib/launch-items.sh
+  if [[ -f "$LAUNCH_LIB" ]] && source "$LAUNCH_LIB" 2>/dev/null; then
+    why="$(app_runs_on_its_own "$app" "$bid")" && { echo "$why"; return; }
+  else
+    echo "The launch inventory (lib/launch-items.sh) is missing, so every app is kept"; return
+  fi
+  # a usable date: Spotlight's last-opened, or a usable index that knows the app but has no use of it
+  lu=$(mdls -name kMDItemLastUsedDate -raw "$app" 2>/dev/null)
+  if [[ -n "$lu" && "$lu" != "(null)" ]]; then
+    ts=$(date -j -f "%Y-%m-%d %H:%M:%S %z" "$lu" +%s 2>/dev/null) \
+      || { echo "macOS has no record of when this was last opened"; return; }
+    [[ "$ts" -lt "$cutoff" ]] || echo "Opened recently"
+    return
+  fi
+  index="$(mdutil -s / 2>/dev/null)"
+  case "$index" in *"Indexing enabled"*) : ;; *) echo "macOS has no record of when this was last opened (indexing is off)"; return ;; esac
+  added=$(mdls -name kMDItemDateAdded -raw "$app" 2>/dev/null)
+  if [[ -z "$added" || "$added" == "(null)" ]]; then echo "macOS has no record of when this was last opened"; return; fi
+  ts=$(date -j -f "%Y-%m-%d %H:%M:%S %z" "$added" +%s 2>/dev/null) || { echo "macOS has no record of when this was last opened"; return; }
+  [[ "$ts" -lt "$cutoff" ]] || echo "Installed recently, so it is too soon to say it is unused"
+}
+
+# move one path to the Trash under a name nothing else has, and say where it went (the receipt Undo reads)
+trash_dest() {
+  local name="$1" dest="${HOME_DIR}/.Trash/$1" stamp n=1
+  if [[ -e "$dest" || -L "$dest" ]]; then
+    stamp="$(date +%s)"; dest="${HOME_DIR}/.Trash/${stamp}-${name}"
+    while [[ -e "$dest" || -L "$dest" ]]; do dest="${HOME_DIR}/.Trash/${stamp}-${n}-${name}"; n=$((n+1)); done
+  fi
+  echo "$dest"
+}
+trash_item() {  # <path> <size in KB>: 0 when it is in the Trash and the source is gone
+  local src="$1" kb="$2" dest _try
+  mkdir -p "${HOME_DIR}/.Trash"
+  for _try in 1 2 3 4 5; do
+    dest="$(trash_dest "$(basename "$src")")"
+    [[ -e "$dest" || -L "$dest" ]] && continue
+    mv -n -- "$src" "$dest" 2>/dev/null || true
+    if [[ ! -e "$src" && ! -L "$src" && ( -e "$dest" || -L "$dest" ) ]]; then
+      printf "  [TRASHED] %s  %s  ->  %s\n" "$(human "$kb")" "$src" "$dest"
+      return 0
+    fi
+  done
+  return 1
 }
 
 run_app_mode() {
@@ -235,7 +396,18 @@ run_app_mode() {
     save="$DRY_RUN"; DRY_RUN=1; purge_app "$LIST_APP"; DRY_RUN="$save"
   fi
   if [[ "$DO_STALE_APPS" -eq 1 ]]; then
-    for a in "${STALE_APPS[@]}"; do purge_app "$a"; done
+    [[ ${#STALE_APPS[@]} -eq 0 ]] && discover_stale_apps
+    if [[ "$STALE_DISCOVERED" -eq 1 && "$DRY_RUN" -eq 0 && -z "$ONLY_PATHS" ]]; then
+      echo "FATAL: these apps were found by a date, not chosen by you, so they are only removed after a review." >&2
+      echo "       Review them in the Mac Analyzers app (Storage, Unused Apps), name the ones you want with --app \"Name\"," >&2
+      echo "       or list them in ANALYZERS_STALE_APPS in config.local.sh. Nothing was removed." >&2
+      exit 78
+    fi
+    if [[ ${#STALE_APPS[@]} -eq 0 ]]; then echo "  (no unused apps found)"; else
+      PURGE_DISCOVERED="$STALE_DISCOVERED"
+      for a in "${STALE_APPS[@]}"; do purge_app "$a"; done
+      PURGE_DISCOVERED=0
+    fi
   fi
   if [[ ${#APP_TARGETS[@]} -gt 0 ]]; then
     for a in "${APP_TARGETS[@]}"; do purge_app "$a"; done
@@ -273,8 +445,9 @@ if [[ -n "$REC_DAYS" ]]; then
   group "Recordings older than ${REC_DAYS} days  (cache/log groups skipped)"
   REC_DIR="${ANALYZERS_RECORDINGS_DIR:-}"
   if [[ -n "$REC_DIR" && -d "$REC_DIR" ]]; then
-    while IFS= read -r d; do reclaim "$d"; done \
-      < <(find "$REC_DIR" -mindepth 1 -maxdepth 1 -type d -mtime "+${REC_DAYS}" 2>/dev/null)
+    while IFS= read -r d; do
+      if approved "$d"; then reclaim "$d"; else echo "  [SKIP] not in approved set  ${d}"; fi
+    done < <(find "$REC_DIR" -mindepth 1 -maxdepth 1 -type d -mtime "+${REC_DAYS}" 2>/dev/null)
   else
     echo "  (ANALYZERS_RECORDINGS_DIR not set — skipping)"
   fi

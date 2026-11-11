@@ -117,7 +117,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
                             note: model.phase == .lastKnown ? "Preview again to review these and apply." : nil,
                             onPreviewAgain: { startPreview() }, onApplied: { _ in },
                             only: shownIDs(rows), tabs: filled.map { Set(rows.rows(in: $0).map(\.id)) },
-                            screen: screenKey)
+                            screen: screenKey, rowMenu: .files)
                     .safeAreaBar(edge: .top, alignment: .leading, spacing: 0) { notesStrip }
             }
         }

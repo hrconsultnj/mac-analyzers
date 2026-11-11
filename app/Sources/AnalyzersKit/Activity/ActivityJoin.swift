@@ -342,6 +342,8 @@ public enum ActivityJoin {
         case .tempSpace: .tempClean
         case .spotlightAudit: .spotlight
         case .loginItems: .loginItems
+        case .cleanupApps: .unusedApps
+        case .cleanupRecordings: .recordings
         case .guardLog, .persistence, .forensics: nil
         }
     }

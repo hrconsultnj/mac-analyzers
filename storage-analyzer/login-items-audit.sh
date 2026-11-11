@@ -71,14 +71,11 @@ log() { echo "$*" | tee -a "$LOG_FILE"; }
 ORPHANS_USER=0; ORPHANS_SYS=0; REMOVED=0
 SUDO_CMDS=""
 
-# target of a launchd plist: Program, else ProgramArguments[0]; also
-# BundleProgram (relative to the app) via AssociatedBundleIdentifiers apps.
-plist_target() {
-  local p="$1" t
-  t=$(plutil -extract Program raw -o - "$p" 2>/dev/null)
-  [[ -z "$t" ]] && t=$(plutil -extract ProgramArguments.0 raw -o - "$p" 2>/dev/null)
-  echo "$t"
-}
+# plist_target and the rest of the launch inventory are shared with cleanup.sh's discovery of unused apps
+if ! source "$(dirname "$0")/../lib/launch-items.sh" 2>/dev/null; then
+  echo "FATAL: lib/launch-items.sh is missing — the audit cannot read launch entries." >&2
+  exit 78
+fi
 
 # does any APP from this vendor prefix still exist? Helpers/daemons outlive
 # their apps (TeamViewer, Docker, Samsung drivers), so a live target binary

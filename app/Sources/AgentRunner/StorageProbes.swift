@@ -128,6 +128,11 @@ func probeStorage(_ which: String, logOverride: String?) -> Never {
         for row in cloud where row.isChoosable || row.bytes != nil || row.valueText == nil {
             problems.append("iCloud-only row \"\(row.title)\" is offered for a tick, counted as freeing space, or has no size")
         }
+        print("\n-- Unused Apps example"); problems += printLevels(StorageFixtures.unusedApps(), UnusedAppCategory.self)
+        let unused = StorageFixtures.unusedApps()
+        if unused.rows.filter({ $0.keptReason != nil }).count != 3 { problems.append("Unused Apps example: the running app and the two apps that cannot be judged should be the kept rows") }
+        if unused.rows.contains(where: { !$0.id.hasSuffix(".app") }) { problems.append("Unused Apps example: every row's key is an app bundle's path") }
+        print("\n-- Old Recordings example"); problems += printLevels(StorageFixtures.recordings(), RecordingCategory.self)
         print("\n-- Temp & Agents example"); problems += printLevels(StorageFixtures.temp(), TempCategory.self)
         print("\n-- a finished Caches & Builds run (what it did to each row)"); problems += printLevels(StorageFixtures.cachesRun(), CacheCategory.self)
         // an apply's prunes, Docker and snapshot thinning each show what they did

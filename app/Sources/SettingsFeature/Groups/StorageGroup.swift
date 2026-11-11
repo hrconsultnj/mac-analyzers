@@ -23,6 +23,8 @@ enum StorageGroup {
     static let downloads = SectionID("downloads")
     static let temp = SectionID("temp")
     static let spotlight = SectionID("spotlight")
+    static let unused = SectionID("unused")
+    static let recordings = SectionID("recordings")
 
     /// Links to the example screens. Only `SnapshotRunner` installs them
     /// (`DeepLinkRouter.installFixtures` adds these to its own).
@@ -30,7 +32,9 @@ enum StorageGroup {
         ["caches:fixture": .main(Location(caches, path: [.storage(.fixture("caches"))])),
          "downloads:fixture": .main(Location(downloads, path: [.storage(.fixture("downloads"))])),
          "temp:fixture": .main(Location(temp, path: [.storage(.fixture("temp"))])),
-         "disk:fixture": .main(Location(disk, path: [.storage(.fixture("disk"))]))]
+         "disk:fixture": .main(Location(disk, path: [.storage(.fixture("disk"))])),
+         "unused:fixture": .main(Location(unused, path: [.storage(.fixture("unused"))])),
+         "recordings:fixture": .main(Location(recordings, path: [.storage(.fixture("recordings"))]))]
     }
 
     private static func log(_ log: EngineLog) -> Route { .overview(.raw(.log(log.rawValue))) }
@@ -43,6 +47,8 @@ enum StorageGroup {
             SidebarRow(downloads, Names.Screen.downloads, symbol: "arrow.down.circle"),
             SidebarRow(temp, Names.Screen.tempAndAgents, symbol: "tray.full"),
             SidebarRow(spotlight, Names.Screen.spotlight, symbol: "magnifyingglass"),
+            SidebarRow(unused, Names.Screen.unusedApps, symbol: "app.badge.checkmark"),
+            SidebarRow(recordings, Names.Screen.oldRecordings, symbol: "film"),
         ],
         root: screen,
         aliases: [
@@ -58,6 +64,10 @@ enum StorageGroup {
             "actions:tempClean": .main(Location(temp)),
             "spotlight": .main(Location(spotlight)),
             "log:spotlightAudit": .main(Location(spotlight, path: [log(.spotlightAudit)])),
+            "unused": .main(Location(unused)),
+            "log:cleanupApps": .main(Location(unused, path: [log(.cleanupApps)])),
+            "recordings": .main(Location(recordings)),
+            "log:cleanupRecordings": .main(Location(recordings, path: [log(.cleanupRecordings)])),
         ],
         // `<screen>:<tab>`: choose the tab, then go to the screen
         resolveDynamic: { target in
@@ -90,6 +100,16 @@ enum StorageGroup {
                     TempReview.build(from: TempCleanParser.parse(runHeader: block.banner, lines: block.lines), results: results).rows
                 }.id(row.id))
             },
+            .unusedApps: { row in
+                AnyView(StorageResultsView<UnusedAppCategory>(row: row, kind: .unusedApps, screenKey: "unusedapps") { block, results in
+                    UnusedReview.apps(lines: block.lines, results: results)
+                }.id(row.id))
+            },
+            .recordings: { row in
+                AnyView(StorageResultsView<RecordingCategory>(row: row, kind: .recordings, screenKey: "recordings") { block, results in
+                    UnusedReview.recordings(lines: block.lines, results: results)
+                }.id(row.id))
+            },
             .spotlight: { row in
                 AnyView(StorageResultsView<SpotlightCategory>(row: row, kind: .spotlight, screenKey: "spotlight") { block, _ in
                     SpotlightReview.build(from: SpotlightAuditParser.parse(runHeader: block.banner, lines: block.lines),
@@ -105,6 +125,8 @@ enum StorageGroup {
         case downloads: DownloadsScreen()
         case temp: TempScreen()
         case spotlight: SpotlightScreen()
+        case unused: UnusedAppsScreen()
+        case recordings: RecordingsScreen()
         default: EmptyView()
         }
     }
@@ -117,6 +139,8 @@ enum StorageGroup {
             case "downloads": DownloadsScreen(fixture: StorageFixtures.downloads())
             case "temp": TempScreen(fixture: StorageFixtures.temp())
             case "disk": DiskScreen(fixture: StorageFixtures.disk())
+            case "unused": UnusedAppsScreen(fixture: StorageFixtures.unusedApps())
+            case "recordings": RecordingsScreen(fixture: StorageFixtures.recordings())
             default: CachesScreen(fixture: StorageFixtures.caches())
             }
         }

@@ -79,6 +79,12 @@ import Foundation
         await scenario("two unticked", kind: .tempClean, keys: temp, deselect: Set(temp.prefix(2)), expectFlag: true)
         await scenario("everything unticked (an empty list, so nothing is touched)", kind: .tempClean, keys: temp, deselect: Set(temp), expectFlag: true)
     }
+    print("Unused Apps (unusedApps) and Old Recordings (recordings)")
+    let apps = ["/Applications/Old Editor.app", "/Applications/Screen Recorder.app", "/Applications/Photo Tool.app"]
+    await scenario("apps: nothing unticked (the list is still sent)", kind: .unusedApps, keys: apps, deselect: [], expectFlag: true)
+    await scenario("apps: one unticked", kind: .unusedApps, keys: apps, deselect: [apps[1]], expectFlag: true)
+    let recordings = ["/Users/me/Recordings/Demo", "/Users/me/Recordings/Standup"]
+    await scenario("recordings: one unticked", kind: .recordings, keys: recordings, deselect: [recordings[0]], expectFlag: true)
     print("")
     print(failures == 0 ? "all paths hold" : "\(failures) FAILED")
     exit(failures == 0 ? 0 : 1)

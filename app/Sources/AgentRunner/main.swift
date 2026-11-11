@@ -196,6 +196,11 @@ if args.first == "--probe-storage-setting" {
 if args.first == "--probe-disk-runway" {
     probeDiskRunway()
 }
+// `--probe-cleanup-parse` runs the real cleanup.sh as a dry run in a throwaway HOME and checks the screens' rows
+// agree with what it printed. See CleanupParseProbe.swift.
+if args.first == "--probe-cleanup-parse" {
+    await probeCleanupParse()
+}
 // `--probe-run-matcher` proves how a job's own block is found in a log (very large
 // runs, identical banners, a growing log) against stand-in logs. See RunMatcherProbes.swift.
 if args.first == "--probe-run-matcher" {

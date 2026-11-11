@@ -41,6 +41,7 @@ public enum Names {
         public static let timeMachine = "Time Machine"
         public static let spotlight = "Spotlight"
         public static let unusedApps = "Unused Apps"
+        public static let oldRecordings = "Old Recordings"
         public static let network = "Network"
         public static let loginItems = "Login & Startup Items"
         public static let reports = "Reports"
@@ -138,6 +139,16 @@ public enum Names {
         public static let dateUnknown = "Date Unknown"
     }
 
+    /// Unused Apps and Old Recordings: the groups and the words of what a finished run did.
+    public enum Unused {
+        public static let neverOpened = "Never Opened"
+        public static let noRecord = "No Record of Use"
+        public static let removed = "Removed"
+        public static let couldNotRemove = "Couldn't Remove"
+        public static let runningKept = "Running: quit it first, then preview again. It is left alone."
+        public static let recordings = "Old Recordings"
+    }
+
     /// Where an item found in temp and agent folders lives, and the verdict on it.
     public enum Temp {
         public static let tempFolder = "Temp Folder"
@@ -180,6 +191,8 @@ public enum Names {
         public static let docker = "Docker"
         public static let toolCaches = "Tool Caches"
         public static let timeMachine = "Time Machine"
+        public static let apps = "Apps"
+        public static let oldRecordings = "Old Recordings"
     }
 
     /// The cleanups that are not files: each is a reviewed row.
@@ -270,7 +283,7 @@ public enum Names {
         case .spotlight: Screen.spotlight
         case .loginItems: Screen.loginItems
         case .unusedApps: Screen.unusedApps
-        case .recordings: "Old Recordings"
+        case .recordings: Screen.oldRecordings
         case .networkSnapshot: Screen.network
         case .memoryReport, .storageReport: Screen.reports
         case .installAgents, .uninstallAgents, .sudoersInstall: Screen.setup
@@ -289,6 +302,8 @@ public enum Names {
         case .persistence: startupChanges
         case .loginItems: Screen.loginItems
         case .spotlightAudit: Screen.spotlight
+        case .cleanupApps: Screen.unusedApps
+        case .cleanupRecordings: Screen.oldRecordings
         case .forensics: crisisReports
         }
     }
@@ -331,7 +346,7 @@ public enum Names {
             .map { ("Group", $0) }
         rows += [Screen.overview, Screen.activity, Screen.setup, Screen.monitor, Screen.memoryGuard,
                  Screen.memoryCleanup, Screen.disk, Screen.cachesAndBuilds, Screen.downloads,
-                 Screen.tempAndAgents, Screen.timeMachine, Screen.spotlight, Screen.unusedApps,
+                 Screen.tempAndAgents, Screen.timeMachine, Screen.spotlight, Screen.unusedApps, Screen.oldRecordings,
                  Screen.network, Screen.loginItems, Screen.reports, Screen.trends, Screen.undo,
                  Screen.memorySettings, Screen.storageSettings, Screen.notifications, Screen.schedule,
                  Screen.updates, Screen.howItWorks, Screen.support, Screen.turnOff, Screen.actions]

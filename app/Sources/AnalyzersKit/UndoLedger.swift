@@ -48,6 +48,7 @@ public enum UndoLedger {
     public static let ledgers: [(url: URL, source: String)] = [
         (AnalyzersPaths.janitorLog, "Janitor"),
         (AnalyzersPaths.tempCleanLog, "Temp & Agents"),
+        (AnalyzersPaths.storageReports.appending(path: "cleanup-apps.log"), "Unused Apps"),
     ]
 
     /// TRASHED receipts from every ledger, newest first within each, excluding
