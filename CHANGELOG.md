@@ -28,18 +28,28 @@ heading becomes its version and title.
   nothing is lost when the app updates.
 - The Update screen shows exactly which build you are running, not only the
   version number.
-- Fixed: the memory cleanup stopped before doing anything on Macs that only
-  have the version of bash that comes with macOS — which is every Mac
-  without Homebrew, and the app's own Preview button on any Mac. It now runs
-  everywhere; the checks for idle developer tools need a newer bash and say
-  so when one is not installed.
 - Fixed: web-page processes belonging to Safari and other apps were listed
   under the name "com" in the menu-bar process list.
 - Fixed: when a cleanup moved several items with the same name to the Trash
   in the same second, a later one could take the place of an earlier one.
   Each now gets its own name.
-- Fixed: cleanups started from the app could stall on very large results.
-  They also now find the same developer tools your scheduled cleanups use.
+- Cleanups started from the app now find the same developer tools your
+  scheduled cleanups use.
+
+## v2.68.1 — Memory cleanup works on every Mac again
+
+This release fixes two problems in version 2.68.0 that stopped cleanups
+from running. Nothing else changes.
+
+- Fixed: Memory Cleanup's "See what would be cleaned" button failed on every
+  Mac, and the scheduled memory cleanup stopped before doing anything on
+  Macs that only have the version of bash that comes with macOS — which is
+  every Mac without Homebrew. Both now run everywhere. The checks for idle
+  developer tools need a newer bash and say so when one is not installed.
+- Fixed: a cleanup or audit started from the app could wait forever when it
+  had a lot to report — most often the Temp & Agents audit and the deep
+  storage preview on a Mac with many projects. They now finish however much
+  they find.
 
 ## v2.68.0 — See where all of your memory goes
 
