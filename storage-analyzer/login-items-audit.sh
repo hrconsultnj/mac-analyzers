@@ -336,6 +336,11 @@ check_plist() {
       log "  [LEFTOVER?]  $label  — target exists ($target) but NO app from"
       log "               vendor '$(echo "$label" | awk -F'.' '{print $1"."$2}')' is installed. Review; if unwanted:"
       fix="$(remove_command "$p" "$label" "$target")"
+      if [[ "$fix" == sudo* || "$fix" == *"; sudo "* ]]; then
+        log "               (removing the file needs an administrator: it is in a folder that belongs to the system)"
+      else
+        log "               (no administrator needed: the file is in your own folder)"
+      fi
       log "               $fix"
       ;;
     unverifiable|unparseable)
