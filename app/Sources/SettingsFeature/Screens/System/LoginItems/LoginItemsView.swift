@@ -15,9 +15,10 @@ import UIComponents
 ///   StartupChangesList.swift      the Changes scope: a day-grouped list
 ///   StartupItem+Presentation.swift  icon, colour and sort keys
 ///
-/// Toolbar, in the order it gives up space: the category tabs and Audit stay;
-/// the filter, Remove Leftovers and Stop move into the system's overflow first;
-/// search folds to its icon; the inspector toggle is automatic.
+/// The category tabs are the shared bar under the toolbar (`scopeTabsToolbar`). Toolbar, in the
+/// order it gives up space: Audit stays; the filter, Past Runs, Remove Leftovers and Stop are
+/// `.toolbarRank(.secondary)` and move into the system's overflow first; search folds to its
+/// icon; the inspector toggle is automatic.
 struct LoginItemsView: View {
 
     /// The tabs: the kinds the audit distinguishes (apps that open at login,
@@ -166,8 +167,10 @@ struct LoginItemsView: View {
                          ? "Looking at login items, launch agents and helper tools."
                          : (model.permission.sentence ?? "Run the audit to see everything that starts by itself."))
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)   // centred in the window, as the running state is
             } else if groups.isEmpty {
                 ContentUnavailableView(emptyTitle, systemImage: tab.symbol, description: Text(emptyDescription))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)   // centred in the window, as the running state is
             } else {
                 StartupItemTable(groups: groups, autosave: "loginItems.\(tab.rawValue)", selection: $selection,
                                  expansion: expansion,

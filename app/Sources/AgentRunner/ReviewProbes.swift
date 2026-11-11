@@ -187,6 +187,7 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     let bare = store.enqueue(JobRequest(kind: .storageClean, intent: .preview), trigger: .user)
     await wait(for: bare)
     print("  " + refusal(store.apply(from: bare, approved: .everything)))
+    try? FileManager.default.removeItem(at: dir)   // `exit` runs no `defer`
     exit(0)
 }
 
@@ -258,6 +259,7 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     leftover.arguments = ["-f", "sleep 723[123]"]
     try? leftover.run()
     leftover.waitUntilExit()
+    try? FileManager.default.removeItem(at: dir)   // `exit` runs no `defer`
     exit(0)
 }
 

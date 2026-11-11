@@ -53,14 +53,10 @@ struct StartupNode: Identifiable, Hashable {
     var ownerText: String { item?.owner ?? group?.name ?? "" }
     var adminText: String { item.map { $0.needsAdministrator ? "Yes" : "No" } ?? "" }
 
-    /// The icon of an item, or of a group's first item, at the size a row draws it.
+    /// The icon of an item, or of a group's first item (the group cell sizes it, a row draws it at 16).
     var iconImage: Image {
         let first = item ?? group?.items.first
-        if let icon = first?.appIcon {
-            let sized = (icon.copy() as? NSImage) ?? icon
-            sized.size = NSSize(width: 16, height: 16)   // an app icon is drawn at its own size: that is its job
-            return Image(nsImage: sized)
-        }
+        if let icon = first?.appIcon { return Image(nsImage: icon) }
         return Image(systemName: first?.symbol ?? "gearshape")
     }
 }
@@ -73,7 +69,8 @@ struct StartupNodeName: View {
         if node.isGroup, let group = node.group {
             OutlineGroupCell(name: group.name, summary: group.countText, icon: node.iconImage)
         } else {
-            Label { Text(node.title) } icon: { node.iconImage }
+            // an icon is a picture of a fixed size, not a control: 16 points, as the group cell draws it
+            Label { Text(node.title) } icon: { node.iconImage.resizable().scaledToFit().frame(width: 16, height: 16) }
         }
     }
 }
