@@ -45,6 +45,8 @@ final class ReviewSession {
     }
 
     func isTicked(_ id: String) -> Bool { selection.isTicked(id) }
+    /// Whether anything is ticked, without building the rows (Select None's enabled state).
+    var hasTicked: Bool { selection.hasTicked }
 
     func setTicked(_ id: String, _ ticked: Bool) {
         selection.setTicked(id, ticked)

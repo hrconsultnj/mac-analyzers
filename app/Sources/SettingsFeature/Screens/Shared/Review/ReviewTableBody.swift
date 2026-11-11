@@ -55,7 +55,7 @@ struct ReviewTableBody: View {
                 table.ticks(OutlineTicks(
                     state: { Self.tickState($0, session: session) },
                     set: { node, ticked in session.setTicked(node.rowIDs, ticked) },
-                    label: { "Include \($0.title)" }))
+                    label: { Self.tickLabel($0) }))
             } else {
                 table
             }
@@ -76,6 +76,16 @@ struct ReviewTableBody: View {
         let ticked = node.rowIDs.reduce(0) { $0 + (session.isTicked($1) ? 1 : 0) }
         if ticked == 0 { return .off }
         return ticked == node.rowIDs.count ? .on : .mixed
+    }
+
+    /// What VoiceOver says for a box, by what the box means: a row that can be chosen is "Include X"; one the
+    /// cleanup leaves alone says so, and its reason follows as the help; one the apply acts on without a tick
+    /// says what will happen ("Opera: Will Be Asked to Quit"), not an invitation to include it.
+    static func tickLabel(_ node: ReviewNode) -> String {
+        if !node.rowIDs.isEmpty { return "Include \(node.title)" }
+        if node.acts { return "\(node.title): \(node.detail ?? "")" }
+        if let kids = node.children, !kids.isEmpty, kids.allSatisfy(\.acts) { return "\(node.title): the apply acts on these without a tick" }
+        return "Not chosen: \(node.title)"
     }
 
     private func seed() {

@@ -70,6 +70,14 @@ final class ReviewRig {
         return box.isEnabled ? state : state + "(disabled)"
     }
 
+    /// The box's action, sent at once, with no run loop turn after it: what a click followed by another
+    /// click already queued looks like to the table.
+    func clickNow(_ row: Int) {
+        guard let box = box(row), let action = box.action else { return }
+        box.state = box.state == .on ? .off : .on
+        _ = NSApp.sendAction(action, to: box.target, from: box)
+    }
+
     func click(_ row: Int) {
         box(row)?.performClick(nil)
         settleAll()
@@ -105,6 +113,7 @@ enum ProbeReview {
         case "only": return only()
         case "readonly": return readOnly()
         case "scale": return scale(ProbeOptions([]))
+        case "sameTurn": return sameTurn()
         default:
             FileHandle.standardError.write(Data("unknown review case \(name)\n".utf8))
             return 2
@@ -214,6 +223,12 @@ enum ProbeReview {
                             && keptHelp == "Kept: open in an editor" && actingHelp == ReviewRig.operaWord,
                         "acting vs kept: kept \(rig.boxWord(kept)) reads \"\(keptHelp)\" | acting \(rig.boxWord(opera)) reads \"\(actingHelp)\"")
         }
+        // what VoiceOver says by state (the review table's own labels)
+        if let kept = rig.row(tip: "Kept: open in an editor"), let normal = rig.row(tip: "/p/mobile-app/Pods") {
+            let labels = [rig.box(kept)?.accessibilityLabel(), rig.box(opera)?.accessibilityLabel(), rig.box(normal)?.accessibilityLabel()]
+            rig.verdict(labels == ["Not chosen: node_modules", "Opera: Will Be Asked to Quit", "Include Pods"],
+                        "labels: kept=\(labels[0] ?? "nil") | acting=\(labels[1] ?? "nil") | choosable=\(labels[2] ?? "nil")")
+        }
         rig.click(opera)
         rig.verdict(!rig.approved().contains(ReviewRig.opera) && rig.probe.report().acting == [ReviewRig.opera],
                     rig.line("a click on it changes nothing; it is never approved"))
@@ -260,6 +275,40 @@ enum ProbeReview {
         if let first = rig.row(tip: "/p/web-app/node_modules") { rig.space(rows: [first]) }
         rig.verdict(rig.probe.report().ticked == before, "Space changes nothing in a read-only review")
         mark("end review:readonly")
+        return rig.exitCode
+    }
+
+    /// Two actions in the same turn reach the review in the order the person made them: a tick and then the
+    /// bar's Select All (or Select None), and Select None and then a tick. The tick is delivered by the box's
+    /// own action, before anything queued behind it can run.
+    static func sameTurn() -> Int32 {
+        let rig = ReviewRig()
+        let chosen = Set(ReviewRig.web + ReviewRig.mobile + ReviewRig.engine)
+        mark("begin review:sameTurn")
+        guard let next = rig.row(tip: "/p/web-app/.next"), let pods = rig.row(tip: "/p/mobile-app/Pods"),
+              let group = rig.groupRow(above: next) else { rig.verdict(false, "rows not found"); return 1 }
+
+        rig.clickNow(next)                                 // untick .next ...
+        rig.probe.barSelectAll()                           // ... and Select All in the same turn
+        rig.settleAll()
+        rig.verdict(rig.approved() == chosen, rig.line("tick, then Select All, same turn: everything ticked (the person's last action wins)"))
+
+        rig.clickNow(pods)                                 // untick Pods ...
+        rig.probe.barSelectNone()                          // ... and Select None in the same turn
+        rig.settleAll()
+        rig.verdict(rig.approved().isEmpty, rig.line("tick, then Select None, same turn: nothing ticked"))
+
+        rig.probe.barSelectNone()                          // Select None ...
+        rig.clickNow(pods)                                 // ... then tick Pods in the same turn
+        rig.settleAll()
+        rig.verdict(rig.approved() == ["/p/mobile-app/Pods"], rig.line("Select None, then tick, same turn: only that row"))
+
+        rig.probe.barSelectAll()
+        rig.clickNow(group)                                // a group's box (all of web-app off) ...
+        rig.probe.barSelectAll()                           // ... then Select All in the same turn
+        rig.settleAll()
+        rig.verdict(rig.approved() == chosen, rig.line("group tick, then Select All, same turn: everything ticked"))
+        mark("end review:sameTurn")
         return rig.exitCode
     }
 }
