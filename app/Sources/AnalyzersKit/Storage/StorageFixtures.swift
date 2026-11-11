@@ -59,10 +59,10 @@ public enum StorageFixtures {
     public static func unusedApps() -> StorageRows {
         func app(_ name: String, _ opened: String?, _ items: [(String, String)]) -> [String] {
             var lines = ["### APP: \(name)   (bundle: com.example.\(name.replacingOccurrences(of: " ", with: "")))"]
-            if let opened { lines.append("last launched (Spotlight): \(opened)") }
             lines.append("[APP]     /Applications/\(name).app")
+            if let opened { lines.append("last launched (Spotlight): \(opened)") }
             lines.append("[DRY]       \(items[0].0)  /Applications/\(name).app")
-            for item in items.dropFirst() { lines.append("[DRY]       \(item.0)  ~/Library/\(item.1)") }
+            for item in items.dropFirst() { lines.append("[DRY]       \(item.0)  \(home)/Library/\(item.1)") }
             return lines
         }
         let day = { (days: Int) in DateFormatter.fixtureDay.string(from: Date().addingTimeInterval(-Double(days) * 86_400)) }
@@ -71,11 +71,15 @@ public enum StorageFixtures {
         lines += app("Screen Recorder", day(410), [("310 MB", ""), ("4.1 GB", "Application Support/Screen Recorder"), ("22 MB", "Caches/com.example.ScreenRecorder")])
         lines += app("Photo Tool", day(230), [("880 MB", ""), ("120 MB", "Containers/com.example.PhotoTool")])
         lines += app("Video Converter", day(200), [("250 MB", ""), ("30 MB", "Caches/com.example.VideoConverter")])
+        lines += ["### APP: Electron Notes   (bundle: com.example.electronnotes)", "[APP]     /Applications/Electron Notes.app", "last launched (Spotlight): \(day(450))",
+                  "[DRY]       180 MB  /Applications/Electron Notes.app", "[DRY]       60 MB  \(home)/Library/Caches/com.example.electronnotes",
+                  "[LEFT]      2.0 GB  \(home)/Library/Application Support/Electron  —  it carries the app's name, but another program may use the same name",
+                  "[LEFT]      40 MB  \(home)/Library/Group Containers/group.example.shared  —  another app shares this group container"]
         lines += app("Chat Client", nil, [("410 MB", ""), ("1.0 GB", "Application Support/Chat Client")])
-        lines += ["### APP: Notes Sync   (bundle: com.example.NotesSync)", "last launched (Spotlight): \(day(300))", "[APP]     /Applications/Notes Sync.app",
+        lines += ["### APP: Notes Sync   (bundle: com.example.NotesSync)", "[APP]     /Applications/Notes Sync.app", "last launched (Spotlight): \(day(300))",
                   "[DRY]       95 MB  /Applications/Notes Sync.app", "  ⚠ Notes Sync appears to be RUNNING — quit it first; skipping this app."]
         // apps that cannot be judged are listed and kept, with the reason
-        lines += ["### APP: VPN Client   (bundle: com.example.VPNClient)", "last launched (Spotlight): \(day(260))", "[APP]     /Applications/VPN Client.app",
+        lines += ["### APP: VPN Client   (bundle: com.example.VPNClient)", "[APP]     /Applications/VPN Client.app", "last launched (Spotlight): \(day(260))",
                   "[KEEP]    Has a system extension"]
         lines += ["### APP: Menu Tool   (bundle: com.example.MenuTool)", "[APP]     /Applications/Menu Tool.app",
                   "[KEEP]    macOS has no record of when this was last opened"]

@@ -130,9 +130,27 @@ func probeStorage(_ which: String, logOverride: String?) -> Never {
         }
         print("\n-- Unused Apps example"); problems += printLevels(StorageFixtures.unusedApps(), UnusedAppCategory.self)
         let unused = StorageFixtures.unusedApps()
-        if unused.rows.filter({ $0.keptReason != nil }).count != 3 { problems.append("Unused Apps example: the running app and the two apps that cannot be judged should be the kept rows") }
-        if unused.rows.contains(where: { !$0.id.hasSuffix(".app") }) { problems.append("Unused Apps example: every row's key is an app bundle's path") }
+        let keptTitles = Set(unused.rows.filter { $0.keptReason != nil }.map(\.title))
+        if keptTitles != ["Notes Sync", "VPN Client", "Menu Tool", "Application Support", "Group Containers"] {
+            problems.append("Unused Apps example: the kept rows should be the running app, the two apps that cannot be judged and the two files left in place; got \(keptTitles.sorted())")
+        }
+        if unused.rows.contains(where: { $0.isChoosable && !$0.id.hasPrefix("/") }) { problems.append("Unused Apps example: every tickable row is a path") }
+        if unused.rows.filter(\.isChoosable).contains(where: { $0.id.contains("/Application Support/Electron") || $0.id.contains("group.example.shared") }) {
+            problems.append("Unused Apps example: a file left in place is offered for a tick")
+        }
         print("\n-- Old Recordings example"); problems += printLevels(StorageFixtures.recordings(), RecordingCategory.self)
+        // one function names a cleaned path for any screen (Undo, Trends)
+        let homePath = NSHomeDirectory()
+        for (path, group, title) in [
+            ("\(homePath)/Projects/site/node_modules", "site", "Node.js Packages"),
+            ("\(homePath)/Projects/site/apps/web/.next", "site", "apps/web · Next.js Build Cache"),
+            ("\(homePath)/Library/Caches/com.vendor.Editor", Names.StorageTab.appCaches, "Editor"),
+            ("\(homePath)/Downloads/photo.jpg", Names.Screen.downloads, "photo.jpg"),
+            ("\(homePath)/Desktop/Screenshots/Screenshot 1.png", Names.Download.screenshots, "Screenshot 1.png"),
+        ] {
+            let named = StorageNaming.name(forPath: path, roots: ["\(homePath)/Projects"])
+            if named.group != group || named.title != title { problems.append("StorageNaming: \(path) is \"\(named.group)\" / \"\(named.title)\", expected \"\(group)\" / \"\(title)\"") }
+        }
         print("\n-- Temp & Agents example"); problems += printLevels(StorageFixtures.temp(), TempCategory.self)
         print("\n-- a finished Caches & Builds run (what it did to each row)"); problems += printLevels(StorageFixtures.cachesRun(), CacheCategory.self)
         // an apply's prunes, Docker and snapshot thinning each show what they did

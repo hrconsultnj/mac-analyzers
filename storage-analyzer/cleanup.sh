@@ -83,6 +83,7 @@ LAUNCH_LIB="${ANALYZERS_ROOT}/lib/launch-items.sh"
 STALE_APPS=()
 STALE_DISCOVERED=0     # 1 when the list was FOUND by a date, not written by the person
 PURGE_DISCOVERED=0     # 1 while purge_app works on a found app
+PURGE_KEEPCHECK=0      # 1 while purge_app works on an app that is being reviewed: the safety checks apply
 [[ -n "${ANALYZERS_STALE_APPS+x}" ]] && STALE_APPS=( "${ANALYZERS_STALE_APPS[@]}" )
 
 ORIG_ARGS="$*"
@@ -215,47 +216,126 @@ resolve_app_path() {
   else echo "/Applications/${a}.app"; fi
 }
 
-# fill global APP_PATHS with every EXISTING footprint path for an app
+# Names that many programs share: a folder called this is not proof it belongs to the app of the same name.
+SHARED_RUNTIME_NAMES="electron python java code docker steam unity google chromium chrome mozilla firefox microsoft adobe jetbrains node npm flutter qt wine android xcode apple"
+
+# The app groups the app's OWN entitlements declare, one per line; nothing when they cannot be read
+# (an unsigned app, codesign failing): a group container is only ever taken for a group the app names.
+app_groups() {
+  local app="$1" xml
+  xml="$(codesign -d --entitlements - --xml "$app" 2>/dev/null)" || return 0
+  [[ -n "$xml" ]] || return 0
+  # (plutil cannot name this key: its path syntax splits at the dots) read the <string>s of the key's array
+  printf '%s' "$xml" | awk 'BEGIN { RS = "<" }
+    /^key>com\.apple\.security\.application-groups/ { f = 1; next }
+    f && /^\/array>/ { exit }
+    f && /^string>/ { sub(/^string>/, ""); gsub(/[[:space:]]+$/, ""); print }'
+}
+
+# Is this group also declared by ANOTHER installed app? (the index of every app's groups is built once per run)
+GROUP_INDEX=""
+group_shared_elsewhere() {  # app group
+  local app="$1" group="$2" dirs dir other g
+  if [[ -z "$GROUP_INDEX" ]]; then
+    GROUP_INDEX="$(mktemp "${TMPDIR:-/tmp}/cleanup-groups.XXXXXX")"
+    trap 'rm -f "$GROUP_INDEX"' EXIT
+    IFS=: read -r -a dirs <<< "${ANALYZERS_APP_DIRS:-/Applications:${HOME_DIR}/Applications}"
+    for dir in "${dirs[@]}"; do
+      for other in "$dir"/*.app; do
+        [[ -d "$other" ]] || continue
+        while IFS= read -r g; do [[ -n "$g" ]] && printf '%s\t%s\n' "$g" "$other" >> "$GROUP_INDEX"; done < <(app_groups "$other")
+      done
+    done
+  fi
+  awk -F'\t' -v g="$group" -v a="$app" '$1 == g && $2 != a { found = 1; exit } END { exit found ? 0 : 1 }' "$GROUP_INDEX"
+}
+
+# May a folder be taken because it carries the app's NAME? Only when no other installed app could own that
+# name (the same name, or a longer one that begins with it) and the name is not a runtime name many programs use.
+name_is_ours() {  # app name
+  local app="$1" lname w dirs dir other base lbase
+  lname="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
+  for w in $SHARED_RUNTIME_NAMES; do [[ "$lname" == "$w" ]] && return 1; done
+  IFS=: read -r -a dirs <<< "${ANALYZERS_APP_DIRS:-/Applications:${HOME_DIR}/Applications}"
+  for dir in "${dirs[@]}"; do
+    for other in "$dir"/*.app; do
+      [[ -d "$other" && "$other" != "$app" ]] || continue
+      base="${other##*/}"; base="${base%.app}"
+      lbase="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')"
+      case "$lbase" in "$lname"|"$lname "*|"$lname-"*|"$lname."*) return 1 ;; esac
+    done
+  done
+  return 0
+}
+
+# Fill APP_PATHS with every EXISTING path that goes with the app, and APP_LEFT / APP_LEFT_WHY with the ones that
+# are NOT taken and why. Only names that are the app's own, EXACTLY:
+#   <Library folder>/<bundle id>[.suffix the system adds]   by bundle id, never by a pattern
+#   Preferences/ByHost/<bundle id>.<host uuid>.plist         that file name and no other
+#   Group Containers/<group>                                 only for a group the app's own entitlements declare,
+#                                                            and no other installed app declares too
+#   <Library folder>/<app name>                              by name: with $4 = 1 only when the name is the app's alone
+APP_PATHS=(); APP_LEFT=(); APP_LEFT_WHY=()
 collect_app_footprint() {
-  local app="$1" bid="$2" name="$3" p f
-  APP_PATHS=()
-  local -a cand=(
-    "$app"
+  local app="$1" bid="$2" name="$3" strict="${4:-0}" p f g rest
+  APP_PATHS=( "$app" ); APP_LEFT=(); APP_LEFT_WHY=()
+  local -a byname=(
     "${HOME_DIR}/Library/Application Support/${name}"
     "${HOME_DIR}/Library/Caches/${name}"
     "${HOME_DIR}/Library/Logs/${name}"
     "${HOME_DIR}/Library/Preferences/${name}.plist"
   )
-  if [[ -n "$bid" ]]; then
-    cand+=(
-      "${HOME_DIR}/Library/Application Support/${bid}"
-      "${HOME_DIR}/Library/Caches/${bid}"
-      "${HOME_DIR}/Library/Containers/${bid}"
-      "${HOME_DIR}/Library/HTTPStorages/${bid}"
-      "${HOME_DIR}/Library/WebKit/${bid}"
-      "${HOME_DIR}/Library/Saved Application State/${bid}.savedState"
-      "${HOME_DIR}/Library/Application Scripts/${bid}"
-      "${HOME_DIR}/Library/Preferences/${bid}.plist"
-      "${HOME_DIR}/Library/Cookies/${bid}.binarycookies"
-      "${HOME_DIR}/Library/Logs/${bid}"
-    )
-    for f in "${HOME_DIR}/Library/Preferences/ByHost/${bid}".*; do [[ -e "$f" ]] && cand+=( "$f" ); done
-    for f in "${HOME_DIR}/Library/Group Containers/"*"${bid}"*; do [[ -e "$f" ]] && cand+=( "$f" ); done
-  fi
+  for p in "${byname[@]}"; do
+    [[ -e "$p" ]] || continue
+    if [[ "$strict" -eq 1 ]] && ! name_is_ours "$app" "$name"; then
+      APP_LEFT+=( "$p" ); APP_LEFT_WHY+=( "it carries the app's name, but another program may use the same name" )
+    else
+      APP_PATHS+=( "$p" )
+    fi
+  done
+  [[ -n "$bid" ]] || return 0
+  local -a cand=(
+    "${HOME_DIR}/Library/Application Support/${bid}"
+    "${HOME_DIR}/Library/Caches/${bid}"
+    "${HOME_DIR}/Library/Containers/${bid}"
+    "${HOME_DIR}/Library/HTTPStorages/${bid}"
+    "${HOME_DIR}/Library/WebKit/${bid}"
+    "${HOME_DIR}/Library/Saved Application State/${bid}.savedState"
+    "${HOME_DIR}/Library/Application Scripts/${bid}"
+    "${HOME_DIR}/Library/Preferences/${bid}.plist"
+    "${HOME_DIR}/Library/Cookies/${bid}.binarycookies"
+    "${HOME_DIR}/Library/Logs/${bid}"
+  )
+  for f in "${HOME_DIR}/Library/Preferences/ByHost/${bid}."*; do
+    [[ -e "$f" ]] || continue
+    rest="${f##*/}"; rest="${rest#"${bid}".}"
+    [[ "$rest" =~ ^[0-9A-Fa-f-]{36}\.plist$ ]] && cand+=( "$f" )
+  done
+  for g in $(app_groups "$app"); do
+    f="${HOME_DIR}/Library/Group Containers/${g}"
+    [[ -e "$f" ]] || continue
+    if group_shared_elsewhere "$app" "$g"; then
+      APP_LEFT+=( "$f" ); APP_LEFT_WHY+=( "another app shares this group container" )
+    else
+      cand+=( "$f" )
+    fi
+  done
   for p in "${cand[@]}"; do [[ -e "$p" ]] && APP_PATHS+=( "$p" ); done
+  return 0
 }
 
-# read-only: surface system-level leftovers (need sudo) — never deleted here
+# read-only: surface system-level leftovers (need sudo) — never deleted here. Exact names only: a
+# pattern would list another app's launch entries and helpers (com.vendor.app2 for com.vendor.app).
 detect_system_leftovers() {
   local bid="$1" name="$2" found=0 p
   local -a cand=()
-  [[ -n "$name" ]] && for p in "/Library/Application Support/${name}" "/Library/Logs/${name}"; do
-    [[ -e "$p" ]] && cand+=( "$p" )
-  done
+  if [[ -n "$name" && "${3:-0}" -eq 0 ]]; then
+    for p in "/Library/Application Support/${name}" "/Library/Logs/${name}"; do [[ -e "$p" ]] && cand+=( "$p" ); done
+  fi
   if [[ -n "$bid" ]]; then
-    for p in /Library/LaunchDaemons/*"${bid}"* /Library/LaunchAgents/*"${bid}"* \
-             /Library/PrivilegedHelperTools/*"${bid}"* "/Library/Preferences/${bid}.plist" \
-             /private/var/db/receipts/*"${bid}"*; do
+    for p in "/Library/LaunchDaemons/${bid}.plist" "/Library/LaunchAgents/${bid}.plist" \
+             "/Library/PrivilegedHelperTools/${bid}" "/Library/PrivilegedHelperTools/${bid}.helper" \
+             "/Library/Preferences/${bid}.plist" "/private/var/db/receipts/${bid}.plist" "/private/var/db/receipts/${bid}.bom"; do
       [[ -e "$p" ]] && cand+=( "$p" )
     done
   fi
@@ -266,13 +346,13 @@ detect_system_leftovers() {
   done
 }
 
-# the granular per-app driver: list full footprint, then (in execute) confirm+remove
+# the granular per-app driver: list the full footprint, then (in execute) confirm and remove
 purge_app() {
-  local app_in="$1" app name bid p kb total_kb=0 ans lu
+  local app_in="$1" app name bid p kb total_kb=0 ans lu keep i
   app="$(resolve_app_path "$app_in")"
   name="$(basename "${app%.app}")"
   bid="$(resolve_bid "$app")"
-  # the reviewed list's key for an app is its bundle's path; the whole footprint goes with it
+  # the reviewed list's key for an app is its bundle's path; each file that goes with it has its own key (its path)
   if ! approved "$app"; then
     group "APP: ${name}   (bundle: ${bid:-unknown})"
     echo "  [SKIP] not in approved set  ${app}"
@@ -282,32 +362,45 @@ purge_app() {
   printf "  [APP]     %s\n" "$app"
   lu=$(mdls -name kMDItemLastUsedDate -raw "$app" 2>/dev/null)
   [[ -n "$lu" && "$lu" != "(null)" ]] && echo "  last launched (Spotlight): ${lu%% *}"
-  if [[ "$PURGE_DISCOVERED" -eq 1 ]]; then
-    local keep; keep="$(discovered_keep_reason "$app" "$bid")"
+  if [[ "$PURGE_KEEPCHECK" -eq 1 ]]; then
+    keep="$(app_keep_reason "$app" "$bid")"
     if [[ -n "$keep" ]]; then printf "  [KEEP]    %s\n" "$keep"; return 0; fi
   fi
   if pgrep -x "$name" >/dev/null 2>&1 || pgrep -f "/${name}.app/Contents/MacOS/" >/dev/null 2>&1; then
     echo "  ⚠ ${name} appears to be RUNNING — quit it first; skipping this app."
     return 0
   fi
-  collect_app_footprint "$app" "$bid" "$name"
-  if [[ ${#APP_PATHS[@]} -eq 0 ]]; then echo "  (no footprint found — already clean)"; return 0; fi
+  collect_app_footprint "$app" "$bid" "$name" "$PURGE_KEEPCHECK"
   for p in "${APP_PATHS[@]}"; do
     kb=$(du -sk "$p" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"; total_kb=$((total_kb + kb))
-    printf "  %-9s %10s  %s\n" "$([[ $DRY_RUN -eq 1 ]] && echo '[DRY]' || echo '[item]')" "$(human "$kb")" "${p/#${HOME_DIR}/~}"
+    printf "  %-9s %10s  %s\n" "$([[ $DRY_RUN -eq 1 ]] && echo '[DRY]' || echo '[item]')" "$(human "$kb")" "$p"
+  done
+  i=0
+  for p in ${APP_LEFT[@]+"${APP_LEFT[@]}"}; do
+    kb=$(du -sk "$p" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"
+    printf "  %-9s %10s  %s  —  %s\n" "[LEFT]" "$(human "$kb")" "$p" "${APP_LEFT_WHY[$i]}"
+    i=$((i + 1))
   done
   printf "  %-9s %10s  TOTAL — %d items\n" " " "$(human "$total_kb")" "${#APP_PATHS[@]}"
   TOTAL_KB=$((TOTAL_KB + total_kb))
-  detect_system_leftovers "$bid" "$name"
+  detect_system_leftovers "$bid" "$name" "$PURGE_KEEPCHECK"
   [[ "$DRY_RUN" -eq 1 ]] && return 0
   if [[ "$ASSUME_YES" -ne 1 ]]; then
     printf "  Remove %s and its %d items (%s)? [y/N] " "$name" "${#APP_PATHS[@]}" "$(human "$total_kb")"
     read -r ans </dev/tty 2>/dev/null || ans="n"
     [[ "$ans" =~ ^[Yy]$ ]] || { echo "  skipped."; return 0; }
   fi
-  for p in "${APP_PATHS[@]}"; do
+  # The app moves FIRST. If it cannot be moved, nothing else of it is touched: its settings and data without
+  # the app would leave it installed and broken.
+  kb=$(du -sk "$app" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"
+  if ! trash_item "$app" "$kb"; then
+    printf "  [FAILED]  %s  —  %s; its settings and data were left where they are\n" "$app" "$(move_failure_reason "$app")"
+    return 0
+  fi
+  for p in "${APP_PATHS[@]:1}"; do
+    if ! approved "$p"; then echo "  [SKIP] not in approved set  ${p}"; continue; fi
     kb=$(du -sk "$p" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"
-    if ! trash_item "$p" "$kb"; then printf "  [FAILED]  %s\n" "${p/#${HOME_DIR}/~}"; fi
+    trash_item "$p" "$kb" || printf "  [FAILED]  %s\n" "$p"
   done
 }
 
@@ -334,23 +427,44 @@ discover_stale_apps() {
   done
 }
 
-# Why a FOUND app must not be offered for removal; prints the reason, nothing when it can be.
-# When in doubt the answer is a reason: only an app that can be shown to be unused is offered.
-discovered_keep_reason() {
+# why an app that cannot be moved cannot be: its folder is not the person's to change
+move_failure_reason() {
+  if [[ ! -w "$(dirname "$1")" ]]; then echo "it is installed for all users and needs an administrator: remove it in Finder"
+  else echo "it could not be moved (is it in use?)"; fi
+}
+
+# Is the Login & Startup Items audit's inventory (login-items.tsv) recent enough to trust? Younger than a day.
+# Login items set in System Settings leave no file in the app and no launch entry; only this inventory knows them.
+inventory_is_fresh() {
+  local inv="${ANALYZERS_LOGIN_INVENTORY:-${HOME_DIR}/mac-analyzers/reports/storage/login-items.tsv}" age
+  [[ -f "$inv" ]] || return 1
+  age=$(( $(date +%s) - $(stat -f %m "$inv" 2>/dev/null || echo 0) ))
+  [[ "$age" -lt 86400 ]]
+}
+
+# Why an app must not be offered for removal when it is reviewed (the app's own screen, or a found app);
+# prints the reason, nothing when it can be. When in doubt the answer is a reason: only an app that can be
+# shown to be unused, and that the person can actually move, is offered.
+app_keep_reason() {
   local app="$1" bid="$2" days="${ANALYZERS_STALE_APP_DAYS:-180}" cutoff lu added ts why index
   cutoff=$(( $(date +%s) - days * 86400 ))
   case "$bid" in com.apple.*) echo "Part of macOS"; return ;; esac
   [[ -z "$bid" ]] && { echo "macOS cannot say what this app is, so it is kept"; return; }
   if [[ -L "$app" ]]; then echo "Lives on another volume or is a link, so it is kept"; return; fi
   [[ -d "$app/Contents" ]] || { echo "Not a plain app folder, so it is kept"; return; }
-  # runs on its own: the one inventory the login items audit reads
+  if [[ ! -w "$(dirname "$app")" ]]; then echo "Installed for all users: it needs an administrator, so remove it in Finder"; return; fi
+  # runs on its own: the inventory the login items audit reads, and the launch entries that start the app
   # shellcheck source=../lib/launch-items.sh
   if [[ -f "$LAUNCH_LIB" ]] && source "$LAUNCH_LIB" 2>/dev/null; then
     why="$(app_runs_on_its_own "$app" "$bid")" && { echo "$why"; return; }
   else
     echo "The launch inventory (lib/launch-items.sh) is missing, so every app is kept"; return
   fi
-  # a usable date: Spotlight's last-opened, or a usable index that knows the app but has no use of it
+  if ! inventory_is_fresh; then
+    echo "Which apps open at login can't be checked yet: run Login & Startup Items first, then preview again"; return
+  fi
+  [[ "$PURGE_DISCOVERED" -eq 1 ]] || return 0      # an app the person named is theirs to remove once these checks pass
+  # found by a date: a usable date, or a usable index that knows the app but has no use of it
   lu=$(mdls -name kMDItemLastUsedDate -raw "$app" 2>/dev/null)
   if [[ -n "$lu" && "$lu" != "(null)" ]]; then
     ts=$(date -j -f "%Y-%m-%d %H:%M:%S %z" "$lu" +%s 2>/dev/null) \
@@ -366,24 +480,49 @@ discovered_keep_reason() {
   [[ "$ts" -lt "$cutoff" ]] || echo "Installed recently, so it is too soon to say it is unused"
 }
 
-# move one path to the Trash under a name nothing else has, and say where it went (the receipt Undo reads)
-trash_dest() {
-  local name="$1" dest="${HOME_DIR}/.Trash/$1" stamp n=1
+# The Trash that belongs to the volume a path is on: ~/.Trash for the home volume, <volume>/.Trashes/<uid> for another
+# disk (a move across volumes would COPY, fill this disk and could leave half a copy). Fails when that disk has none
+# and cannot make one. In a dry run nothing is created.
+trash_dir_for() {  # path
+  local p="$1" home_dev dev mount d
+  home_dev="$(stat -f %d "$HOME_DIR" 2>/dev/null)"; dev="$(stat -f %d "$p" 2>/dev/null)"
+  if [[ -z "$dev" || "$dev" == "$home_dev" ]]; then echo "${HOME_DIR}/.Trash"; return 0; fi
+  mount="$(df -P "$p" 2>/dev/null | awk 'NR == 2 { $1 = $2 = $3 = $4 = $5 = ""; sub(/^ +/, ""); print }')"
+  [[ -n "$mount" && -d "$mount" ]] || return 1
+  d="${mount}/.Trashes/$(id -u)"
+  if [[ -d "$d" ]]; then echo "$d"; return 0; fi
+  if [[ -w "$mount" ]]; then
+    [[ "$DRY_RUN" -eq 1 ]] && { echo "$d"; return 0; }
+    mkdir -p "$d" 2>/dev/null && chmod 700 "$d" 2>/dev/null && { echo "$d"; return 0; }
+  fi
+  return 1
+}
+
+# a name in a Trash folder that nothing else has: the plain name, else <epoch>-<name>, else <epoch>-<n>-<name>
+trash_dest() {  # trash-dir name
+  local dir="$1" name="$2" dest stamp n=1
+  dest="${dir}/${name}"
   if [[ -e "$dest" || -L "$dest" ]]; then
-    stamp="$(date +%s)"; dest="${HOME_DIR}/.Trash/${stamp}-${name}"
-    while [[ -e "$dest" || -L "$dest" ]]; do dest="${HOME_DIR}/.Trash/${stamp}-${n}-${name}"; n=$((n+1)); done
+    stamp="$(date +%s)"; dest="${dir}/${stamp}-${name}"
+    while [[ -e "$dest" || -L "$dest" ]]; do dest="${dir}/${stamp}-${n}-${name}"; n=$((n+1)); done
   fi
   echo "$dest"
 }
+
+# Move one path to its volume's Trash and print the receipt Undo reads:
+#   [TRASHED] size  source  ->  destination  #id=<device:inode>
+# The id is the item's identity, kept by a rename, so Undo can prove the Trash still holds THIS item.
 trash_item() {  # <path> <size in KB>: 0 when it is in the Trash and the source is gone
-  local src="$1" kb="$2" dest _try
-  mkdir -p "${HOME_DIR}/.Trash"
+  local src="$1" kb="$2" tdir dest _try tid
+  tdir="$(trash_dir_for "$src")" || return 1
+  mkdir -p "$tdir" 2>/dev/null
   for _try in 1 2 3 4 5; do
-    dest="$(trash_dest "$(basename "$src")")"
+    dest="$(trash_dest "$tdir" "$(basename "$src")")"
     [[ -e "$dest" || -L "$dest" ]] && continue
     mv -n -- "$src" "$dest" 2>/dev/null || true
     if [[ ! -e "$src" && ! -L "$src" && ( -e "$dest" || -L "$dest" ) ]]; then
-      printf "  [TRASHED] %s  %s  ->  %s\n" "$(human "$kb")" "$src" "$dest"
+      tid="$(/usr/bin/stat -f '%d:%i' "$dest" 2>/dev/null || true)"
+      printf "  [TRASHED] %s  %s  ->  %s%s\n" "$(human "$kb")" "$src" "$dest" "${tid:+  #id=${tid}}"
       return 0
     fi
   done
@@ -405,8 +544,11 @@ run_app_mode() {
     fi
     if [[ ${#STALE_APPS[@]} -eq 0 ]]; then echo "  (no unused apps found)"; else
       PURGE_DISCOVERED="$STALE_DISCOVERED"
+      # an app that is REVIEWED (the app's preview, a reviewed list) gets the safety checks, found or configured;
+      # a configured app removed from Terminal with no list is the person's own choice and keeps its old behaviour
+      if [[ "$STALE_DISCOVERED" -eq 1 || "$DRY_RUN" -eq 1 || -n "$ONLY_PATHS" ]]; then PURGE_KEEPCHECK=1; fi
       for a in "${STALE_APPS[@]}"; do purge_app "$a"; done
-      PURGE_DISCOVERED=0
+      PURGE_DISCOVERED=0; PURGE_KEEPCHECK=0
     fi
   fi
   if [[ ${#APP_TARGETS[@]} -gt 0 ]]; then
@@ -446,13 +588,21 @@ if [[ -n "$REC_DAYS" ]]; then
   REC_DIR="${ANALYZERS_RECORDINGS_DIR:-}"
   if [[ -n "$REC_DIR" && -d "$REC_DIR" ]]; then
     while IFS= read -r d; do
+      # old means NOTHING inside was written for REC_DAYS days: a folder's own date changes only when its direct
+      # entries do, so new recordings one level down would make a busy folder look old
+      [[ -z "$(find "$d" -mtime "-${REC_DAYS}" -print -quit 2>/dev/null)" ]] || continue
+      kb=$(du -sk "$d" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"
       if ! approved "$d"; then echo "  [SKIP] not in approved set  ${d}"; continue; fi
+      # a recording on another disk goes to THAT disk's Trash; a disk with none keeps it, with the reason
+      if ! trash_dir_for "$d" >/dev/null; then
+        printf "  %-9s %10s  %s  —  %s\n" "[KEEP]" "$(human "$kb")" "$d" "this disk has no Trash to move it to"
+        continue
+      fi
       if [[ "$DRY_RUN" -eq 1 ]]; then reclaim "$d"; else
         # a person's own recordings go to the Trash, with a receipt Undo reads
-        kb=$(du -sk "$d" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"
         if trash_item "$d" "$kb"; then TOTAL_KB=$((TOTAL_KB + kb)); else printf "  [FAILED]  %s\n" "$d"; fi
       fi
-    done < <(find "$REC_DIR" -mindepth 1 -maxdepth 1 -type d -mtime "+${REC_DAYS}" 2>/dev/null)
+    done < <(find "$REC_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
   else
     echo "  (ANALYZERS_RECORDINGS_DIR not set — skipping)"
   fi

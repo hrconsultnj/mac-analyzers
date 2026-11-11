@@ -14,23 +14,27 @@ public enum RecordingCategory: String, StorageCategory {
     public var symbol: String { "film" }
 }
 
-/// One app in a `cleanup.sh --stale-apps` run, with what goes with it.
+/// One app in a `cleanup.sh --stale-apps` run, with every file that goes with it, one by one.
 public struct UnusedApp: Sendable, Equatable {
     public let name: String
     public let bundleID: String?
     /// The app bundle's path: the key of the reviewed list.
-    public let path: String
-    public let lastOpened: Date?
-    /// Application Support, Caches, Preferences… with their sizes, as the script listed them.
-    public let footprint: [(path: String, bytes: Int64)]
-    public let totalBytes: Int64
-    public let isRunning: Bool
+    public var path: String
+    public var lastOpened: Date?
+    /// The bundle first, then each file that goes with it (Application Support, Caches, Preferences…) with its size.
+    public var footprint: [(path: String, bytes: Int64)] = []
+    /// Files that match the app but are NOT taken, with why (a shared name, a group container another app shares).
+    public var left: [(path: String, bytes: Int64, why: String)] = []
+    /// What an apply did, one entry per path.
+    public var trashed: [(path: String, bytes: Int64)] = []
+    public var failed: [(path: String, why: String)] = []
+    public var isRunning = false
     /// Why the script keeps the app (it runs on its own, macOS has no record…); nil when it can be removed.
     public var keepReason: String?
-    public var removed = 0
-    public var failed = 0
 
-    public static func == (lhs: UnusedApp, rhs: UnusedApp) -> Bool { lhs.path == rhs.path && lhs.totalBytes == rhs.totalBytes }
+    public init(name: String, bundleID: String?, path: String) { self.name = name; self.bundleID = bundleID; self.path = path }
+
+    public static func == (lhs: UnusedApp, rhs: UnusedApp) -> Bool { lhs.path == rhs.path && lhs.footprint.count == rhs.footprint.count }
 }
 
 /// What a run of unused apps (or old recordings) would do, or did, as the rows Storage screens share.
@@ -38,19 +42,16 @@ public enum UnusedReview {
 
     // MARK: - apps
 
-    /// The apps of a whole `cleanup.sh --stale-apps` block. `results` builds what an apply did
-    /// (Removed, Couldn't Remove) instead of what a preview would do.
+    /// The sentence over the table when the script could not check which apps open at login.
+    public static let loginCheckNote = "Which apps open at login can only be read from the Login & Startup Items check, and it has not run today. Run it, then preview again."
+
+    /// The apps of a whole `cleanup.sh --stale-apps` block. Each app is a group of rows: the app itself and every
+    /// file that goes with it, with sizes, so what a tick takes is in front of the person. `results` builds what an
+    /// apply did (moved to the Trash, couldn't move) instead.
     public static func apps(lines: [String], results: Bool = false, now: Date = Date()) -> StorageRows {
         var apps: [UnusedApp] = []
-        var current: (name: String, bid: String?, path: String?, opened: Date?, items: [(String, Int64)], running: Bool, removed: Int, failed: Int, keep: String?)?
-        func close() {
-            guard let c = current, let path = c.path else { current = nil; return }
-            var app = UnusedApp(name: c.name, bundleID: c.bid, path: path, lastOpened: c.opened, footprint: c.items,
-                                totalBytes: c.items.reduce(0) { $0 + $1.1 }, isRunning: c.running)
-            app.removed = c.removed; app.failed = c.failed; app.keepReason = c.keep
-            apps.append(app)
-            current = nil
-        }
+        var current: UnusedApp?
+        func close() { if let app = current { apps.append(app) }; current = nil }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
@@ -64,7 +65,7 @@ public enum UnusedReview {
                     let rest = body[open.upperBound...].dropLast(body.hasSuffix(")") ? 1 : 0)
                     bid = rest == "unknown" ? nil : String(rest)
                 }
-                current = (name, bid, nil, nil, [], false, 0, 0, nil)
+                current = UnusedApp(name: name, bundleID: bid, path: "")
                 continue
             }
             guard current != nil else { continue }
@@ -72,60 +73,75 @@ public enum UnusedReview {
                 current?.path = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
             } else if line.hasPrefix("last launched (Spotlight):") {
                 let day = String(line.dropFirst("last launched (Spotlight):".count)).trimmingCharacters(in: .whitespaces)
-                current?.opened = formatter.date(from: String(day.prefix(10)))
+                current?.lastOpened = formatter.date(from: String(day.prefix(10)))
             } else if line.contains("appears to be RUNNING") {
-                current?.running = true
+                current?.isRunning = true
             } else if line.hasPrefix("[KEEP]") {
-                current?.keep = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
-            } else if line.hasPrefix("[DELETED]") || line.hasPrefix("[TRASHED]") {
-                current?.removed += 1
+                current?.keepReason = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+            } else if line.hasPrefix("[LEFT]"), let item = sized(line, tag: "[LEFT]") {
+                let pieces = item.rest.components(separatedBy: "  —  ")
+                current?.left.append((pieces[0], item.bytes, pieces.count > 1 ? pieces[1] : "it may belong to something else"))
+            } else if line.hasPrefix("[TRASHED]"), let item = sized(line, tag: "[TRASHED]") {
+                let path = ReceiptIdentity.split(item.rest).text.components(separatedBy: "  ->  ")[0]
+                current?.trashed.append((path, item.bytes))
             } else if line.hasPrefix("[FAILED]") {
-                current?.failed += 1
-            } else if let item = footprintLine(line) {
-                current?.items.append(item)
+                let body = String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces)
+                let pieces = body.components(separatedBy: "  —  ")
+                current?.failed.append((pieces[0], pieces.count > 1 ? pieces[1] : "it could not be moved"))
+            } else if line.hasPrefix("[DRY]") || line.hasPrefix("[item]"), let item = sized(line, tag: line.hasPrefix("[DRY]") ? "[DRY]" : "[item]") {
+                current?.footprint.append((item.rest, item.bytes))
             }
         }
         close()
+        apps = apps.filter { !$0.path.isEmpty }
 
         var rows: [StorageRow] = []
+        var notes: [String] = []
         for app in apps {
             if results {
-                guard app.removed + app.failed > 0 else { continue }
-                let outcome = app.failed > 0 ? Names.Unused.couldNotRemove : Names.Unused.removed
-                rows.append(StorageRow(id: app.path, category: UnusedAppCategory.apps.rawValue, group: nil, title: app.name,
-                                       detail: "\(outcome) · \(StorageLog.short(app.path))", bytes: app.totalBytes > 0 ? app.totalBytes : nil))
+                for item in app.trashed {
+                    rows.append(StorageRow(id: item.path, category: UnusedAppCategory.apps.rawValue, group: app.name, title: Self.title(of: item.path, app: app),
+                                           detail: "\(Names.Unused.movedToTrash) · \(StorageLog.short(item.path))", bytes: item.bytes > 0 ? item.bytes : nil))
+                }
+                for item in app.failed {
+                    rows.append(StorageRow(id: item.path, category: UnusedAppCategory.apps.rawValue, group: app.name, title: Self.title(of: item.path, app: app),
+                                           detail: "\(Names.Unused.couldNotMove) · \(item.why)"))
+                }
                 continue
             }
-            let days = app.lastOpened.map { max(0, Int(now.timeIntervalSince($0) / 86_400)) }
-            // "Never Opened" only for an app macOS knows and has no use of (the script decided that); an app it
-            // cannot judge is kept under its own heading, never called unused
-            let group: String
-            if app.keepReason != nil { group = app.lastOpened == nil ? Names.Unused.noRecord : DownloadAge(days: days).title }
-            else { group = app.lastOpened == nil ? Names.Unused.neverOpened : DownloadAge(days: days).title }
             let opened = app.lastOpened.map { "Last opened \(Self.date($0))" } ?? (app.keepReason == nil ? "Not opened since it was installed" : "No record of use")
-            let parts = footprintNames(app)
-            var detail = opened
-            if !parts.isEmpty { detail += " · " + parts }
-            rows.append(StorageRow(id: app.path, category: UnusedAppCategory.apps.rawValue, group: group, title: app.name,
-                                   detail: detail, bytes: app.totalBytes > 0 ? app.totalBytes : nil,
-                                   valueText: app.totalBytes > 0 ? nil : "Kept", iconPath: app.path,
-                                   keptReason: app.keepReason ?? (app.isRunning ? Names.Unused.runningKept : nil)))
+            if let keep = app.keepReason ?? (app.isRunning ? Names.Unused.runningKept : nil) {
+                if keep.hasPrefix("Which apps open at login can't be checked") && !notes.contains(loginCheckNote) { notes.append(loginCheckNote) }
+                rows.append(StorageRow(id: app.path, category: UnusedAppCategory.apps.rawValue, group: app.name, title: app.name,
+                                       detail: opened, bytes: nil, valueText: "Kept", iconPath: app.path, keptReason: keep))
+                continue
+            }
+            for (index, item) in app.footprint.enumerated() {
+                let isBundle = item.path == app.path || index == 0
+                rows.append(StorageRow(id: item.path, category: UnusedAppCategory.apps.rawValue, group: app.name,
+                                       title: isBundle ? app.name : Self.title(of: item.path, app: app),
+                                       detail: isBundle ? "\(opened) · \(StorageLog.short(item.path))" : StorageLog.short(item.path),
+                                       bytes: item.bytes, iconPath: isBundle ? item.path : nil))
+            }
+            for item in app.left {
+                rows.append(StorageRow(id: item.path, category: UnusedAppCategory.apps.rawValue, group: app.name,
+                                       title: Self.title(of: item.path, app: app), detail: StorageLog.short(item.path), bytes: item.bytes,
+                                       keptReason: "\(Names.Unused.leftInPlace): \(item.why)"))
+            }
         }
-        return StorageRows(rows)
+        return StorageRows(rows, notes: notes)
     }
 
-    /// "Also removes its Application Support, Caches and Preferences" for the second line.
-    static func footprintNames(_ app: UnusedApp) -> String {
-        let folders = app.footprint.compactMap { item -> String? in
-            guard item.path != app.path else { return nil }
-            let comps = item.path.split(separator: "/")
-            guard let at = comps.firstIndex(of: "Library"), comps.indices.contains(at + 1) else { return nil }
-            return String(comps[at + 1])
+    /// "Application Support", "Group Containers", "Caches": the Library folder a file lives in; the app's name for the app.
+    static func title(of path: String, app: UnusedApp) -> String {
+        if path == app.path { return app.name }
+        let parts = path.split(separator: "/")
+        if let at = parts.firstIndex(of: "Library"), parts.indices.contains(at + 1) {
+            let kind = String(parts[at + 1])
+            if kind == "Preferences", parts.contains("ByHost") { return "Preferences (This Mac)" }
+            return kind
         }
-        var seen: [String] = []
-        for f in folders where !seen.contains(f) { seen.append(f) }
-        let names = ListFormatter.localizedString(byJoining: Array(seen.prefix(3)))
-        return seen.isEmpty ? "" : "Also removes its \(names)\(seen.count > 3 ? " and more" : "")"
+        return (path as NSString).lastPathComponent
     }
 
     private static func date(_ date: Date) -> String {
@@ -133,14 +149,12 @@ public enum UnusedReview {
         return f.string(from: date)
     }
 
-    private static func footprintLine(_ line: String) -> (String, Int64)? {
-        guard line.hasPrefix("[DRY]") || line.hasPrefix("[item]") else { return nil }
-        let rest = String(line.drop(while: { $0 != "]" }).dropFirst()).trimmingCharacters(in: .whitespaces)
+    /// `[TAG]   12 MB  rest`: the size and what follows it.
+    private static func sized(_ line: String, tag: String) -> (bytes: Int64, rest: String)? {
+        let rest = String(line.dropFirst(tag.count)).trimmingCharacters(in: .whitespaces)
         guard let range = rest.range(of: #"^[\d.]+ [KMGT]?B\s+"#, options: .regularExpression),
               let bytes = ByteSize.parse(String(rest[range]).trimmingCharacters(in: .whitespaces)) else { return nil }
-        var path = String(rest[range.upperBound...])
-        if path.hasPrefix("~") { path = NSHomeDirectory() + path.dropFirst() }
-        return (path, bytes)
+        return (bytes, String(rest[range.upperBound...]))
     }
 
     // MARK: - recordings
@@ -155,18 +169,22 @@ public enum UnusedReview {
         var rows: [StorageRow] = []
         for line in lines {
             let isRun = line.hasPrefix("[DRY]"), isDone = results && (line.hasPrefix("[DELETED]") || line.hasPrefix("[TRASHED]"))
-            guard isRun || isDone else { continue }
+            let isKept = !results && line.hasPrefix("[KEEP]")
+            guard isRun || isDone || isKept else { continue }
             let rest = String(line.drop(while: { $0 != "]" }).dropFirst()).trimmingCharacters(in: .whitespaces)
             guard let range = rest.range(of: #"^[\d.]+ [KMGT]?B\s+"#, options: .regularExpression),
                   let bytes = ByteSize.parse(String(rest[range]).trimmingCharacters(in: .whitespaces)) else { continue }
             var path = String(rest[range.upperBound...])
             if let label = path.range(of: "   (", options: .backwards), path.hasSuffix(")") { path = String(path[..<label.lowerBound]) }
-            if let arrow = path.range(of: "  ->  ") { path = String(path[..<arrow.lowerBound]) }     // a receipt: "path  ->  Trash path"
+            if let arrow = path.range(of: "  ->  ") { path = String(path[..<arrow.lowerBound]) }     // a receipt: "path  ->  Trash path  #id=…"
+            var keptWhy: String?
+            if isKept, let dash = path.range(of: "  —  ") { keptWhy = String(path[dash.upperBound...]); path = String(path[..<dash.lowerBound]) }
             let group = results ? Names.Unused.recordings : (info(path).map { month.string(from: $0) } ?? Names.Download.dateUnknown)
             rows.append(StorageRow(id: path, category: RecordingCategory.recordings.rawValue, group: group,
                                    title: (path as NSString).lastPathComponent,
                                    detail: results ? "\(Names.Unused.removed) · \(StorageLog.short(path))" : StorageLog.short(path),
-                                   bytes: bytes, iconPath: results ? nil : path))
+                                   bytes: bytes, iconPath: results ? nil : path,
+                                   keptReason: isKept ? "Kept: \(keptWhy ?? "it cannot be moved")" : nil))
         }
         return StorageRows(rows)
     }

@@ -31,8 +31,40 @@ launch_plist_files() {
 # a plist value that is a boolean true (1/true/yes), whichever way defaults prints it
 _is_true() { case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in 1|true|yes) return 0 ;; esac; return 1; }
 
+# Does this launchd entry start the app, by any form recognised here? The program or ANY argument naming the
+# bundle's path; `open -a <name|path>`, `open -b <bundle id>` (and --bundle-identifier); `osascript -e 'tell
+# application "Name"'` or `application id "…"`; a shell wrapper (any argument that is a readable text file under
+# 64 KB) whose text names the bundle's path or an `open -a "Name"` / `open -b <id>` of it.
+# NOT recognised, so an app started only like this looks unused: a script that builds the path from variables,
+# `launchctl asuser`, an `open` of a URL scheme the app handles, cron, Shortcuts or Automator, a login hook, and an
+# app that another program opens on demand.
+launch_entry_mentions_app() {  # plist app bid name
+  local p="$1" app="$2" bid="$3" name="$4" i el prev="" prog
+  prog="$(plutil -extract Program raw -o - "$p" 2>/dev/null)"
+  local -a elements=()
+  [[ -n "$prog" ]] && elements+=( "$prog" )
+  for ((i = 0; i < 16; i++)); do
+    el="$(plutil -extract "ProgramArguments.$i" raw -o - "$p" 2>/dev/null)" || break
+    elements+=( "$el" )
+  done
+  for el in ${elements[@]+"${elements[@]}"}; do
+    [[ "$el" == "$app" || "$el" == "$app"/* ]] && return 0
+    if [[ "$prev" == "-a" && ( "$el" == "$name" || "$el" == "$name.app" ) ]]; then return 0; fi
+    if [[ ( "$prev" == "-b" || "$prev" == "--bundle-identifier" ) && -n "$bid" && "$el" == "$bid" ]]; then return 0; fi
+    case "$el" in
+      *"application \"$name\""*|*"application \"$name.app\""*|*"application \"$app\""*) return 0 ;;
+      *"application id \"$bid\""*) [[ -n "$bid" ]] && return 0 ;;
+    esac
+    if [[ -f "$el" && -r "$el" ]] && [[ "$(stat -f %z "$el" 2>/dev/null || echo 999999)" -le 65536 ]] && grep -Iq . "$el" 2>/dev/null; then
+      grep -qF -e "$app" -e "-a \"$name\"" -e "-a '$name'" -e "-a $name" ${bid:+-e "-b $bid"} "$el" 2>/dev/null && return 0
+    fi
+    prev="$el"
+  done
+  return 1
+}
+
 app_runs_on_its_own() {
-  local app="$1" bid="$2" p target label assoc d
+  local app="$1" bid="$2" p label assoc d
   # inside the bundle: login items, launch agents and daemons (SMAppService), privileged helpers
   for d in LoginItems LaunchAgents LaunchDaemons LaunchServices; do
     if [[ -d "$app/Contents/Library/$d" ]] && [[ -n "$(ls -A "$app/Contents/Library/$d" 2>/dev/null)" ]]; then
@@ -46,12 +78,14 @@ app_runs_on_its_own() {
   if find "$app/Contents" -maxdepth 4 -name '*.systemextension' 2>/dev/null | grep -q .; then
     echo "Has a system extension"; return 0
   fi
-  # launchd entries that start the app (or something inside it), or that name it
+  # launchd entries that start the app (or something inside it) in any recognised form, or that name it
+  local name="${app##*/}"; name="${name%.app}"
   while IFS= read -r p; do
-    target="$(plist_target "$p")"
-    if [[ -n "$target" && "$target" == "$app"/* ]]; then echo "Runs in the background: a launch entry starts it"; return 0; fi
+    if launch_entry_mentions_app "$p" "$app" "$bid" "$name"; then
+      echo "Runs in the background: a launch entry starts it"; return 0
+    fi
     label=$(plutil -extract Label raw -o - "$p" 2>/dev/null)
-    if [[ -n "$bid" && -n "$label" && "$label" == "$bid"* ]]; then echo "Runs in the background: a launch entry belongs to it"; return 0; fi
+    if [[ -n "$bid" && -n "$label" && ( "$label" == "$bid" || "$label" == "$bid".* ) ]]; then echo "Runs in the background: a launch entry belongs to it"; return 0; fi
     assoc=$(plutil -extract AssociatedBundleIdentifiers xml1 -o - "$p" 2>/dev/null)
     if [[ -n "$bid" && -n "$assoc" && "$assoc" == *"<string>${bid}</string>"* ]]; then
       echo "Runs in the background: a launch entry belongs to it"; return 0

@@ -32,10 +32,11 @@ make_home() { # dir: two fixture apps with a footprint each, two old recording f
     printf 'x' > "$h/Library/Application Support/$n/data"
     mkdir -p "$h/Recordings/Old$n"; printf 'r' > "$h/Recordings/Old$n/clip.mov"
   done
-  touch -t 202001010000 "$h/Recordings/OldFixtureOne" "$h/Recordings/OldFixtureTwo"
+  find "$h/Recordings" -exec touch -t 202001010000 {} +
 }
 write_config() { # tree home
-  printf 'ANALYZERS_STALE_APPS=( "%s/Applications/FixtureOne.app" "%s/Applications/FixtureTwo.app" )\nANALYZERS_RECORDINGS_DIR="%s/Recordings"\n' "$2" "$2" "$2" > "$1/config.local.sh"
+  printf '#login-items-inventory\t1\tx\tdry-run\tid\n' > "$2/inventory.tsv"      # the audit ran today
+  printf 'ANALYZERS_STALE_APPS=( "%s/Applications/FixtureOne.app" "%s/Applications/FixtureTwo.app" )\nANALYZERS_RECORDINGS_DIR="%s/Recordings"\nANALYZERS_LOGIN_INVENTORY="%s/inventory.tsv"\n' "$2" "$2" "$2" "$2" > "$1/config.local.sh"
 }
 
 for sh in bash /bin/bash; do
@@ -78,7 +79,7 @@ case "\$app" in
   *NoRecord.app) echo "(null)";;
   *Recent.app)   [[ "\$attr" == kMDItemLastUsedDate ]] && echo "$today" || echo "2020-01-01 00:00:00 +0000";;
   *Never.app)    [[ "\$attr" == kMDItemLastUsedDate ]] && echo "(null)" || echo "2020-01-01 00:00:00 +0000";;
-  *)             [[ "\$attr" == kMDItemLastUsedDate ]] && echo "2024-01-02 03:04:05 +0000" || echo "2020-01-01 00:00:00 +0000";;
+  *)             [[ "\$attr" == kMDItemCFBundleIdentifier ]] && echo "(null)" || { [[ "\$attr" == kMDItemLastUsedDate ]] && echo "2024-01-02 03:04:05 +0000" || echo "2020-01-01 00:00:00 +0000"; };;
 esac
 STUB
   printf '#!/bin/bash\nif [[ -f "%s/index-off" ]]; then echo "/: Indexing disabled."; else echo "/: Indexing enabled."; fi\n' "$disc" > "$disc/stubs/mdutil"
@@ -113,7 +114,7 @@ STUB
   check "[$sh] the offered app went to the Trash, not away (and its source is gone)" \
         "$([[ ! -e "$disc/apps/Old.app" && -d "$disc/home/.Trash/Old.app" ]] && echo ok || echo "not in the Trash")"
   check "[$sh] with a receipt Undo reads: [TRASHED] size  source  ->  destination" \
-        "$(grep -q "^  \[TRASHED\] .*  $disc/apps/Old.app  ->  $disc/home/.Trash/Old.app\$" <<<"$out" && echo ok || echo "no receipt: $(grep TRASHED <<<"$out" | head -2)")"
+        "$(grep -qE "^  \[TRASHED\] .*  $disc/apps/Old.app  ->  $disc/home/.Trash/Old.app  #id=[0-9]+:[0-9]+\$" <<<"$out" && echo ok || echo "no receipt: $(grep TRASHED <<<"$out" | head -2)")"
   # the person's own choices keep working as before: a configured list, and --app
   printf 'ANALYZERS_STALE_APPS=( "%s/apps/Never.app" )\nANALYZERS_APP_DIRS="%s/apps"\nANALYZERS_LAUNCH_DIRS="%s/launch"\n' "$disc" "$disc" "$disc" > "$dtree/config.local.sh"
   dcleanup --stale-apps --execute --yes >/dev/null; rc=$?
@@ -138,7 +139,7 @@ STUB
   check "[$sh] a missing lib/approved-list.sh: exit 78 with the reason" "$([[ $rc -eq 78 && "$out" == *"approved-list.sh is missing"* ]] && echo ok || echo "exit $rc")"
 
   # (d) a real run, on these fixtures only: the listed app and its footprint go, the unlisted one stays
-  printf '%s\n' "$one" > "$TMP/exec-$k"
+  printf '%s\n%s\n' "$one" "$home/Library/Application Support/FixtureOne" > "$TMP/exec-$k"
   cleanup --stale-apps --execute --yes --only-paths "$TMP/exec-$k" >/dev/null
   check "[$sh] a reviewed apply removes the listed app and its footprint" \
         "$([[ ! -e "$one" && ! -e "$home/Library/Application Support/FixtureOne" ]] && echo ok || echo "still there")"
@@ -153,7 +154,7 @@ STUB
   printf '%s\n' "$home/Recordings/OldFixtureOne" > "$TMP/rec-$k"
   rout="$(cleanup --recordings-older-than 1 --execute --yes --only-paths "$TMP/rec-$k")"
   check "[$sh] a removed recording is in the Trash, with a receipt Undo reads" \
-        "$([[ -d "$home/.Trash/OldFixtureOne" ]] && grep -q "^  \[TRASHED\] .*  $home/Recordings/OldFixtureOne  ->  $home/.Trash/OldFixtureOne\$" <<<"$rout" && echo ok || echo "$(grep TRASHED <<<"$rout")")"
+        "$([[ -d "$home/.Trash/OldFixtureOne" ]] && grep -qE "^  \[TRASHED\] .*  $home/Recordings/OldFixtureOne  ->  $home/.Trash/OldFixtureOne  #id=[0-9]+:[0-9]+\$" <<<"$rout" && echo ok || echo "$(grep TRASHED <<<"$rout")")"
   check "[$sh] a reviewed recordings apply removes the listed folder only" \
         "$([[ ! -e "$home/Recordings/OldFixtureOne" && -d "$home/Recordings/OldFixtureTwo" ]] && echo ok || echo "wrong")"
   : > "$TMP/rec-empty-$k"

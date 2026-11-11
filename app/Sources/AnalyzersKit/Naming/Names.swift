@@ -144,6 +144,9 @@ public enum Names {
         public static let neverOpened = "Never Opened"
         public static let noRecord = "No Record of Use"
         public static let removed = "Removed"
+        public static let movedToTrash = "Moved to Trash"
+        public static let couldNotMove = "Couldn't Move"
+        public static let leftInPlace = "Left in place"
         public static let couldNotRemove = "Couldn't Remove"
         public static let runningKept = "Running: quit it first, then preview again. It is left alone."
         public static let recordings = "Old Recordings"
@@ -330,6 +333,17 @@ public enum Names {
     }
 
     // MARK: - lookups by type
+
+    /// The screen a receipt ledger belongs to, by the source name `UndoLedger.ledgers` gives it.
+    public static func screen(forLedgerSource source: String) -> String {
+        switch source {
+        case "Janitor": Screen.downloads
+        case "Temp & Agents": Screen.tempAndAgents
+        case "Unused Apps": Screen.unusedApps
+        case "Old Recordings": Screen.oldRecordings
+        default: source
+        }
+    }
 
     /// What a task is called: the screen that holds it.
     public static func job(_ kind: JobKind) -> String {

@@ -73,6 +73,12 @@ enum StorageGroup {
         resolveDynamic: { target in
             let parts = target.split(separator: ":", maxSplits: 1).map(String.init)
             guard parts.count == 2 else { return nil }
+            // `disk:<cleanup>`: the space view's rows lead to the cleanup that frees that space (`disk:capacity` is the Disk screen)
+            if parts[0] == "disk" {
+                let screens = ["caches": caches, "downloads": downloads, "temp": temp, "spotlight": spotlight,
+                               "unused": unused, "recordings": recordings, "capacity": disk]
+                return screens[parts[1]].map { .main(Location($0)) }
+            }
             let valid: Bool
             switch parts[0] {
             case "caches": valid = CacheCategory(rawValue: parts[1]) != nil

@@ -66,67 +66,105 @@ public struct DiskRunway: Sendable, Equatable {
 
     /// The runway, or why there is none: too few figures, too short a time, or a trend that is not
     /// falling. The sentence is the one the screen shows beside "No forecast".
-    public static func outlook(_ points: [(day: Double, freeGiB: Double)]) -> (runway: DiskRunway?, reason: String) {
+    ///
+    /// How it is worked out, so one odd reading cannot drive it:
+    ///  1. a sudden fall is told as what happened, and only when it happened between two readings and
+    ///     the NEWEST TWO agree (`confirmedFall`); a single low newest reading is not believed yet and is
+    ///     left out; a fall that has recovered is no fall;
+    ///  2. otherwise the line is the MEDIAN of the slopes between every pair of readings (Theil–Sen), so one
+    ///     bad reading anywhere moves it by next to nothing; the last week's line decides when it is falling,
+    ///     the whole log's when it is not;
+    ///  3. a countdown of under 30 days is only given when the newest two readings sit on the line.
+    public static func outlook(_ all: [(day: Double, freeGiB: Double)]) -> (runway: DiskRunway?, reason: String) {
+        var points = all.sorted { $0.day < $1.day }
         let n = points.count
         guard n >= 5 else {
             return (nil, "A forecast needs figures from at least five cleanups; there \(n == 1 ? "is" : "are") \(n) so far.")
         }
+        if let fall = confirmedFall(points) {
+            return (nil, "Free space fell from about \(Int(fall.before.rounded())) GB to \(Int(fall.now.rounded())) GB between two cleanups, and the latest two figures agree. A forecast from the earlier days would be wrong, so none is shown. Clearing space is the answer for now.")
+        }
+        // one low NEWEST reading is not believed until a second one agrees: the forecast is made without it
+        if points.count >= 3 {
+            let last = points[points.count - 1], before = points[points.count - 2]
+            let beforeThat = points.count >= 3 ? points[points.count - 3].freeGiB : before.freeGiB
+            let previousAlsoFell = before.freeGiB < beforeThat * 0.8      // a fall in two steps is a fall
+            if last.freeGiB < before.freeGiB * 0.5, before.freeGiB - last.freeGiB >= 10, !previousAlsoFell { points.removeLast() }
+        }
+        points = withoutRecoveredDips(points)
         let minT = points.map(\.day).min() ?? 0, maxT = points.map(\.day).max() ?? 0
         let span = Int((maxT - minT).rounded(.down))
-        // A sharp fall is told as what happened, whatever any fitted line says: the newest two figures
-        // against the middle figure of the week before them. (A line through a week that was mostly high
-        // still points up after a fall of 117 GiB in a day.)
-        if let fall = Self.sharpFall(points) {
-            return (nil, "Free space fell from about \(Int(fall.before.rounded())) GB, the week's usual figure, to \(Int(fall.now.rounded())) GB at the latest cleanups. A forecast from the earlier days would be wrong, so none is shown. Clearing space is the answer for now.")
-        }
         guard maxT - minT >= 7 else {
             return (nil, "A forecast needs figures spread over at least a week; these cover \(span) \(span == 1 ? "day" : "days").")
         }
-        guard let latest = points.max(by: { $0.day < $1.day }) else { return (nil, "") }
-        // The RECENT slope decides when the last week is falling: a long trend that is still rising
-        // (33 GiB free months ago, 124 a day ago) must not hide a disk that lost 110 GiB since.
+        guard let latest = points.last else { return (nil, "") }
+        let steady = "Free space has been steady or rising over \(span) days, so there is nothing to count down."
+
+        func result(_ fit: [(day: Double, freeGiB: Double)], _ words: String) -> (runway: DiskRunway?, reason: String)? {
+            guard let line = line(of: fit), line.slope < -0.01 else { return nil }
+            let days = latest.freeGiB / abs(line.slope)
+            guard days.isFinite, days > 0 else { return nil }
+            if days < 30 {
+                // an urgent countdown needs the newest two readings on the line, not one that strayed
+                for p in points.suffix(2) where abs(p.freeGiB - (line.slope * p.day + line.intercept)) > max(5, 0.15 * p.freeGiB) {
+                    return (nil, "The newest free-space figures don't follow the trend yet, so no countdown is shown. Preview again to add one.")
+                }
+            }
+            return (DiskRunway(daysToFull: days, points: fit.count), words)
+        }
+        // the last week decides when it is falling: a long trend that is still rising must not hide a disk that is not
         let recent = points.filter { $0.day >= maxT - 7 }
-        if recent.count >= 3, let from = recent.map(\.day).min(), maxT - from >= 1,
-           let slope = slope(of: recent), slope < -0.01 {
-            let days = latest.freeGiB / abs(slope)
-            if days.isFinite, days > 0 {
-                let window = Int((maxT - from).rounded(.up))
-                return (DiskRunway(daysToFull: days, points: recent.count),
-                        "Worked out from the last \(window) \(window == 1 ? "day" : "days") (\(recent.count) cleanups' figures), which are falling faster than the long trend.")
+        if recent.count >= 3, let from = recent.map(\.day).min(), maxT - from >= 1 {
+            let window = Int((maxT - from).rounded(.up))
+            if let found = result(recent, "Worked out from the last \(window) \(window == 1 ? "day" : "days") (\(recent.count) cleanups' figures).") {
+                return found
             }
         }
-        let steady = "Free space has been steady or rising over \(span) days, so there is nothing to count down."
-        guard let slope = slope(of: points), slope < -0.01 else { return (nil, steady) }
-        let days = latest.freeGiB / abs(slope)
-        guard days.isFinite, days > 0 else { return (nil, steady) }
-        return (DiskRunway(daysToFull: days, points: n), "Worked out from \(n) cleanups' free-space figures over \(span) days.")
+        if let found = result(points, "Worked out from \(points.count) cleanups' free-space figures over \(span) days.") { return found }
+        return (nil, steady)
     }
 
-    /// The week's middle figure and the newest figure, when the newest two readings are both under half of
-    /// that middle figure and at least 10 GiB below it. Needs three readings in the week before them.
-    static func sharpFall(_ points: [(day: Double, freeGiB: Double)]) -> (before: Double, now: Double)? {
-        let ordered = points.sorted { $0.day < $1.day }
+    /// Readings that dipped far below the fortnight's usual and then came back (a big build, a cleanup that
+    /// followed) are an episode that is over, not a trend: they are left out. A dip that has not recovered stays.
+    static func withoutRecoveredDips(_ ordered: [(day: Double, freeGiB: Double)]) -> [(day: Double, freeGiB: Double)] {
+        guard let newest = ordered.last?.day else { return ordered }
+        let recent = ordered.filter { $0.day >= newest - 14 }.map(\.freeGiB).sorted()
+        guard recent.count >= 5 else { return ordered }
+        let usual = recent[recent.count / 2]
+        return ordered.enumerated().filter { index, point in
+            guard point.freeGiB < usual * 0.5, point.day >= newest - 14 else { return true }
+            let recovered = ordered[(index + 1)...].contains { $0.freeGiB >= usual * 0.8 }
+            return !recovered
+        }.map(\.element)
+    }
+
+    /// A sudden fall that has two readings behind it: the reading before it, then two that are both lower
+    /// (the newest under half of it, at least 10 GiB less) and not climbing back. A single low reading, or a
+    /// fall that has already recovered, is not one.
+    static func confirmedFall(_ ordered: [(day: Double, freeGiB: Double)]) -> (before: Double, now: Double)? {
         guard ordered.count >= 5 else { return nil }
-        let newest = Array(ordered.suffix(2))
-        let cutoff = newest[0].day
-        let week = ordered.dropLast(2).filter { $0.day >= cutoff - 7 }.map(\.freeGiB).sorted()
-        guard week.count >= 3 else { return nil }
-        let median = week[week.count / 2]
-        let now = newest.map(\.freeGiB).max() ?? 0
-        guard now < median * 0.5, median - now >= 10 else { return nil }
-        return (median, now)
+        let c = ordered[ordered.count - 3].freeGiB, a = ordered[ordered.count - 2].freeGiB, b = ordered[ordered.count - 1].freeGiB
+        // the newest two are both well below the reading before them, and the newest is not climbing back
+        guard a < c * 0.8, b < c * 0.5, c - b >= 10, b <= a + max(5, 0.25 * a) else { return nil }
+        return (c, b)
     }
 
-    /// GiB per day of the least-squares line through the points, nil when they do not span time.
-    static func slope(of points: [(day: Double, freeGiB: Double)]) -> Double? {
-        let count = Double(points.count)
-        let sumT = points.map(\.day).reduce(0, +)
-        let sumF = points.map(\.freeGiB).reduce(0, +)
-        let sumTF = points.map { $0.day * $0.freeGiB }.reduce(0, +)
-        let sumTT = points.map { $0.day * $0.day }.reduce(0, +)
-        let denom = count * sumTT - sumT * sumT
-        guard denom != 0 else { return nil }
-        return (count * sumTF - sumT * sumF) / denom
+    /// The robust line through the points: the median of the slopes between every pair of readings, and the
+    /// median intercept it leaves (Theil–Sen). nil when no two readings are on different days.
+    static func line(of points: [(day: Double, freeGiB: Double)]) -> (slope: Double, intercept: Double)? {
+        var slopes: [Double] = []
+        for i in points.indices {
+            for j in points.indices where j > i && abs(points[j].day - points[i].day) > 0.01 {
+                slopes.append((points[j].freeGiB - points[i].freeGiB) / (points[j].day - points[i].day))
+            }
+        }
+        guard !slopes.isEmpty else { return nil }
+        func median(_ values: [Double]) -> Double {
+            let sorted = values.sorted()
+            return sorted.count % 2 == 1 ? sorted[sorted.count / 2] : (sorted[sorted.count / 2 - 1] + sorted[sorted.count / 2]) / 2
+        }
+        let slope = median(slopes)
+        return (slope, median(points.map { $0.freeGiB - slope * $0.day }))
     }
 
     public static func current() -> DiskRunway? { forecast(series()) }

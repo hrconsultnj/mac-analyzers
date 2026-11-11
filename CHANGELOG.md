@@ -39,10 +39,16 @@ without an entry here — see `scripts/cut-release.sh`.
   opened for six months or more, grouped by how long ago, each with what goes
   with it: its Application Support, caches and preferences. Tick the apps to
   remove and they go to the Trash with their files, so Undo can bring them
-  back; the confirmation names every app. An app that macOS has no record of,
-  that runs in the background (a login item, launch agent, helper or system
-  extension, a menu-bar tool), that is running, or that has other apps inside
-  it is listed but never offered. In Terminal, `cleanup.sh --stale-apps
+  back; each app opens to every file that goes with it, with its size, and the
+  confirmation names every app. Only files that belong to the app by its own
+  identity are taken: a folder that merely carries its name (Electron) or a
+  group container another app shares is shown and left in place. An app that
+  macOS has no record of, that runs in the background (a login item, launch
+  agent, helper or system extension, a menu-bar tool, or something started
+  through `open`), that is running, that has other apps inside it, or that
+  you cannot move without an administrator is listed but never offered. Which
+  apps open at login is read from the Login & Startup Items check, so it must
+  have run today; if the app cannot be moved, none of its files are touched. In Terminal, `cleanup.sh --stale-apps
   --execute` only removes a list you wrote yourself; apps found by their date
   are removed only from a review in the app. Old Recordings lists recording
   folders older than 90 days by the month they were made; they go to the Trash

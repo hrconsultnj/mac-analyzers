@@ -19,7 +19,8 @@ import Foundation
         if fm.fileExists(atPath: candidate.path) { script = candidate; break }
         dir = dir.deletingLastPathComponent()
     }
-    guard let script else { print("SKIP: cleanup.sh not found from the binary's location"); exit(0) }
+    // a probe that cannot run FAILS: counting it as holding would hide a moved build folder or a different layout
+    guard let script else { print("FAIL: cleanup.sh was not found in any folder above \(CommandLine.arguments[0]), so this probe did not run"); exit(1) }
     let repo = script.deletingLastPathComponent().deletingLastPathComponent()
 
     let root = ProbeScratch.folder("ma-probe-cleanup-parse")
@@ -47,9 +48,14 @@ import Foundation
         let folder = home.appending(path: "Recordings/\(name)")
         try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
         try? Data(count: 200_000).write(to: folder.appending(path: "clip.mov"))
-        try? fm.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -400 * 86_400)], ofItemAtPath: folder.path)
+        // old means nothing inside is new: the file and the folder are both old
+        for item in [folder, folder.appending(path: "clip.mov")] {
+            try? fm.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -400 * 86_400)], ofItemAtPath: item.path)
+        }
     }
-    let config = "ANALYZERS_STALE_APPS=( \(appPaths.map { "\"\($0)\"" }.joined(separator: " ")) )\nANALYZERS_RECORDINGS_DIR=\"\(home.path)/Recordings\"\n"
+    let inventory = root.appending(path: "inventory.tsv")           // the Login & Startup Items audit "ran today"
+    try? "#login-items-inventory\t1\tx\tdry-run\tid\n".write(to: inventory, atomically: true, encoding: .utf8)
+    let config = "ANALYZERS_STALE_APPS=( \(appPaths.map { "\"\($0)\"" }.joined(separator: " ")) )\nANALYZERS_RECORDINGS_DIR=\"\(home.path)/Recordings\"\nANALYZERS_LOGIN_INVENTORY=\"\(inventory.path)\"\nANALYZERS_LAUNCH_DIRS=\"\(root.path)/no-launch\"\n"
     try? config.write(to: tree.appending(path: "config.local.sh"), atomically: true, encoding: .utf8)
 
     func run(_ arguments: [String]) -> String {
@@ -71,14 +77,15 @@ import Foundation
     let banner = preview.compactMap { RunMatcher.banner(in: $0) }.first
     expect(banner?.hasPrefix("cleanup | apps | DRY RUN | ") == true, "the apps preview has a banner: \(banner ?? "none")")
     let rows = UnusedReview.apps(lines: preview)
-    expect(rows.rows.count == 2, "two apps become two rows, got \(rows.rows.count)")
-    expect(Set(rows.rows.map(\.id)) == Set(appPaths), "each row is keyed by its app bundle's path: \(rows.rows.map(\.id))")
-    expect(rows.rows.allSatisfy { ($0.bytes ?? 0) > 100_000 }, "each row carries its footprint's size: \(rows.rows.map { $0.bytes ?? -1 })")
-    expect(rows.rows.allSatisfy { $0.detail?.contains("Application Support") == true }, "each row names what goes with it: \(rows.rows.compactMap(\.detail))")
+    let supportPaths = apps.map { home.appending(path: "Library/Application Support/\($0)").path }
+    expect(rows.rows.count == 4, "two apps become two groups of two rows (the app and its Application Support), got \(rows.rows.count)")
+    expect(Set(rows.rows.map(\.id)) == Set(appPaths + supportPaths), "each app and each file that goes with it is a row keyed by its own path: \(rows.rows.map(\.id))")
+    expect(Set(rows.rows.compactMap(\.group)) == Set(apps), "each app is a group: \(Set(rows.rows.compactMap(\.group)))")
+    expect(rows.rows.filter { supportPaths.contains($0.id) }.allSatisfy { ($0.bytes ?? 0) >= 300_000 }, "each file carries its size: \(rows.rows.map { $0.bytes ?? -1 })")
     // the block is found whole in its own log, by its banner
     let log = home.appending(path: "mac-analyzers/reports/storage/cleanup-apps.log")
     if let banner, case .block(let block) = WholeRun.find(banner: banner, in: log) {
-        expect(UnusedReview.apps(lines: block.lines).rows.count == 2, "the block found in the log gives the same two rows")
+        expect(UnusedReview.apps(lines: block.lines).rows.count == 4, "the block found in the log gives the same four rows")
     } else { expect(false, "the block was not found in cleanup-apps.log by its banner") }
     expect(appPaths.allSatisfy { fm.fileExists(atPath: $0) }, "a preview removed nothing")
 
@@ -86,7 +93,7 @@ import Foundation
     let list = root.appending(path: "list.txt")
     try? (appPaths[0] + "\n").write(to: list, atomically: true, encoding: .utf8)
     let listed = lines(run(["--stale-apps", "--only-paths", list.path]))
-    expect(UnusedReview.apps(lines: listed).rows.map(\.id) == [appPaths[0]], "a list of one app previews one row")
+    expect(Set(UnusedReview.apps(lines: listed).rows.compactMap(\.group)) == [apps[0]], "a list of one app previews that app only")
     expect(listed.contains { $0.hasPrefix("[SKIP] not in approved set") && $0.contains(appPaths[1]) }, "the other app is said to be skipped")
 
     // recordings
@@ -109,11 +116,15 @@ import Foundation
     }
     makeApp("Unused"); makeApp("Resident"); makeApp("Unknown")
     try? fm.createDirectory(at: foundApps.appending(path: "Resident.app/Contents/Library/LoginItems/Helper.app"), withIntermediateDirectories: true)
-    let mdls = "#!/bin/bash\napp=\"\"; for a in \"$@\"; do app=\"$a\"; done\ncase \"$app\" in\n  *Unknown.app) echo \"(null)\";;\n  *) [[ \"$2\" == kMDItemLastUsedDate ]] && echo \"2024-01-02 03:04:05 +0000\" || echo \"2020-01-01 00:00:00 +0000\";;\nesac\n"
+    let mdls = "#!/bin/bash\napp=\"\"; for a in \"$@\"; do app=\"$a\"; done\ncase \"$app\" in\n  *Unknown.app) echo \"(null)\";;\n  *) [[ \"$2\" == kMDItemCFBundleIdentifier ]] && { echo \"(null)\"; exit 0; }; [[ \"$2\" == kMDItemLastUsedDate ]] && echo \"2024-01-02 03:04:05 +0000\" || echo \"2020-01-01 00:00:00 +0000\";;\nesac\n"
     try? mdls.write(to: stubs.appending(path: "mdls"), atomically: true, encoding: .utf8)
     try? "#!/bin/bash\necho \"/: Indexing enabled.\"\n".write(to: stubs.appending(path: "mdutil"), atomically: true, encoding: .utf8)
     for stub in ["mdls", "mdutil"] { chmod(stubs.appending(path: stub).path, 0o755) }
-    try? "ANALYZERS_APP_DIRS=\"\(foundApps.path)\"\nANALYZERS_LAUNCH_DIRS=\"\(launch.path)\"\n".write(to: tree.appending(path: "config.local.sh"), atomically: true, encoding: .utf8)
+    let foundConfig = "ANALYZERS_APP_DIRS=\"\(foundApps.path)\"\nANALYZERS_LAUNCH_DIRS=\"\(launch.path)\"\nANALYZERS_LOGIN_INVENTORY=\"\(inventory.path)\"\n"
+    try? foundConfig.write(to: tree.appending(path: "config.local.sh"), atomically: true, encoding: .utf8)
+    let unusedSupport = found.appending(path: "home/Library/Application Support/test.Unused")
+    try? fm.createDirectory(at: unusedSupport, withIntermediateDirectories: true)
+    try? Data(count: 250_000).write(to: unusedSupport.appending(path: "data"))
     func runFound(_ arguments: [String]) -> (text: String, status: Int32) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -128,16 +139,24 @@ import Foundation
     func row(_ name: String) -> StorageRow? { findings.rows.first { $0.title == name } }
     expect(row("Unused")?.keptReason == nil && row("Unused")?.group != Names.Unused.noRecord, "an unused app is offered: \(String(describing: row("Unused")?.keptReason))")
     expect(row("Resident")?.keptReason?.contains("Runs in the background") == true, "an app that registers a login item is a kept row: \(row("Resident")?.keptReason ?? "offered")")
-    expect(row("Unknown")?.keptReason?.contains("no record") == true && row("Unknown")?.group == Names.Unused.noRecord,
-           "an app macOS has no record of is kept under its own heading: \(row("Unknown")?.group ?? "none") / \(row("Unknown")?.keptReason ?? "offered")")
-    expect(findings.rows.filter { $0.keptReason == nil }.map(\.title) == ["Unused"], "only the unused app can be ticked")
+    expect(row("Unknown")?.keptReason?.contains("no record") == true && row("Unknown")?.bytes == nil,
+           "an app macOS has no record of is a kept row: \(row("Unknown")?.keptReason ?? "offered")")
+    expect(Set(findings.rows.filter { $0.keptReason == nil }.compactMap(\.group)) == ["Unused"], "only the unused app (and its files) can be ticked")
+    expect(findings.rows.contains { $0.id == unusedSupport.path && ($0.bytes ?? 0) > 200_000 }, "the unused app's files are rows with sizes")
     let refused = runFound(["--stale-apps", "--execute", "--yes"])
     expect(refused.status == 78 && fm.fileExists(atPath: foundApps.appending(path: "Unused.app").path), "found apps with no reviewed list: exit \(refused.status), nothing removed")
     let found_list = root.appending(path: "found-list.txt")
-    try? (foundApps.appending(path: "Unused.app").path + "\n").write(to: found_list, atomically: true, encoding: .utf8)
+    try? (foundApps.appending(path: "Unused.app").path + "\n" + unusedSupport.path + "\n").write(to: found_list, atomically: true, encoding: .utf8)
     let applied = runFound(["--stale-apps", "--execute", "--yes", "--only-paths", found_list.path])
     let results = UnusedReview.apps(lines: lines(applied.text), results: true)
-    expect(results.rows.map(\.title) == ["Unused"] && results.rows.first?.detail?.hasPrefix(Names.Unused.removed) == true, "the apply is read as a Removed row: \(results.rows.map { "\($0.title): \($0.detail ?? "")" })")
+    expect(Set(results.rows.map(\.id)) == [foundApps.appending(path: "Unused.app").path, unusedSupport.path]
+           && results.rows.allSatisfy { $0.detail?.hasPrefix(Names.Unused.movedToTrash) == true },
+           "the apply is read as one Moved to Trash row per file: \(results.rows.map { "\($0.title): \($0.detail ?? "")" })")
+    // Undo proves each trashed item is the one that was moved (the receipt's identity), so it lists them as restorable
+    let appLedger = found.appending(path: "home/mac-analyzers/reports/storage/cleanup-apps.log")
+    let undoable = UndoLedger.trashedItems(in: appLedger, source: "Unused Apps", trash: found.appending(path: "home/.Trash"))
+    expect(undoable.count == 2 && undoable.allSatisfy { $0.restorability == .restorable && $0.identity != nil },
+           "Undo reads the apply's receipts, with their identity, as restorable: \(undoable.map { "\(($0.originalPath as NSString).lastPathComponent): \($0.restorability)" })")
     expect(fm.fileExists(atPath: found.appending(path: "home/.Trash/Unused.app").path) && !fm.fileExists(atPath: foundApps.appending(path: "Unused.app").path), "the removed app is in the Trash")
     expect(fm.fileExists(atPath: foundApps.appending(path: "Resident.app").path), "the kept app is still there")
 
@@ -151,6 +170,10 @@ import Foundation
     expect(recordingResults.rows.map(\.id) == [oldOne] && recordingResults.rows.first?.detail?.hasPrefix(Names.Unused.removed) == true,
            "a recordings apply is read as one Removed row: \(recordingResults.rows.map { "\($0.id): \($0.detail ?? "")" })")
     expect(fm.fileExists(atPath: home.appending(path: ".Trash/Old1").path) && !fm.fileExists(atPath: oldOne), "the recording is in the Trash")
+    let recordingLedger = home.appending(path: "mac-analyzers/reports/storage/cleanup-recordings.log")
+    let undoRecording = UndoLedger.trashedItems(in: recordingLedger, source: "Old Recordings", trash: home.appending(path: ".Trash"))
+    expect(undoRecording.first?.restorability == .restorable && undoRecording.first?.identity != nil,
+           "Undo reads the recording's receipt, with its identity, as restorable: \(undoRecording.first.map { "\($0.restorability)" } ?? "none")")
 
     print("\(cases) checks, \(failures == 0 ? "the script's output and the screens' rows agree" : "\(failures) FAILED")")
     exit(failures == 0 ? 0 : 1)

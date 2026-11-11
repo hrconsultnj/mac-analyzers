@@ -162,7 +162,7 @@ public struct CacheReview: Sendable {
 
     // MARK: - rows
 
-    private static func pathRow(path: String, bytes: Int64, status: StoragePathItem.Status, section: String,
+    static func pathRow(path: String, bytes: Int64, status: StoragePathItem.Status, section: String,
                                 roots: [String], lastUsed: Date?) -> StorageRow {
         let outcome: String? = status == .dry ? nil : status.plainLabel
         func detail(_ extra: String?) -> String {

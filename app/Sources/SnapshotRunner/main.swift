@@ -44,7 +44,9 @@ if arguments.first == "--probe-links" {
                    "log:storageClean": "caches", "log:janitor": "downloads", "log:tempSpace": "temp",
                    "log:spotlightAudit": "spotlight", "log:cleanupApps": "unused", "log:cleanupRecordings": "recordings",
                    "caches": "caches", "downloads": "downloads", "temp": "temp", "spotlight": "spotlight",
-                   "unused": "unused", "recordings": "recordings", "disk": "disk"]
+                   "unused": "unused", "recordings": "recordings", "disk": "disk",
+                   "disk:capacity": "disk", "disk:caches": "caches", "disk:downloads": "downloads", "disk:temp": "temp",
+                   "caches:projects": "caches", "caches:appCaches": "caches", "caches:developerTools": "caches"]
     var failures = 0
     for (target, section) in storage.sorted(by: { $0.key < $1.key }) {
         let landed = DeepLinkRouter.probeRouting(of: target)

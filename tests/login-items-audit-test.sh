@@ -223,4 +223,16 @@ plist "$TMP/h2/Library/LaunchAgents/com.zz.tab.plist" "$(printf 'com.zz.tab\tx')
 out="$(run --apply)"
 exists "$TMP/h2/Library/LaunchAgents/com.zz.tab.plist"; check "an item with a tab in its label is kept" 0 $?
 grep -q 'a tab or line break' <<<"$out"; check "and is listed as skipped with the reason" 0 $?
+
+# ---- the launch inventory library is missing: the audit stops, it does not guess (exit 78, before anything is read or changed) ----
+fresh
+NOLIB="$TMP/nolib"; mkdir -p "$NOLIB/storage-analyzer" "$NOLIB/lib"
+cp "$SCRIPT" "$NOLIB/storage-analyzer/login-items-audit.sh"
+for f in "$HERE"/../lib/*.sh; do [[ "${f##*/}" == launch-items.sh ]] || cp "$f" "$NOLIB/lib/"; done
+out="$(HOME="$TMP/h2" PATH="$STUBS:$PATH" "$BASH" "$NOLIB/storage-analyzer/login-items-audit.sh" --apply 2>&1)"; rc=$?
+check "a missing lib/launch-items.sh stops the audit (exit 78)" 78 "$rc"
+grep -q 'FATAL: lib/launch-items.sh is missing' <<<"$out"; check "and says which file is missing" 0 $?
+exists "$A"; ra=$?; exists "$B"; rb=$?
+check "and removes nothing (a kept)" 0 $ra
+check "and removes nothing (b kept)" 0 $rb
 exit $fail

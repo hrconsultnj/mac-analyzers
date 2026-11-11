@@ -120,6 +120,23 @@ func probeDiskRunway() -> Never {
     expect(DiskRunway.freeGiB(in: "Free space now: lots") == nil, "a line with no figure reads as nothing")
     let falling = (0..<8).map { (day: Double($0), freeGiB: 100 - Double($0) * 5) }
     expect(DiskRunway.forecast(falling) != nil, "a steady fall over a week gives a forecast")
+    // the shapes a person has an expected answer for
+    func shape(_ values: [Double]) -> [(day: Double, freeGiB: Double)] { values.enumerated().map { (day: Double($0.offset), freeGiB: $0.element) } }
+    let steadyFall = DiskRunway.outlook(shape([100, 90, 80, 70, 60, 50, 40, 30]))
+    expect(steadyFall.runway != nil && (2...4).contains(steadyFall.runway?.daysToFull ?? 0), "a steady fall from 100 to 30 GB over a week counts down about 3 days, from its slope: \(steadyFall.runway?.daysToFull ?? -1) / \(steadyFall.reason)")
+    let bigFall = DiskRunway.outlook(shape((0..<8).map { 200 - Double($0) * 110 / 7 }))
+    expect(bigFall.runway != nil && (5...7).contains(bigFall.runway?.daysToFull ?? 0), "a steady fall from 200 to 90 GB over a week counts down about 6 days: \(bigFall.runway?.daysToFull ?? -1)")
+    let oneBadEnd = DiskRunway.outlook(shape([120, 120, 120, 120, 120, 120, 120, 120, 120, 3]))
+    expect(oneBadEnd.runway == nil && !oneBadEnd.reason.contains("fell") && !oneBadEnd.reason.contains("under a day"),
+           "ONE bad newest reading is not believed: no alarm, no countdown: \(oneBadEnd.reason)")
+    let oneBadMiddle = DiskRunway.outlook(shape([120, 120, 120, 120, 3, 120, 119, 120, 119, 120]))
+    expect(oneBadMiddle.runway == nil && !oneBadMiddle.reason.contains("fell"), "one bad reading in the middle of a flat disk leaves it flat: \(oneBadMiddle.runway.map { "\($0.daysToFull)" } ?? oneBadMiddle.reason)")
+    let recovered = DiskRunway.outlook(shape([120, 120, 120, 120, 120, 120, 13, 13, 110]))
+    expect(recovered.runway == nil && !recovered.reason.contains("fell"), "a fall followed by recovery raises no alarm: \(recovered.runway.map { "\($0.daysToFull)" } ?? recovered.reason)")
+    let recoveredAfterCleanups = DiskRunway.outlook(shape([85, 100, 115, 130, 128, 130, 13, 13, 74]))
+    expect(recoveredAfterCleanups.runway == nil && !recoveredAfterCleanups.reason.contains("fell"), "13 GB then 74 GB after cleanups is no alarm: \(recoveredAfterCleanups.reason)")
+    let plunge = DiskRunway.outlook(shape([120, 122, 119, 121, 120, 118, 60, 13]))
+    expect(plunge.runway == nil && plunge.reason.contains("fell from about 118 GB to 13 GB"), "a plunge in two steps is told as a fall: \(plunge.reason)")
     expect(DiskRunway.forecast(Array(falling.prefix(4))) == nil, "fewer than five points give none")
     expect(DiskRunway.forecast(falling.map { (day: $0.day / 10, freeGiB: $0.freeGiB) }) == nil, "less than a week gives none")
     expect(DiskRunway.forecast(falling.map { (day: $0.day, freeGiB: 40 + $0.day) }) == nil, "a rising trend gives none")
@@ -139,9 +156,8 @@ func probeDiskRunway() -> Never {
     let series = DiskRunway.series(in: log)
     expect(series.count == 33, "the stand-in log gave \(series.count) figures, expected 33")
     let outlook = DiskRunway.outlook(series)
-    expect(outlook.runway != nil, "a disk that lost 105 GiB in a day has a forecast, not \"\(outlook.reason)\"")
-    expect((outlook.runway?.daysToFull ?? 99) < 3, "the forecast follows the recent slope (days to full: \(outlook.runway?.daysToFull ?? -1))")
-    expect(outlook.reason.contains("last"), "the reason says it used the last days: \"\(outlook.reason)\"")
+    expect(outlook.runway == nil && outlook.reason.contains("fell from about 118 GB to 13 GB"),
+           "a disk that lost 105 GiB in a day (118, 60, 13) is told as a fall, not predicted: \"\(outlook.reason)\"")
     // the same long trend with no recent drop is still no forecast
     var calm = ""
     for day in 0..<31 { calm += "storage-auto-clean.sh | mode=daily | APPLY | \(formatter.string(from: start.addingTimeInterval(Double(day) * 86_400)))\nFree space now: \(33 + day * 3)Gi avail (50% used)\n" }
