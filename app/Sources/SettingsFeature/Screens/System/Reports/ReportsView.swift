@@ -11,7 +11,7 @@ import UIComponents
 ///   ReportsModel.swift      the reports on disk, the open one, the jobs that write new ones
 ///   ReportList.swift        the left side (and the Memory / Storage filter)
 ///   ReportBlocksView.swift  the right side: headings, tables, lists, code
-///   ReportRawView.swift     the Markdown as written, one level down
+///   (the Markdown as written is the shared RawOutputScreen, opened from the top)
 ///   ReportFile.swift        what Export hands to the save panel
 ///
 /// Toolbar, in the order it gives up space: Write Report stays; Stop, Export
@@ -117,6 +117,7 @@ struct ReportsView: View {
             .disabled(model.writing != nil)
             .help("Write a new report. Reports only read; nothing is moved, deleted or stopped.")
         }
+        .toolbarRank(.primary)
 
         ToolbarItem(placement: .primaryAction) {
             Button { navigator.open(target: "activity:find:\(Names.job(kind == .memory ? .memoryReport : .storageReport))") } label: {
@@ -125,6 +126,7 @@ struct ReportsView: View {
             .labelStyle(.titleAndIcon)
             .help("See every earlier report in Activity")
         }
+        .toolbarRank(.secondary)
 
         ToolbarItem(placement: .primaryAction) {
             Button { model.stop() } label: { Label("Stop", systemImage: "stop.circle") }
@@ -132,6 +134,7 @@ struct ReportsView: View {
                 .disabled(model.writing == nil)
                 .help("Stop writing the report")
         }
+        .toolbarRank(.secondary)
 
         ToolbarItem(placement: .primaryAction) {
             Menu {
@@ -148,6 +151,7 @@ struct ReportsView: View {
             .disabled(model.sections.isEmpty)
             .help("Jump to a section of this report")
         }
+        .toolbarRank(.secondary)
 
         ToolbarItem(placement: .primaryAction) {
             Button { exporting = true } label: { Label("Export", systemImage: "square.and.arrow.up") }
@@ -155,15 +159,17 @@ struct ReportsView: View {
                 .disabled(model.selected == nil)
                 .help("Save a copy of this report")
         }
+        .toolbarRank(.secondary)
 
         ToolbarItem(placement: .primaryAction) {
             Button {
-                if let report = model.selected { navigator.push(.system(.rawReport(path: report.url.path))) }
+                if let report = model.selected { navigator.push(.overview(.raw(.file(report.url, fromTop: true)))) }
             } label: { Label("Show Source", systemImage: "curlybraces") }
                 .labelStyle(.titleAndIcon)
                 .disabled(model.selected == nil)
                 .help("See the report's text exactly as written")
         }
+        .toolbarRank(.secondary)
     }
 
     private var subtitle: String {
@@ -195,7 +201,7 @@ struct ReportsView: View {
         if payload == "storage" { kind = .storage }
         if payload == "memory" { kind = .memory }
         if payload == "raw", let report = model.selected {
-            navigator.push(.system(.rawReport(path: report.url.path)))
+            navigator.push(.overview(.raw(.file(report.url, fromTop: true))))
         }
     }
 

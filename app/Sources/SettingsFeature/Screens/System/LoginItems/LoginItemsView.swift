@@ -216,6 +216,7 @@ struct LoginItemsView: View {
             .disabled(model.isBusy)
             .help(auditHelp)
         }
+        .toolbarRank(.primary)
 
         ToolbarItem(placement: .primaryAction) {
             Menu {
@@ -229,6 +230,7 @@ struct LoginItemsView: View {
             .disabled(tab == .changes)
             .help("Narrow the list")
         }
+        .toolbarRank(.secondary)
 
         ToolbarItem(placement: .primaryAction) {
             Button { model.stop() } label: { Label("Stop", systemImage: "stop.circle") }
@@ -236,6 +238,7 @@ struct LoginItemsView: View {
                 .disabled(!model.isBusy)
                 .help("Stop the audit")
         }
+        .toolbarRank(.secondary)
 
         ToolbarItem(placement: .primaryAction) {
             Button { navigator.open(target: "activity:find:\(Names.job(.loginItems))") } label: {
@@ -244,6 +247,7 @@ struct LoginItemsView: View {
             .labelStyle(.titleAndIcon)
             .help("See every earlier audit in Activity")
         }
+        .toolbarRank(.secondary)
 
         // Remove Leftovers lives on the Leftovers tab, where the leftovers are
         if tab == .leftovers {
@@ -255,6 +259,7 @@ struct LoginItemsView: View {
                 .disabled(model.removable.isEmpty || !model.canRemove(in: store) || model.isBusy)
                 .help(removeHelp)
             }
+        .toolbarRank(.secondary)
         }
     }
 

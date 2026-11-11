@@ -1,12 +1,10 @@
 import SwiftUI
 import AnalyzersKit
 
-/// What can be pushed in the System group.
-enum SystemRoute: Hashable, Codable, Sendable {
-    /// A report's raw Markdown, one level below the reader. Holds the file's
-    /// path: a route is an identifier, never the text.
-    case rawReport(path: String)
-}
+/// What can be pushed in the System group: nothing of its own yet (a report's
+/// source is the shared raw-output screen), so this carries nothing. A case goes
+/// here when a System screen pushes one.
+struct SystemRoute: Hashable, Codable, Sendable {}
 
 /// Network, Login & Startup Items and Reports.
 @MainActor
@@ -62,9 +60,6 @@ enum SystemGroup {
         }
     }
 
-    @ViewBuilder static func destination(for route: SystemRoute) -> some View {
-        switch route {
-        case .rawReport(let path): ReportRawView(path: path)
-        }
-    }
+    /// The System group pushes no screens of its own.
+    static func destination(for route: SystemRoute) -> EmptyView { EmptyView() }
 }

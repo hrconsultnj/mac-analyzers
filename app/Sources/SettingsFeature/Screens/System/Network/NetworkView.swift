@@ -135,6 +135,7 @@ struct NetworkView: View {
             .disabled(model.isTaking)
             .help("Read what every program has sent and received since it started")
         }
+        .toolbarRank(.primary)
 
         ToolbarItem(placement: .primaryAction) {
             Button { navigator.open(target: "activity:find:\(Names.job(.networkSnapshot))") } label: {
@@ -143,6 +144,7 @@ struct NetworkView: View {
             .labelStyle(.titleAndIcon)
             .help("See every earlier snapshot in Activity")
         }
+        .toolbarRank(.secondary)
 
         ToolbarItem(placement: .primaryAction) {
             Button { model.stop() } label: { Label("Stop", systemImage: "stop.circle") }
@@ -150,6 +152,7 @@ struct NetworkView: View {
                 .disabled(!model.isTaking)
                 .help("Stop the snapshot")
         }
+        .toolbarRank(.secondary)
     }
 
     /// One short fact: what this tab is showing (the counts are on the tabs).
