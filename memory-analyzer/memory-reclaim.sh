@@ -160,8 +160,18 @@ app_hosted_sessions() {
 # SHRINK what gets stopped — never add to it.
 approved_pid() {
   [[ -z "${ONLY_PIDS}" ]] && return 0
-  grep -qxF -- "$1" "${ONLY_PIDS}"
+  approved_list_has "$1"
 }
+
+# The reviewed list is read once (lib/approved-list.sh): a `grep` per item made a
+# 6,000-item apply take minutes. A list that cannot be checked stops the run.
+if [[ -n "${ONLY_PIDS}" ]]; then
+  if ! source "${ANALYZERS_ROOT}/lib/approved-list.sh" 2>/dev/null; then
+    echo "FATAL: lib/approved-list.sh is missing — refusing to run with a reviewed list it cannot check." >&2
+    exit 78
+  fi
+  approved_list_load "${ONLY_PIDS}"
+fi
 
 reap() {
   local pid="$1" rsskb="$2" desc="$3"

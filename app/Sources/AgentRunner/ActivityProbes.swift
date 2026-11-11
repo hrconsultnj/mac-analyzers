@@ -256,3 +256,18 @@ private func show(_ rows: [ActivityRow], now: Date) {
     }
     exit(0)
 }
+
+
+/// `--probe-activity-log <file>`: Activity's one-line summary of each of the newest
+/// runs in a storage log file, read the way the real log is. For a log written by a
+/// newer or older version of the script than the one running.
+func probeActivityLog(_ path: String) -> Never {
+    let runs = LogParser.runs(at: URL(fileURLWithPath: path))
+    print("\(runs.count) runs read from \(URL(fileURLWithPath: path).lastPathComponent)")
+    for run in runs.prefix(4) {
+        let summary = ActivitySummary.of(run, in: .storageClean)
+        let prune = run.lines.filter { $0.contains("prune:") }.count
+        print("  \(String(run.header.prefix(60))) | prune rows: \(prune) | \"\(summary.text)\" findings \(summary.findings)")
+    }
+    exit(0)
+}

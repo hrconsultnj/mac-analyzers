@@ -41,6 +41,29 @@ without an entry here — see `scripts/cut-release.sh`.
   what the program was, and why the guard acts — and for a memory crisis, which
   apps were using the memory.
 
+## v2.69.1 — Large Downloads reviews can be applied again
+
+- Reviews of very large cleanups can be applied again. If your Downloads
+  folder holds thousands of old files, the review used to say it couldn't find
+  the results of its own preview and refused to apply; it now reads the whole
+  preview, so you can untick what you want to keep and clear the rest.
+- A cleanup now touches only the items that were in the review you approved,
+  even if new ones appeared since. A review can also be applied only once.
+- The package-manager and tool cleanups in a deep Caches & Builds cleanup
+  (pnpm, npm, Homebrew, simulators, Docker) are now part of what you review,
+  and they run only when you approved them.
+- Memory Cleanup's count now matches what Apply closes.
+- The Caches & Builds review says which package-manager and Docker cleanups run
+  with it, and that they are skipped as soon as you untick a row; the log
+  screen lists them too.
+- Cleaning thousands of files no longer slows down when you untick some of
+  them, and a file in Downloads whose name contains a line break no longer
+  stops a cleanup: it is left alone and the cleanup says so.
+- Two files with the same name cleaned up at the same moment are both kept in
+  the Trash. Before, the second could replace the first.
+- Activity no longer loses a log for a while when its recent part happens to
+  start in the middle of an accented character.
+
 ## v2.69.0 — A new main window, and cleanups you can watch, stop and look back on
 
 Mac Analyzers has a new main window. The sidebar is organised by what you

@@ -76,24 +76,60 @@ public enum RunMatcher {
 
     // MARK: - selecting
 
-    public static func select(from runs: [LogRun], header: String?) -> (run: LogRun, match: Match)? {
-        if let header, let hit = runs.first(where: { matches($0, header: header) }) {
+    /// The newest block that is this job's: its banner matches and does not
+    /// show it began before the job did.
+    public static func select(from runs: [LogRun], header: String?, startedAt: Date? = nil)
+        -> (run: LogRun, match: Match)? {
+        if let header, let hit = runs.first(where: { run in
+            matches(run, header: header)
+                && (startedAt.map { RunDate.isNotBefore(banner: run.header, start: $0) } ?? true)
+        }) {
             return (hit, .exact)
         }
         guard let newest = runs.first else { return nil }
-        let reason = header == nil
-            ? "This run printed no banner, so the newest run in the log is shown."
-            : "This run's banner wasn't found in the log, so the newest run in the log is shown."
-        return (newest, .newestFallback(reason))
+        return (newest, .newestFallback(header == nil ? Reason.noBanner : Reason.notFound))
+    }
+
+    /// Why a run's results are not shown. Full sentences: a screen says them as they are.
+    public enum Reason {
+        public static let noBanner = "This run printed no banner, so its own results can't be told from another run's."
+        public static let notFound = "This run's own results couldn't be found in the log."
+        public static let tooLarge = "This run's results are too large to review: they are more than 32 MB of log."
     }
 
     /// Reads the log and parses the matching run. Touches the disk — call it
     /// off the main actor.
-    public static func outcome(kind: JobKind, header: String?) -> JobOutcome {
-        guard let log = kind.log else {
+    ///
+    /// The common case reads the log's last 256 KB, as it always has. Only when
+    /// the banner is not in that window (a very large run) does it read back
+    /// further, to a fixed reach; a run beyond that stays a fallback, which
+    /// refuses an apply.
+    public static func outcome(kind: JobKind, header: String?, startedAt: Date? = nil) -> JobOutcome {
+        outcome(kind: kind, in: kind.log?.url, header: header, startedAt: startedAt)
+    }
+
+    /// The same over any log file, so a probe can read a stand-in log the way the real one is read.
+    public static func outcome(kind: JobKind, in logURL: URL?, header: String?, startedAt: Date? = nil) -> JobOutcome {
+        guard let url = logURL else {
             return JobOutcome(parsed: .none, run: nil, match: .noLog)
         }
-        guard let picked = select(from: LogParser.runs(for: log), header: header) else {
+        var picked = select(from: LogParser.runs(at: url), header: header, startedAt: startedAt)
+        // A block from the window that holds another run's banner is two runs the parser
+        // could not tell apart (the janitor's log has no separator between runs): it is
+        // not trusted, and the run is read again from its own banner.
+        if let current = picked, current.match == .exact,
+           current.run.lines.contains(where: { banner(in: $0) != nil }) {
+            picked = (current.run, .newestFallback(Reason.notFound))
+        }
+        if picked?.match != .exact, let header {
+            switch WholeRun.find(banner: header, in: url, notBefore: startedAt) {
+            case .block(let block): picked = (block.run, .exact)
+            case .tooLarge:
+                if let current = picked { picked = (current.run, .newestFallback(Reason.tooLarge)) }
+            case .notFound: break
+            }
+        }
+        guard let picked else {
             return JobOutcome(parsed: .none, run: nil, match: .noLog)
         }
         let run = picked.run

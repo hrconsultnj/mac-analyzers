@@ -30,7 +30,7 @@ if [ "${1:-}" = "soak" ]; then
   count soak --seconds "${SOAK_SECONDS:-600}"
 else
   for name in first ticks resort search tabs open1 openAll churn; do
-    for run in 1 2 3; do count "$name"; done
+    for _ in 1 2 3; do count "$name"; done
   done
 fi
 [ "$FAILED" -eq 0 ] && echo "monitor-probe: zero warnings" || echo "monitor-probe: FAILED"

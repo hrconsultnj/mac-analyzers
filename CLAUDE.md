@@ -175,7 +175,12 @@ through `config.local.sh` (never hardcoded).
   store's test hooks (`scriptOverride`, `outcomeOverride`, the clock, the schedule
   reader) are `@_spi(TestSupport)`: only `AgentRunner` and `SnapshotRunner`
   import that interface, `scripts/check.sh spi` fails if anything else does, and
-  it is a compile-time wall between our own targets, not a runtime one. For a
+  it is a compile-time wall between our own targets, not a runtime one. The
+  app people install reads NO environment variable (`scripts/check.sh env`):
+  a tool that never ships (`AgentRunner`, `SnapshotRunner`) reads it and
+  hands the value in. Probes that judge themselves on stand-in data run in
+  the gate (`scripts/check.sh probes`; add one to `PROBES` once it exits
+  non-zero on a broken rule). For a
   scheduled replay the store reads the installed plist's arguments itself. The shell's `.status`
   toolbar item (`JobStatusToolbarItem`, attached to the split view, never to a
   stack) and the menu panel's `MenuJobsStrip` show the running job, and
