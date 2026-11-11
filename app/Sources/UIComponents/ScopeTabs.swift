@@ -44,11 +44,13 @@ public struct ScopeTabItem<Value: Hashable & Sendable>: Identifiable {
 /// (in SettingsFeature), which adds the View menu commands; the panel has neither. Never in a toolbar:
 /// a toolbar moves a wide item into its `»` menu, and tabs must always be visible.
 ///
-/// Every tab is a system `Button`; the selected one uses the prominent system style, the others the
-/// bordered one. When the titles do not all fit the width it is given, the unselected tabs drop their
-/// titles first (icon and count stay; the title is the tooltip and the accessibility label) and the
-/// selected tab keeps its title, so every tab stays visible and clickable. That is the one shape
-/// change, and it depends on width only, never on state.
+/// Every tab is a system `Toggle` in the button style: its on state stays a visibly stronger fill than
+/// the others even in a window that is not in front (where an accent colour would not be drawn), and
+/// the selected tab also has a filled symbol and a heavier title while the others are dimmer. When
+/// the titles do not all fit the width it is given, the tabs give up their titles one at a time, the
+/// last unselected one first (icon and count stay; the title is the tooltip and the accessibility
+/// label), and the selected tab keeps its title, so every tab stays visible and clickable. That is
+/// the one shape change, and it depends on width only, never on which tab is selected.
 public struct ScopeTabs<Value: Hashable & Sendable>: View {
     @Binding var selection: Value
     let items: [ScopeTabItem<Value>]
@@ -62,33 +64,46 @@ public struct ScopeTabs<Value: Hashable & Sendable>: View {
         assert((2...6).contains(items.count),
                "ScopeTabs takes two to six categories; a screen with one kind of thing has no tabs, and seven or more need a different control (ask the lead)")
         // ViewThatFits picks the first row that fits the width it is offered (its own measurement,
-        // not a hand-made budget); the compressed row is the last and always fits six tabs at 780.
+        // not a hand-made budget). The rows give up titles one tab at a time, the last unselected
+        // tab first, so a title stays for as long as it fits; the last row (every unselected tab
+        // as icon and count) is the one that always fits six tabs at 780. Six rows because a
+        // screen has at most six tabs and at most five that are not selected.
         return ViewThatFits(in: .horizontal) {
-            row(compressed: false)
-            row(compressed: true)
+            row(compressing: 0)
+            row(compressing: 1)
+            row(compressing: 2)
+            row(compressing: 3)
+            row(compressing: 4)
+            row(compressing: 5)
         }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isTabBar)
     }
 
-    private func row(compressed: Bool) -> some View {
-        HStack(spacing: 6) {
+    /// The row with the last `compressing` unselected tabs reduced to icon and count.
+    private func row(compressing: Int) -> some View {
+        let unselected = items.filter { $0.value != selection }.map(\.value)
+        let compressed = Set(unselected.suffix(compressing))
+        return HStack(spacing: 6) {
             ForEach(items) { item in
                 let selected = item.value == selection
-                tab(item, selected: selected, showsTitle: !compressed || selected)
+                tab(item, selected: selected, showsTitle: !compressed.contains(item.value))
             }
         }
     }
 
     @ViewBuilder private func tab(_ item: ScopeTabItem<Value>, selected: Bool, showsTitle: Bool) -> some View {
-        let button = Button { selection = item.value } label: { label(item, selected: selected, showsTitle: showsTitle) }
-        Group {
-            if selected { button.buttonStyle(.borderedProminent) } else { button.buttonStyle(.bordered) }
+        Toggle(isOn: Binding(get: { selected }, set: { if $0 { selection = item.value } })) {
+            label(item, selected: selected, showsTitle: showsTitle)
         }
+        .toggleStyle(.button)
         .buttonBorderShape(.capsule)
-        // the filled symbol marks the selected tab even where the accent colour is not drawn
-        // (a window that is not in front draws the prominent style in grey)
+        // The selected tab must be unmistakable in a window that is not in front, where an accent
+        // would not be drawn: the toggle's on fill, a filled symbol and a heavier title, with the
+        // others dimmer.
         .symbolVariant(selected ? .fill : .none)
+        .fontWeight(selected ? .semibold : .regular)
+        .foregroundStyle(selected ? .primary : .secondary)
         .help(item.titleWithCount)
         .accessibilityLabel(item.titleWithCount)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -100,7 +115,7 @@ public struct ScopeTabs<Value: Hashable & Sendable>: View {
         if showsTitle {
             Label {
                 if let count {
-                    // on the prominent (accent) fill a secondary colour would not read
+                    // the selected tab keeps the primary colour for its count too, so its title reads as one
                     Text("\(item.title) \(Text("\(count)").foregroundStyle(selected ? .primary : .secondary))")
                 } else {
                     Text(item.title)

@@ -35,15 +35,16 @@ import SwiftUI
 import SettingsFeature
 
 let arguments = Array(CommandLine.arguments.dropFirst())
-// Each run starts from the target it was given, with nothing remembered from an earlier run (the
-// saved location, the chosen tab, the opened groups): clear this tool's own defaults domain. Never
-// the app's.
+// `--outline-probe <action> …` drives the shared OutlineTable headless (OutlineProbe.swift); it never renders a screen
+if arguments.first == "--outline-probe" { OutlineProbe.run(Array(arguments.dropFirst())) }
+// A screen render starts from the target it was given, with nothing remembered from an earlier run
+// (the saved location, the chosen tab, the opened groups): clear this tool's own defaults domain,
+// never the app's. Only for a render: the probes above keep their own state per process, and
+// wiping the whole domain under probes that run side by side broke them.
 if let domain = Bundle.main.bundleIdentifier ?? Optional(ProcessInfo.processInfo.processName),
    domain != "com.mac-analyzers.app" {
     UserDefaults.standard.removePersistentDomain(forName: domain)
 }
-// `--outline-probe <action> …` drives the shared OutlineTable headless (OutlineProbe.swift); it never renders a screen
-if arguments.first == "--outline-probe" { OutlineProbe.run(Array(arguments.dropFirst())) }
 // the example screens (`review:fixture`) can be linked only in this process; this tool has no
 // app bundle, so MA_CHANGELOG names the changelog What's New shows (read HERE, never by the app)
 let changelog = ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fileURLWithPath: $0) }
