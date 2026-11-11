@@ -60,6 +60,12 @@ final class StorageReviewModel {
                              lastKnownBanner: phase == .lastKnown ? block?.banner : nil, chosen: chosen)
     }
 
+    /// The words Apply and its confirmation use: those of the setting `setting` decides.
+    func words(kind: JobKind, chosen: JobOptions) -> CleanWords {
+        StorageSetting.words(kind: kind, preview: job?.request.options,
+                             lastKnownBanner: phase == .lastKnown ? block?.banner : nil, chosen: chosen)
+    }
+
     /// The person picked a setting in the menu. When it is not the one on screen, the preview
     /// (or last-known list) was made with the other one: it is put away, as a mode change always has.
     /// Returns whether anything changed.

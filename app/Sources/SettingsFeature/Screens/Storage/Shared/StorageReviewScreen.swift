@@ -63,19 +63,28 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
     private var filled: [Category] { model.rows?.filled(Category.self) ?? [] }
     private var current: Category { filled.contains(category) ? category : (filled.first ?? category) }
 
+    /// One short fact in the toolbar's subtitle, so it is never cut: where what is cleared goes. While a
+    /// preview runs, the step it is on.
     private var subtitle: String {
-        let detail: String
         switch model.phase {
-        case .empty, .failed, .stopped, .unreadable: detail = ""
         case .running: return model.job?.step ?? "Previewing…"
         case .loading: return "Reading the results…"
-        case .ready:
-            detail = ([subtitlePrefix, model.session?.summary] + (model.rows?.facts ?? [])).compactMap { $0 }
-                .filter { !$0.isEmpty }.joined(separator: " · ")
-        case .lastKnown:
-            detail = model.asOf.flatMap(StorageLog.ago).map { "From the preview \($0)" } ?? "From the last preview"
+        default: return destination ?? ""
         }
-        return [destination, detail].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// The rest, as a line over the table: which mode, how old the preview is, the disk's free space.
+    private var detailLine: String? {
+        let text: String
+        switch model.phase {
+        case .ready:
+            text = ([subtitlePrefix] + (model.rows?.facts ?? [])).compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        case .lastKnown:
+            text = ([subtitlePrefix] + [model.asOf.flatMap(StorageLog.ago).map { "From the preview \($0)" } ?? "From the last preview"])
+                .compactMap { $0 }.joined(separator: " · ")
+        default: return nil
+        }
+        return text.isEmpty ? nil : text
     }
 
     var body: some View {
@@ -116,8 +125,10 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
 
     /// What the preview says that is not a row, as the system's own bar over the table.
     @ViewBuilder private var notesStrip: some View {
-        if let notes = model.rows?.notes(for: current), !notes.isEmpty {
-            VStack(alignment: .leading) {
+        let notes = model.rows?.notes(for: current) ?? []
+        if detailLine != nil || !notes.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                if let detailLine { Text(detailLine).font(.callout).foregroundStyle(.secondary) }
                 ForEach(notes, id: \.self) { Label($0, systemImage: "info.circle").font(.callout) }
             }
             .padding(.horizontal)
@@ -140,8 +151,10 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
         ToolbarItem {
             if model.phase == .running {
                 Button { model.job?.cancel() } label: { Label(Names.Review.stop, systemImage: "stop.fill") }
+                .labelStyle(.titleAndIcon)
             } else {
                 Button { startPreview() } label: { Label(Names.Review.preview, systemImage: "eye") }
+                .labelStyle(.titleAndIcon)
                     .help("Look at what a cleanup would do; nothing is changed")
             }
         }
@@ -149,6 +162,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
         ToolbarItem {
             if model.phase == .ready {
                 Button { model.discard(store) } label: { Label(Names.Review.discard, systemImage: "xmark.circle") }
+                .labelStyle(.titleAndIcon)
                     .help("Throw this review away without applying it")
             }
         }
@@ -157,6 +171,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
             Button { navigator.push(.storage(.history(kind.rawValue))) } label: {
                 Label(Names.Review.history, systemImage: "clock.arrow.circlepath")
             }
+            .labelStyle(.titleAndIcon)
             .help("Every time this ran, and what it did")
         }
         .toolbarRank(.secondary)
@@ -165,6 +180,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
                 Button { navigator.push(.overview(.raw(.log(log.rawValue)))) } label: {
                     Label(Names.Review.showRawOutput, systemImage: "doc.plaintext")
                 }
+                .labelStyle(.titleAndIcon)
                 .help("The cleanup's own log, in the app")
             }
         }

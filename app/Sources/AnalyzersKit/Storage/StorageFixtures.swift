@@ -110,10 +110,14 @@ public enum StorageFixtures {
         [DELETED]    1.4 GB  \(home)/Library/Caches/com.example.Editor
         ### 3. Package-manager caches (prune unreferenced only)
         running: pnpm store prune
+        done: pnpm store prune
+        running: brew cleanup --prune=all -s
+        failed: brew cleanup --prune=all -s (exit 1)
         [SKIP]    prune:npm  not in the reviewed list
         ### 3.5 Docker prune
         OrbStack already running — pruning, will leave it running.
         running: docker system prune -f
+        done: docker system prune -f
         ### 4. Time Machine local snapshots
         thinned 2 local snapshot(s) — freed space now realized in df.
         Free space now: 108Gi avail (74% used)

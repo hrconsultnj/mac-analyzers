@@ -26,6 +26,7 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
     /// changes are not the person's and are not echoed to the caller.
     var isApplying = false
     private var applyQueued = false
+    private var fitQueued = false
 
     // MARK: rule 2 — every write to a caller's binding happens on the next main turn
 
@@ -144,6 +145,38 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
         configureAppearance()
         buildColumnsIfNeeded()
         updater.apply()
+        fitFirstColumn()
+    }
+
+    /// The first column takes the spare width, but its width is saved with the others: a window that was
+    /// once wider restores it too wide, and the columns after it (a review's Size) end up off the right
+    /// edge. After the columns are in place the first one is shrunk to what is left, never grown (AppKit
+    /// grows it itself with the window). Run again on the next turn, when the scroll view has its size.
+    private func fitFirstColumn() {
+        guard let first = outline.tableColumns.first else { return }
+        let room = scrollView.contentView.bounds.width
+        if room > 0 {
+            let spacing = outline.intercellSpacing.width
+            let others = outline.tableColumns.dropFirst().filter { !$0.isHidden }.reduce(CGFloat(0)) { $0 + $1.width + spacing }
+            let available = room - others - spacing
+            if first.width > available + 1, available >= first.minWidth { first.width = available }
+        }
+        guard !fitQueued else { return }
+        fitQueued = true
+        DispatchQueue.main.async { [self] in
+            MainActor.assumeIsolated {
+                fitQueued = false
+                if scrollView.contentView.bounds.width > 0, !isApplying, depth == 0 { fitFirstColumnNow() }
+            }
+        }
+    }
+
+    private func fitFirstColumnNow() {
+        guard let first = outline.tableColumns.first else { return }
+        let spacing = outline.intercellSpacing.width
+        let others = outline.tableColumns.dropFirst().filter { !$0.isHidden }.reduce(CGFloat(0)) { $0 + $1.width + spacing }
+        let available = scrollView.contentView.bounds.width - others - spacing
+        if first.width > available + 1, available >= first.minWidth { first.width = available }
     }
 
     /// Everything about the outline that follows the environment and the modifiers.

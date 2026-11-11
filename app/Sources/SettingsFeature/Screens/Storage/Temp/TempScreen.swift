@@ -30,10 +30,12 @@ struct TempScreen: View {
     }
 
     var body: some View {
-        let words = CleanWords.temp(permanent: permanent)
+        let words = model.words(kind: .tempClean, chosen: JobOptions(permanent: chosen ?? false))
         StorageReviewScreen<TempCategory>(
             model: model, title: Names.Screen.tempAndAgents, kind: .tempClean, screenKey: "temp",
-            options: JobOptions(permanent: permanent),
+            // a new preview starts with the app's own pick; only SHOWING an existing preview (one made in
+            // Terminal, or by the schedule) follows that preview's setting
+            options: model.phase == .lastKnown ? JobOptions(permanent: chosen ?? false) : JobOptions(permanent: permanent),
             parse: { TempReview.build(from: TempCleanParser.parse(runHeader: $0.banner, lines: $0.lines)).rows },
             lastKnownMatches: { [picked = chosen] block in
                 picked.map { StorageSetting.options(kind: .tempClean, banner: block.banner).permanent == $0 } ?? true
@@ -63,6 +65,7 @@ struct TempScreen: View {
                         Menu {
                             ForEach(images) { image in Button(image.title) { ejecting = image } }
                         } label: { Label("Eject", systemImage: "eject") }
+                        .labelStyle(.titleAndIcon)
                         .help("Eject a disk image mounted from a temp folder")
                     }
                 }

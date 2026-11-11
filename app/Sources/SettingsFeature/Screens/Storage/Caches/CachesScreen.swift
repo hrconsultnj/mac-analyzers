@@ -25,10 +25,12 @@ struct CachesScreen: View {
     }
 
     var body: some View {
-        let words = CleanWords.caches(deep: mode == .deep)
+        let words = model.words(kind: .storageClean, chosen: (chosen ?? .daily).options)
         StorageReviewScreen<CacheCategory>(
             model: model, title: Names.Screen.cachesAndBuilds, kind: .storageClean, screenKey: "caches",
-            options: mode.options,
+            // a new preview starts with the app's own pick; only SHOWING an existing preview (one made in
+            // Terminal, or by the schedule) follows that preview's setting
+            options: model.phase == .lastKnown ? (chosen ?? .daily).options : mode.options,
             parse: { CacheReview.build(lines: $0.lines, banner: $0.banner).rows },
             // before the person picks, the newest logged preview of either mode; after, only that mode's
             lastKnownMatches: { [picked = chosen] block in

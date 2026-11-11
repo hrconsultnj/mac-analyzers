@@ -18,6 +18,13 @@ public enum StorageSetting {
         return normalized(kind, chosen)
     }
 
+    /// What the screen asks and words its Apply with: the words of the setting `shown` decides, in one
+    /// place so a screen cannot word one setting and send another.
+    public static func words(kind: JobKind, preview: JobOptions?, lastKnownBanner: String?, chosen: JobOptions) -> CleanWords {
+        CleanWords.words(kind: kind, setting: shown(kind: kind, preview: preview, lastKnownBanner: lastKnownBanner, chosen: chosen))
+            ?? CleanWords.caches(deep: false)
+    }
+
     /// Whether choosing `picked` in the menu changes what is on screen: only then is the preview
     /// (or the last-known list) put away, because it was made with the other setting.
     public static func isChange(kind: JobKind, shown: JobOptions, picked: JobOptions) -> Bool {

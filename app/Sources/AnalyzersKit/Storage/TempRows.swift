@@ -105,8 +105,8 @@ public struct TempReview: Sendable {
             tabNotes[TempCategory.temporaryFiles.rawValue, default: []]
                 .append("\(inside) in temp is inside mounted disk images, not on your disk. A plain du would report \(run.plainDu ?? "more").")
         }
-        if let rules = run.rulesLine { tabNotes[TempCategory.temporaryFiles.rawValue, default: []].append(rules) }
-        if let selfClean = run.selfCleanLine { tabNotes[TempCategory.temporaryFiles.rawValue, default: []].append(selfClean) }
+        if let rules = run.rulesLine.flatMap(rulesSentence) { tabNotes[TempCategory.temporaryFiles.rawValue, default: []].append(rules) }
+        if let selfClean = run.selfCleanLine.flatMap(selfCleanSentence) { tabNotes[TempCategory.temporaryFiles.rawValue, default: []].append(selfClean) }
         var agentParts: [String] = []
         if let n = run.liveClaudeSessions { agentParts.append("\(n) live Claude Code \(n == 1 ? "session" : "sessions")") }
         if let codex = run.codexRunning { agentParts.append(codex ? "Codex is running" : "Codex is closed") }
@@ -121,6 +121,41 @@ public struct TempReview: Sendable {
         }
         return TempReview(rows: StorageRows(unique + imageRows, facts: facts, tabNotes: tabNotes), diskImages: images, freeSpace: run.freeSpace,
                           tempOnDisk: run.tempOnDisk, agentFolders: run.agentFolders)
+    }
+
+    /// "24h" or "3d" as a person says it: "a day", "three days", "two weeks".
+    static func span(_ number: Int, _ unit: Character) -> String {
+        let days = unit == "h" ? max(1, number / 24) : number
+        switch days {
+        case 1: return "a day"
+        case 2: return "two days"
+        case 3: return "three days"
+        case 7: return "a week"
+        case 14: return "two weeks"
+        case 30: return "a month"
+        default: return "\(days) days"
+        }
+    }
+
+    private static func first(_ pattern: String, in text: String) -> (Int, Character)? {
+        guard let range = text.range(of: pattern, options: .regularExpression) else { return nil }
+        let match = text[range]
+        guard let number = Int(match.filter(\.isNumber)), let unit = match.last(where: { $0 == "h" || $0 == "d" }) else { return nil }
+        return (number, unit)
+    }
+
+    /// The engine's rules line ("temp idle 24h+ · agent scratch idle 3d+ · …"), as sentences.
+    public static func rulesSentence(_ line: String) -> String? {
+        guard let temp = first(#"temp idle \d+[hd]"#, in: line), let agent = first(#"agent scratch idle \d+[hd]"#, in: line),
+              let npx = first(#"npx tools idle \d+[hd]"#, in: line) else { return nil }
+        return "Temporary files are cleared after \(span(temp.0, temp.1)) without use, coding agents' scratch folders after \(span(agent.0, agent.1)) and npx tools after \(span(npx.0, npx.1)). Anything that is open, in use, someone else's or a mounted disk image is never touched."
+    }
+
+    /// "macOS also deletes /tmp files untouched for 3+ days each night (tmp_cleaner) — …", as a sentence.
+    public static func selfCleanSentence(_ line: String) -> String? {
+        guard let range = line.range(of: #"\d+\+ days"#, options: .regularExpression),
+              let days = Int(line[range].filter(\.isNumber)) else { return nil }
+        return "macOS also clears /tmp by itself every night: files nobody has touched for \(span(days, "d")). It skips mounted disk images and anything in use."
     }
 
     /// Two things in one group can end up with the same name (three runs of the same npx tool

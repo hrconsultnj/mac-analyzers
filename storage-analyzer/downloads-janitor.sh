@@ -122,6 +122,7 @@ keep_match() {
 
 TOTAL_KB=0
 COUNT=0
+CLOUD_COUNT=0
 
 # A name in the Trash that nothing else has: the plain name, else
 # <epoch>-<name>, else <epoch>-<n>-<name>, counting until it is free
@@ -171,15 +172,18 @@ sweep() {
     kb="$(du -sk "${item}" 2>/dev/null | cut -f1 || true)"
     [[ -z "${kb}" ]] && kb=0
     size="$(human "${kb}")"
+    # A file that exists only in iCloud is never moved, by any run (preview, scheduled or reviewed):
+    # moving it frees nothing on this Mac, and once the Trash is emptied it is gone from iCloud and
+    # from every other device. It is listed so it can be seen, and left where it is.
+    cloud_kb=""
+    [[ "${kb}" -eq 0 ]] && cloud_kb="$(cloud_only_kb "${item}")"
+    if [[ -n "${cloud_kb}" ]]; then
+      log "[CLOUD] $(human "${cloud_kb}")  ${item}"
+      CLOUD_COUNT=$((CLOUD_COUNT + 1))
+      continue
+    fi
     if [[ "${DRY_RUN}" -eq 1 ]]; then
-      cloud_kb=""
-      [[ "${kb}" -eq 0 ]] && cloud_kb="$(cloud_only_kb "${item}")"
-      if [[ -n "${cloud_kb}" ]]; then
-        # moving it frees nothing on this Mac; it removes the iCloud copy once the Trash is emptied
-        log "[CLOUD] $(human "${cloud_kb}")  ${item}"
-      else
-        log "[DRY] ${size}  ${item}"
-      fi
+      log "[DRY] ${size}  ${item}"
     else
       # Never onto something already in the Trash: `trash_dest` finds a free
       # name and `mv -n` refuses to replace anything, so two same-named items
@@ -223,4 +227,7 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   log "DRY RUN — would move ${COUNT} item(s), ${TOTAL_H}, to the Trash. Re-run with --apply."
 else
   log "DONE — moved ${COUNT} item(s), ${TOTAL_H}, to the Trash (recoverable)."
+fi
+if [[ "${CLOUD_COUNT}" -gt 0 ]]; then
+  log "LEFT — ${CLOUD_COUNT} file(s) that exist only in iCloud were left where they are: moving one frees nothing on this Mac and removes it from iCloud and your other devices once the Trash is emptied."
 fi

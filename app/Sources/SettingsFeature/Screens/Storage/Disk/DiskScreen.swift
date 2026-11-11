@@ -31,6 +31,7 @@ struct DiskScreen: View {
         .toolbar {
             ToolbarItem {
                 Button { checkAll() } label: { Label("Preview All", systemImage: "eye") }
+                .labelStyle(.titleAndIcon)
                     .help("Preview every cleanup on this screen, one after another; nothing is changed")
             }
             .toolbarRank(.primary)
@@ -60,6 +61,10 @@ struct DiskScreen: View {
                         .foregroundStyle(runway?.isUrgent == true ? .red : .secondary)
                 }
                 .help(runwayReason)
+                if runway == nil {
+                    // why there is no forecast, in view instead of in a tooltip
+                    Text(runwayReason).font(.callout).foregroundStyle(.secondary)
+                }
             }
         }
     }

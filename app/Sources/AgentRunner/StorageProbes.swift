@@ -133,7 +133,8 @@ func probeStorage(_ which: String, logOverride: String?) -> Never {
         // an apply's prunes, Docker and snapshot thinning each show what they did
         let ran = StorageFixtures.cachesRun().rows
         for (id, outcome) in [("prune:pnpm", Names.Prune.ran), ("prune:npm", Names.Prune.skipped),
-                              ("prune:docker", Names.Prune.ran), ("prune:snapshots", Names.Prune.ran)] {
+                              ("prune:docker", Names.Prune.ran), ("prune:brew", Names.Prune.couldNotRun),
+                              ("prune:snapshots", Names.Prune.ran)] {
             let seen = ran.first { $0.id == id }?.valueText
             if seen != outcome { problems.append("a finished Caches run: \(id) shows \"\(seen ?? "nothing")\", expected \"\(outcome)\"") }
         }
@@ -152,7 +153,8 @@ func probeStorage(_ which: String, logOverride: String?) -> Never {
         if let last = series.last, let first = series.first {
             print("  first \(String(format: "%.1f", first.freeGiB)) GiB, newest \(String(format: "%.1f", last.freeGiB)) GiB, spanning \(Int(last.day - first.day)) days")
         }
-        print("  \(DiskRunway.forecast(series).map { "full in \($0.text)" } ?? "no forecast (the trend is flat or up, or there is not a week of figures)")")
+        let outlook = DiskRunway.outlook(series)
+        print("  \(outlook.runway.map { "full in \($0.text)" } ?? "no forecast"): \(outlook.reason)")
 
     default:
         FileHandle.standardError.write(Data("usage: agent-runner --probe-storage <caches|downloads|temp|spotlight|disk> [--log <file>]\n".utf8))

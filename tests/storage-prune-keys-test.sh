@@ -32,6 +32,11 @@ for d in "$TMP/stubs" "$TMP/stubs-nopnpm"; do
   stub "$d" xcrun 'if [[ "$*" == "simctl list devices unavailable" ]]; then echo "    iPhone 14 (A) (Shutdown) (unavailable, runtime profile not found)"; elif [[ "$*" == "simctl delete unavailable" ]]; then echo "xcrun $*" >> "$STUB_LOG"; fi'
 done
 stub "$TMP/stubs" pnpm 'echo "pnpm $*" >> "$STUB_LOG"'
+# a toolbox where npm fails and sudo refuses (no sudoers rule): the run must say what happened
+mkdir -p "$TMP/stubs-fail"
+cp "$TMP/stubs"/* "$TMP/stubs-fail/"
+stub "$TMP/stubs-fail" npm 'echo "npm $*" >> "$STUB_LOG"; exit 1'
+stub "$TMP/stubs-fail" sudo 'echo "sudo $*" >> "$STUB_LOG"; exit 1'
 
 # run <label> <shell> <stubdir> <dry|apply> [listfile]  → calls the tools received, one per line, in $TMP/<label>.calls
 run() {
@@ -77,6 +82,13 @@ for sh in bash /bin/bash; do
   check "[$sh] a list without the snapshots key: nothing is thinned, and the run says so" "$([[ "$(grep -c '^sudo' "$TMP/snapother-$k.calls")" -eq 0 && "$(grep -c 'SKIP.*prune:snapshots' "$TMP/snapother-$k.out")" -eq 1 ]] && echo ok || echo "thinned or silent")"
   EXTRA=--prune-snapshots run "snapyes-$k" "$sh" "$TMP/stubs" apply "$TMP/list-snap"
   check "[$sh] the snapshots key listed: they are thinned" "$([[ "$(grep -c 'sudo -n /usr/bin/tmutil thinlocalsnapshots' "$TMP/snapyes-$k.calls")" -eq 1 ]] && echo ok || echo "not thinned")"
+  # what a prune did is said, not assumed: done / failed lines, and a thinning that sudo refused is not "thinned"
+  check "[$sh] a prune that worked says done" "$([[ "$(grep -c '^ *done: pnpm store prune' "$TMP/all-$k.out")" -eq 1 ]] && echo ok || echo "no done line")"
+  EXTRA=--prune-snapshots run "failing-$k" "$sh" "$TMP/stubs-fail" apply "$TMP/list-all"
+  check "[$sh] a prune that failed says failed, with its exit status" "$([[ "$(grep -c '^ *failed: npm cache clean --force (exit 1)' "$TMP/failing-$k.out")" -eq 1 ]] && echo ok || echo "no failed line")"
+  EXTRA=--prune-snapshots run "refuse-$k" "$sh" "$TMP/stubs-fail" apply "$TMP/list-snap"
+  check "[$sh] snapshots the sudoers rule refuses are not reported as thinned" "$([[ "$(grep -c 'thinned' "$TMP/refuse-$k.out")" -eq 0 && "$(grep -c 'snapshot thin needs the tmutil-thin sudoers rule' "$TMP/refuse-$k.out")" -ge 1 ]] && echo ok || echo "wrong report")"
+  check "[$sh] snapshots thinned for real are reported as thinned" "$([[ "$(grep -c 'thinned 2 local snapshot' "$TMP/snapyes-$k.out")" -eq 1 ]] && echo ok || echo "no thinned line")"
   run "nop-$k" "$sh" "$TMP/stubs-nopnpm" dry
   check "[$sh] a tool that is not installed has no row" "$([[ "$(grep -c 'prune:pnpm' "$TMP/nop-$k.out")" -eq 0 ]] && echo ok || echo "pnpm row shown")"
 done

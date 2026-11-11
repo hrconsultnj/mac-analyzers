@@ -161,8 +161,10 @@ struct SpotlightScreen: View {
         ToolbarItem {
             if model.phase == .running {
                 Button { model.job?.cancel() } label: { Label(Names.Review.stop, systemImage: "stop.fill") }
+                .labelStyle(.titleAndIcon)
             } else {
                 Button { preview() } label: { Label(Names.Review.preview, systemImage: "eye") }
+                .labelStyle(.titleAndIcon)
                     .help("Check which folders Spotlight indexes; nothing is changed")
             }
         }
@@ -172,6 +174,7 @@ struct SpotlightScreen: View {
             Button { set(targets.filter { $0.state == .notFenced }.compactMap(\.path), fenced: true) } label: {
                 Label("Fence", systemImage: "lock")
             }
+            .labelStyle(.titleAndIcon)
             .disabled(!targets.contains { $0.state == .notFenced })
             .help("Fence the selected folders")
         }
@@ -181,6 +184,7 @@ struct SpotlightScreen: View {
             Button { set(targets.filter { $0.state == .fenced }.compactMap(\.path), fenced: false) } label: {
                 Label("Unfence", systemImage: "lock.open")
             }
+            .labelStyle(.titleAndIcon)
             .disabled(!targets.contains { $0.state == .fenced })
             .help("Lift the fence from the selected folders")
         }
@@ -189,6 +193,7 @@ struct SpotlightScreen: View {
             Button { confirmingAll = FencePlan.targets(folders: review?.folders ?? [], changed: changed) } label: {
                 Label("Fence All", systemImage: "lock.shield")
             }
+            .labelStyle(.titleAndIcon)
             .disabled(!canFenceAll)
             .help("Fence every folder listed here as Not Fenced")
         }
@@ -198,6 +203,7 @@ struct SpotlightScreen: View {
                 Button { model.discard(store); review = nil; changed = [:] } label: {
                     Label(Names.Review.discard, systemImage: "xmark.circle")
                 }
+                .labelStyle(.titleAndIcon)
                 .help("Throw this check away; nothing is changed")
             }
         }
@@ -206,6 +212,7 @@ struct SpotlightScreen: View {
             Button { navigator.push(.storage(.history(JobKind.spotlight.rawValue))) } label: {
                 Label(Names.Review.history, systemImage: "clock.arrow.circlepath")
             }
+            .labelStyle(.titleAndIcon)
             .help("Every time this ran, and what it did")
         }
         .toolbarRank(.secondary)
@@ -214,6 +221,7 @@ struct SpotlightScreen: View {
                 Button { navigator.push(.overview(.raw(.log(log.rawValue)))) } label: {
                     Label(Names.Review.showRawOutput, systemImage: "doc.plaintext")
                 }
+                .labelStyle(.titleAndIcon)
             }
         }
         .toolbarRank(.secondary)
@@ -223,6 +231,7 @@ struct SpotlightScreen: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(command, forType: .string)
                 } label: { Label("Copy Deep Check Command", systemImage: "terminal") }
+                .labelStyle(.titleAndIcon)
                 .help("Copy the Terminal command that shows whether Spotlight's index is stuck")
             }
         }
@@ -233,6 +242,7 @@ struct SpotlightScreen: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(command, forType: .string)
                 } label: { Label("Copy Rebuild Command", systemImage: "doc.on.doc") }
+                .labelStyle(.titleAndIcon)
                 .help("Copy the Terminal command that rebuilds Spotlight's index")
             }
         }

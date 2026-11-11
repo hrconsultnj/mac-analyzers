@@ -73,6 +73,12 @@ public struct DiskRunway: Sendable, Equatable {
         }
         let minT = points.map(\.day).min() ?? 0, maxT = points.map(\.day).max() ?? 0
         let span = Int((maxT - minT).rounded(.down))
+        // A sharp fall is told as what happened, whatever any fitted line says: the newest two figures
+        // against the middle figure of the week before them. (A line through a week that was mostly high
+        // still points up after a fall of 117 GiB in a day.)
+        if let fall = Self.sharpFall(points) {
+            return (nil, "Free space fell from about \(Int(fall.before.rounded())) GB, the week's usual figure, to \(Int(fall.now.rounded())) GB at the latest cleanups. A forecast from the earlier days would be wrong, so none is shown. Clearing space is the answer for now.")
+        }
         guard maxT - minT >= 7 else {
             return (nil, "A forecast needs figures spread over at least a week; these cover \(span) \(span == 1 ? "day" : "days").")
         }
@@ -94,6 +100,21 @@ public struct DiskRunway: Sendable, Equatable {
         let days = latest.freeGiB / abs(slope)
         guard days.isFinite, days > 0 else { return (nil, steady) }
         return (DiskRunway(daysToFull: days, points: n), "Worked out from \(n) cleanups' free-space figures over \(span) days.")
+    }
+
+    /// The week's middle figure and the newest figure, when the newest two readings are both under half of
+    /// that middle figure and at least 10 GiB below it. Needs three readings in the week before them.
+    static func sharpFall(_ points: [(day: Double, freeGiB: Double)]) -> (before: Double, now: Double)? {
+        let ordered = points.sorted { $0.day < $1.day }
+        guard ordered.count >= 5 else { return nil }
+        let newest = Array(ordered.suffix(2))
+        let cutoff = newest[0].day
+        let week = ordered.dropLast(2).filter { $0.day >= cutoff - 7 }.map(\.freeGiB).sorted()
+        guard week.count >= 3 else { return nil }
+        let median = week[week.count / 2]
+        let now = newest.map(\.freeGiB).max() ?? 0
+        guard now < median * 0.5, median - now >= 10 else { return nil }
+        return (median, now)
     }
 
     /// GiB per day of the least-squares line through the points, nil when they do not span time.

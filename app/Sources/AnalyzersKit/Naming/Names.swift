@@ -158,7 +158,7 @@ public enum Names {
         public static let keepList = "On Your Keep List"
         public static let currentVersion = "Current Version"
         /// A file kept only in iCloud: its row says what it is and that nothing is freed here.
-        public static let onlyInICloud = "Only in iCloud: not downloaded to this Mac, so nothing is freed here. Moving it to the Trash would remove it from iCloud once the Trash is emptied."
+        public static let onlyInICloud = "Only in iCloud: not downloaded to this Mac, so nothing is freed here. No cleanup moves it, because that would remove it from iCloud and your other devices once the Trash is emptied."
     }
 
     /// The categories (tabs) of each Storage screen, and what groups the rows in them.
@@ -192,6 +192,7 @@ public enum Names {
         public static let snapshots = "Time Machine Snapshots"
         /// What a finished run did with each.
         public static let ran = "Ran"
+        public static let started = "Started"
         public static let skipped = "Skipped"
         public static let couldNotRun = "Couldn't Run"
     }

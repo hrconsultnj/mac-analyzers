@@ -74,6 +74,17 @@ import Foundation
                 let known = StorageSetting.shown(kind: kind, preview: nil, lastKnownBanner: banner(kind, preview), chosen: options(kind, picked))
                 expect(flag(kind, known) == preview, "\(label): a logged \(name(kind, preview)) preview is shown as \(name(kind, flag(kind, known)))")
 
+                // 2b. a preview AND a logged preview of the other setting at once: the preview's wins, in what is
+                //     shown and in the words (the screen asks `StorageSetting.words`)
+                let both = StorageSetting.shown(kind: kind, preview: options(kind, preview), lastKnownBanner: banner(kind, !preview),
+                                                chosen: options(kind, picked))
+                expect(flag(kind, both) == preview, "\(label): with a logged \(name(kind, !preview)) preview too, the screen shows \(name(kind, flag(kind, both)))")
+                let bothWords = StorageSetting.words(kind: kind, preview: options(kind, preview), lastKnownBanner: banner(kind, !preview),
+                                                     chosen: options(kind, picked))
+                expect(bothWords == CleanWords.words(kind: kind, setting: options(kind, preview)), "\(label): the words follow the logged preview, not the job's")
+                let wordsFromPreview = StorageSetting.words(kind: kind, preview: options(kind, preview), lastKnownBanner: nil, chosen: options(kind, picked))
+                expect(wordsFromPreview == CleanWords.words(kind: kind, setting: options(kind, preview)), "\(label): the words follow the screen's own pick, not the preview")
+
                 // 3. choosing in the menu: puts the preview away exactly when the setting differs
                 expect(StorageSetting.isChange(kind: kind, shown: options(kind, preview), picked: options(kind, picked)) == (preview != picked),
                        "\(label): the menu \(preview != picked ? "must" : "must not") discard")
@@ -140,6 +151,31 @@ func probeDiskRunway() -> Never {
     for day in 0..<31 { calm += "storage-auto-clean.sh | mode=daily | APPLY | \(formatter.string(from: start.addingTimeInterval(Double(day) * 86_400)))\nFree space now: \(33 + day * 3)Gi avail (50% used)\n" }
     try? calm.write(to: log, atomically: true, encoding: .utf8)
     expect(DiskRunway.outlook(DiskRunway.series(in: log)).runway == nil, "a steadily rising disk still has no forecast")
+    // the shape of this Mac's real log: a week rising to 130 GiB, then 13, 13. The week's fitted line still
+    // points up; the sentence must say what happened, and no forecast is given.
+    var real = ""
+    let rising: [Int] = [85, 88, 91, 94, 97, 100, 103, 106, 109, 112, 115, 118, 121, 124, 127, 130, 128, 130]
+    for (i, free) in rising.enumerated() {
+        real += "storage-auto-clean.sh | mode=daily | APPLY | \(formatter.string(from: start.addingTimeInterval((14.0 + Double(i) * 0.4) * 86_400)))\nFree space now: \(free)Gi avail (50% used)\n"
+    }
+    real += "storage-auto-clean.sh | mode=daily | APPLY | \(formatter.string(from: start.addingTimeInterval(21.2 * 86_400)))\nFree space now: 13Gi avail (98% used)\n"
+    real += "storage-auto-clean.sh | mode=daily | APPLY | \(formatter.string(from: start.addingTimeInterval(21.5 * 86_400)))\nFree space now: 13Gi avail (98% used)\n"
+    try? real.write(to: log, atomically: true, encoding: .utf8)
+    let shapedSeries = DiskRunway.series(in: log)
+    let shaped = DiskRunway.outlook(shapedSeries)
+    expect(shaped.runway == nil, "after a fall from about 130 to 13 there is no countdown")
+    expect(shaped.reason.contains("fell from about") && shaped.reason.contains("13 GB"), "the reason says what happened: \"\(shaped.reason)\"")
+    expect(!shaped.reason.contains("steady or rising"), "a fall of 117 GB is never called steady or rising")
+    // a small dip is not a fall
+    let dip = DiskRunway.outlook((0..<10).map { (day: Double($0), freeGiB: 100 + Double($0)) } + [(day: 10, freeGiB: 95), (day: 10.5, freeGiB: 96)])
+    expect(!dip.reason.contains("fell from"), "a dip of a few GB is not told as a fall")
+    // Temp's notes are sentences, not the engine's shorthand
+    let rules = TempReview.rulesSentence("temp idle 24h+ · agent scratch idle 3d+ · npx tools idle 14d+ · never anything open, live, someone else's, or a mounted image you have not approved")
+    expect(rules?.hasPrefix("Temporary files are cleared after a day without use, coding agents' scratch folders after three days and npx tools after two weeks.") == true, "the rules sentence reads \"\(rules ?? "nil")\"")
+    expect(rules.map { !$0.contains("24h") && !$0.contains("3d") } == true, "no engine shorthand is left in the rules sentence")
+    let clean = TempReview.selfCleanSentence("macOS also deletes /tmp files untouched for 3+ days each night (tmp_cleaner) — it skips mounted images and anything still being used")
+    expect(clean?.contains("three days") == true && clean?.contains("tmp_cleaner") == false, "the self-clean sentence reads \"\(clean ?? "nil")\"")
+    expect(TempReview.rulesSentence("something else") == nil, "a rules line in an unknown shape is dropped, not shown raw")
     print("\(cases) checks, \(failures == 0 ? "all hold" : "\(failures) FAILED")")
     exit(failures == 0 ? 0 : 1)
 }

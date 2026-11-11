@@ -133,7 +133,11 @@ public struct CacheReview: Sendable {
                     continue
                 }
             }
-            if results, let row = pruneResult(line) { rows.append(row); continue }
+            if results, let row = pruneResult(line) {
+                // "running:" then "done:" or "failed:" for one command: the later line is the answer
+                if let at = rows.firstIndex(where: { $0.id == row.id }) { rows[at] = row } else { rows.append(row) }
+                continue
+            }
             if section.hasPrefix("Time Machine") {
                 if !line.isEmpty, !line.hasPrefix("[") { notes.append(line) }
                 continue
@@ -220,17 +224,24 @@ public struct CacheReview: Sendable {
             return StorageRow(id: "prune:\(id)", category: CacheCategory.developerTools.rawValue, group: words.group,
                               title: words.title, detail: detail, bytes: nil, valueText: outcome)
         }
-        if line.hasPrefix("running: ") {
-            let command = String(line.dropFirst("running: ".count))
-            let known: [(String, String, String)] = [
-                ("pnpm store prune", "pnpm", "Unused packages were removed from the pnpm store."),
-                ("npm cache clean", "npm", "The npm cache was emptied; it downloads again when needed."),
-                ("brew cleanup", "brew", "Old Homebrew versions and downloads were removed."),
-                ("xcrun simctl delete unavailable", "simulators", "Simulators whose runtime is gone were removed."),
-                ("docker system prune", "docker", "Unused containers, networks and images were removed."),
-            ]
+        let known: [(String, String, String)] = [
+            ("pnpm store prune", "pnpm", "Unused packages were removed from the pnpm store."),
+            ("npm cache clean", "npm", "The npm cache was emptied; it downloads again when needed."),
+            ("brew cleanup", "brew", "Old Homebrew versions and downloads were removed."),
+            ("xcrun simctl delete unavailable", "simulators", "Simulators whose runtime is gone were removed."),
+            ("docker system prune", "docker", "Unused containers, networks and images were removed."),
+        ]
+        for prefix in ["running: ", "done: ", "failed: "] where line.hasPrefix(prefix) {
+            let command = String(line.dropFirst(prefix.count))
             guard let hit = known.first(where: { command.hasPrefix($0.0) }) else { return nil }
-            return row(hit.1, Names.Prune.ran, hit.2)
+            switch prefix {
+            case "done: ": return row(hit.1, Names.Prune.ran, hit.2)
+            case "failed: ":
+                let code = command.range(of: #"\(exit (\d+)\)"#, options: .regularExpression).map { String(command[$0].filter(\.isNumber)) }
+                return row(hit.1, Names.Prune.couldNotRun,
+                           "It ran but reported an error\(code.map { " (exit \($0))" } ?? ""), so it may not have finished. The raw output has the details.")
+            default: return row(hit.1, Names.Prune.started, "It started; the log doesn't say how it ended.")
+            }
         }
         if line.hasPrefix("["), let close = line.firstIndex(of: "]"),
            String(line[line.index(after: line.startIndex)..<close]) == "SKIP" {

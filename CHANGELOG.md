@@ -28,10 +28,13 @@ without an entry here — see `scripts/cut-release.sh`.
   why anything is left alone: "Left for Its Owner", "Conversation History",
   "On Your Keep List". It also says what is not on your disk (files inside
   mounted disk images) and which coding agents are running.
-- Screenshots that exist only in iCloud are no longer shown as empty files
-  under "Nothing to Free". They are listed under "Only in iCloud" with their
-  real size and left unticked: moving one to the Trash frees nothing on this
-  Mac and removes it from iCloud once the Trash is emptied.
+- Files that exist only in iCloud (a screenshot or document that macOS keeps in
+  the cloud and has not downloaded to this Mac) are no longer shown as empty
+  files under "Nothing to Free", and no cleanup moves them any more, not even
+  the scheduled one. Moving one to the Trash frees nothing on this Mac, and
+  once the Trash is emptied it is gone from iCloud and from your other
+  devices. They are listed under "Only in iCloud" with their real size, and the
+  run's summary says how many were left.
 - Spotlight lists your developer folders by project with a checkbox to fence
   or unfence each one, and Fence and Unfence for a whole selection. Fence All
   names the folders it will fence and fences exactly those, not whatever a new
@@ -39,8 +42,9 @@ without an entry here — see `scripts/cut-release.sh`.
 - Disk shows your capacity, how long the free space will last at the rate it
   has been falling, and what each cleanup could free and how old that figure
   is. The "full in" forecast never appeared before; it now reads every
-  Caches & Builds run's figure, not only the newest few, and says why when
-  there is no forecast. A nearly full disk is shown in red.
+  Caches & Builds run's figure, not only the newest few. When there is no
+  forecast it says why, and after a sharp fall in free space it says what
+  happened instead of predicting. A nearly full disk is shown in red.
 - A finished cleanup's own screen shows what it did in the same tabs and groups
   as the screen it came from.
 - When a memory cleanup refuses to run because part of Mac Analyzers is
