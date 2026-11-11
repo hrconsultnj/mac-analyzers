@@ -113,6 +113,17 @@ public final class ReviewFixtureProbe {
             acting: session.actingRows.map(\.id), choosable: session.choosableCount)
     }
 
+    /// What Copy Path puts on a pasteboard of its own (never the person's clipboard): how many items, and
+    /// each item's text.
+    public func copyPathsProbe(_ keys: [String]) -> (items: Int, texts: [String]) {
+        let board = NSPasteboard(name: NSPasteboard.Name("ma-probe-copy-\(ProcessInfo.processInfo.processIdentifier)"))
+        ReviewFileItems.copy(keys, to: board)
+        let items = board.pasteboardItems ?? []
+        let texts = items.compactMap { $0.string(forType: .string) }
+        board.releaseGlobally()
+        return (items.count, texts)
+    }
+
     // MARK: named scenario steps (what a button or a screen's refresh does, nothing else)
 
     /// The bar's Select All.

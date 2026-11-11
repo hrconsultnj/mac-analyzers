@@ -167,10 +167,8 @@ struct LoginItemsView: View {
                          ? "Looking at login items, launch agents and helper tools."
                          : (model.permission.sentence ?? "Run the audit to see everything that starts by itself."))
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)   // centred in the window, as the running state is
             } else if groups.isEmpty {
                 ContentUnavailableView(emptyTitle, systemImage: tab.symbol, description: Text(emptyDescription))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)   // centred in the window, as the running state is
             } else {
                 StartupItemTable(groups: groups, autosave: "loginItems.\(tab.rawValue)", selection: $selection,
                                  expansion: expansion,

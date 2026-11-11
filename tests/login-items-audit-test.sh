@@ -217,6 +217,18 @@ for vol in "/Volumes/Macintosh HD" /Volumes/*; do
   break
 done
 
+# ---- the command printed for a possible leftover is right for where the item loads
+fresh
+mkdir -p "$TMP/zzvendor"; printf '#!/bin/sh\n' > "$TMP/zzvendor/tool"; chmod +x "$TMP/zzvendor/tool"
+plist "$TMP/h2/Library/LaunchAgents/com.zzvendor.x.plist" com.zzvendor.x "$TMP/zzvendor/tool"
+out="$(run --dry-run)"
+uid="$(id -u)"
+line="$(grep -F "launchctl bootout" <<<"$out" | grep -F "com.zzvendor.x" | head -1)"
+[[ "$line" == *"launchctl bootout gui/$uid/com.zzvendor.x; rm "* && "$line" != *sudo* ]] && r=0 || r=1
+check "a possible leftover in your own folder: the user's own domain, plain rm, no sudo" 0 $r
+grep -q 'no administrator needed' <<<"$out"; check "and the line says no administrator is needed" 0 $?
+grep -F "com.zzvendor.x" "$TMP/h2/mac-analyzers/reports/storage/login-items.tsv" | awk -F'\t' '{print $9}' | grep -q '^launchctl bootout gui/'; check "the inventory carries the same command" 0 $?
+
 # ---- a tab in a name cannot be stored, so the item is never acted on ----------------
 fresh
 plist "$TMP/h2/Library/LaunchAgents/com.zz.tab.plist" "$(printf 'com.zz.tab\tx')" /nonexistent/zz-tab
