@@ -110,11 +110,10 @@ public struct ReviewSelection: Sendable {
     public var actingIDs: [String] { items.filter(\.acts).map(\.id) }
     public var choosableCount: Int { choosable.count }
 
-    /// What Apply sends. Rows that cannot be chosen are passed as deselected, so the set
-    /// is narrowed whenever any exist and the list is sent: an apply with no list would
-    /// let the engine clean everything it found, including what the review kept. When no
-    /// row is kept and nothing is unticked the set is not narrowed and no list is sent,
-    /// until the kernel patch makes the list always sent.
+    /// What Apply sends. Rows that cannot be chosen are passed as deselected, so their keys
+    /// are never in the list. The list is always sent for a kind that takes one, even when
+    /// nothing is unticked: an apply with no list would let the engine clean everything it
+    /// finds at that moment, including what the review kept or never showed.
     public var approved: ApprovedSet {
         ApprovedSet(approvable: items.map(\.id), deselected: deselected.union(items.filter { !$0.choosable }.map(\.id)))
     }

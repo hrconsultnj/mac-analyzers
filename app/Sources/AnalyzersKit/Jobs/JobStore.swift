@@ -54,6 +54,13 @@ public final class JobStore {
     /// again). A screen never takes a dismissed job back when it reappears.
     public private(set) var dismissed: Set<UUID> = []
 
+    /// The apply built from each preview. A preview is applied once: while its
+    /// apply is waiting, running or has finished, a second `apply(from:)` is
+    /// refused. An apply that failed or was stopped does not count, because the
+    /// engine skips anything already gone, so applying the same reviewed list
+    /// again can only finish what is left.
+    @ObservationIgnored private var appliesByPreview: [UUID: Job] = [:]
+
     @ObservationIgnored private let ledger: JobLedger
     /// The clock the review window is measured on. The app's store always uses the real one.
     @ObservationIgnored private let now: () -> Date
@@ -195,22 +202,26 @@ public final class JobStore {
         } else if preview.intent != .preview {
             reason = "An apply must be built from a preview, not from a \(preview.intent.rawValue) job."
         } else if case .succeeded(let outcome) = preview.state {
-            if case .newestFallback = outcome.match {
-                reason = "That preview's own results couldn't be found in the log, so there is nothing reviewed to apply. Preview again."
+            if case .newestFallback(let why) = outcome.match {
+                reason = "\(why) There is nothing reviewed to apply, so preview again."
             } else if dismissed.contains(preview.id) {
                 reason = "That review was discarded, so it can't be applied. Preview again to see what would be cleaned now."
             } else if let end = preview.finishedAt, now().timeIntervalSince(end) > Self.reviewWindow {
                 reason = "That review is more than \(Int(Self.reviewWindow / 60)) minutes old, so it can no longer be applied. Preview again to see what would be cleaned now."
+            } else if let prior = appliesByPreview[preview.id], prior.stillStands {
+                reason = "This preview has already been applied — preview again to see what is left."
             } else {
-                reason = preview.kind.alwaysSendsApprovalList && approved.isUnrestricted
-                    ? "\(preview.kind.rawValue) needs the exact list of approved items."
+                reason = preview.kind.takesReviewedList && approved.isUnrestricted
+                    ? "\(preview.kind.rawValue) needs the exact list of reviewed items, so nothing that appeared after the review can be touched."
                     : nil
             }
         } else {
             reason = "The preview has not finished successfully, so there is nothing reviewed to apply."
         }
         if let reason { return rejected(request, trigger: .user, reason: reason) }
-        return add(request, trigger: .user)
+        let applied = add(request, trigger: .user)
+        appliesByPreview[preview.id] = applied
+        return applied
     }
 
     private func record(_ entry: JobLedgerEntry) {
@@ -301,9 +312,11 @@ public final class JobStore {
                                                      options: request.options),
                 exitCode: failed))
         } else {
-            let kind = request.kind, header = job.runHeader
+            let kind = request.kind, header = job.runHeader, began = job.startedAt
             let override = outcomeOverride
-            let outcome = await Task.detached { override?(kind, header) ?? RunMatcher.outcome(kind: kind, header: header) }.value
+            let outcome = await Task.detached {
+                override?(kind, header) ?? RunMatcher.outcome(kind: kind, header: header, startedAt: began)
+            }.value
             final = .succeeded(outcome)
         }
         await conclude(job, state: final, exitCode: stopped ? nil : code, approvedFile: approvedFile)
@@ -331,4 +344,15 @@ public final class JobStore {
 extension Job.State {
     var isRunning: Bool { if case .running = self { true } else { false } }
     var isQueued: Bool { if case .queued = self { true } else { false } }
+}
+
+private extension Job {
+    /// An apply that is waiting, running or done uses its preview up; one that
+    /// failed or was stopped does not.
+    var stillStands: Bool {
+        switch state {
+        case .queued, .running, .succeeded: true
+        case .failed, .cancelled: false
+        }
+    }
 }

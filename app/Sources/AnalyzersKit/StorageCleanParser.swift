@@ -37,11 +37,28 @@ public struct StoragePathItem: Identifiable, Hashable, Sendable {
     public var cacheKind: String { (path as NSString).lastPathComponent }
 }
 
+/// A command the engine would run that is not a path — a prune or a cleanup —
+/// reviewed as a row of its own. `key` (`prune:pnpm`) is what the reviewed list
+/// holds, a form that cannot be mistaken for a path.
+public struct StoragePrune: Identifiable, Hashable, Sendable {
+    public let key: String
+    /// What it does, in words ("Unused packages in the pnpm store (size not known until it runs)").
+    public let summary: String
+    public var id: String { key }
+    /// The row's name without its note: "Unused packages in the pnpm store".
+    public var title: String {
+        var text = summary
+        for cut in [" (", " — "] { if let range = text.range(of: cut) { text = String(text[..<range.lowerBound]) } }
+        return text
+    }
+}
+
 public struct StorageCleanRun: Sendable {
     public let header: String
     public let mode: String
     public let dryRun: Bool
     public let items: [StoragePathItem]
+    public let prunes: [StoragePrune]
     public let activeRepoNote: String?
     public let packageManagerRaw: [String]
     public let dockerRaw: [String]
@@ -54,6 +71,7 @@ public enum StorageCleanParser {
 
     public static func parse(runHeader: String, lines: [String]) -> StorageCleanRun {
         var items: [StoragePathItem] = []
+        var prunes: [StoragePrune] = []
         var pmRaw: [String] = []
         var dockerRaw: [String] = []
         var tmNote: String?
@@ -76,6 +94,16 @@ public enum StorageCleanParser {
                 continue
             }
             if line.hasPrefix("DRY RUN —") || line.hasPrefix("DONE —") { summary = line; continue }
+            // "[DRY]     prune:pnpm  Unused packages in the pnpm store (…)"
+            if line.hasPrefix("[DRY]") {
+                let rest = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+                if rest.hasPrefix("prune:"), let space = rest.firstIndex(of: " ") {
+                    prunes.append(StoragePrune(
+                        key: String(rest[..<space]),
+                        summary: String(rest[space...]).trimmingCharacters(in: .whitespaces)))
+                    continue
+                }
+            }
             if line.hasPrefix("Free space now:") {
                 freeSpace = String(line.dropFirst(15)).trimmingCharacters(in: .whitespaces)
                 continue
@@ -116,7 +144,7 @@ public enum StorageCleanParser {
         }
         return StorageCleanRun(header: runHeader, mode: mode,
                                dryRun: runHeader.contains("DRY RUN"),
-                               items: items, activeRepoNote: activeRepoNote,
+                               items: items, prunes: prunes, activeRepoNote: activeRepoNote,
                                packageManagerRaw: pmRaw, dockerRaw: dockerRaw,
                                tmNote: tmNote, summary: summary,
                                freeSpaceAfter: freeSpace)
