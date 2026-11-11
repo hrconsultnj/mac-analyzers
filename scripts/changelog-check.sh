@@ -63,8 +63,9 @@ if [[ -z "$heading" ]]; then
   cat >&2 <<EOF
 changelog: no entry for v$version in CHANGELOG.md.
 
-Add one at the top of the list, written for someone who uses the app and has
-never seen the code:
+Rename the "## Next" heading at the top to this version and give it a title
+(or add the entry there), written for someone who uses the app and has never
+seen the code:
 
   ## v$version — One sentence saying what is better now
 
@@ -80,7 +81,11 @@ fi
 # ── the title ──────────────────────────────────────────────────────────────
 [[ "$heading" == *" — "* ]] || fail "the heading needs a title: \"## v$version — What is better now\""
 if [[ -n "$title" ]]; then
-  [[ "$title" =~ ^[A-Z0-9\"\'“‘] ]] || fail "the title starts lowercase: \"$title\""
+  # (the pattern lives in a variable: quotes inside a [[ =~ ]] expression are
+  #  legal bash but unparseable for shellcheck, which CI gates on)
+  # shellcheck disable=SC1112  # the curly quotes are deliberate: a title may open with them
+  title_start='^[A-Z0-9"“‘'"'"']'
+  [[ "$title" =~ $title_start ]] || fail "the title starts lowercase: \"$title\""
   (( $(wc -w <<<"$title") >= 3 )) || fail "the title is too short to say anything: \"$title\""
 fi
 
