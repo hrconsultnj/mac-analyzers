@@ -323,7 +323,7 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
               == "1 selected · 2 apps will quit · 1 kept")
     check("the confirmation names them",
           ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: 1, bytes: nil, alsoActs: quit,
-                                          actingNames: ["Opera", "Docker"]) == "Close 1 Item now and Quit Opera, Docker?",
+                                          actingNames: ["Opera", "Docker"]) == "Close 1 Item now and Quit Opera and Docker?",
           ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: 1, bytes: nil, alsoActs: quit,
                                           actingNames: ["Opera", "Docker"]))
     check("across tabs: 12 selected across 3 tabs · 3.2 GB",
@@ -367,8 +367,24 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     onlyActing.selectNone()
     check("nothing ticked, two acting rows: Apply has work", ReviewWording.hasWork(sent: onlyActing.tickedIDs.count, acting: 2))
     check("and the title names them", ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: 0, bytes: nil,
-          alsoActs: quit, actingNames: ["Opera", "Docker"]) == "Quit Opera, Docker?")
+          alsoActs: quit, actingNames: ["Opera", "Docker"]) == "Quit Opera and Docker?")
     check("and the sent list is explicitly empty", onlyActing.approved.approved.isEmpty && onlyActing.approved.isNarrowed)
+    check("names read as a person says them",
+          ReviewWording.nameList(["Opera"]) == "Opera" && ReviewWording.nameList(["Opera", "Docker"]) == "Opera and Docker",
+          ReviewWording.nameList(["Opera", "Docker"]))
+    let many = (1...12).map { "App\($0)" }
+    check("above three: the first two and a count, the full list stays available",
+          ReviewWording.nameList(many, noun: "apps") == "App1, App2, and 10 more apps",
+          ReviewWording.nameList(many, noun: "apps"))
+    check("the full list names every one", ReviewWording.fullNames(many).contains("App12"))
+    check("without a noun: and 10 more", ReviewWording.nameList(many) == "App1, App2, and 10 more", ReviewWording.nameList(many))
+    check("the message names all of them only when the title shortened the list",
+          ReviewWording.fullActingLine(alsoActs: quit, names: ["Opera", "Docker"]) == nil
+          && ReviewWording.fullActingLine(alsoActs: quit, names: ["A", "B", "C", "D"]) == "Apps to quit: A, B, C, and D.",
+          ReviewWording.fullActingLine(alsoActs: quit, names: ["A", "B", "C", "D"]) ?? "nil")
+    check("the title takes the names the screen supplies (what is sent)",
+          ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: 2, bytes: nil, alsoActs: quit,
+                                          actingNames: ["Opera"]) == "Close 2 Items now and Quit Opera?")
     check("nothing ticked and nothing acting: no work", !ReviewWording.hasWork(sent: 0, acting: 0))
 
     // a repeated key is kept once and does not stop a debug build
