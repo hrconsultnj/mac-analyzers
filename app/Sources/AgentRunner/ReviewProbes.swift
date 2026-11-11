@@ -87,6 +87,42 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     print("plist names another copy of the script: " + refusal(store.enqueue(JobRequest(kind: .storageClean, intent: .run), trigger: .schedule(label))))
     store.scheduleReader = { _ in nil }
     print("agent not installed:                    " + refusal(store.enqueue(JobRequest(kind: .storageClean, intent: .run), trigger: .schedule(label))))
+    await idle()
+
+    // Login & Startup Items: a removal is a cleaner apply like the others
+    print("login items:")
+    matched.withLock { $0 = true }
+    store.scriptOverride = script(dir, "audit-echo.sh", """
+    echo "login-items-audit  |  DRY RUN  |  $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "args: $*"
+    if [ "$2" = "--only-paths" ]; then echo "list: $(tr '\\n' ',' < "$3")"; fi
+    """)
+    print("  direct apply, no audit:               " + refusal(store.enqueue(JobRequest(kind: .loginItems, intent: .apply), trigger: .user)))
+    let plists = ["/L/a.plist", "/L/b.plist"]
+    // The reviewed list is always sent, ticked or not: what the confirmation
+    // showed is what the script may touch. A preview can be applied once, so each case has its own audit.
+    for (name, approvable, deselected) in [
+        ("one of two left ticked", plists, Set(["/L/b.plist"])),
+        ("nothing deselected", plists, Set<String>()),
+        ("b appeared after review", ["/L/a.plist"], Set<String>()),   // the review only knew a
+        ("everything deselected", plists, Set(plists)),
+    ] {
+        let own = store.enqueue(JobRequest(kind: .loginItems, intent: .preview), trigger: .user)
+        await wait(for: own)
+        let applied = store.apply(from: own, approved: ApprovedSet(approvable: approvable, deselected: deselected))
+        await wait(for: applied)
+        let lines = applied.lines.filter { $0.hasPrefix("args:") || $0.hasPrefix("list:") }
+        print("  \(name.padding(toLength: 22, withPad: " ", startingAt: 0)) \(lines.isEmpty ? refusal(applied) : lines.joined(separator: " · "))")
+        await idle()
+    }
+    let audit = store.enqueue(JobRequest(kind: .loginItems, intent: .preview), trigger: .user)
+    await wait(for: audit)
+    store.dismiss(audit)
+    print("  audit discarded, apply now:           " + refusal(store.apply(from: audit, approved: ApprovedSet(approvable: plists, deselected: []))))
+    matched.withLock { $0 = false }
+    let fallback = store.enqueue(JobRequest(kind: .loginItems, intent: .preview), trigger: .user)
+    await wait(for: fallback)
+    print("  audit whose own block wasn't found:   " + refusal(store.apply(from: fallback, approved: ApprovedSet(approvable: plists, deselected: []))))
 
     // an apply sends exactly the reviewed list, even with nothing unticked
     matched.withLock { $0 = true }
@@ -102,7 +138,8 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     store.scriptOverride = listing
     print("\nthe reviewed list, nothing unticked (a new item after the review is not in it):")
     for (kind, keys) in [(JobKind.storageClean, ["/p/a/.next", "/p/b/dist"]), (.janitor, ["/d/one.pdf", "/d/two.pdf"]),
-                         (.tempClean, ["/tmp/x", "/tmp/y"]), (.memoryClean, ["4101", "4102"]), (.reclaim, ["4101"])] {
+                         (.tempClean, ["/tmp/x", "/tmp/y"]), (.loginItems, ["/L/a.plist", "/L/b.plist"]),
+                         (.memoryClean, ["4101", "4102"]), (.reclaim, ["4101"])] {
         let review = store.enqueue(JobRequest(kind: kind, intent: .preview), trigger: .user)
         await wait(for: review)
         let apply = store.apply(from: review, approved: ApprovedSet(approvable: keys, deselected: []))
