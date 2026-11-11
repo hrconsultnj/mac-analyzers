@@ -53,8 +53,8 @@ struct UninstallView: View {
     }
 
     var body: some View {
-        PaneScaffold(symbol: "power", color: .red, title: Names.Screen.turnOff,
-                     caption: "Three levels, least drastic first. Every one of them reports what actually happened afterwards.") {
+        DataScreen(title: Names.Screen.turnOff, subtitle: "Three levels, least drastic first") {
+        List {
             if let result {
                 Section {
                     Label(result, systemImage: failed ? "exclamationmark.triangle.fill"
@@ -94,10 +94,12 @@ struct UninstallView: View {
                 }
             }
             Section {
-                Text("What stays either way: your reports and logs under ~/mac-analyzers/reports, and anything you configured. This app never deletes your data.")
+                Text("Every level reports what actually happened afterwards. What stays either way: your reports and logs under ~/mac-analyzers/reports, and anything you configured. This app never deletes your data.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+        .listStyle(.inset)
         }
         .confirmationDialog(confirming?.title ?? "", isPresented: .init(
             get: { confirming != nil },

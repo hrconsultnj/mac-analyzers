@@ -67,7 +67,7 @@ public enum LiveStats {
             LiveProcess(pid: entry.pid, residentMB: entry.residentMB,
                         rawName: CommandLineDisplay.shown(entry.command),
                         kind: isDevKillable(entry.command) ? .devTool : .app,
-                        ppid: entry.ppid)
+                        ppid: entry.ppid, identity: ProcessIdentity.of(pid: entry.pid))
         }.sorted { $0.residentMB > $1.residentMB }
 
         return Sample(
@@ -82,7 +82,7 @@ public enum LiveStats {
             LiveProcess(pid: raw.pid, residentMB: raw.residentMB,
                         rawName: CommandLineDisplay.shown(raw.command),
                         kind: isDevKillable(raw.command) ? .devTool : .app,
-                        ppid: raw.ppid)
+                        ppid: raw.ppid, identity: ProcessIdentity.of(pid: raw.pid))
         }
         return Array(result.sorted { $0.residentMB > $1.residentMB }.prefix(limit))
     }
@@ -121,7 +121,8 @@ public enum LiveStats {
                            label: isDev || path.hasPrefix("pid ")
                                ? nil : (path as NSString).lastPathComponent,
                            canQuit: identity.uid == getuid()
-                               && !MemoryCensus.isSystemPath(path))
+                               && !MemoryCensus.isSystemPath(path),
+                           identity: ProcessIdentity.of(pid: pid))
     }
 
     // MARK: - helper grouping

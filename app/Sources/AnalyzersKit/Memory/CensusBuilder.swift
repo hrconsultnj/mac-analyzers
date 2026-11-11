@@ -30,6 +30,7 @@ final class CensusBuilder {
     var ownerMemo: [Int: Int] = [:]
     var argvMemo: [Int: String] = [:]
     var classMemo: [Int: (category: CensusGroup.Category, name: String)] = [:]
+    var appIdentifiersMemo: [(id: String, name: String)]?
 
     var unmeasuredCount: Int { table.values.filter { !$0.measured }.count }
 

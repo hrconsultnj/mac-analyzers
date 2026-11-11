@@ -50,6 +50,7 @@ struct ActivityView: View {
                 }
             }
             .listStyle(.inset)
+            .runHistoryRows()
             .overlay { emptyState(sections) }
         }
         .searchable(text: $filter.query, prompt: "Search")
@@ -92,6 +93,19 @@ struct ActivityView: View {
     // MARK: - chrome
 
     private var subtitle: String {
+        // the subtitle says what the chosen tab shows
+        switch filter.scope {
+        case .running:
+            let n = model.rows.filter(\.isRunning).count
+            return n == 0 ? "Nothing is running" : "\(n) running"
+        case .needsReview:
+            let n = model.rows.filter(\.needsReview).count
+            return n == 0 ? "Nothing is waiting for review" : "\(n) to review"
+        case .failed:
+            let n = model.rows.filter(\.isFailed).count
+            return n == 0 ? "Nothing has failed" : "\(n) failed"
+        case .all: break
+        }
         let running = model.rows.filter(\.isRunning).count
         let review = model.rows.filter(\.needsReview).count
         var parts: [String] = []

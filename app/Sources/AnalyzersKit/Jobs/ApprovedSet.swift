@@ -21,12 +21,26 @@ public struct ApprovedSet: Sendable, Hashable {
     /// True for `ApprovedSet.everything`: no per-row list exists.
     public private(set) var isUnrestricted: Bool
 
+    /// For a cleanup that can also quit apps: exactly the apps the review listed as "would quit".
+    /// nil leaves the apply with the apps its preview was started with. An app that became eligible
+    /// after the preview (it was not running, or its live session ended) is not in this list and is
+    /// not quit.
+    public let apps: [String]?
+
+    /// For a list of processes: when each approved pid started, in epoch seconds, as the review saw it.
+    /// The list is written as `<pid><TAB><start>`, and the engine approves the pid only while the process
+    /// running under it started then: a pid the system has since given to another program is left alone.
+    /// A key with no start here is written bare (the engine then trusts the pid alone, as before).
+    public let starts: [String: Int]?
+
     /// `approvable` is every key the review offered; `deselected` the ones the
     /// user unticked.
     public init(approvable: [String], deselected: Set<String>) {
         self.approved = approvable.filter { !deselected.contains($0) && Self.isListable($0) }
         self.isNarrowed = !deselected.isEmpty
         self.isUnrestricted = false
+        self.apps = nil
+        self.starts = nil
     }
 
     /// A key the list can carry. The list is one key per line, so a key with a line
@@ -47,7 +61,23 @@ public struct ApprovedSet: Sendable, Hashable {
         approved = []
         isNarrowed = false
         isUnrestricted = true
+        apps = nil
+        starts = nil
     }
+
+    private init(copying other: ApprovedSet, apps: [String]?, starts: [String: Int]?) {
+        approved = other.approved
+        isNarrowed = other.isNarrowed
+        isUnrestricted = other.isUnrestricted
+        self.apps = apps
+        self.starts = starts
+    }
+
+    /// The same set, with exactly these apps to quit at apply time.
+    public func withApps(_ apps: [String]) -> ApprovedSet { ApprovedSet(copying: self, apps: apps, starts: starts) }
+
+    /// The same set, naming each approved process by when it started (key → epoch seconds).
+    public func withStarts(_ starts: [String: Int]) -> ApprovedSet { ApprovedSet(copying: self, apps: apps, starts: starts) }
 
     /// A copy of THIS set restricted to the keys of `all` that are in `keep`: the one way a set is
     /// narrowed after a caller has produced it (the review's clamp, the frozen set a confirmation
@@ -62,7 +92,7 @@ public struct ApprovedSet: Sendable, Hashable {
         return copy
     }
 
-    /// For jobs with no per-row approval: Spotlight, login items, Time Machine,
+    /// For jobs with no per-row approval: Spotlight, Time Machine,
     /// unused apps and recordings, whose scripts take no list. Never valid for a
     /// kind that takes one (`JobKind.takesReviewedList`): `apply(from:)` refuses it.
     public static let everything = ApprovedSet()
@@ -70,11 +100,12 @@ public struct ApprovedSet: Sendable, Hashable {
     /// Writes the approved keys to a temp file and returns it, or nil when the
     /// kind takes no list. Always written for the kinds that do, even when empty
     /// (an empty list makes the engine touch nothing). The file format is one key
-    /// per line, no trailing newline.
+    /// per line, no trailing newline; a process is `<pid><TAB><start>` when its start is known.
     public func writeFile(for kind: JobKind, in directory: URL = FileManager.default.temporaryDirectory) throws -> URL? {
         guard kind.takesReviewedList else { return nil }
         let file = directory.appending(path: "mac-analyzers-approved-\(UUID().uuidString).txt")
-        try approved.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+        let lines = approved.map { key in starts?[key].map { "\(key)\t\($0)" } ?? key }
+        try lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
         return file
     }
 }

@@ -199,8 +199,8 @@ trap 'rm -f "$LOCK_FILE" "${STACK_STATE_FILE}.tmp.$$"' EXIT
 
 # live AI-session exemption (shared with memory-reclaim.sh) — no lib, no sweep
 # shellcheck disable=SC1091
-if ! source "${ANALYZERS_ROOT}/lib/live-sessions.sh" 2>/dev/null; then
-  echo "FATAL: lib/live-sessions.sh is missing — refusing to sweep without the live-session exemption." >&2
+if ! source "${ANALYZERS_ROOT}/lib/live-sessions.sh"; then
+  echo "FATAL: lib/live-sessions.sh or its list of coding agents (lib/coding-agents.tsv) is missing, unreadable or names no agent — refusing to sweep without the live-session exemption." >&2
   exit 79
 fi
 
@@ -235,7 +235,10 @@ fi
 # a hazard either: identity is re-checked by the sweep, not taken from here.
 approved_pid() {
   [[ -z "${ONLY_PIDS}" ]] && return 0
-  approved_list_has "$1"
+  case "$1" in
+    *[!0-9]*) approved_list_has "$1" ;;          # a stack key and the like: a whole line
+    *) approved_list_has_process "$1" ;;          # a pid: also the process it was when reviewed
+  esac
 }
 
 # The reviewed list is read once (lib/approved-list.sh): a `grep` per item made a

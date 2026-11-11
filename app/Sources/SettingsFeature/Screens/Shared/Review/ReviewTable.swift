@@ -71,6 +71,10 @@ struct ReviewTable: View {
     /// The words for rows the apply acts on without a tick here ("2 apps will quit", "and Quit
     /// Opera, Docker"); nil when the review has none.
     var alsoActs: ReviewAlsoActs?
+    /// The first column's title and the value column's, for a review that is not files with sizes
+    /// (a run's events: "What Happened", "When").
+    var nameTitle: String = Names.Column.name
+    var valueTitle: String?
     /// The names the confirmation gives for the rows the apply acts on, when the screen knows them
     /// from what is SENT (the Memory track's list of apps); without it the session's acting rows.
     var actingNames: ((ReviewSession) -> [String])?
@@ -143,7 +147,7 @@ struct ReviewTable: View {
         let offer = readOnly ? nil : offer()
         return ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder.wrappedValue, only: only), sortOrder: sortOrder,
                         session: readOnly ? nil : session, expansion: expansions.expansion(for: screenKey),
-                        screen: screenKey, rowMenu: rowMenu,
+                        screen: screenKey, nameTitle: nameTitle, valueTitle: valueTitle, rowMenu: rowMenu,
                         rowsFor: { ids in session.rows.filter { ids.contains($0.id) } })
             .safeAreaInset(edge: .bottom, spacing: 0) { bar(offer) }
             .confirmationDialog(frozen?.title ?? applyTitle, isPresented: $asking, titleVisibility: .visible) {

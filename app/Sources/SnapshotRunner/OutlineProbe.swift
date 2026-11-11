@@ -130,6 +130,7 @@ enum OutlineProbe {
         case _ where action.hasPrefix("review:"): code = ProbeReview.run(String(action.dropFirst(7)))
         case "fit": code = ProbeFit.run()
         case _ where action.hasPrefix("lifetime:"): code = ProbeLifetime.run(String(action.dropFirst(9)))
+        case _ where action.hasPrefix("monitor:"): code = ProbeMonitor.run(String(action.dropFirst(8)), options)
         case _ where action.hasPrefix("toolbar:"): code = ProbeToolbar.run(String(action.dropFirst(8)), Array(arguments.dropFirst()))
         case _ where action.hasPrefix("a11:"): code = ProbeFlat.run(String(action.dropFirst(4)))
         default: code = ProbeActions.single(action, options)

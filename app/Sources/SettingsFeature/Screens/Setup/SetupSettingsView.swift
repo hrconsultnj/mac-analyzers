@@ -27,8 +27,9 @@ struct SetupSettingsView: View {
     @State var messageIsError = false
 
     var body: some View {
-        PaneScaffold(symbol: "checklist.checked", color: .green, title: Names.Screen.setup,
-                     caption: "What this Mac can actually do right now. Every line was checked, not assumed.") {
+        // title and the one-line state in the toolbar; the checklist at the window's full width
+        DataScreen(title: Names.Screen.setup, subtitle: report.map { "\(headline($0)) · \($0.ready) of \($0.total)" }) {
+        List {
             if let report {
                 progress(report)
                 if let installJob, installJob.isActive {
@@ -58,7 +59,7 @@ struct SetupSettingsView: View {
                 group("Your Choice", report.checks.filter { $0.verdict == .unset })
                 group("Working", report.checks.filter { $0.verdict == .ready })
                 Section {
-                    Text("This screen stays in the sidebar after everything is green. Permissions can be withdrawn and background jobs can be unloaded by macOS, so it is worth a look if something stops behaving.")
+                    Text("What this Mac can actually do right now: every line was checked, not assumed. This screen stays in the sidebar after everything is green. Permissions can be withdrawn and background jobs can be unloaded by macOS, so it is worth a look if something stops behaving.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -66,6 +67,12 @@ struct SetupSettingsView: View {
             } else {
                 Section { Text("Checking this Mac…").foregroundStyle(.secondary) }
             }
+        }
+        .listStyle(.inset)
+        // A list measures its rows when it first shows them; the checklist arrives a moment after the
+        // screen, so the list that shows it is a new one (rows measured as the one-line placeholder
+        // came out one line high)
+        .id(report != nil)
         }
         .task {
             await adoptRunningInstall()

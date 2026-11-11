@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -37,6 +37,14 @@ import SettingsFeature
 let arguments = Array(CommandLine.arguments.dropFirst())
 // `--outline-probe <action> …` drives the shared OutlineTable headless (OutlineProbe.swift); it never renders a screen
 if arguments.first == "--outline-probe" { OutlineProbe.run(Array(arguments.dropFirst())) }
+// A screen render starts from the target it was given, with nothing remembered from an earlier run
+// (the saved location, the chosen tab, the opened groups): clear this tool's own defaults domain,
+// never the app's. Only for a render: the probes above keep their own state per process, and
+// wiping the whole domain under probes that run side by side broke them.
+if let domain = Bundle.main.bundleIdentifier ?? Optional(ProcessInfo.processInfo.processName),
+   domain != "com.mac-analyzers.app" {
+    UserDefaults.standard.removePersistentDomain(forName: domain)
+}
 // the example screens (`review:fixture`) can be linked only in this process; this tool has no
 // app bundle, so MA_CHANGELOG names the changelog What's New shows (read HERE, never by the app)
 let changelog = ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fileURLWithPath: $0) }
@@ -57,6 +65,8 @@ func option(_ name: String) -> String? {
     guard let index = arguments.firstIndex(of: name), arguments.indices.contains(index + 1) else { return nil }
     return arguments[index + 1]
 }
+// `--guard-log <file>`: show Memory Guard's history from this log instead of the real one.
+if let log = option("--guard-log") { GuardHistory.useLog(at: URL(fileURLWithPath: log)) }
 let sizeParts = (option("--size") ?? "1100x720").split(separator: "x").compactMap { Double($0) }
 let size = NSSize(width: sizeParts.first ?? 1100, height: sizeParts.count > 1 ? sizeParts[1] : 720)
 let wait = Double(option("--wait") ?? "3") ?? 3
@@ -126,6 +136,8 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         try? "#!/bin/bash\nexit 0\n".write(to: nothing, atomically: true, encoding: .utf8)
         chmod(nothing.path, 0o755)
         jobs.scriptOverride = nothing
+        // `--startup-inventory <file>` shows Login & Startup Items from a fixture
+        if let fixture = option("--startup-inventory") { StartupInventory.useFile(URL(fileURLWithPath: fixture)) }
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
         if updateStateOption == nil { Task { await updates.check() } }
         let root = MainWindowView(restoresLocation: false)
@@ -139,7 +151,12 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
+        // `--appearance light|dark` pins the window's appearance, whatever the system is set to
+        if let look = option("--appearance") {
+            window.appearance = NSAppearance(named: look == "light" ? .aqua : .darkAqua)
+        }
         window.contentViewController = controller
+        if let a = appearanceOption { window.appearance = NSAppearance(named: a == "light" ? .aqua : .darkAqua) }
         window.toolbarStyle = .unified
         window.setContentSize(size)
         // far outside every display: drawn by the window server, seen by nobody
@@ -235,6 +252,13 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         } catch {
             FileHandle.standardError.write(Data("snapshot-runner: could not run screencapture: \(error)\n".utf8))
             finish(1)
+        }
+        // the window cannot be smaller than the app's own minimum: say so instead of letting a
+        // "760" render pass for 760
+        let actual = window.contentView?.frame.size ?? size
+        let clamped = abs(actual.width - size.width) > 1 || abs(actual.height - size.height) > 1
+        if clamped {
+            print("snapshot-runner: asked for \(Int(size.width))x\(Int(size.height)); the window's minimum made it \(Int(actual.width))x\(Int(actual.height))")
         }
         let made = FileManager.default.fileExists(atPath: output.path)
         print(made ? "\(target) → \(output.path)  (window title: \(window.title))"
