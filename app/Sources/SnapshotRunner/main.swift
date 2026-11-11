@@ -1,5 +1,6 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
+// (A developer tool: built by `swift build`, never bundled into the app.)
 //
 //   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3]
 //   snapshot-runner overview /tmp/overview.png

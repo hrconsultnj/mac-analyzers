@@ -3,6 +3,8 @@
 # memory-auto-clean.sh. Starts harmless stand-in processes of its own (a node
 # that rewrites process.title like npm does) and never touches anything else.
 # Usage: memory-analyzer/tests/same-args-test.sh
+# macOS only: it asserts what macOS `ps` prints for a process that renamed
+# itself. scripts/check.sh reports it as "not run" anywhere else.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT="$HERE/../memory-auto-clean.sh"
