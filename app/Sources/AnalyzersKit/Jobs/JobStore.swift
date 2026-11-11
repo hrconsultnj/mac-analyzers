@@ -320,6 +320,10 @@ public final class JobStore {
             let outcome = await Task.detached {
                 override?(kind, header) ?? RunMatcher.outcome(kind: kind, header: header, startedAt: began)
             }.value
+            // a memory preview's review records who each program is NOW, the moment the preview ends
+            if request.intent == .preview, case .reap(let run) = outcome.parsed {
+                CleanupReviews.capture(jobID: job.id, run: run)
+            }
             final = .succeeded(outcome)
         }
         await conclude(job, state: final, exitCode: stopped ? nil : code, approvedFile: approvedFile)

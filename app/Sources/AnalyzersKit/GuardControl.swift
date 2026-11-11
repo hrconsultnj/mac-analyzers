@@ -70,7 +70,9 @@ public enum GuardControl {
     /// A polite quit, so it does not depend on the coding-agent list.
     @discardableResult
     public static func quitApp(_ identities: [ProcessIdentity]) -> [ProcessIdentity] {
-        identities.filter(quitApp)
+        // an app whose processes cannot be told apart yet is not quit: the answer is "could not tell"
+        guard ProgramReach.quitReach(roots: identities.map { Int32($0.pid) }).doubt == nil else { return [] }
+        return identities.filter(quitApp)
     }
 
     /// USER-initiated SIGTERM of chosen processes, each only if it is still the
@@ -146,6 +148,11 @@ public enum GuardControl {
     @_spi(TestSupport) public static func reachRefusal(listed: [ProcessIdentity], name: String) -> String? {
         if case .refused(let why) = ProgramReach.compute(listed: listed, name: name) { return why }
         return nil
+    }
+
+    /// Test support: why this process's command line cannot be trusted yet (nil when it can).
+    @_spi(TestSupport) public static func commandLineDoubt(pid: Int32) -> String? {
+        CommandLineTrust.doubt(pid: pid)
     }
 
     /// Test support: whether a command line is a terminal session (an interactive shell).

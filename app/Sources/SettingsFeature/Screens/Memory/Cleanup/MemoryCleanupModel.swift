@@ -34,11 +34,6 @@ final class MemoryCleanupModel {
     /// Everything Now: also ask the apps on your list to quit.
     var alsoQuit = false
 
-    /// The review as it was read when its job finished, per job: its identities
-    /// (who each pid was) are captured ONCE, then, never again on a rebuild — a
-    /// pid reused since would otherwise be read as the program that was reviewed.
-    private static var reviews: [UUID: CleanupReview] = [:]
-
     private(set) var phase: Phase = .idle
     private(set) var previewJob: Job?
     private(set) var applyJob: Job?
@@ -153,9 +148,8 @@ final class MemoryCleanupModel {
                 return
             }
             if case .reap(let run) = outcome.parsed {
-                let read = Self.reviews[job.id] ?? CleanupReview(run: run)
-                Self.reviews[job.id] = read
-                review = read
+                // identities were captured when the job finished (`CleanupReviews`), never on a rebuild
+                review = CleanupReviews.review(for: job.id, run: run)
             }
             if job.intent == .apply {
                 phase = .done(Self.summary(of: review))

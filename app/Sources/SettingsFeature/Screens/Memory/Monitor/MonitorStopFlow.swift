@@ -37,8 +37,14 @@ final class MonitorStopFlow {
         switch stop {
         case .none, .unavailable:
             break
-        case .quitApp(let name, let identities, let count, let bytes, let hosted):
-            pending = .quitApp(name: name, identities: identities, count: count, bytes: bytes, hosted: hosted)
+        case .quitApp(let name, let identities, let count, let bytes, _):
+            // the sessions inside the app are read live when the dialog opens, like a program's reach
+            let live = MemoryStop.quitReach(of: identities, name: name)
+            if let refusal = live.refusal {
+                notice = refusal
+            } else {
+                pending = .quitApp(name: name, identities: identities, count: count, bytes: bytes, hosted: live.hosted)
+            }
         case .stopProgram(let program):
             beginProgram(program)
         case .stopProcess(let process, let identity):

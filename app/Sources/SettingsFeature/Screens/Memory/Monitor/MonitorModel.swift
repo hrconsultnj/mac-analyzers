@@ -54,7 +54,21 @@ final class MonitorModel {
     private(set) var sort = MonitorTree.Sort.biggestFirst
 
     /// Which groups are open, remembered across window close and relaunch by row id.
-    let expansion = RememberedExpansion<String>(screen: "monitor")
+    let expansion = MonitorModel.rememberedGroups()
+
+    /// The groups the first Monitor left open (`monitor.expanded`) move to the shared store once, before it
+    /// is read, and count as the person's own choice, so the screen's default never replaces them.
+    private static func rememberedGroups() -> RememberedExpansion<String> {
+        let defaults = UserDefaults.standard
+        if let old = defaults.stringArray(forKey: "monitor.expanded") {
+            if defaults.object(forKey: "outline.expanded.monitor") == nil {
+                defaults.set(old, forKey: "outline.expanded.monitor")
+                defaults.set(true, forKey: "outline.expanded.monitor.touched")
+            }
+            defaults.removeObject(forKey: "monitor.expanded")
+        }
+        return RememberedExpansion<String>(screen: "monitor")
+    }
 
     private var meter = CPUMeter()
     private var lastCPU: [Int: Double] = [:]

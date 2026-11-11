@@ -25,25 +25,26 @@ struct MonitorOutline<Menu: View>: View {
     @ViewBuilder let menu: (MonitorRow) -> Menu
 
     var body: some View {
+        // Column order is the order they give way in: the table lets only the first column flex, and the
+        // window is short of width whenever the details panel is open (900 to 1100 wide). Name, Memory,
+        // CPU and the Stop or Quit button come first and stay on screen; "What It Is", which the panel
+        // says again for the selected row, is last and is the part that is cut off.
         OutlineTable(rows, children: \.childRows, selection: $selection, sortOrder: $sortOrder,
                      expanded: expanded, autosave: "monitor") {
             OutlineColumn("name", Names.Monitor.name, sortUsing: KeyPathComparator(\MonitorRow.name)) { row in
                 MonitorNameCell(row: row, icon: icons[row.id])
             }
-            .width(min: 150, ideal: 210)
+            .width(min: 130, ideal: 170)
             .typeSelect { $0.name }
-            OutlineColumn("what", Names.Monitor.whatItIs, text: { $0.detail })
-                .textStyle { _ in .secondary }
-                .width(min: 130, ideal: 260)
             OutlineColumn("memory", Names.Monitor.memory, text: { $0.memoryText },
                           sortUsing: KeyPathComparator(\MonitorRow.memoryBytes))
                 .alignment(.trailing).monospacedDigits()
                 .textStyle { $0.memoryBytes > 4 * 1_073_741_824 ? .warning : .secondary }
-                .width(min: 76, ideal: 84)
+                .width(min: 72, ideal: 80)
             OutlineColumn("cpu", Names.Monitor.cpu, text: { $0.cpuText },
                           sortUsing: KeyPathComparator(\MonitorRow.cpuSort))
                 .alignment(.trailing).monospacedDigits().textStyle { _ in .secondary }
-                .width(min: 60, ideal: 70)
+                .width(min: 56, ideal: 62)
             // a pid is an identifier: text, so it never gains a thousands separator
             OutlineColumn("pid", Names.Monitor.pid, text: { $0.pid.map { String($0) } ?? "" },
                           sortUsing: KeyPathComparator(\MonitorRow.pidSort))
@@ -52,7 +53,10 @@ struct MonitorOutline<Menu: View>: View {
                 .defaultHidden()
             OutlineColumn("stop", "") { row in stopControl(row) }
                 .hideable(false)
-                .width(min: 50, ideal: 56)
+                .width(min: 48, ideal: 52)
+            OutlineColumn("what", Names.Monitor.whatItIs, text: { $0.detail })
+                .textStyle { _ in .secondary }
+                .width(min: 100, ideal: 200)
         }
         .contextMenu({ ids in
             if let row = ids.first.flatMap(rowFor) { menu(row) }

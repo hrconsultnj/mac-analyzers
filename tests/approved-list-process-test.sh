@@ -14,15 +14,18 @@ LIB="$HERE/../lib/approved-list.sh"
 [[ -f "$LIB" ]] || { echo "SKIP: lib/approved-list.sh not found"; exit 0; }
 
 TMP="$(mktemp -d /tmp/mal.XXXXXX)"
-sleep 300 & ONE=$!
-sleep 300 & TWO=$!
-trap 'kill "$ONE" "$TWO" 2>/dev/null; rm -rf "$TMP"' EXIT
+# The stand-ins keep no pipe open (a caller reading our output through `tail` would otherwise wait for them),
+# and the exit trap ends BOTH and waits, so none is left running after the test.
+sleep 300 >/dev/null 2>&1 & ONE=$!
+TWO=""
+trap 'kill "$ONE" ${TWO:+"$TWO"} 2>/dev/null; wait "$ONE" ${TWO:+"$TWO"} 2>/dev/null; rm -rf "$TMP"' EXIT
 sleep 2.2                                   # past the two seconds the comparison allows between starts
 fail=0
 check() { if [[ "$2" == "ok" ]]; then echo "PASS  $1"; else echo "FAIL  $1 ($2)"; fail=1; fi; }
 
 run_with() {
   local shell="$1" label="$2" start
+  sleep 300 >/dev/null 2>&1 & TWO=$!
   start="$("$shell" -c 'source "$1"; approved_list_process_start "$2"' _ "$LIB" "$ONE")"
   [[ "$start" =~ ^[0-9]+$ ]] && check "$label: the start time of a running process reads as epoch seconds" ok || check "$label: start time" "got '$start'"
   local now; now="$(date +%s)"
@@ -33,7 +36,12 @@ run_with() {
     "$shell" -c 'source "$1"; approved_list_load "$2"; approved_list_has_process "$3"' _ "$LIB" "$TMP/list" "$2"
   }
   has "$ONE\t$start\n" "$ONE" && check "$label: the right start time is approved" ok || check "$label: right start" "refused"
-  has "$ONE\t$((start + 2))\n" "$ONE" && check "$label: a start two seconds off is still approved" ok || check "$label: +2s" "refused"
+  # The script reads the start again (now minus elapsed time), which can land a second either side of the one
+  # read above when a second ticks over between them; a difference at the edge of the allowance would be a coin
+  # toss, so these stay a second inside it and a second well outside it.
+  has "$ONE\t$((start + 1))\n" "$ONE" && check "$label: a start one second off is still approved" ok || check "$label: +1s" "refused"
+  has "$ONE\t$((start - 1))\n" "$ONE" && check "$label: a start one second earlier is still approved" ok || check "$label: -1s" "refused"
+  has "$ONE\t$((start + 6))\n" "$ONE" && check "$label: a start six seconds off is refused" "approved" || check "$label: +6s refused" ok
   has "$ONE\t$((start - 100))\n" "$ONE" && check "$label: another start time is refused (a reused pid)" "approved" || check "$label: wrong start refused" ok
   has "$TWO\t$start\n" "$ONE" && check "$label: a line for another pid is not this process" "approved" || check "$label: other pid refused" ok
   has "$ONE\n" "$ONE" && check "$label: a bare pid (an older list) is approved" ok || check "$label: bare pid" "refused"
@@ -43,7 +51,6 @@ run_with() {
   has "" "$ONE" && check "$label: an empty list approves nothing" "approved" || check "$label: empty list" ok
   kill "$TWO" 2>/dev/null; wait "$TWO" 2>/dev/null
   has "$TWO\t$start\n" "$TWO" && check "$label: a process that has ended is refused" "approved" || check "$label: ended process refused" ok
-  sleep 300 & TWO=$!
 }
 
 run_with /bin/bash "bash 3.2"

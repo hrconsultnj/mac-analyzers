@@ -64,6 +64,28 @@ enum ProgramReach {
         return chain
     }
 
+    /// Parent to children over the live process table, read now.
+    static func liveChildren() -> [Int32: [Int32]] {
+        var children: [Int32: [Int32]] = [:]
+        for pid in ProcTable.allPIDs() { children[Int32(ProcTable.parentPID(of: pid)), default: []].append(pid) }
+        return children
+    }
+
+    /// What quitting these app processes would end: the processes themselves and everything below them,
+    /// read from the live table now. The coding sessions among them (named) and whether any process in it
+    /// cannot be told apart yet (a sentence).
+    static func quitReach(roots: [Int32]) -> (hosted: [String: Int], doubt: String?) {
+        let children = liveChildren()
+        var seen = Set<Int32>()
+        var stack = roots
+        while let pid = stack.popLast() {
+            guard seen.insert(pid).inserted else { continue }
+            stack.append(contentsOf: children[pid] ?? [])
+        }
+        return (CodingAgentHosts.sessionsBelow(roots: roots, children: children),
+                CommandLineTrust.refusal(pids: seen.sorted(), name: "this app", action: "quit"))
+    }
+
     static func compute(listed: [ProcessIdentity], name: String) -> Outcome {
         let verified = listed.filter(\.isStillRunning)
         guard !verified.isEmpty else { return .reach([]) }
@@ -91,6 +113,10 @@ enum ProgramReach {
             depth[pid] = level
             for child in children[pid] ?? [] { stack.append((child, level + 1)) }
         }
+
+        // a process that has not become itself yet (unreadable command line, or still its parent's) could be
+        // hiding a session: wait rather than guess
+        if let why = CommandLineTrust.refusal(pids: depth.keys.sorted(), name: name) { return .refused(why) }
 
         let own = selfChain()
         if depth.keys.contains(where: own.contains) {

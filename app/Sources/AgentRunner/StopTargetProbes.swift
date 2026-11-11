@@ -54,10 +54,12 @@ private final class Fixtures {
 
     /// The pid of a process whose command line carries `tag`, once it exists.
     /// `detachedOnly`: its parent must be launchd.
-    func find(_ tag: String, detachedOnly: Bool = true) async -> Int32? {
+    /// `execed`: skip the wrapper's own subshell, which carries the tag until it has exec'd into the fixture.
+    func find(_ tag: String, detachedOnly: Bool = true, execed: Bool = true) async -> Int32? {
         for _ in 0..<20 {
             for line in run("/bin/ps", ["-ax", "-o", "pid=,ppid=,command="]).split(separator: "\n")
-            where line.contains(tag) && !line.contains("/bin/ps") && !line.contains("AgentRunner") {
+            where line.contains(tag) && !line.contains("/bin/ps") && !line.contains("AgentRunner")
+                && !(execed && line.contains("</dev/null >/dev/null")) {
                 let fields = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
                 guard fields.count == 3, let pid = Int32(fields[0]) else { continue }
                 if !detachedOnly || fields[1] == "1" { return pid }
@@ -67,25 +69,40 @@ private final class Fixtures {
         return nil
     }
 
+    /// Waits (with a deadline, never a fixed sleep) until the fixture and what it has started have exec'd and
+    /// no longer show a command line the app could not yet believe. Returns false at the deadline.
+    @discardableResult
+    func settle(_ root: Int32, seconds: Double = 10) async -> Bool {
+        let deadline = Date().addingTimeInterval(seconds)
+        while Date() < deadline {
+            let all = [root] + ProcessTree.descendants(of: root)
+            if all.allSatisfy({ GuardControl.commandLineDoubt(pid: $0) == nil }) { return true }
+            try? await Task.sleep(for: .milliseconds(150))
+        }
+        return false
+    }
+
     /// Starts `shellCommand` detached; `tag` appears in the resulting command line.
-    func detach(_ shellCommand: String, tag: String) async -> Int32? {
+    func detach(_ shellCommand: String, tag: String, settled: Bool = true) async -> Int32? {
         let wrapper = Process()
         wrapper.executableURL = URL(fileURLWithPath: "/bin/bash")
         wrapper.arguments = ["-c", "( \(shellCommand) ) </dev/null >/dev/null 2>&1 &"]
         try? wrapper.run()
         wrapper.waitUntilExit()
-        guard let pid = await find(tag) else { return nil }
+        guard let pid = await find(tag, execed: settled) else { return nil }
         started.append(pid)
+        if settled { await settle(pid) }
         return pid
     }
 
     /// `exec -a <name>` + this probe's shell: a process that looks like `name` to the census.
-    func detachNamed(_ name: String?, script: String, tag: String) async -> Int32? {
+    func detachNamed(_ name: String?, script: String, tag: String, settled: Bool = true) async -> Int32? {
         let head = name.map { "exec -a \($0) \(shell)" } ?? "exec \(shell)"
-        return await detach("\(head) -c '\(script)'", tag: tag)
+        return await detach("\(head) -c '\(script)'", tag: tag, settled: settled)
     }
 
-    func program(_ root: Int32) async -> StopTarget? {
+    func program(_ root: Int32, settled: Bool = true) async -> StopTarget? {
+        if settled { await settle(root) }
         for _ in 0..<10 {
             if let found = MemoryCensus.take().groups.flatMap(\.programs)
                 .first(where: { $0.members.contains { $0.pid == Int(root) } }) { return found }
@@ -115,9 +132,11 @@ private final class Fixtures {
         let rc = scratch.appending(path: "\(tag).rc").path
         _ = run("/usr/bin/mkfifo", [fifo])
         FileManager.default.createFile(atPath: rc, contents: Data())
-        guard let pid = await detach("exec -a zsh \(shell) --noprofile --init-file '\(rc)' -i < '\(fifo)'", tag: rc) else { return nil }
+        // the shell opens the fifo before it execs, so it is found as the wrapper and execs once it is fed
+        guard let pid = await detach("exec -a zsh \(shell) --noprofile --init-file '\(rc)' -i < '\(fifo)'", tag: rc, settled: false) else { return nil }
         feed(fifo, input)
         try? await Task.sleep(for: .milliseconds(800))
+        await settle(pid)
         return pid
     }
 
@@ -195,6 +214,7 @@ private func relaunchDetached(_ args: [String]) -> Never {
     await reloadCase(f, original: realList + "\nFixture Agent\texe\t\(f.sessionExe)\n", at: fixtureList)
     await hostedSessionsCase(f, restore: fixtureList, missing: missingList)
     await confirmationCase(f)
+    await unsettledCase(f)
     f.cleanup()
     exit(f.failed ? 1 : 0)
 }
@@ -318,7 +338,9 @@ private func relaunchDetached(_ args: [String]) -> Never {
     } else { f.check("the polite stop kills nothing", false, "fixture not found") }
 
     // a session that appears AFTER the polite step refuses the Force Stop (reach, locks and start times are recomputed)
-    let late = ": \(f.marker)-q; trap \"\" TERM; ( sleep 3; exec -a \(f.sessionExe) \(f.shell) -c \": \(f.marker)-q2; sleep 73; :\" ) & while :; do sleep 1; done"
+    // the session starts from its own shell with its own command line, not from a subshell: a subshell shows
+    // its parent's command line, which the app rightly refuses to act on for its first moments (`unsettledCase`)
+    let late = ": \(f.marker)-q; trap \"\" TERM; \(f.shell) -c \"sleep 3; exec -a \(f.sessionExe) \(f.shell) -c \\\": \(f.marker)-q2; sleep 73; :\\\"\" & while :; do sleep 1; done"
     if let root = await f.detachNamed(nil, script: late, tag: "\(f.marker)-q") {
         if let identity = ProcessIdentity.of(pid: Int(root)) {
             let ask = await GuardControl.askProgramToStop([identity], name: "Fixture program", grace: .seconds(1))
@@ -545,7 +567,7 @@ private func relaunchDetached(_ args: [String]) -> Never {
     var census = MemoryCensus.take()
     for _ in 0..<20 {
         let seen = census.groups.first { $0.members.contains { $0.pid == Int(app) } }?.hostedSessions["Fixture Agent"] == 1
-        if seen { break }
+        if seen { await f.settle(app); break }
         try? await Task.sleep(for: .milliseconds(500))
         census = MemoryCensus.take()
     }
@@ -638,4 +660,49 @@ private func relaunchDetached(_ args: [String]) -> Never {
             spoofed.isEmpty ? "known codes read; \(6) invented ones show nothing" : "accepted: \(spoofed)")
     f.check("the sentence is the app's own", StopWhy.hosts("Claude Code").sentence.hasPrefix("This process hosts live Claude Code sessions"),
             StopWhy.hosts("Claude Code").sentence)
+}
+
+// MARK: - a program that has not become itself yet is not stopped
+
+/// A subshell shows its parent's command line for as long as it lives; for the first moments that is also
+/// what a child that is about to exec shows. A Stop looks inside a program for sessions by command line, so
+/// it refuses "for now" while any process in it only repeats its parent's, and works once it is settled.
+@MainActor private func unsettledCase(_ f: Fixtures) async {
+    let script = ": \(f.marker)-u; ( : \(f.marker)-u2; sleep 11; : ); :"
+    guard let root = await f.detachNamed(nil, script: script, tag: "\(f.marker)-u", settled: false) else {
+        f.check("a process still showing its parent's command line", false, "fixture not found")
+        return
+    }
+    // the subshell exists a moment after the shell does: look until a process under the fixture is doubted
+    var doubted: Int32?
+    for _ in 0..<40 where doubted == nil {
+        doubted = ProcessTree.descendants(of: root).first { GuardControl.commandLineDoubt(pid: $0) != nil }
+        if doubted == nil { try? await Task.sleep(for: .milliseconds(50)) }
+    }
+    let rootAge = ProcessIdentity.of(pid: Int(root)).map { Date().timeIntervalSince1970 - Double($0.birth.seconds) } ?? 99
+    if let doubted {
+        f.check("a subshell that has just started repeats its parent's command line, and that is noticed",
+                true, GuardControl.commandLineDoubt(pid: doubted) ?? "")
+        if let t = await f.program(root, settled: false), f.contained(t, root: root) {
+            let outcome = MemoryStop.plan(target: t)
+            var refused = false
+            if case .refused = outcome { refused = true }
+            f.check("  ... so Stop refuses for now, and says it could not tell", refused && outcome.message.contains("could not tell"), outcome.message)
+            f.check("  ... and signalled nothing", f.alive(root), "the fixture is still running")
+        } else {
+            f.check("  ... so Stop refuses for now", false, "program not found, or not contained")
+        }
+    } else if rootAge >= 2 {
+        print("  not judged: the fixture was already \(Int(rootAge)) s old when looked at (a very slow machine)")
+    } else {
+        f.check("a subshell that has just started repeats its parent's command line, and that is noticed", false, "no process under the fixture was doubted")
+    }
+    let settled = await f.settle(root)
+    f.check("  ... and once it has settled Stop is offered again", settled, settled ? "settled" : "still doubted after 10 s")
+    if settled, let t = await f.program(root), f.contained(t, root: root) {
+        var confirms = false
+        if case .confirm = MemoryStop.plan(target: t) { confirms = true }
+        f.check("  ... as a confirmation, still without sending anything", confirms && f.alive(root), "plan(target:) confirms")
+    }
+    f.end(root)
 }

@@ -48,8 +48,6 @@ struct MonitorView: View {
     /// Remembered between launches; closed to begin with, so the table has the window.
     @AppStorage("monitor.inspectorShown") var inspectorShown = false
     @State var stopFlow = MonitorStopFlow()
-    /// Set only by a `monitor:preview:` link: a stop sheet drawn in the window.
-    @State var previewedSheet: MonitorStopFlow.Pending?
     @FocusState var searchFocused: Bool
     /// Shared with the menu-bar panel; 0 is Paused.
     @AppStorage("monitorRefreshSeconds") var refreshSeconds = 15
@@ -86,14 +84,6 @@ struct MonitorView: View {
                                       inspectorShown: $inspectorShown,
                                       refreshNow: { Task { await model.refreshNow() } }) }
             .monitorStopDialogs(stopFlow) { Task { await model.refresh(force: true) } }
-            .overlay {
-                if case .choose(let group, let programs)? = previewedSheet {
-                    MonitorStopSheet(group: group, programs: programs, onCancel: {}, onStop: { _ in })
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                        .shadow(radius: 20)
-                        .padding(40)
-                }
-            }
             .screenActions(refresh: { Task { await model.refreshNow() } },
                            find: { searchFocused = true },
                            isActive: navigator.path.isEmpty)
@@ -147,13 +137,8 @@ struct MonitorView: View {
         for _ in 0..<60 where !model.isLoaded(model.lens) { try? await Task.sleep(for: .milliseconds(100)) }
         if link.expandAll { model.expandEverything() }
         if let name = link.open,
-           let row = model.rows.first(where: { $0.name.localizedCaseInsensitiveContains(name) }) {
+           let row = model.rows.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
             model.open([row.id] + row.children.map(\.id))
-        }
-        if let name = link.preview,
-           let row = model.rows.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }),
-           case .choosePrograms(let group, let programs) = row.stop {
-            previewedSheet = .choose(group: group, programs: programs)
         }
         if let pid = link.pid {
             scope = .everything

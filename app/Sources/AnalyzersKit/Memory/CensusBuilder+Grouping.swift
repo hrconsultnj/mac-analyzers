@@ -41,7 +41,9 @@ extension CensusBuilder {
                                            category: kind.category, isRoot: isRoot)
             bucket.rootTotals[rootPid, default: 0] += entry.bytes
             bucket.rootMembers[rootPid, default: []].append(process)
-            if isRoot, process.canQuit { bucket.quittableRoots.insert(rootPid) }
+            // A helper outside the bundle is shown under its app by name alone (an identifier prefix), which
+            // any process can imitate, so Quit on the app never signals it: it acts on the app's own processes.
+            if isRoot, process.canQuit, !isJoinedHelper(entry) { bucket.quittableRoots.insert(rootPid) }
             buckets[key] = bucket
         }
 

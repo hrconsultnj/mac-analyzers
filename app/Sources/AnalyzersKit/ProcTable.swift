@@ -130,7 +130,14 @@ public enum ProcTable {
     /// cost a megabyte of memset per process — fine for a few dozen rows,
     /// wasteful for the full census.
     static func commandLine(of pid: Int32) -> String {
-        guard argMax > MemoryLayout<Int32>.stride else { return executablePath(of: pid) }
+        rawCommandLine(of: pid) ?? executablePath(of: pid)
+    }
+
+    /// The same, but nil when the kernel would not give the arguments (another account's process, a process
+    /// that has just ended or is between fork and exec) instead of a stand-in. Whoever has to TRUST the
+    /// command line asks this.
+    static func rawCommandLine(of pid: Int32) -> String? {
+        guard argMax > MemoryLayout<Int32>.stride else { return nil }
         let buffer = UnsafeMutableRawPointer.allocate(
             byteCount: argMax, alignment: MemoryLayout<Int32>.alignment)
         defer { buffer.deallocate() }
@@ -138,7 +145,7 @@ public enum ProcTable {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         guard sysctl(&mib, 3, buffer, &bufferSize, nil, 0) == 0,
               bufferSize > MemoryLayout<Int32>.stride
-        else { return executablePath(of: pid) }
+        else { return nil }
 
         // layout: [argc: Int32][exec path\0][padding \0s][argv0\0][argv1\0]…
         let argc = buffer.load(as: Int32.self)
@@ -151,14 +158,14 @@ public enum ProcTable {
             while cursor < bytes.count, bytes[cursor] != 0 { cursor += 1 }
             return String(decoding: bytes[start..<cursor], as: UTF8.self)
         }
-        guard nextString() != nil else { return executablePath(of: pid) }  // exec path
+        guard nextString() != nil else { return nil }  // exec path
         var args: [String] = []
         for _ in 0..<max(argc, 1) {
             guard let arg = nextString() else { break }
             args.append(arg)
         }
         let joined = args.joined(separator: " ")
-        return joined.isEmpty ? executablePath(of: pid) : joined
+        return joined.isEmpty ? nil : joined
     }
 
     static func executablePath(of pid: Int32) -> String {

@@ -119,6 +119,12 @@ extension CensusBuilder {
             .max { $0.id.count < $1.id.count }?.name
     }
 
+    /// A process that is grouped with an app only because its executable's name extends the app's bundle
+    /// identifier, not because it lives in the app's bundle.
+    func isJoinedHelper(_ entry: Entry) -> Bool {
+        appOwningHelper(entry) != nil && argv(entry).flatMap(Self.outermostApp(in:)) == nil
+    }
+
     /// The OUTERMOST bundle in a path — a helper nested four frameworks deep
     /// inside Opera.app still belongs to Opera.
     static func outermostApp(in path: String) -> (path: String, name: String)? {

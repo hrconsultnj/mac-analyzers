@@ -3,10 +3,11 @@ import Foundation
 
 /// What a deep link asks Monitor to show, carried as the one-shot request a
 /// `SectionIntent` holds and applied by the screen once it has rows. It exists
-/// so every state of the screen — an app selected, the details panel open, a
-/// group's stop sheet — can be reached by a link, and therefore rendered
-/// headless: `monitor:select:Opera`, `monitor:inspector`, `monitor:select:Node.js`,
-/// `monitor:apps`, `monitor:energy`, `monitor:find:chrome`, `monitor:expanded`.
+/// so every state of the screen (an app selected, the details panel open) can
+/// be reached by a link, and therefore rendered headless: `monitor:select:Opera`,
+/// `monitor:inspector`, `monitor:apps`, `monitor:energy`, `monitor:find:chrome`,
+/// `monitor:expanded`. A link only navigates and selects; it never puts a
+/// confirmation in front of a person.
 struct MonitorLink: Hashable, Codable {
     var lens: String?
     var scope: String?
@@ -15,10 +16,6 @@ struct MonitorLink: Hashable, Codable {
     var stop: String?
     /// Opens the named row in place, as a click on its arrow does.
     var open: String?
-    /// Shows the named group's stop sheet inside the window instead of as a
-    /// sheet, so a render can capture it (a sheet is a separate window the
-    /// headless capture cannot reach).
-    var preview: String?
     var inspector = false
     var expandAll = false
     /// Selects the row for this process, wherever it sits; `why` says (in the app's own words) why a stop did not happen.
@@ -34,14 +31,13 @@ struct MonitorLink: Hashable, Codable {
     }
 
     init(lens: String? = nil, scope: String? = nil, query: String? = nil, select: String? = nil,
-         stop: String? = nil, open: String? = nil, preview: String? = nil, inspector: Bool = false, expandAll: Bool = false) {
+         stop: String? = nil, open: String? = nil, inspector: Bool = false, expandAll: Bool = false) {
         self.lens = lens
         self.scope = scope
         self.query = query
         self.select = select
         self.stop = stop
         self.open = open
-        self.preview = preview
         self.inspector = inspector
         self.expandAll = expandAll
     }
@@ -56,7 +52,6 @@ struct MonitorLink: Hashable, Codable {
         default: break
         }
         if rest.hasPrefix("select:") { return MonitorLink(select: String(rest.dropFirst(7)), inspector: true) }
-        if rest.hasPrefix("preview:") { return MonitorLink(preview: String(rest.dropFirst(8))) }
         if rest.hasPrefix("open:") { return MonitorLink(open: String(rest.dropFirst(5))) }
         if rest.hasPrefix("stop:") { return MonitorLink(stop: String(rest.dropFirst(5))) }
         if rest.hasPrefix("pid:") {

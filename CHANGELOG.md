@@ -40,6 +40,26 @@ without an entry here — see `scripts/cut-release.sh`.
   about it. Repeats are folded into one row. Click a row to see what happened,
   what the program was, and why the guard acts — and for a memory crisis, which
   apps were using the memory.
+- Memory Cleanup is a screen of its own. Preview shows what a cleanup would
+  close in tabs (dev servers, orphaned tools, emulators and browsers, and the
+  helpers of coding sessions), grouped by the program they belong to, and you
+  tick what to close. Apps on your list to quit are shown as "will quit"
+  before you apply, and a cleanup closes only the programs you saw, as they
+  were when you looked: a program that has been replaced since is left alone.
+- Stop now asks a program politely first. If it ignores that, you are offered
+  a separate Force Stop and nothing is forced until you confirm it. Before, a
+  program that ignored Stop was ended after a few seconds without asking.
+- The Stop button in a notification now checks that it is still the same
+  program before it does anything. If the program has changed, or is part of a
+  live coding session, Monitor opens on it instead and nothing is stopped.
+- An app that hosts a live coding session, such as a terminal with Claude
+  running in it, is never quit by Everything Now, and Quit on such an app
+  tells you which sessions would end with it.
+- If the list of coding agents cannot be read, Mac Analyzers offers no Stop at
+  all and says why, rather than guessing which programs are sessions.
+- If Mac Analyzers cannot tell what a program really is, because its command
+  line cannot be read or still shows the program that started it, Stop and
+  Quit wait and try again on the next refresh instead of acting on a guess.
 
 ## v2.69.1 — Large Downloads reviews can be applied again
 

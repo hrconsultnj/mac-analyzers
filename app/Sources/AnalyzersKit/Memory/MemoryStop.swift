@@ -77,6 +77,14 @@ public enum MemoryStop {
         return parts.isEmpty ? nil : parts.joined(separator: " and ")
     }
 
+    /// What quitting this app would end, read from the live process table NOW (not from the census the
+    /// screen last drew): the live coding sessions inside it, and a refusal sentence when something in it
+    /// cannot be told apart yet.
+    public static func quitReach(of identities: [ProcessIdentity], name: String) -> (hosted: [String: Int], refusal: String?) {
+        let reach = ProgramReach.quitReach(roots: identities.map { Int32($0.pid) })
+        return (reach.hosted, reach.doubt.map { $0.replacingOccurrences(of: "this app", with: name) })
+    }
+
     /// Plans stopping a whole group: an app is quit (⌘Q semantics); a group of
     /// tools is stopped only when it is exactly one program that may be stopped.
     public static func plan(group: CensusGroup) -> Outcome {
@@ -85,11 +93,15 @@ public enum MemoryStop {
         case .unavailable:
             return .refused("\(name) is part of macOS, or belongs to another account, so it cannot be stopped from here.")
         case .app(let identities):
+            // the sessions inside the app are read from the live process table now, not from the census the
+            // screen last drew (up to a minute old, or any age while refresh is paused)
+            let reach = quitReach(of: identities, name: name)
+            if let refusal = reach.refusal { return .refused(refusal) }
             var detail = "\(name) will close. It will still ask before discarding unsaved work."
-            if let note = hostedNote(group.hostedSessions, appName: name) { detail += " \(note)" }
+            if let note = hostedNote(reach.hosted, appName: name) { detail += " \(note)" }
             return .confirm(Pending(title: "Quit \(name)?", detail: detail, actionTitle: "Quit \(name)") {
                 Report(GuardControl.quitApp(identities).isEmpty
-                    ? "\(name) had already quit or changed, so nothing was sent."
+                    ? "\(name) had already quit or changed, or Mac Analyzers could not tell what it is running, so nothing was sent."
                     : "Asked \(name) to quit.")
             })
         case .tools:
