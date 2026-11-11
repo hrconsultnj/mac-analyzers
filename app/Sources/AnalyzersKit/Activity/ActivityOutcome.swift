@@ -47,6 +47,9 @@ public struct ActivityOutcome: Sendable {
         public let items: [Item]
         /// Items beyond `ActivityOutcome.itemLimit`, not shown.
         public let hidden: Int
+        /// What the items' `trailing` text is, when it is not a size ("When", "Memory"); nil when
+        /// the items carry `bytes` (the column is "Size") or nothing at all (no column).
+        public let valueTitle: String?
     }
 
     public let sections: [Section]
@@ -61,11 +64,11 @@ public struct ActivityOutcome: Sendable {
 
     private struct Builder {
         var sections: [Section] = []
-        mutating func add(_ title: String, _ tone: Tone, _ items: [Item]) {
+        mutating func add(_ title: String, _ tone: Tone, _ items: [Item], valueTitle: String? = nil) {
             guard !items.isEmpty else { return }
             let shown = Array(items.prefix(ActivityOutcome.itemLimit))
             sections.append(Section(id: sections.count, title: title, tone: tone, items: shown,
-                                    hidden: items.count - shown.count))
+                                    hidden: items.count - shown.count, valueTitle: valueTitle))
         }
     }
 
@@ -77,7 +80,8 @@ public struct ActivityOutcome: Sendable {
                 items.enumerated().map { index, item in
                     Item(id: index, title: item.friendlyName,
                          detail: item.pid.map { "Process \($0)" },
-                         trailing: item.mb.map { "\($0) MB" })
+                         trailing: item.mb.map { "\($0) MB" },
+                         bytes: item.mb.map { Int64($0) * 1_048_576 })
                 }
             }
             let all = reap.allItems
@@ -170,8 +174,8 @@ public struct ActivityOutcome: Sendable {
                     return Item(id: index, title: title, detail: detail, trailing: formatter.string(from: newest))
                 }
             }
-            b.add("Stopped", .done, items { $0.isKill })
-            b.add("Alerts", .alert, items { !$0.isKill })
+            b.add("Stopped", .done, items { $0.isKill }, valueTitle: Names.Column.when)
+            b.add("Alerts", .alert, items { !$0.isKill }, valueTitle: Names.Column.when)
 
         case .persistence:
             let added = run.lines.filter { $0.contains("NEW persistence item") }
@@ -190,7 +194,7 @@ public struct ActivityOutcome: Sendable {
             b.add("Using the most memory", .found, snapshot.processes.prefix(10).enumerated().map {
                 Item(id: $0.offset, title: $0.element.friendlyName, detail: "Process \($0.element.pid)",
                      trailing: $0.element.rssText)
-            })
+            }, valueTitle: Names.Column.memory)
 
         default:
             break
@@ -212,6 +216,7 @@ public struct ActivityOutcome: Sendable {
         let name = appName(event)
         switch event.kind {
         case .killed: return "Stopped \(name)"
+        case .stopFailed: return "Tried to stop a process that had already ended"
         case .spike(let grew): return "\(name) grew by \(grew) MB"
         case .cpuHog(let pct, _): return "\(name) used \(pct)% of a core"
         case .capExceeded: return "Memory limit passed"

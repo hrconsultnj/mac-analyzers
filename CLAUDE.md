@@ -245,7 +245,18 @@ through `config.local.sh` (never hardcoded).
   rows standing in for tabs. A filter (the same rows, fewer) is a toolbar
   menu or a search token, not a tab; a screen with one kind of thing has no
   tabs. A run's screen shows its results in the same categories and groups
-  as the task's own screen.
+  as the task's own screen. **The tabs are a bar directly under the
+  toolbar, never toolbar items** (2026-11-11): in the toolbar the system
+  sends a tab group to the `»` overflow as soon as a screen has its own
+  buttons, whatever its placement or `visibilityPriority`; SwiftUI has no
+  collapse-to-a-pop-up; macOS 27's tabs picker shows bare icons. So
+  `scopeTabsToolbar(…)` (the name is historical) adds one
+  `safeAreaBar(edge: .top)` holding `ScopeTabs`: icon, title and count,
+  the selected tab distinct even in a window that is not in front; when
+  the titles do not all fit, tabs give them up one at a time and none is
+  ever hidden; a zero count is not drawn. Never measure widths by hand or
+  swap in a menu. A screen's toolbar is for its actions, each with icon
+  and title (only search may be an icon).
 - **One table for rows that open: `OutlineTable`** (2026-11-11, after
   measuring every SwiftUI hierarchical control — `Table` with
   `DisclosureTableRow`, `Table(children:)`, `List` with `OutlineGroup`,

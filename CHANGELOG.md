@@ -79,6 +79,57 @@ without an entry here — see `scripts/cut-release.sh`.
   with search and Copy. A finished run's screen groups its results under tabs
   (what was freed, what was found) and, inside each, under the project they
   belong to, instead of one long list.
+- Login & Startup Items, Network and Reports have been rebuilt as screens you
+  can read at a glance instead of lists of lines.
+- Login & Startup Items has a tab for Apps that open when you log in,
+  Background Items that work for them, Leftovers from apps you removed, and
+  Changes (what was added to startup, day by day). Each app or developer is one row that opens to its
+  items, with whether they are running and what the audit found. Select one to
+  see where it lives, what it runs and why it was flagged. A leftover in your
+  own folders, or an app set to open at login whose app is gone, can be
+  removed from here; the ones that need an administrator show the exact
+  command to copy. An item whose program is on a drive that is
+  not connected is no longer called a leftover.
+- Network shows the newest snapshot with each app's programs gathered into one
+  row that opens, and keeps your recent snapshots (the last 60) in a History tab you can
+  open.
+- Reports has a tab for memory reports and one for storage reports, each
+  listing the reports by month. A report opens as a document, divided into
+  sections you can fold, instead of one long block of text. You can write a
+  new report, stop it, export a copy, or see its text exactly as written.
+- Monitor is now one table that fills the window: every app and tool with its
+  memory and processor use, the parts of each app, and a details panel. Open a
+  command-line tool such as Node.js and you see each separate program in its
+  own row, labelled by the project it runs in. Stopping a tool now stops only
+  the programs you choose, in a list you confirm, and never a live coding-agent
+  session or a program that has changed since you looked at it.
+- Memory Guard reads as a history: a section for each day, and a row for each
+  thing the guard stopped or flagged, named for the app or tool ("Stopped Vite
+  dev server", "9 processor alerts for Media Analysis") with what the guard did
+  about it. Repeats are folded into one row. Click a row to see what happened,
+  what the program was, and why the guard acts — and for a memory crisis, which
+  apps were using the memory.
+- Memory Cleanup is a screen of its own. Preview shows what a cleanup would
+  close in tabs (dev servers, orphaned tools, emulators and browsers, and the
+  helpers of coding sessions), grouped by the program they belong to, and you
+  tick what to close. Apps on your list to quit are shown as "will quit"
+  before you apply, and a cleanup closes only the programs you saw, as they
+  were when you looked: a program that has been replaced since is left alone.
+- Stop now asks a program politely first. If it does not stop, you are
+  offered a separate Force Stop, and nothing is forced until you confirm it.
+- The Stop button in a notification now checks that it is still the same
+  program before it does anything. If the program has changed, or is part of a
+  live coding session, Monitor opens on it instead and nothing is stopped.
+- An app that hosts a live coding session, such as a terminal with Claude
+  running in it, is never quit by Everything Now, and Quit on such an app
+  tells you which sessions would end with it.
+- If the list of coding agents cannot be read, Mac Analyzers offers no Stop at
+  all and says why, rather than guessing which programs are sessions.
+- If Mac Analyzers cannot yet tell what a program really is, because its
+  command line cannot be read or still shows the program that started it, Stop
+  does nothing and says "could not tell, so nothing was stopped"; try again in
+  a moment. Quit says so in its confirmation; if you confirm, the app is
+  asked to quit as usual.
 
 ## v2.69.2 — Process rows no longer show a program's environment
 

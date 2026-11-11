@@ -67,6 +67,10 @@ public struct MainWindowView: View {
                 .environment(\.stackDepth, 0)
                 .navigationDestination(for: Route.self) { $0.destination }
         }
+        // The one toolbar rule for every screen: an action shows its icon AND its title (only search
+        // is an icon). Set here, on the screens' stack and not on the split view, so the shell's own
+        // Back and Forward stay icons; a screen's toolbar items read this from where they are declared.
+        .labelStyle(.titleAndIcon)
         .id(section)
     }
 
