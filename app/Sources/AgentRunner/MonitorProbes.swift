@@ -184,9 +184,7 @@ func probeAgents(_ args: [String]) -> Never {
     if mentions { print("commands that only mention a session's folder are not sessions (\(notSessions.count) cases); interpreter launches and an app path with spaces are (\(sessions.count))") }
 
     // the same list saved with Windows line endings must behave identically on both sides
-    let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-probe-agents-\(UUID().uuidString.prefix(8))")
-    try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: scratch) }
+    let scratch = ProbeScratch.folder("ma-probe-agents")
     let crlf = scratch.appending(path: "coding-agents.tsv")
     try? text.replacingOccurrences(of: "\n", with: "\r\n").write(to: crlf, atomically: true, encoding: .utf8)
     try? FileManager.default.copyItem(at: root.appending(path: "lib/live-sessions.sh"), to: scratch.appending(path: "live-sessions.sh"))
