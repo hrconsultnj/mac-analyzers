@@ -279,12 +279,13 @@ through `config.local.sh` (never hardcoded).
   shows. It uses the system's standard row height (automatic row heights
   bring the warning back); a cell that needs more lines declares them.
   `scripts/check.sh outline` runs the two changes that used to warn
-  (`scripts/outline-probe.sh` has the full set); its refusal of the SwiftUI
-  hierarchical controls is switched on when the last screen has moved, and
-  until then do not add a new one. A `List` is for a history whose rows
+  (`scripts/outline-probe.sh` has the full set) and every case of the review
+  table, and it refuses the SwiftUI hierarchical controls anywhere under
+  `app/Sources`. A `List` is for a history whose rows
   push a screen: it never gains more than 200 rows in one update (newest
   200, then "Show Older"). A `DisclosureGroup` around ONE block of content
-  (raw output, details) is fine. Need something the component does not do?
+  (raw output, details) is fine and carries the comment
+  `// one disclosed block, not rows` on the line above it. Need something the component does not do?
   Add it there — never a second grouped table. This is a deliberate
   departure from "SwiftUI controls only" in the rule above: the system's
   outline view is the platform's control for hierarchical data, wrapped

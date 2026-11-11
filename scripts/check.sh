@@ -419,10 +419,10 @@ check_names() {
 # each in a fresh process, counting the warning), so a change to the component
 # that makes it warn fails here.
 #
-# The second half refuses the SwiftUI controls in app/Sources. It is OFF
-# (`OUTLINE_REFUSE_SWIFTUI_HIERARCHY=0`) because every existing screen still uses
-# them; the LAST migration step, when the last screen has moved, sets it to 1.
-OUTLINE_REFUSE_SWIFTUI_HIERARCHY=0
+# The second half refuses the SwiftUI controls in app/Sources. It is ON: the
+# last screen that used one has moved. A `DisclosureGroup` around ONE block of
+# content is allowed and carries the marker comment on the line above it.
+OUTLINE_REFUSE_SWIFTUI_HIERARCHY=1
 check_outline() {
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
   if [ ! -x scripts/outline-probe.sh ]; then DETAIL="skipped: no scripts/outline-probe.sh"; return 2; fi
