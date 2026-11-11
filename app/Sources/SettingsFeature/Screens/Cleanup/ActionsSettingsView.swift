@@ -204,6 +204,9 @@ struct ActionsSettingsView: View {
                     if phase == .review, dryStorageBytes > 0 {
                         Section { selectionBar }
                     }
+                    if phase == .review, let also = alsoRunsLine {
+                        Section { Label(also, systemImage: "wrench.and.screwdriver") }
+                    }
                     ForEach(reviewGroups(from: run), id: \.project) { group in
                         Section("\(group.project) — \(ByteSize.format(group.total))") {
                             ForEach(group.items) { item in

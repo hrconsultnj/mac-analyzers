@@ -18,6 +18,10 @@ public struct ReapItem: Identifiable, Hashable, Sendable {
     public let mb: Int?
     public let pid: Int?
     public let description: String
+    /// A stack of containers is reviewed by name, not by pid: `supabase:nutri-journey`.
+    public let stackKey: String?
+    /// What a reviewed list holds for this row: the pid, or `stack:<key>`.
+    public var approvalKey: String? { pid.map(String.init) ?? stackKey.map { "stack:" + $0 } }
     public var id: String { "\(pid ?? 0)-\(description)-\(status.rawValue)" }
 
     public var friendlyName: String {
@@ -115,8 +119,14 @@ public enum ReapParser {
                 pid = Int(rest[pidRange].dropFirst(4).trimmingCharacters(in: .whitespaces))
                 rest.removeSubrange(pidRange)
             }
+            // "stack=supabase:nutri-journey  supabase:nutri-journey  11 containers …"
+            var stackKey: String?
+            if rest.hasPrefix("stack="), let space = rest.firstIndex(of: " ") {
+                stackKey = String(rest[rest.index(rest.startIndex, offsetBy: 6)..<space])
+                rest = String(rest[space...]).trimmingCharacters(in: .whitespaces)
+            }
             items.append(ReapItem(status: status, mb: mb, pid: pid,
-                                  description: rest.trimmingCharacters(in: .whitespaces)))
+                                  description: rest.trimmingCharacters(in: .whitespaces), stackKey: stackKey))
         }
         flushGroup()
 

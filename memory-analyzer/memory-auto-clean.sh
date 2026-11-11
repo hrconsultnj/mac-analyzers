@@ -235,8 +235,18 @@ fi
 # a hazard either: identity is re-checked by the sweep, not taken from here.
 approved_pid() {
   [[ -z "${ONLY_PIDS}" ]] && return 0
-  grep -qxF -- "$1" "${ONLY_PIDS}"
+  approved_list_has "$1"
 }
+
+# The reviewed list is read once (lib/approved-list.sh): a `grep` per item made a
+# 6,000-item apply take minutes. A list that cannot be checked stops the run.
+if [[ -n "${ONLY_PIDS}" ]]; then
+  if ! source "${ANALYZERS_ROOT}/lib/approved-list.sh" 2>/dev/null; then
+    echo "FATAL: lib/approved-list.sh is missing — refusing to run with a reviewed list it cannot check." >&2
+    exit 78
+  fi
+  approved_list_load "${ONLY_PIDS}"
+fi
 
 # reap <pid> <rss_kb> <desc> — dry-run-aware kill with accounting
 reap() {
@@ -1095,11 +1105,13 @@ dev_idle_stacks() {
     if (( idle_s < STACK_IDLE_MIN * 60 )); then
       log "  [REPORT]  ${shown}  owners=${owners_txt}  orphaned since ${since}$([[ -z "${PREV[$key]:-}" && "$DRY_RUN" -eq 1 ]] && echo ' (first sighting; a dry run does not start the clock)') ($((idle_s / 60))m of ${STACK_IDLE_MIN}m)  — keep: grace"; continue
     fi
-    if [[ -n "${ONLY_PIDS}" ]]; then
-      log "  [SKIP]    not in approved set  ${shown}  owners=${owners_txt}"; continue
+    # a stack is reviewed as a row keyed `stack:<key>` (never a pid); with a list it is
+    # stopped only when that key is in it, with no list (the guard, a Terminal run) as always
+    if ! approved_pid "stack:${key}"; then
+      log "  [SKIP]    not in approved set  stack=${key}  ${shown}  owners=${owners_txt}"; continue
     fi
     if [[ "$DRY_RUN" -eq 1 ]]; then
-      log "  [DRY]     ${shown}  owners=${owners_txt}  orphaned since ${since} ($((idle_s / 60))m)  — would stop (containers kept, volumes untouched)"
+      log "  [DRY]     stack=${key}  ${shown}  owners=${owners_txt}  orphaned since ${since} ($((idle_s / 60))m)  — would stop (containers kept, volumes untouched)"
       KILL_COUNT=$((KILL_COUNT + 1)); continue
     fi
     stopped=0; failed=0; left=0; budget_end=$((SECONDS + STACK_STOP_BUDGET_S))
@@ -1109,7 +1121,7 @@ dev_idle_stacks() {
       if (( SECONDS >= budget_end )); then left=$((left + 1)); continue; fi
       if with_timeout 45 docker stop -t 20 "$c" >/dev/null 2>&1; then stopped=$((stopped + 1)); else failed=$((failed + 1)); fi
     done
-    log "  [QUIT]    ${shown}  owners=${owners_txt}  orphaned since ${since} ($((idle_s / 60))m)  — stopped ${stopped}/${n}$([[ $failed -gt 0 ]] && echo ", ${failed} failed")$([[ $left -gt 0 ]] && echo ", ${left} left for the next pass (time budget)") (containers kept, volumes untouched)"
+    log "  [QUIT]    stack=${key}  ${shown}  owners=${owners_txt}  orphaned since ${since} ($((idle_s / 60))m)  — stopped ${stopped}/${n}$([[ $failed -gt 0 ]] && echo ", ${failed} failed")$([[ $left -gt 0 ]] && echo ", ${left} left for the next pass (time budget)") (containers kept, volumes untouched)"
     [[ $stopped -gt 0 ]] && KILL_COUNT=$((KILL_COUNT + 1))
   done
   if [[ "$DRY_RUN" -eq 1 ]]; then rm -f "$state_tmp"; else mv -f "$state_tmp" "$STACK_STATE_FILE"; fi

@@ -185,6 +185,21 @@ through `config.local.sh` (never hardcoded).
   --probe-activity [--real]` prints the sections, `--probe-activity-ids` proves
   ids survive a log growing, `--probe-failures` prints the failure sentences, and
   `--probe-pid-recycle` proves a stop refuses a recycled pid.
+- **Native controls, native padding, one layout per component** (owner,
+  2026-11-10, after three screenshots of v2.69.0: "stop fabricating and just
+  use native … buttons"). A button is a `Button` with a system `buttonStyle`;
+  a set of choices is a `Picker` with `.segmented`; search is `.searchable`;
+  a toolbar item is a `ToolbarItem` holding a plain system control; a
+  title-and-value row is `LabeledContent`; rows are `List`/`Form` rows with
+  their default insets; spacing is the default `.padding()` and stack
+  spacing. No hand-drawn capsules or backgrounds standing in for a control,
+  no `.frame(width:)`/`maxWidth` or `lineLimit(1)` to force something to
+  fit, no `ViewThatFits` that changes a component's shape with its state.
+  When content does not fit, change WHAT is shown (a short name in the
+  toolbar, the sentence in the tooltip and on the screen it opens). A
+  component looks the same in every state — render each state to prove it.
+  A fixed size is allowed only where it is the actual job (an icon tile, a
+  chart), with a comment saying so.
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;
