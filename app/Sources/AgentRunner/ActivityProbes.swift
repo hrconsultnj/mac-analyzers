@@ -162,38 +162,47 @@ private func show(_ rows: [ActivityRow], now: Date) {
     let now = Date()
     var allStable = true
 
-    // a report-style log, 256 KB window far smaller than the file
-    if let source = EngineLog.storageClean.url, let text = try? String(contentsOf: source, encoding: .utf8) {
-        let copy = dir.appending(path: "auto-clean.log")
-        try? text.write(to: copy, atomically: true, encoding: .utf8)
-        let before = rows(.storageClean, at: copy, now: now)
-        // the last whole run, re-stamped, appended seven times
-        if let banner = text.range(of: "storage-auto-clean.sh  |", options: .backwards),
-           let rule = text[..<banner.lowerBound].range(of: "====", options: .backwards) {
-            let lineStart = text[..<rule.lowerBound].lastIndex(of: "\n").map { text.index(after: $0) } ?? text.startIndex
-            let snippet = String(text[lineStart...])
-            var grown = text
-            for step in 1...7 {
-                let stamp = "2027-01-01 \(String(format: "%02d", step / 60)):\(String(format: "%02d", step % 60)):00"
-                grown += snippet.replacingOccurrences(
-                    of: #"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"#, with: stamp, options: .regularExpression)
-            }
-            try? grown.write(to: copy, atomically: true, encoding: .utf8)
-            print("storage log copy: \(text.count / 1024) KB, grown by \((grown.count - text.count) / 1024) KB (7 runs)")
-            allStable = compare("storageClean", before: before, after: rows(.storageClean, at: copy, now: now)) && allStable
-        }
+    // The logs are the probe's own stand-ins, written here: nothing of the person's is read or copied, and the
+    // probe cannot pass for want of a log (each stand-in must produce rows, or it fails).
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+    func stamp(daysAgo: Int, minute: Int = 0) -> String {
+        formatter.string(from: now.addingTimeInterval(-Double(daysAgo) * 86_400 + Double(minute) * 60))
     }
 
-    // an event log grouped by day: the next day arrives
-    if let source = EngineLog.guardLog.url, let text = try? String(contentsOf: source, encoding: .utf8) {
-        let copy = dir.appending(path: "guard.log")
-        try? text.write(to: copy, atomically: true, encoding: .utf8)
-        let before = rows(.guardLog, at: copy, now: now)
-        let grown = text + "2027-01-01 00:05:00 CPU-HOG sustained >=150% for 3 ticks: pid=1 /bin/x;\n"
-        try? grown.write(to: copy, atomically: true, encoding: .utf8)
-        allStable = compare("guardLog (a new day starts)", before: before, after: rows(.guardLog, at: copy, now: now)) && allStable
+    // a report-style log, 256 KB window far smaller than the file
+    func storageRun(_ stamp: String) -> String {
+        var block = "==================================================================\n"
+            + " auto-clean.sh  |  mode=daily  |  DRY RUN  |  \(stamp)\n"
+            + " roots=/Users/example/Projects  cache>3d  nm>14d  snap-keep=5d\n"
+            + "==================================================================\n\n### 1. Build caches not written in >3 days (regenerable)\n"
+        for item in 0..<40 { block += "  [DRY]       \(item + 1) MB  /Users/example/Projects/app-\(item)/.next\n" }
+        return block + "\n"
     }
+    var text = ""
+    for run in 0..<300 { text += storageRun(stamp(daysAgo: 300 - run)) }
+    let storageCopy = dir.appending(path: "auto-clean.log")
+    try? text.write(to: storageCopy, atomically: true, encoding: .utf8)
+    let storageBefore = rows(.storageClean, at: storageCopy, now: now)
+    var grown = text
+    for step in 1...7 { grown += storageRun("2027-01-01 \(String(format: "%02d", step / 60)):\(String(format: "%02d", step % 60)):00") }
+    try? grown.write(to: storageCopy, atomically: true, encoding: .utf8)
+    print("storage log stand-in: \(text.count / 1024) KB, grown by \((grown.count - text.count) / 1024) KB (7 runs)")
+    allStable = !storageBefore.isEmpty && compare("storageClean", before: storageBefore, after: rows(.storageClean, at: storageCopy, now: now)) && allStable
+    if storageBefore.isEmpty { print("the storage stand-in produced no rows: the probe cannot judge") }
+
+    // an event log grouped by day: the next day arrives
+    var events = ""
+    for day in 0..<20 { for event in 0..<6 { events += "\(stamp(daysAgo: day, minute: event)) CPU-HOG sustained >=150% for 3 ticks: pid=\(100 + event) /bin/x;\n" } }
+    let guardCopy = dir.appending(path: "guard.log")
+    try? events.write(to: guardCopy, atomically: true, encoding: .utf8)
+    let guardBefore = rows(.guardLog, at: guardCopy, now: now)
+    try? (events + "2027-01-01 00:05:00 CPU-HOG sustained >=150% for 3 ticks: pid=1 /bin/x;\n").write(to: guardCopy, atomically: true, encoding: .utf8)
+    allStable = !guardBefore.isEmpty && compare("guardLog (a new day starts)", before: guardBefore, after: rows(.guardLog, at: guardCopy, now: now)) && allStable
+    if guardBefore.isEmpty { print("the guard stand-in produced no rows: the probe cannot judge") }
     print(allStable ? "ids stable: 0 changed" : "IDS CHANGED")
+    try? fm.removeItem(at: dir)      // exit() skips the deferred clean-up above
     exit(allStable ? 0 : 1)
 }
 

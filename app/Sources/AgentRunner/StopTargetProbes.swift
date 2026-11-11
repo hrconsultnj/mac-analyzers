@@ -216,6 +216,7 @@ private func relaunchDetached(_ args: [String]) -> Never {
     await confirmationCase(f)
     await unsettledCase(f)
     await judgementCases(f)
+    await unreadableCase(f)
     await zombieCase(f)
     await titleRewriteCases(f)
     f.cleanup()
@@ -830,5 +831,32 @@ private func relaunchDetached(_ args: [String]) -> Never {
     } else {
         print("  not judged: perl left no zombie to look at")
     }
+    f.end(root)
+}
+
+// MARK: - a command line the kernel would not give
+
+/// No same-user process can be made unreadable on demand (a zombie is skipped, an exec in progress is a race), so the
+/// kernel's answer for ONE live process this probe started is replaced by "would not say", and the whole path is
+/// run over the real process table: Stop refuses saying it could not read it, Quit's dialog says it could not see
+/// inside, a quit that would be a SIGTERM sends nothing, and clearing the stand-in clears all three.
+@MainActor private func unreadableCase(_ f: Fixtures) async {
+    guard let root = await f.detachNamed(nil, script: ": \(f.marker)-r; sleep 41; :", tag: "\(f.marker)-r"),
+          let identity = ProcessIdentity.of(pid: Int(root)) else {
+        f.check("a process whose command line cannot be read", false, "fixture not found")
+        return
+    }
+    GuardControl.standInCommandLine(pid: Int32(root), .some(nil))
+    let stop = GuardControl.reachRefusal(listed: [identity], name: "Fixture")
+    f.check("a command line the kernel will not give: a Stop refuses, saying it could not read it",
+            stop?.contains("could not be read") == true, stop ?? "NOT refused")
+    let quit = MemoryStop.quitReach(of: [identity], name: "Fixture")
+    f.check("  ... Quit's dialog says it could not yet see inside", quit.caution != nil, quit.caution ?? "NO caution")
+    let sent = GuardControl.quitApp([identity])
+    f.check("  ... a quit that would be a SIGTERM sends nothing", sent.isEmpty && f.alive(root), "asked \(sent.count), alive: \(f.alive(root))")
+    GuardControl.standInCommandLine(pid: Int32(root), nil)
+    f.check("  ... and once it can be read again, nothing is refused",
+            GuardControl.reachRefusal(listed: [identity], name: "Fixture") == nil && MemoryStop.quitReach(of: [identity], name: "Fixture").caution == nil,
+            "both clear")
     f.end(root)
 }
