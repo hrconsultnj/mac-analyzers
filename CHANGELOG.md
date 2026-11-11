@@ -30,7 +30,8 @@ without an entry here — see `scripts/cut-release.sh`.
   belong to, instead of one long list.
 - Overview is now a grid of boxes: Memory, Storage, Memory Guard, Schedule,
   Recent Events and This Week. Each row opens the screen behind it (an app or
-  tool opens Monitor with that row selected), and a Needs Attention list at the top appears only when something needs you.
+  tool opens Monitor with that row selected), and a Needs Attention list at
+  the top appears only when something needs you.
 - Trends has two tabs, Memory and Storage, and a period menu in the toolbar.
   Storage now adds up everything the cleanups removed in the period, under
   "Removed by Cleanups", instead of reading 0 KB, and each number opens a
@@ -42,13 +43,10 @@ without an entry here — see `scripts/cut-release.sh`.
   "Restored 3 Items", started by you, with the list of what came back. It no
   longer gets mixed into the cleanup it came from, so that cleanup's numbers,
   and a preview that is waiting for your review, stay exactly as they were.
-- The menu-bar panel uses standard controls, so nothing is cut off. Its
-  process list matches Monitor. An app has a Quit and a command-line tool a
-  Stop, and both follow the same rules as Monitor: the panel tells you what
-  will end, including any live coding session inside it, and asks before it
-  sends anything. A coding session itself shows no Stop and says why. A program
-  that does not stop is never forced from the panel; it offers to open Monitor
-  on that program instead.
+- The menu-bar panel uses standard controls, so nothing is cut off, and its
+  process list matches Monitor. Its Quit and Stop follow the same rules as
+  Monitor, and a program that does not stop is never forced from the panel: it
+  offers to open Monitor on that program instead.
 - Monitor is now one table that fills the window: every app and tool with its
   memory and processor use, the parts of each app, and a details panel. Open a
   command-line tool such as Node.js and you see each separate program in its

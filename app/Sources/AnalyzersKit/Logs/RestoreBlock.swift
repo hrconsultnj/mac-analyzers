@@ -42,9 +42,11 @@ public enum RestoreBlock {
         return out.joined(separator: "\n") + "\n"
     }
 
-    /// Whether a run's header (or a banner line) is a restore's.
+    /// Whether a run's header (or a line) is exactly a restore's banner: the date to the second, the name, `APPLY`,
+    /// and nothing else on the line. A line that merely CONTAINS those words (a cleaner's `input:` line can
+    /// carry any text) is not one, so no run is ever taken for a restore because of what it says.
     public static func isRestore(header: String) -> Bool {
-        header.contains("| \(name) |")
+        header.wholeMatch(of: /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \| restore from Undo \| APPLY/) != nil
     }
 
     static let pairingTag = "[RESTORED]"
@@ -108,7 +110,9 @@ public enum RestoreBlock {
         var index = 0
         while index < lines.count {
             let line = lines[index]
-            guard isRestore(header: line), RunMatcher.banner(in: line) != nil else {
+            // a banner is the line right after a rule line, the way the other logs' banners are read
+            let afterRule = index > 0 && isRule(lines[index - 1])
+            guard afterRule, isRestore(header: line), RunMatcher.banner(in: line) != nil else {
                 rest.append(line)
                 index += 1
                 continue

@@ -135,6 +135,14 @@ func probeMenu(_ args: [String]) {
 // a fake Trash — never the real Trash or the real logs), runs every way a restore
 // can go wrong, and exits non-zero on any failure. It is the safe test for the
 // code that moves real files.
+/// The probe's clock. `--second S` reads as that second of the current minute, so anything that depends on
+/// where in a minute the probe starts (the logs' banners are minute-precise) can be proven at any second.
+private func probeClock(_ args: [String]) -> Date {
+    let real = Date()
+    guard let at = args.firstIndex(of: "--second"), args.indices.contains(at + 1), let second = Double(args[at + 1]) else { return real }
+    return Date(timeIntervalSince1970: (real.timeIntervalSince1970 / 60).rounded(.down) * 60 + second)
+}
+
 func probeUndoFixture(_ args: [String]) {
     let fm = FileManager.default
     let root = fm.temporaryDirectory.appending(path: "ma-undo-fixture-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -161,7 +169,7 @@ func probeUndoFixture(_ args: [String]) {
     }
     func items(_ url: URL) -> [TrashedItem] { UndoLedger.trashedItems(in: url, source: "Janitor", trash: trash) }
     func id(_ path: String) -> String { ReceiptIdentity.current(of: path).map { "  #id=\($0)" } ?? "" }
-    let now = Date()
+    let now = probeClock(args)
 
     // 1. the identity proves it is the same item — and a later same-name item is refused
     let projA = work.appending(path: "proj/a").path
@@ -451,7 +459,9 @@ func probeUndoFixture(_ args: [String]) {
     }
 
     // 15. two runs with the same minute-precision banner, a restore between them
-    let twin = janitorBanner(now.addingTimeInterval(-300), "APPLY")
+    // minute-precise banners: the twins' minute and the job's start are fixed inside one minute, not read off the clock
+    let twinAt = Date(timeIntervalSince1970: (now.timeIntervalSince1970 / 60).rounded(.down) * 60 - 300)
+    let twin = janitorBanner(twinAt, "APPLY")
     let t1 = trashedLine("t1"), t3 = trashedLine("t3")
     let firstRun = [rule, twin, "### Downloads", t1.line, "[TRASHED] 1 KB  /x/never  ->  /x/never2"]
     let secondRun = [rule, twin, "### Downloads", t3.line, "[TRASHED] 2 KB  /x/other  ->  /x/other2"]
@@ -471,7 +481,7 @@ func probeUndoFixture(_ args: [String]) {
     check("every row the plain log has keeps its id, and the restore is one more row",
           twinsPlain == Set(twinsWith.filter { !$0.isRestore }.map(\.id)) && twinsWith.filter { $0.isRestore }.count == 1,
           "\(twinsWith.count) rows")
-    if case .block(let last) = WholeRun.find(banner: twin, in: logT, notBefore: now.addingTimeInterval(-290)) {
+    if case .block(let last) = WholeRun.find(banner: twin, in: logT, notBefore: twinAt.addingTimeInterval(10)) {
         let ownLine = last.lines.contains { $0.contains(t3.original) }
         let foreign = last.lines.contains { $0.contains(t1.original) || $0.hasPrefix("[RESTORED") }
         check("the matcher takes the LAST twin, with its own lines and none of the restore's", ownLine && !foreign)
@@ -479,7 +489,7 @@ func probeUndoFixture(_ args: [String]) {
         check("the matcher takes the last twin", false)
     }
     if case .block(let early) = WholeRun.find(banner: twin, in: ledger("twins-first.log", firstRun + [rule, RestoreBlock.banner(at: now), rule, "Put back 1 item(s)", "[RESTORED] 1 KB  \(t1.original)"]),
-                                              notBefore: now.addingTimeInterval(-290)) {
+                                              notBefore: twinAt.addingTimeInterval(10)) {
         check("a restore after the only twin is not part of it", !early.lines.contains { $0.hasPrefix("[RESTORED") })
     } else {
         check("a restore after the only twin is not part of it", false)
@@ -521,6 +531,23 @@ func probeUndoFixture(_ args: [String]) {
     let temp1 = LogParser.runs(at: logR).last.map { TempCleanParser.parse(runHeader: $0.header, lines: $0.lines).items.count } ?? -1
     check("the run before the restore still parses to its own one item", temp1 == 1, "\(temp1) items")
 
+    // 18. a cleaner's own line that carries a restore banner's words is not a restore
+    let sneaky = ["storage-auto-clean.sh  |  mode=daily  |  APPLY  |  \(secs.string(from: now.addingTimeInterval(-50)))",
+                  " input: flags: --apply | restore from Undo | APPLY"]
+    let logS = ledger("sneaky.log", [rule] + [sneaky[0], sneaky[1], rule, "### Build caches",
+                                              "[DELETED] 1.2 GB  /Users/x/Projects/a/.next", "[DELETED] 0.8 GB  /Users/x/Projects/b/.next",
+                                              "DONE — deleted 2 item(s), 2.0 GB.", rule])
+    let sneakyRuns = LogParser.runs(at: logS, includingRestores: true)
+    let sneakyItems = sneakyRuns.first.map { StorageCleanParser.parse(runHeader: $0.header, lines: $0.lines).items.count } ?? -1
+    check("a run whose input line carries a restore banner's words is still a run, with its two items",
+          sneakyRuns.count == 1 && !RestoreBlock.isRestore(header: sneakyRuns[0].header) && sneakyItems == 2,
+          "\(sneakyRuns.count) runs, \(sneakyItems) items")
+    check("and it is no restore row in Activity", rows(logS, live: []).filter { $0.isRestore }.isEmpty)
+    check("a restore banner is recognised only as its exact shape",
+          RestoreBlock.isRestore(header: RestoreBlock.banner(at: now)) && !RestoreBlock.isRestore(header: " input: x | restore from Undo | APPLY")
+          && !RestoreBlock.isRestore(header: "2026-11-11 05:12 | restore from Undo | APPLY"))
+
+    try? fm.removeItem(at: root)        // `exit` runs no `defer`
     print(failures == 0 ? "all \(step) checks passed" : "\(failures) of \(step) checks FAILED")
     exit(failures == 0 ? 0 : 1)
 }
