@@ -351,6 +351,11 @@ check_probes() {
   if [ ! -f "$app/Package.swift" ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
   if ! command -v swift >/dev/null 2>&1; then DETAIL="skipped: swift is not installed"; return 2; fi
   local bin probe started=$SECONDS count=0
+  # no probe makes its own temporary folder: ProbeScratch is the one way, so none can forget to remove it
+  if grep -n 'temporaryDirectory\|NSTemporaryDirectory' "$app"/Sources/AgentRunner/*.swift | grep -v 'ProbeScratch.swift' >"$OUT"; then
+    DETAIL="a probe asks for the temp directory itself — use ProbeScratch.folder so it is removed when the probe ends"
+    return 1
+  fi
   if ! ( cd "$app" && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0= \
           swift build --disable-keychain --product AgentRunner ) >"$TMP/probes-build.out" 2>&1; then
     grep -a -E ': error: ' "$TMP/probes-build.out" | cut -c1-300 | awk '!seen[$0]++' | head -10 >"$OUT"
@@ -361,9 +366,18 @@ check_probes() {
   bin="$(cd "$app" && swift build --disable-keychain --show-bin-path 2>/dev/null)/AgentRunner"
   if [ ! -x "$bin" ]; then DETAIL="agent-runner was not built"; return 1; fi
   for probe in $PROBES; do
-    if ! "$bin" "$probe" >"$TMP/probe.out" 2>&1; then
+    rm -rf "$TMP/probe-tmp"; mkdir -p "$TMP/probe-tmp"
+    if ! MA_PROBE_TMP="$TMP/probe-tmp" "$bin" "$probe" >"$TMP/probe.out" 2>&1; then
       { grep -a -E '^(FAIL|✗)' "$TMP/probe.out" | head -15; tail -n 2 "$TMP/probe.out"; } | cut -c1-300 >"$OUT"
       DETAIL="$probe failed"
+      return 1
+    fi
+    # A probe ends with exit(), which runs no defer: a folder it made and did not register with ProbeScratch stayed in
+    # the temp directory, run after run (481 folders, 5.8 GB, before this check). Each probe gets a private scratch
+    # folder and must leave it empty, so what is left is its own whatever else is running on this Mac.
+    if [ -n "$(ls -A "$TMP/probe-tmp")" ]; then
+      ls -A "$TMP/probe-tmp" | head -10 >"$OUT"
+      DETAIL="$probe left $(ls -A "$TMP/probe-tmp" | wc -l | tr -d ' ') item(s) in its scratch folder: use ProbeScratch"
       return 1
     fi
     count=$((count + 1))

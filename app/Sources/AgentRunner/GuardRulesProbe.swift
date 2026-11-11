@@ -42,8 +42,7 @@ func probeGuardRules() -> Never {
     let ordered = lines.sorted()
     // the guard is writing the last line as this reads: it has no newline yet
     let halfWritten = "\(stamp(daysAgo: 0, 0, 1)) KILLED [hard-cap 6144MB] pid=99999 rss=7000MB  node /Users/x/half"
-    let url = FileManager.default.temporaryDirectory.appending(path: "ma-probe-guard-\(UUID().uuidString).log")
-    defer { try? FileManager.default.removeItem(at: url) }
+    let url = ProbeScratch.folder("ma-probe-guard").appending(path: "guard.log")
     try? (ordered.joined(separator: "\n") + "\n" + halfWritten).write(to: url, atomically: true, encoding: .utf8)
     GuardHistory.useLog(at: url)
 

@@ -59,9 +59,7 @@ private func show(_ rows: [ActivityRow], now: Date) {
     }
 
     // 1. a run started through the store, by a throwaway script
-    let dir = FileManager.default.temporaryDirectory.appending(path: "ma-probe-activity-\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: dir) }
+    let dir = ProbeScratch.folder("ma-probe-activity")
     let script = dir.appending(path: "fake-clean.sh")
     try? """
     #!/bin/bash
@@ -139,9 +137,7 @@ private func show(_ rows: [ActivityRow], now: Date) {
 /// it changes for every old row; these must not.
 @MainActor func probeActivityIDs() async -> Never {
     let fm = FileManager.default
-    let dir = fm.temporaryDirectory.appending(path: "ma-probe-ids-\(UUID().uuidString)")
-    try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? fm.removeItem(at: dir) }
+    let dir = ProbeScratch.folder("ma-probe-ids")
 
     func rows(_ log: EngineLog, at url: URL, now: Date) -> [ActivityRow] {
         ActivityJoin.rows(live: [], index: [],
@@ -212,10 +208,7 @@ private func show(_ rows: [ActivityRow], now: Date) {
 /// script and prints the sentence it reads, next to the sentence the screen
 /// used before jobs.
 @MainActor func probeFailures() async -> Never {
-    let fm = FileManager.default
-    let dir = fm.temporaryDirectory.appending(path: "ma-probe-failures-\(UUID().uuidString)")
-    try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? fm.removeItem(at: dir) }
+    let dir = ProbeScratch.folder("ma-probe-failures")
     func script(_ name: String, _ body: String) -> URL {
         let url = dir.appending(path: name)
         try? "#!/bin/bash\n\(body)\n".write(to: url, atomically: true, encoding: .utf8)

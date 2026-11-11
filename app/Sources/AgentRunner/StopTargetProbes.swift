@@ -27,11 +27,10 @@ private final class Fixtures {
     var appName: String { "Fixture\(marker.suffix(4))" }
     var started: [Int32] = []
     var failed = false
-    let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-probe-\(UUID().uuidString.prefix(8))")
+    let scratch = ProbeScratch.folder("ma-probe")
 
     init(shell: String) {
         self.shell = shell
-        try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
     }
 
     func check(_ name: String, _ ok: Bool, _ detail: String) {
@@ -156,8 +155,7 @@ private final class Fixtures {
 /// Runs this probe again with its parent set to launchd, so no case that signals runs from a
 /// shell that is a child of a coding session, and prints what it prints. Never returns.
 private func relaunchDetached(_ args: [String]) -> Never {
-    let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-probe-run-\(UUID().uuidString.prefix(8))")
-    try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+    let scratch = ProbeScratch.folder("ma-probe-run")
     let out = scratch.appending(path: "out.txt").path
     let status = scratch.appending(path: "status.txt").path
     FileManager.default.createFile(atPath: out, contents: Data())

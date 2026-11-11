@@ -25,10 +25,6 @@ enum ProbeSandbox {
         return url
     }()
 
-    // written once, before anything else runs, and read once by the exit handler (a C function pointer cannot
-    // capture state): there is no concurrent access to guard
-    nonisolated(unsafe) private static var throwawayHome: String?
-
     /// The account's real home folder, from the account database (the environment can be changed by whoever starts us).
     static var realHome: String {
         getpwuid(getuid()).map { String(cString: $0.pointee.pw_dir) } ?? NSHomeDirectory()
@@ -36,10 +32,7 @@ enum ProbeSandbox {
 
     static func enter(_ probe: String) {
         let real = URL(fileURLWithPath: realHome).resolvingSymlinksInPath().path
-        let home = FileManager.default.temporaryDirectory.appending(path: "ma-probe-home-\(UUID().uuidString.prefix(8))")
-        try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-        throwawayHome = home.path
-        atexit { if let path = ProbeSandbox.throwawayHome { try? FileManager.default.removeItem(atPath: path) } }
+        let home = ProbeScratch.folder("ma-probe-home")
         AnalyzersPaths.useHome(home)
         setenv("HOME", home.path, 1)        // and whatever the probe starts
 
