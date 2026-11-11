@@ -10,6 +10,12 @@ public struct ScopeTabItem<Value: Hashable & Sendable>: Identifiable {
 
     public var id: Value { value }
 
+    /// "Running 2", or just "Running" when there is nothing to count: a tab with a count of zero says nothing.
+    var titleWithCount: String {
+        guard let count, count > 0 else { return title }
+        return "\(title) \(count)"
+    }
+
     public init(value: Value, title: String, symbol: String, count: Int? = nil) {
         self.value = value
         self.title = title
@@ -24,7 +30,7 @@ public struct ScopeTabItem<Value: Hashable & Sendable>: Identifiable {
 /// a different control, decided once for the app); never a second row of tabs under these.
 ///
 /// This is the plain view: it takes its size from the environment's `controlSize`, sets no widths
-/// and knows nothing about toolbars, so a window and the menu-bar panel use the same control. In
+/// and knows nothing about windows, so a window and the menu-bar panel use the same control. In
 /// content (the menu-bar panel), small, remembered under a key the caller gives:
 ///
 ///     ScopeTabs(selection: $tab, items: [
@@ -34,13 +40,17 @@ public struct ScopeTabItem<Value: Hashable & Sendable>: Identifiable {
 ///     .controlSize(.small)
 ///     .scopeTabMemory(key: "panel", selection: $tab, items: items)   // PanelTab: String raw value
 ///
-/// A window puts it in the toolbar with `.scopeTabsToolbar(screen:items:selection:)` (in
-/// SettingsFeature), which adds the toolbar's priority and the View menu commands; the panel has
-/// neither. Drawn as `Toggle(.button)` with a `Label`: the only native arrangement that shows both
-/// icon and title (a segmented `Picker` keeps the icon, a palette `Picker` the title; `TabView`
-/// draws neither). That departs from Apple's "text or images, not both" for segmented controls, on
-/// purpose. The drawing is `ScopeTabButtons`, one private view; a different native control would
-/// replace only that.
+/// A window puts it in a bar directly under its toolbar with `.scopeTabsToolbar(screen:items:selection:)`
+/// (in SettingsFeature), which adds the View menu commands; the panel has neither. Never in a toolbar:
+/// a toolbar moves a wide item into its `»` menu, and tabs must always be visible.
+///
+/// Every tab is a system `Toggle` in the button style: its on state stays a visibly stronger fill than
+/// the others even in a window that is not in front (where an accent colour would not be drawn), and
+/// the selected tab also has a filled symbol and a heavier title while the others are dimmer. When
+/// the titles do not all fit the width it is given, the tabs give up their titles one at a time, the
+/// last unselected one first (icon and count stay; the title is the tooltip and the accessibility
+/// label), and the selected tab keeps its title, so every tab stays visible and clickable. That is
+/// the one shape change, and it depends on width only, never on which tab is selected.
 public struct ScopeTabs<Value: Hashable & Sendable>: View {
     @Binding var selection: Value
     let items: [ScopeTabItem<Value>]
@@ -53,31 +63,104 @@ public struct ScopeTabs<Value: Hashable & Sendable>: View {
     public var body: some View {
         assert((2...6).contains(items.count),
                "ScopeTabs takes two to six categories; a screen with one kind of thing has no tabs, and seven or more need a different control (ask the lead)")
-        return ScopeTabButtons(selection: $selection, items: items)
+        // ViewThatFits picks the first row that fits the width it is offered (its own measurement,
+        // not a hand-made budget). The rows give up titles one tab at a time, the last unselected
+        // tab first, so a title stays for as long as it fits; the last row (every unselected tab
+        // as icon and count) is the one that always fits six tabs at 780. Six rows because a
+        // screen has at most six tabs and at most five that are not selected.
+        return ViewThatFits(in: .horizontal) {
+            row(compressing: 0)
+            row(compressing: 1)
+            row(compressing: 2)
+            row(compressing: 3)
+            row(compressing: 4)
+            row(compressing: 5)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isTabBar)
+    }
+
+    /// The row with the last `compressing` unselected tabs reduced to icon and count.
+    private func row(compressing: Int) -> some View {
+        let unselected = items.filter { $0.value != selection }.map(\.value)
+        let compressed = Set(unselected.suffix(compressing))
+        return HStack(spacing: 6) {
+            ForEach(items) { item in
+                let selected = item.value == selection
+                tab(item, selected: selected, showsTitle: !compressed.contains(item.value))
+            }
+        }
+    }
+
+    @ViewBuilder private func tab(_ item: ScopeTabItem<Value>, selected: Bool, showsTitle: Bool) -> some View {
+        Toggle(isOn: Binding(get: { selected }, set: { if $0 { selection = item.value } })) {
+            label(item, selected: selected, showsTitle: showsTitle)
+        }
+        .toggleStyle(.button)
+        .buttonBorderShape(.capsule)
+        // The selected tab must be unmistakable in a window that is not in front, where an accent
+        // would not be drawn: the toggle's on fill, a filled symbol and a heavier title, with the
+        // others dimmer.
+        .symbolVariant(selected ? .fill : .none)
+        .fontWeight(selected ? .semibold : .regular)
+        .foregroundStyle(selected ? .primary : .secondary)
+        .help(item.titleWithCount)
+        .accessibilityLabel(item.titleWithCount)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    @ViewBuilder private func label(_ item: ScopeTabItem<Value>, selected: Bool, showsTitle: Bool) -> some View {
+        // a count of zero is not shown: it says nothing and only makes the tab wider
+        let count = item.count.flatMap { $0 > 0 ? $0 : nil }
+        if showsTitle {
+            Label {
+                if let count {
+                    // the selected tab keeps the primary colour for its count too, so its title reads as one
+                    Text("\(item.title) \(Text("\(count)").foregroundStyle(selected ? .primary : .secondary))")
+                } else {
+                    Text(item.title)
+                }
+            } icon: { Image(systemName: item.symbol) }
+            .labelStyle(.titleAndIcon)
+        } else {
+            HStack(spacing: 4) {
+                Image(systemName: item.symbol)
+                if let count { Text("\(count)").foregroundStyle(.secondary) }
+            }
+        }
     }
 }
 
-/// The drawing of the tabs, and only that.
-private struct ScopeTabButtons<Value: Hashable & Sendable>: View {
+/// A choice that lives in a toolbar as ONE menu button showing the current choice (icon, title,
+/// count) and listing every choice with its icon: the collapsed form of `ScopeTabs`, the way Finder's
+/// view switcher collapses, and the way to put any other picker in a toolbar (a bare `Picker` there
+/// renders as an empty capsule). No limit on how many choices.
+///
+///     ToolbarChoice(selection: $range, items: ranges)     // ScopeTabItem(value:title:symbol:)
+public struct ToolbarChoice<Value: Hashable & Sendable>: View {
+    public init(selection: Binding<Value>, items: [ScopeTabItem<Value>]) {
+        _selection = selection
+        self.items = items
+    }
+
     @Binding var selection: Value
     let items: [ScopeTabItem<Value>]
 
-    var body: some View {
-        ControlGroup {
-            ForEach(items) { item in
-                Toggle(isOn: Binding(get: { selection == item.value }, set: { if $0 { selection = item.value } })) {
-                    Label { title(item) } icon: { Image(systemName: item.symbol) }
+    public var body: some View {
+        let current = items.first { $0.value == selection } ?? items[0]
+        Menu {
+            Picker("Category", selection: $selection) {
+                ForEach(items) { item in
+                    Label { Text(item.titleWithCount) } icon: { Image(systemName: item.symbol) }.tag(item.value)
                 }
-                .toggleStyle(.button)
             }
+            .pickerStyle(.inline)
+        } label: {
+            Label { Text(current.titleWithCount) } icon: { Image(systemName: current.symbol) }
         }
+        .menuIndicator(.visible)
         .labelStyle(.titleAndIcon)
         .help("Choose a category")
-    }
-
-    private func title(_ item: ScopeTabItem<Value>) -> Text {
-        guard let count = item.count else { return Text(item.title) }
-        return Text("\(item.title) \(Text("\(count)").foregroundStyle(.secondary))")
     }
 }
 

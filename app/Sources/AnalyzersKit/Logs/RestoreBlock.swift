@@ -92,7 +92,8 @@ public enum RestoreBlock {
                                  trailing: item.size)
         }
         return ActivityOutcome(sections: [ActivityOutcome.Section(
-            id: 0, title: Names.Restore.putBack, tone: .done, items: rows, hidden: 0)])
+            id: 0, title: Names.Restore.putBack, tone: .done, items: rows, hidden: 0,
+            valueTitle: Names.Column.size)])       // the rows carry the size as the log wrote it, as text
     }
 
     // MARK: - reading a log that holds restore blocks

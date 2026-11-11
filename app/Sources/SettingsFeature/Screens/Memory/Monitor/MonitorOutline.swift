@@ -25,17 +25,20 @@ struct MonitorOutline<Menu: View>: View {
     @ViewBuilder let menu: (MonitorRow) -> Menu
 
     var body: some View {
-        // Column order is the order they give way in: the table lets only the first column flex, and the
-        // window is short of width whenever the details panel is open (900 to 1100 wide). Name, Memory,
-        // CPU and the Stop or Quit button come first and stay on screen; "What It Is", which the panel
-        // says again for the selected row, is last and is the part that is cut off.
+        // The shared table fits its columns to the room (section 11 of the table's report): "What It Is", which the
+        // details panel says again for the selected row, is the one that can go (and the Process ID, which starts
+        // hidden); Name, Memory, CPU and Stop or Quit are essential, the default, and never leave the screen.
         OutlineTable(rows, children: \.childRows, selection: $selection, sortOrder: $sortOrder,
                      expanded: expanded, autosave: "monitor") {
             OutlineColumn("name", Names.Monitor.name, sortUsing: KeyPathComparator(\MonitorRow.name)) { row in
                 MonitorNameCell(row: row, icon: icons[row.id])
             }
-            .width(min: 130, ideal: 170)
+            .width(min: 130, ideal: 210)
             .typeSelect { $0.name }
+            OutlineColumn("what", Names.Monitor.whatItIs, text: { $0.detail })
+                .textStyle { _ in .secondary }
+                .width(min: 130, ideal: 260)
+                .fit(.optional)
             OutlineColumn("memory", Names.Monitor.memory, text: { $0.memoryText },
                           sortUsing: KeyPathComparator(\MonitorRow.memoryBytes))
                 .alignment(.trailing).monospacedDigits()
@@ -50,13 +53,11 @@ struct MonitorOutline<Menu: View>: View {
                           sortUsing: KeyPathComparator(\MonitorRow.pidSort))
                 .alignment(.trailing).monospacedDigits().textStyle { _ in .secondary }
                 .width(min: 56, ideal: 64)
+                .fit(.optional)
                 .defaultHidden()
             OutlineColumn("stop", "") { row in stopControl(row) }
                 .hideable(false)
                 .width(min: 48, ideal: 52)
-            OutlineColumn("what", Names.Monitor.whatItIs, text: { $0.detail })
-                .textStyle { _ in .secondary }
-                .width(min: 100, ideal: 200)
         }
         .contextMenu({ ids in
             if let row = ids.first.flatMap(rowFor) { menu(row) }

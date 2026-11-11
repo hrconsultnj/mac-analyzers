@@ -47,6 +47,24 @@ without an entry here — see `scripts/cut-release.sh`.
   process list matches Monitor. Its Quit and Stop follow the same rules as
   Monitor, and a program that does not stop is never forced from the panel: it
   offers to open Monitor on that program instead.
+- Login & Startup Items, Network and Reports have been rebuilt as screens you
+  can read at a glance instead of lists of lines.
+- Login & Startup Items has a tab for Apps that open when you log in,
+  Background Items that work for them, Leftovers from apps you removed, and
+  Changes (what was added to startup, day by day). Each app or developer is one row that opens to its
+  items, with whether they are running and what the audit found. Select one to
+  see where it lives, what it runs and why it was flagged. A leftover in your
+  own folders, or an app set to open at login whose app is gone, can be
+  removed from here; the ones that need an administrator show the exact
+  command to copy. An item whose program is on a drive that is
+  not connected is no longer called a leftover.
+- Network shows the newest snapshot with each app's programs gathered into one
+  row that opens, and keeps your recent snapshots (the last 60) in a History tab you can
+  open.
+- Reports has a tab for memory reports and one for storage reports, each
+  listing the reports by month. A report opens as a document, divided into
+  sections you can fold, instead of one long block of text. You can write a
+  new report, stop it, export a copy, or see its text exactly as written.
 - Monitor is now one table that fills the window: every app and tool with its
   memory and processor use, the parts of each app, and a details panel. Open a
   command-line tool such as Node.js and you see each separate program in its

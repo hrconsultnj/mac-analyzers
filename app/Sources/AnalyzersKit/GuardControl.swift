@@ -153,6 +153,12 @@ public enum GuardControl {
         CommandLineTrust.doubt(pid: pid)
     }
 
+    /// Test support: answers the kernel read of one pid's command line with a stand-in (`.some(nil)` is "would not say");
+    /// `nil` removes it. See `CommandLineTrust.standIn`.
+    @_spi(TestSupport) public static func standInCommandLine(pid: Int32, _ command: String??) {
+        CommandLineTrust.standIn(for: pid, command: command)
+    }
+
     /// Test support: the rule that judges a command line, on what was read.
     @_spi(TestSupport) public static func commandLineJudgement(command: String?, parent: String?, age: TimeInterval) -> String? {
         CommandLineTrust.judge(command: command, parent: parent, age: age)

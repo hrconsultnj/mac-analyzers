@@ -145,11 +145,10 @@ private func probeClock(_ args: [String]) -> Date {
 
 func probeUndoFixture(_ args: [String]) {
     let fm = FileManager.default
-    let root = fm.temporaryDirectory.appending(path: "ma-undo-fixture-\(UUID().uuidString)", directoryHint: .isDirectory)
+    let root = ProbeScratch.folder("ma-undo-fixture")      // removed when the probe ends, however it ends
     let trash = root.appending(path: "Trash"), work = root.appending(path: "work")
     try? fm.createDirectory(at: trash, withIntermediateDirectories: true)
     try? fm.createDirectory(at: work, withIntermediateDirectories: true)
-    defer { try? fm.removeItem(at: root) }
     var failures = 0
     var step = 0
     func check(_ name: String, _ ok: Bool, _ detail: String = "") {
@@ -547,7 +546,6 @@ func probeUndoFixture(_ args: [String]) {
           RestoreBlock.isRestore(header: RestoreBlock.banner(at: now)) && !RestoreBlock.isRestore(header: " input: x | restore from Undo | APPLY")
           && !RestoreBlock.isRestore(header: "2026-11-11 05:12 | restore from Undo | APPLY"))
 
-    try? fm.removeItem(at: root)        // `exit` runs no `defer`
     print(failures == 0 ? "all \(step) checks passed" : "\(failures) of \(step) checks FAILED")
     exit(failures == 0 ? 0 : 1)
 }
