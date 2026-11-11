@@ -1,5 +1,6 @@
 import AnalyzersKit
 import Foundation
+import UIComponents
 
 /// The cleanup's findings in the shape the shared review table takes, and the kinds of
 /// thing it found as tabs. One job: the translation. The screens only draw.
