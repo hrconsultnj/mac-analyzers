@@ -27,25 +27,49 @@ public struct MenuContentView: View {
     @State var runNowPlans: [String: RunNowPlan] = [:]
     /// Monitor tab: the census, taken off the main actor while that tab is open.
     @State var panel: MenuPanelModel?
+    /// A host (the snapshot tool) asked for a tab: then the remembered one is not restored.
+    private let pinnedTab: Bool
 
-    enum Tab: String, CaseIterable {
+    enum Tab: String, CaseIterable, Sendable {
         case memory = "Memory", monitor = "Monitor", storage = "Storage"
+
+        var symbol: String {
+            switch self {
+            case .memory: "memorychip"
+            case .monitor: "gauge.with.dots.needle.33percent"
+            case .storage: "internaldrive"
+            }
+        }
+    }
+
+    /// Memory carries today's stops (the number its first line reports) while there are
+    /// any; Monitor and Storage have no count that means anything.
+    private var tabItems: [ScopeTabItem<Tab>] {
+        Tab.allCases.map { kind in
+            ScopeTabItem(value: kind, title: kind.rawValue, symbol: kind.symbol,
+                         count: kind == .memory && store.killsToday > 0 ? store.killsToday : nil)
+        }
     }
 
     /// `tab` names the tab to open on (a snapshot host uses it); nil opens Memory.
     public init(tab: String? = nil) {
+        pinnedTab = tab != nil
         _tab = State(initialValue: tab.flatMap { Tab(rawValue: $0) } ?? .memory)
+    }
+
+    @ViewBuilder private var tabs: some View {
+        if pinnedTab {
+            ScopeTabs(selection: $tab, items: tabItems).controlSize(.small)
+        } else {
+            ScopeTabs(selection: $tab, items: tabItems).controlSize(.small)
+                .scopeTabMemory(key: "panel", selection: $tab, items: tabItems)
+        }
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             MenuJobsStrip()
-            Picker("Section", selection: $tab) {
-                ForEach(Tab.allCases, id: \.self) { Text($0.rawValue) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: .infinity)
+            tabs
 
             switch tab {
             case .memory: memoryTab
