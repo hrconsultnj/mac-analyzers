@@ -64,6 +64,7 @@ public struct MainWindowView: View {
         let section = navigator.section
         return NavigationStack(path: pathBinding(for: section)) {
             SectionRegistry.root(for: section)
+                .environment(\.stackDepth, 0)
                 .navigationDestination(for: Route.self) { $0.destination }
         }
         .id(section)
