@@ -108,6 +108,34 @@ else
   echo "built + signed: $(pwd)/$APP  [ad-hoc — add an Apple Development cert for BTM attribution]"
 fi
 
+# replace_install <built bundle> <installed path> — swap the installed app for
+# the new build without ever leaving that path empty:
+#   1. an earlier attempt that died after moving the old app aside is undone
+#      first (the old copy goes back), and its half-made copy is removed —
+#      copying INTO a leftover would merge two builds;
+#   2. the new build is copied next to the installed one;
+#   3. the installed one is moved aside, the new one moved in;
+#   4. if that last move fails, the old one is moved back.
+# The agents' entry point lives inside the installed app, so "no app there"
+# would stop every scheduled job.
+replace_install() {
+  local src="$1" dst="$2"
+  if [[ ! -e "$dst" && -e "$dst.old" ]]; then mv "$dst.old" "$dst" 2>/dev/null || return 1; fi
+  rm -rf "$dst.new" "$dst.old" 2>/dev/null
+  [[ -e "$dst.new" || -e "$dst.old" ]] && return 1
+  ditto "$src" "$dst.new" 2>/dev/null || { rm -rf "$dst.new" 2>/dev/null; return 1; }
+  if [[ -e "$dst" ]]; then
+    mv "$dst" "$dst.old" 2>/dev/null || { rm -rf "$dst.new" 2>/dev/null; return 1; }
+  fi
+  if mv "$dst.new" "$dst" 2>/dev/null; then
+    rm -rf "$dst.old" 2>/dev/null
+    return 0
+  fi
+  [[ -e "$dst.old" ]] && mv "$dst.old" "$dst" 2>/dev/null
+  rm -rf "$dst.new" 2>/dev/null
+  return 1
+}
+
 # install to /Applications — the canonical location for the running app; the
 # repo copy is the build artifact / script-only fallback. A locally built app
 # carries no quarantine, so no DMG/notarization is involved.
@@ -116,8 +144,7 @@ INSTALL="/Applications/MacAnalyzers.app"
 # making a download for other people never touches the copy you are running.
 if [[ "${MA_NO_INSTALL:-0}" == "1" ]]; then
   echo "not installed (MA_NO_INSTALL=1)"
-elif ditto "$APP" "$INSTALL.new" 2>/dev/null \
-     && rm -rf "$INSTALL" && mv "$INSTALL.new" "$INSTALL"; then
+elif replace_install "$APP" "$INSTALL"; then
   # REPLACED, not copied over: copying a bundle onto the installed one keeps
   # every file the new build no longer contains, so removed files lived on in
   # /Applications forever and the installed copy's signature stopped

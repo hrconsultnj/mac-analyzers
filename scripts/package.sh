@@ -47,6 +47,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# A download for other people must be exactly what is in git: the build
+# bundles every project file in the working tree, so an uncommitted edit or a
+# stray new file would ship inside it.
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "package: there are uncommitted or untracked files — commit or remove them first, so the download is exactly what is in git:" >&2
+  git status --short >&2
+  exit 1
+fi
+
 version="$(tr -d ' \n' < VERSION)"
 dmg="$out/MacAnalyzers-$version.dmg"
 work="$(mktemp -d)"

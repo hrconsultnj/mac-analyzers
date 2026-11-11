@@ -35,6 +35,9 @@ heading becomes its version and title.
   so when one is not installed.
 - Fixed: web-page processes belonging to Safari and other apps were listed
   under the name "com" in the menu-bar process list.
+- Fixed: when a cleanup moved several items with the same name to the Trash
+  in the same second, a later one could take the place of an earlier one.
+  Each now gets its own name.
 - Fixed: cleanups started from the app could stall on very large results.
   They also now find the same developer tools your scheduled cleanups use.
 
