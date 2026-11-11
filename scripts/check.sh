@@ -52,7 +52,7 @@ describe() {
     changelog) echo "CHANGELOG.md has a '## Next' section or an entry for VERSION, and that entry reads as release notes" ;;
     tests)     echo "every executable under memory-analyzer/tests/ and tests/ (macOS only; skipped, visibly, elsewhere)" ;;
     workflows) echo "actionlint on .github/workflows (optional: skipped, visibly, when not installed)" ;;
-    strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root" ;;
+    strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root; no source file hidden by .gitignore" ;;
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
@@ -235,8 +235,27 @@ check_strays() {
         fi ;;
     esac
   done
-  if [ "$bad" -gt 0 ]; then DETAIL="$bad stray item(s) at the repository root"; return 1; fi
-  DETAIL="repository root is clean"
+  # A source file that an ignore rule hides is never committed: the app builds
+  # here and fails from any clean copy (an upgrade, a download, a pull request).
+  # It happened with `reports/` matching `Screens/System/Reports/` on a
+  # case-insensitive disk. No file under the app's sources or the engine's
+  # script folders may be ignored.
+  local ignored
+  ignored="$(git ls-files --others --ignored --exclude-standard -- \
+      app/Sources app/Package.swift scripts lib tests \
+      memory-analyzer storage-analyzer network-analyzer 2>/dev/null \
+    | grep -v -E '(^|/)\.[^/]+/' \
+    | grep -E '\.(swift|sh|c|h|m|json|plist|strings|entitlements|command)$' || true)"
+  if [ -n "$ignored" ]; then
+    while IFS= read -r f; do
+      echo "$f — a source file that .gitignore hides, so it would never be committed" >>"$OUT"
+      bad=$((bad + 1))
+    done <<EOF
+$ignored
+EOF
+  fi
+  if [ "$bad" -gt 0 ]; then DETAIL="$bad stray or hidden item(s)"; return 1; fi
+  DETAIL="repository root is clean, no source file is hidden by .gitignore"
   return 0
 }
 
