@@ -87,6 +87,22 @@ public struct ReviewSelection: Sendable {
         ApprovedSet(approvable: items.map(\.id), deselected: deselected.union(items.filter { !$0.choosable }.map(\.id)))
     }
 
+    /// What a caller's own approval rule may send: its choice, minus anything this review does not
+    /// allow. Kept rows, unticked rows (the fold's included) and keys the review never listed are
+    /// removed whatever the caller returns; an unrestricted set means "the ticks".
+    public func narrowed(_ wanted: ApprovedSet) -> ApprovedSet {
+        // The apps a rule names to quit ride along unchanged: they are not rows of the
+        // review, so the clamp has nothing to remove from them, and dropping them would
+        // let the apply quit whatever its name list matches at that moment.
+        func carryingApps(_ set: ApprovedSet) -> ApprovedSet {
+            wanted.apps.map { set.withApps($0) } ?? set
+        }
+        guard !wanted.isUnrestricted else { return carryingApps(approved) }
+        let keep = Set(wanted.approved).intersection(Set(tickedIDs))
+        let all = items.map(\.id)
+        return carryingApps(ApprovedSet(approvable: all, deselected: Set(all).subtracting(keep)))
+    }
+
     /// Whether Apply is allowed against `preview` at `now`.
     public func gate(previewID current: UUID?, finishedAt: Date?, now: Date = Date()) -> ReviewApplyGate {
         guard let current else { return .noPreview }

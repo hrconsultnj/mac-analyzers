@@ -342,7 +342,17 @@ check_app() {
     DETAIL="swift build failed (exit $rc)"
     return 1
   fi
-  DETAIL="swift build ok ($((SECONDS - started))s)"
+  # A build that succeeds while printing a warning is not clean. The package
+  # turns warnings into errors, but some diagnostics are not upgraded (found
+  # 2026-11-11: "cannot use generic struct … was not imported by this file"
+  # printed as a warning, exit 0). Any warning line fails the check. Only
+  # files compiled in this run can warn, so a change is always covered.
+  if grep -a -E '^[^ ].*: warning: ' "$TMP/app.txt" | cut -c1-300 | awk '!seen[$0]++' | head -20 >"$OUT" && [ -s "$OUT" ]; then
+    DETAIL="swift build printed $(wc -l <"$OUT" | tr -d ' ') warning(s) — warnings are defects"
+    return 1
+  fi
+  : >"$OUT"
+  DETAIL="swift build ok, no warnings ($((SECONDS - started))s)"
   return 0
 }
 

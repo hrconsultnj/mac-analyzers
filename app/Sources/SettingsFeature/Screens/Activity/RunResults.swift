@@ -1,6 +1,5 @@
 import AnalyzersKit
 import SwiftUI
-import UIComponents
 
 /// A category of one run's results, as a `ScopeTabs` value: the parser's own title
 /// ("Freed", "Found", "Couldn't remove"), which is stable for a kind of task.

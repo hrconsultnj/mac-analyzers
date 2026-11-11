@@ -235,6 +235,17 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     check("an unticked visible row enables Select All, which ticks it and leaves the fold alone",
           !folded.isAllSelected && { folded.selectAll(); return folded.isTicked("/big") && folded.isTicked("/empty") }())
 
+    // a caller's own approval rule can only remove: kept rows, unticked rows and unknown keys never go
+    var rule = ReviewSelection(previewID: first, items: [.init(id: "/a"), .init(id: "/b"), .init(id: "/kept", choosable: false),
+                                                           .init(id: "/empty")], startsUnticked: ["/empty"])
+    rule.setTicked("/b", false)
+    let greedy = ApprovedSet(approvable: ["/a", "/b", "/kept", "/empty", "/stranger"], deselected: [])
+    check("an approval rule cannot add kept, unticked, fold or unknown keys", rule.narrowed(greedy).approved == ["/a"],
+          "sent: \(rule.narrowed(greedy).approved)")
+    check("an approval rule that removes a row is honoured",
+          rule.narrowed(ApprovedSet(approvable: ["/a"], deselected: ["/a"])).approved.isEmpty)
+    check("an unrestricted approval means the ticks", rule.narrowed(.everything).approved == ["/a"])
+
     // 6. a new review with the SAME number of rows shows its own rows, not the old tree
     final class Owner {}
     let memo = IdentityMemo<Owner, Int, [String]>()
