@@ -24,11 +24,19 @@ public struct ActivityOutcome: Sendable {
         public let detail: String?
         /// A size, or a time.
         public let trailing: String?
-        public init(id: Int, title: String, detail: String? = nil, trailing: String? = nil) {
+        /// The real-world thing the row belongs to (a project), where the parser
+        /// gives it as data; nil otherwise. Never recovered by splitting `title`.
+        public let group: String?
+        /// The row's size in bytes, where it has one (for totals and ordering).
+        public let bytes: Int64?
+        public init(id: Int, title: String, detail: String? = nil, trailing: String? = nil,
+                    group: String? = nil, bytes: Int64? = nil) {
             self.id = id
             self.title = title
             self.detail = detail
             self.trailing = trailing
+            self.group = group
+            self.bytes = bytes
         }
     }
 
@@ -42,6 +50,7 @@ public struct ActivityOutcome: Sendable {
     }
 
     public let sections: [Section]
+    public init(sections: [Section]) { self.sections = sections }
     public var isEmpty: Bool { sections.allSatisfy { $0.items.isEmpty } }
 
     /// A janitor preview can hold thousands of rows; the list shows the
@@ -79,8 +88,8 @@ public struct ActivityOutcome: Sendable {
         case .storage(let storage):
             func rows(_ items: [StoragePathItem]) -> [Item] {
                 items.sorted { $0.sizeBytes > $1.sizeBytes }.enumerated().map { index, item in
-                    Item(id: index, title: "\(item.project) — \(item.cacheKind)",
-                         detail: Self.shortPath(item.path), trailing: ByteSize.format(item.sizeBytes))
+                    Item(id: index, title: item.cacheKind, detail: Self.shortPath(item.path),
+                         trailing: ByteSize.format(item.sizeBytes), group: item.project, bytes: item.sizeBytes)
                 }
             }
             b.add("Freed", .done, rows(storage.items.filter { $0.status == .deleted }))
@@ -93,7 +102,7 @@ public struct ActivityOutcome: Sendable {
             func rows(_ items: [TempItem]) -> [Item] {
                 items.sorted { $0.sizeBytes > $1.sizeBytes }.enumerated().map { index, item in
                     Item(id: index, title: item.displayName, detail: Self.shortPath(item.parentPath),
-                         trailing: ByteSize.format(item.sizeBytes))
+                         trailing: ByteSize.format(item.sizeBytes), bytes: item.sizeBytes)
                 }
             }
             b.add("Cleared", .done, rows(temp.actedItems))
@@ -107,8 +116,9 @@ public struct ActivityOutcome: Sendable {
         case .spotlight(let spot):
             func rows(_ items: [SpotlightExposureItem]) -> [Item] {
                 items.sorted { $0.sizeBytes > $1.sizeBytes }.enumerated().map { index, item in
-                    Item(id: index, title: "\(item.project) — \((item.path as NSString).lastPathComponent)",
-                         detail: Self.shortPath(item.path), trailing: ByteSize.format(item.sizeBytes))
+                    Item(id: index, title: (item.path as NSString).lastPathComponent,
+                         detail: Self.shortPath(item.path), trailing: ByteSize.format(item.sizeBytes),
+                         group: item.project, bytes: item.sizeBytes)
                 }
             }
             b.add("Fenced", .done, rows(spot.fencedItems))

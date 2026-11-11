@@ -15,8 +15,19 @@ public enum DeepLinkRouter {
 
     private static let log = Logger(subsystem: "com.mac-analyzers.app", category: "router")
 
+    /// Targets that show a screen with example data, for looking at it headless. Empty
+    /// in the app people install: only `SnapshotRunner` calls `installFixtures()`, so
+    /// no URL, `--pane` or notification can reach one.
+    private static var fixtureTargets: [String: Resolution] = [:]
+
+    /// Makes the example screens linkable (`review:fixture`). Called by SnapshotRunner, nothing else.
+    public static func installFixtures() {
+        fixtureTargets = ["review:fixture": .main(Location(OverviewGroup.activity, path: [.overview(.reviewFixture)]))]
+    }
+
     static func resolve(_ target: String) -> Resolution {
         let key = target.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let fixture = fixtureTargets[key] { return fixture }
         for group in SectionRegistry.groups {
             if let resolution = group.aliases[key] { return resolution }
         }

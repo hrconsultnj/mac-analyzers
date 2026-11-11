@@ -15,8 +15,10 @@ app/.build-pro/
 app/AppIcon.icns
 app/icon_1024.png
 
-# run reports/logs live inside the repo now (moved from ~/system-reports)
-reports/
+# run reports/logs live inside the repo now (moved from ~/system-reports).
+# Anchored to the repository root: unanchored, it also hid any source folder
+# called Reports on a case-insensitive disk.
+/reports/
 app/MenuBarIcon.png
 
 # local Claude instructions (never public)

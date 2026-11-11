@@ -37,19 +37,16 @@ public struct DataCard: View {
     }
 
     public var body: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: Tokens.Space.m) {
             icon
                 .accessibilityHidden(true)  // decorative — title below already names the row
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                 Text(title)
                     .font(.callout)
-                    .lineLimit(1)
                 if let subtitle {
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
                 }
             }
             Spacer(minLength: 6)
@@ -65,6 +62,6 @@ public struct DataCard: View {
                 BadgeCapsule(text: badge.text, color: badge.color)
             }
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, Tokens.Space.xs)
     }
 }

@@ -18,7 +18,7 @@ public struct ProcessRow: View {
     }
 
     public var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s) {
             processIcon
                 .accessibilityHidden(true)  // decorative — friendlyName below already names it
             Text(proc.memoryText)
@@ -38,6 +38,7 @@ public struct ProcessRow: View {
             Spacer(minLength: 4)
             if proc.canQuit {
                 Button(stopping ? "…" : (proc.isDev ? "Stop" : "Quit")) { confirming = true }
+                // small on purpose: dense process rows (the menu panel and the dossier)
                 .controlSize(.small)
                 .disabled(stopping)
                 .confirmationDialog("\(proc.isDev ? "Stop" : "Quit") \(proc.friendlyName)?",

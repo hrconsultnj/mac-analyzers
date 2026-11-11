@@ -11,7 +11,7 @@ struct JobScreen: View {
     let id: UUID
 
     @Environment(JobStore.self) private var store
-    @State private var model = ActivityModel()
+    private var model: ActivityModel { .shared }
 
     private var row: ActivityRow? { model.row(forJob: id) }
     private var storeStamp: [JobStamp] { store.jobs.map { JobStamp($0) } }
@@ -28,7 +28,7 @@ struct JobScreen: View {
             }
         }
         .navigationTitle(row?.displayTitle ?? "Run")
-        .task { await model.refresh(store: store) }
+        .task { await model.refreshIfNeeded(store: store) }
         .onChange(of: storeStamp) { Task { await model.refresh(store: store) } }
     }
 }

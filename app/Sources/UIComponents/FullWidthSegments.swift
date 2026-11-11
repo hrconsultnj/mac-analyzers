@@ -1,7 +1,10 @@
 import SwiftUI
 
-/// Full-width segmented tabs: equal-width filled pills spanning the whole
-/// row (macOS's native segmented picker sizes to content and won't stretch).
+/// Full-width segmented tabs, as the system draws them: a segmented `Picker`
+/// stretched to the row. It was a stack of hand-drawn pills (5 pt of padding, a
+/// filled accent rectangle); the system control has the standard height and
+/// padding, the focus ring, keyboard arrows and the right look in every
+/// appearance.
 public struct FullWidthSegments<Option: Hashable>: View {
     let options: [(Option, String)]
     @Binding var selection: Option
@@ -12,26 +15,13 @@ public struct FullWidthSegments<Option: Hashable>: View {
     }
 
     public var body: some View {
-        HStack(spacing: 3) {
+        Picker("", selection: $selection) {
             ForEach(options, id: \.0) { option, label in
-                let selected = option == selection
-                Button {
-                    selection = option
-                } label: {
-                    Text(label)
-                        .font(.callout.weight(selected ? .semibold : .regular))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 5)
-                        .background(selected ? Color.accentColor : Color.clear,
-                                    in: RoundedRectangle(cornerRadius: 6))
-                        .foregroundStyle(selected ? Color.white : Color.primary)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                Text(label).tag(option)
             }
         }
-        .padding(3)
-        .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.tile))
+        .pickerStyle(.segmented)
+        .labelsHidden()
         .frame(maxWidth: .infinity)
     }
 }

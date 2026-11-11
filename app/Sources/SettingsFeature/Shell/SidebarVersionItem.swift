@@ -12,24 +12,18 @@ struct SidebarVersionItem: View {
         Button {
             navigator.select(AppGroup.updates)
         } label: {
-            // Two arrangements, the first that fits: name and version on the
-            // left with the state on the right; or, in a narrow sidebar, the
-            // state on its own line underneath. Nothing is ever cut off — a
-            // line that still does not fit wraps instead of ending in "…".
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 8) {
-                    identity
-                    Spacer(minLength: 4)
-                    stateLabel
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    identity
-                    stateLabel
+            // One arrangement in every state: the name and version on the left, the
+            // state beside them on the right. A state too long for the row wraps
+            // inside its own column; the row never changes shape.
+            LabeledContent {
+                stateLabel
+            } label: {
+                VStack(alignment: .leading) {
+                    Text(Names.app).font(.subheadline.weight(.semibold))
+                    Text(updates.build.sidebarText).font(.caption).foregroundStyle(.secondary)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding()
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -39,23 +33,11 @@ struct SidebarVersionItem: View {
         .accessibilityHint("Opens \(Names.Screen.updates)")
     }
 
-    private var identity: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(Names.app)
-                .font(.callout.weight(.semibold))
-            Text(updates.build.sidebarText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .fixedSize(horizontal: false, vertical: true)
-    }
-
     @ViewBuilder private var stateLabel: some View {
         if let state {
             Label(state.text, systemImage: state.symbol)
                 .font(.caption)
                 .foregroundStyle(state.tint)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

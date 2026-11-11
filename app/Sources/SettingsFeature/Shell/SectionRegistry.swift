@@ -1,3 +1,4 @@
+import AnalyzersKit
 import SwiftUI
 
 /// The order of the sidebar groups, and lookups across them. This is the only
@@ -18,6 +19,14 @@ enum SectionRegistry {
         assertNoDuplicates(in: groups)
         return groups
     }()
+
+    /// The results view a group supplied for a kind of task, if any (the run screen's slot).
+    static func runResults(for row: ActivityRow) -> ((ActivityRow) -> AnyView)? {
+        let kind = row.kind ?? JobKind.allCases.first { $0.isCleaner && $0.log == row.log && row.log != nil }
+        guard let kind else { return nil }
+        for group in groups { if let view = group.runResults[kind] { return view } }
+        return nil
+    }
 
     /// Opened when there is nothing to restore.
     static var home: Location { Location(OverviewGroup.overview) }

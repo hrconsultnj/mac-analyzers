@@ -201,7 +201,7 @@ trap 'rm -f "$LOCK_FILE" "${STACK_STATE_FILE}.tmp.$$"' EXIT
 # shellcheck disable=SC1091
 if ! source "${ANALYZERS_ROOT}/lib/live-sessions.sh"; then
   echo "FATAL: lib/live-sessions.sh or its list of coding agents (lib/coding-agents.tsv) is missing, unreadable or names no agent — refusing to sweep without the live-session exemption." >&2
-  exit 78
+  exit 79
 fi
 
 # ---------- helpers ----------

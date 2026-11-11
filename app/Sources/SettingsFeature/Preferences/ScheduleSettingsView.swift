@@ -21,7 +21,7 @@ struct ScheduleSettingsView: View {
         PaneScaffold(symbol: "calendar.badge.clock", color: .teal, title: Names.Screen.schedule,
                      caption: "When each clean runs. Changes apply immediately and survive upgrades.") {
             Section("Daily Cleans") {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
                     LabeledContent("Memory Auto-Clean") {
                         DatePicker("", selection: $memoryCleanTime,
                                    displayedComponents: .hourAndMinute)
@@ -31,7 +31,7 @@ struct ScheduleSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
                     LabeledContent("Storage Daily Clean") {
                         DatePicker("", selection: $storageDailyTime,
                                    displayedComponents: .hourAndMinute)
@@ -44,7 +44,7 @@ struct ScheduleSettingsView: View {
             }
 
             Section("Deep Clean") {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
                     LabeledContent("Storage Deep Clean") {
                         Stepper("every \(deepDays) day\(deepDays == 1 ? "" : "s")",
                                 value: $deepDays, in: 1...14)
