@@ -85,9 +85,7 @@ func probeCleanupReview(_ args: [String]) -> Never {
 // options reach both the preview and the apply, and a review with nothing to
 // tick sends an explicit empty list. No real cleaner is ever run.
 @MainActor func probeCleanupApply() async -> Never {
-    let dir = FileManager.default.temporaryDirectory.appending(path: "ma-probe-cleanup-\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: dir) }
+    let dir = ProbeScratch.folder("ma-probe-cleanup")
     // the list of coding agents is the probe's own, naming nothing that runs here: whether the stand-in programs are
     // "part of a live session" must not depend on the list that is installed or on what started this probe
     let list = dir.appending(path: "coding-agents.tsv")
@@ -110,6 +108,7 @@ func probeCleanupReview(_ args: [String]) -> Never {
         p.executableURL = URL(fileURLWithPath: "/bin/sleep")
         p.arguments = ["120"]
         try? p.run()
+        ProbeScratch.track(p)
         return p
     }
     let procs = [sleeper(), sleeper(), sleeper(), sleeper()]
@@ -316,6 +315,7 @@ func probeCleanupReview(_ args: [String]) -> Never {
         p.executableURL = URL(fileURLWithPath: "/bin/sleep")
         p.arguments = ["120"]
         try? p.run()
+        ProbeScratch.track(p)
         return p
     }
     let ok = sleeper(), vanishing = sleeper(), nothing = sleeper(), leftAlone = sleeper()

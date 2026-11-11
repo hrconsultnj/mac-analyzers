@@ -62,18 +62,23 @@ run_case() { # label shell
         "$([[ "$(cat "$home/.Trash/same.png")" == "pre-same" && "$(cat "$home/.Trash/old1.pdf")" == "pre-old1" ]] && echo ok || echo changed)"
 
   # each receipt names where the item really is, and what is there is that item
-  local receipts=0 wrong=0 src dest want
+  local receipts=0 wrong=0 noid=0 src dest want id
   while IFS= read -r line; do
     receipts=$((receipts + 1))
     src="${line#*  }"; dest="${src##*  ->  }"; src="${src%%  ->  *}"
+    # the receipt ends with the item's identity (device:inode); the destination is what comes before it
+    id=""
+    case "$dest" in *"  #id="*) id="${dest##*  #id=}"; dest="${dest%  #id=*}" ;; esac
     case "$src" in
       */Downloads/same.png) want=A ;; */Screenshots/same.png) want=B ;; */2026/same.png) want=C ;;
       *"my file (1).pdf") want=D ;; */old1.pdf) want=E ;; *"Old Folder") want=F ;; *) want="?" ;;
     esac
     if [[ -d "$dest" ]]; then got="$(cat "$dest/inside.txt" 2>/dev/null)"; else got="$(cat "$dest" 2>/dev/null)"; fi
     [[ "$got" == "$want" ]] || wrong=$((wrong + 1))
+    [[ -n "$id" && "$id" == "$(/usr/bin/stat -f '%d:%i' "$dest" 2>/dev/null)" ]] || noid=$((noid + 1))
   done < <(grep '^\[TRASHED\]' "$TMP/$label.out")
   check "[$label] six receipts, each naming where its item really is" "$([[ $receipts -eq 6 && $wrong -eq 0 ]] && echo ok || echo "$receipts receipts, $wrong wrong")"
+  check "[$label] each receipt carries the identity of the item that is in the Trash" "$([[ $noid -eq 0 ]] && echo ok || echo "$noid without a matching identity")"
   check "[$label] a name with a line break is left alone, said so, and does not stop the run" \
         "$([[ -e "$home/Downloads/bad"$'\n'"name.png" && "$(grep -c '^\[SKIP\] name contains a line break' "$TMP/$label.out")" -eq 1 && $rc -eq 0 ]] && echo ok || echo "not handled")"
   check "[$label] nothing reported as failed" "$([[ "$(grep -c '^\[FAILED\]' "$TMP/$label.out")" -eq 0 ]] && echo ok || echo failures)"

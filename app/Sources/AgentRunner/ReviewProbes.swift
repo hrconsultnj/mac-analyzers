@@ -8,9 +8,7 @@ import os
 // job indexes only; nothing here can reach the real engine.
 
 private func scratch(_ name: String) -> URL {
-    let dir = FileManager.default.temporaryDirectory.appending(path: "\(name)-\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    return dir
+    ProbeScratch.folder(name)
 }
 
 private func script(_ dir: URL, _ name: String, _ body: String) -> URL {

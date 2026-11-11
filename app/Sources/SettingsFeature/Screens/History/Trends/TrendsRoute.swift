@@ -14,6 +14,8 @@ enum TrendsRoute: Hashable, Codable, Sendable {
     case cpuHogs(TrendsModel.Period)
     case memoryFreed(TrendsModel.Period)
     case diskReclaimed(TrendsModel.Period)
+    /// The same table with one project opened and selected (a dashboard row for it).
+    case removedProject(String, TrendsModel.Period)
     case reclaimableNow
     case offender(String, TrendsModel.Period)
 }
