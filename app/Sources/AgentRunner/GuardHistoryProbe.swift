@@ -85,7 +85,12 @@ func probeGuardHistory(_ args: [String]) -> Never {
         print("\nlatest crisis report on disk: \(summary.title)")
         print("  \(summary.headline)")
     }
-    exit(0)
+    // what it printed, judged on the real log: row ids are unique, and a page never passes the rule
+    // (a day is never split, so only a day that is itself bigger may)
+    let unique = Set(ids).count == ids.count
+    let paged = maxStep(days) <= max(GuardHistory.pageRows, biggest)
+    print("self-check: row ids unique \(unique), pages within \(GuardHistory.pageRows) rows \(paged)")
+    exit(unique && paged ? 0 : 1)
 }
 
 private func maxStep(_ list: [GuardHistory.Day]) -> Int {

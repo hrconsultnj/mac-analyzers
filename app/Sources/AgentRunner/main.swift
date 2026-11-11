@@ -199,6 +199,9 @@ if args.first == "--probe-quit" {
 
 // `--probe-guard-history` prints Memory Guard's history as the screen groups it.
 // See GuardHistoryProbe.swift.
+if args.first == "--probe-guard-rules" {
+    probeGuardRules()
+}
 if args.first == "--probe-guard-history" {
     probeGuardHistory(args)
 }

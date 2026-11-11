@@ -169,8 +169,7 @@ private func relaunchDetached(_ args: [String]) -> Never {
 @MainActor func probeStopTargets(_ args: [String]) async -> Never {
     if !args.contains("--detached-child") { relaunchDetached(args) }
     // the real list of the checkout under test, plus one fixture "agent" for the reach cases
-    let root = args.firstIndex(of: "--root").flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
-        .map { URL(fileURLWithPath: $0) } ?? AnalyzersPaths.suiteRoot
+    let root = probeRoot(args)
     guard let realList = try? String(contentsOf: root.appending(path: "lib/coding-agents.tsv"), encoding: .utf8),
           realList.contains("\texe\tclaude") else {
         print("the coding-agent list was not found under \(root.path) (pass --root <checkout>): the stop guards were NOT run")
@@ -541,8 +540,15 @@ private func relaunchDetached(_ args: [String]) -> Never {
         f.check("an app that hosts a live session", false, "fixture not found")
         return
     }
-    try? await Task.sleep(for: .milliseconds(800))
-    let census = MemoryCensus.take()
+    // the session under the fixture app starts a moment after the app does: look until the census sees it
+    // (up to ten seconds), so a busy Mac does not turn a slow start into a failure
+    var census = MemoryCensus.take()
+    for _ in 0..<20 {
+        let seen = census.groups.first { $0.members.contains { $0.pid == Int(app) } }?.hostedSessions["Fixture Agent"] == 1
+        if seen { break }
+        try? await Task.sleep(for: .milliseconds(500))
+        census = MemoryCensus.take()
+    }
     if let group = census.groups.first(where: { $0.members.contains { $0.pid == Int(app) } }) {
         f.check("an app-shaped group counts the session inside it", group.category == .apps && group.hostedSessions["Fixture Agent"] == 1,
                 "category \(group.category), hosted \(group.hostedSessions)")

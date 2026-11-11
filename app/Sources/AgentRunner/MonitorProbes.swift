@@ -84,14 +84,25 @@ func probeMonitor() -> Never {
     exit(stable && repeated.isEmpty ? 0 : 1)
 }
 
+/// The checkout a probe reads `lib/coding-agents.tsv` from: `--root <dir>`, else the folder it is run
+/// from (or the one above it: the checks run it from `app/`), else the suite the app resolves.
+func probeRoot(_ args: [String]) -> URL {
+    if let at = args.firstIndex(of: "--root"), args.indices.contains(at + 1) { return URL(fileURLWithPath: args[at + 1]) }
+    let here = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    for candidate in [here, here.deletingLastPathComponent()]
+    where FileManager.default.fileExists(atPath: candidate.appending(path: "lib/coding-agents.tsv").path) {
+        return candidate
+    }
+    return AnalyzersPaths.suiteRoot
+}
+
 // `agent-runner --probe-agents` proves the app and the engine read one list of
 // coding agents and agree on it: a corpus built from every line of
 // `lib/coding-agents.tsv` (plus lines that must NOT match) is classified by the
 // app (`CodingAgentHosts`) and by `lib/live-sessions.sh` under bash and under
 // /bin/bash, and any difference fails the probe.
 func probeAgents(_ args: [String]) -> Never {
-    let rootArg = args.firstIndex(of: "--root").flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
-    let root = rootArg.map { URL(fileURLWithPath: $0) } ?? AnalyzersPaths.suiteRoot
+    let root = probeRoot(args)
     let list = root.appending(path: "lib/coding-agents.tsv")
     let text = (try? String(contentsOf: list, encoding: .utf8)) ?? ""
     let rows = text.split(whereSeparator: \.isNewline)

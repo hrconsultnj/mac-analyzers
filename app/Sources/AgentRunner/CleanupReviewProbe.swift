@@ -72,7 +72,10 @@ func probeCleanupReview(_ args: [String]) -> Never {
     show(.memoryClean, JobOptions(includeBusyOrphans: true))
     show(.reclaim, JobOptions())
     show(.reclaim, JobOptions(alsoQuit: ["Opera", "Docker"]))
-    exit(0)
+    // the rules it printed, judged: levels held, and nothing sent for nothing ticked
+    let sentForNothing = review.approvedSet(ticked: [])
+    if !sentForNothing.approved.isEmpty { failures.append("nothing ticked sent \(sentForNothing.approved)") }
+    exit(failures.isEmpty ? 0 : 1)
 }
 
 // `agent-runner --probe-cleanup-apply` proves what the engine is given when a
@@ -119,6 +122,12 @@ func probeCleanupReview(_ args: [String]) -> Never {
             .replacingOccurrences(of: "\n", with: "\\n")
     }
     var failed = false
+    /// The raw lines of the last approved file the engine was given: `<pid><TAB><start>`.
+    var lastLines: [String]?
+    func recordedLines(_ text: String) -> [String]? {
+        text.split(separator: "\n").first { $0.hasPrefix("approved file:") }
+            .map { $0.dropFirst("approved file:".count).split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+    }
     func check(_ name: String, _ ok: Bool, _ detail: String) {
         print("  \(ok ? "ok  " : "FAIL") \(name)\n       \(detail)")
         if !ok { failed = true }
@@ -146,8 +155,8 @@ func probeCleanupReview(_ args: [String]) -> Never {
         await wait(apply)
         await idle()
         let text = (try? String(contentsOf: record, encoding: .utf8)) ?? ""
-        let file = text.split(separator: "\n").first { $0.hasPrefix("approved file:") }
-            .map { $0.dropFirst("approved file:".count).split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+        lastLines = recordedLines(text)
+        let file = lastLines.map { $0.map { $0.split(separator: "\t").first.map(String.init) ?? $0 } }
         print("\(title)\n    ticked: \(approved.approved.count) of \(review.approvableKeys.count), apps \(approved.apps ?? [])\n    engine was given: \(recorded())")
         return (text, approved, file)
     }
@@ -159,6 +168,9 @@ func probeCleanupReview(_ args: [String]) -> Never {
     print("scenarios, each applied the way the screen applies (approvedSet(ticked:), real programs):")
     let s1 = await scenario("1. everything ticked, nothing left alone", lines: base) { Set($0.map(String.init)) }
     print("    information: with everything ticked and nothing kept, no row is deselected, so the set is not narrowed (file \(s1?.file ?? ["none"])); the kernel patch makes the list always sent")
+    let starts = procs.compactMap { p in ProcessIdentity.of(pid: Int(p.processIdentifier)).map { "\(p.processIdentifier)\t\($0.birth.seconds)" } }
+    check("the list names each program by pid and start time (what the engine checks before it acts)",
+          Set(lastLines ?? []) == Set(starts.prefix(3)), "lines \(lastLines ?? [])")
     let s2 = await scenario("2. one row unticked", lines: base) { Set($0.map(String.init)).subtracting([String(b)]) }
     check("an unticked row is not in the list", s2?.file.map { Set($0) == Set([a, c].map(String.init)) } == true, "file \(s2?.file ?? [])")
     let s3 = await scenario("3. everything unticked", lines: base) { _ in [] }
@@ -232,8 +244,8 @@ func probeCleanupReview(_ args: [String]) -> Never {
         await wait(apply)
         await idle()
         let text = (try? String(contentsOf: record, encoding: .utf8)) ?? ""
-        let file = text.split(separator: "\n").first { $0.hasPrefix("approved file:") }
-            .map { $0.dropFirst("approved file:".count).split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+        lastLines = recordedLines(text)
+        let file = lastLines.map { $0.map { $0.split(separator: "\t").first.map(String.init) ?? $0 } }
         print("\(title)\n    through the table's clamp; engine was given: \(recorded())")
         return (text, file, sent)
     }
@@ -283,14 +295,14 @@ func probeCleanupReview(_ args: [String]) -> Never {
     let t5 = await viaTable("13. nothing ticked", lines: base, unticked: [a, b, c])
     check("nothing ticked sends an explicit empty list through the clamp", t5?.file?.isEmpty == true, "file \(t5?.file ?? ["no list"])")
 
-    approvalCases()
+    if !approvalCases() { failed = true }
     exit(failed ? 1 : 0)
 }
 
 /// What Apply sends must be the very set the review counts: a row that is left alone, folded away as
 /// using no memory, or whose program changed since the preview is never in it, whatever Select All did.
 /// Real throwaway `sleep` processes stand in for the programs, so identities are real.
-@MainActor private func approvalCases() {
+@MainActor private func approvalCases() -> Bool {
     func sleeper() -> Process {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sleep")
@@ -324,7 +336,11 @@ func probeCleanupReview(_ args: [String]) -> Never {
     let sent = review.approvedSet(ticked: counted)
     let sentKeys = Set(sent.approved)
 
-    func report(_ name: String, _ ok: Bool, _ detail: String) { print("  \(ok ? "ok  " : "FAIL") \(name): \(detail)") }
+    var allHold = true
+    func report(_ name: String, _ ok: Bool, _ detail: String) {
+        print("  \(ok ? "ok  " : "FAIL") \(name): \(detail)")
+        if !ok { allHold = false }
+    }
     report("Select All, a left-alone row is never sent", !sentKeys.contains(String(pid(leftAlone))), "sent \(sent.approved)")
     report("Select All, a row whose program changed is never sent", !sentKeys.contains(String(pid(vanishing))),
            "changed \(changed.sorted())")
@@ -336,4 +352,5 @@ func probeCleanupReview(_ args: [String]) -> Never {
     // nothing tickable at all: an explicit empty list, never "everything"
     let none = review.approvedSet(ticked: [])
     report("nothing ticked sends an explicit empty list", none.isNarrowed && none.approved.isEmpty, "\(none.approved)")
+    return allHold
 }

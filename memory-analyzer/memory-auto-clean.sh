@@ -235,7 +235,10 @@ fi
 # a hazard either: identity is re-checked by the sweep, not taken from here.
 approved_pid() {
   [[ -z "${ONLY_PIDS}" ]] && return 0
-  approved_list_has "$1"
+  case "$1" in
+    *[!0-9]*) approved_list_has "$1" ;;          # a stack key and the like: a whole line
+    *) approved_list_has_process "$1" ;;          # a pid: also the process it was when reviewed
+  esac
 }
 
 # The reviewed list is read once (lib/approved-list.sh): a `grep` per item made a

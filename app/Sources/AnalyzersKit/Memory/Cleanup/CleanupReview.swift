@@ -79,8 +79,15 @@ public struct CleanupReview: Sendable {
     public func approvedSet(ticked: Set<String>) -> ApprovedSet {
         let wanted = Set(approvableKeys).intersection(ticked).subtracting(changedKeys())
         let deselected = Set(candidates.map(\.reviewKey)).subtracting(wanted)
+        // each approved program is named by when it started, as the review saw it: the engine then
+        // leaves alone a pid the system has since given to another program
+        var starts: [String: Int] = [:]
+        for candidate in selectable {
+            if let key = candidate.approvalKey, let identity = candidate.identity { starts[key] = identity.birth.seconds }
+        }
         return ApprovedSet(approvable: approvableKeys, deselected: deselected)
             .withApps(appQuits.map(\.name))
+            .withStarts(starts)
     }
 
     /// Tickable rows whose pid is not the program that was reviewed any more.
