@@ -185,6 +185,84 @@ through `config.local.sh` (never hardcoded).
   --probe-activity [--real]` prints the sections, `--probe-activity-ids` proves
   ids survive a log growing, `--probe-failures` prints the failure sentences, and
   `--probe-pid-recycle` proves a stop refuses a recycled pid.
+- **Native controls, native padding, one layout per component** (owner,
+  2026-11-10, after three screenshots of v2.69.0: "stop fabricating and just
+  use native … buttons"). A button is a `Button` with a system `buttonStyle`;
+  a set of choices is a `Picker` with `.segmented`; search is `.searchable`;
+  a toolbar item is a `ToolbarItem` holding a plain system control; a
+  title-and-value row is `LabeledContent`; rows are `List`/`Form` rows with
+  their default insets; spacing is the default `.padding()` and stack
+  spacing. No hand-drawn capsules or backgrounds standing in for a control,
+  no `.frame(width:)`/`maxWidth` or `lineLimit(1)` to force something to
+  fit, no `ViewThatFits` that changes a component's shape with its state.
+  When content does not fit, change WHAT is shown (a short name in the
+  toolbar, the sentence in the tooltip and on the screen it opens). A
+  component looks the same in every state — render each state to prove it.
+  A fixed size is allowed only where it is the actual job (an icon tile, a
+  chart), with a comment saying so.
+- **Native does not mean plainer, and a fix must not take things away**
+  (owner, 2026-11-10: "the icons, they're gone … you guys are just
+  introducing regressions"). A control that names a kind of thing shows its
+  icon AND its title (`Label(title, systemImage:)`) — find the native way to
+  show both, never drop the icon to make the native control easy. Before
+  replacing a screen or a control, list what the old one showed (icons,
+  counts, colour, a state, a shortcut): the new one shows all of it, or the
+  change says what was removed and why. Compare before and after renders for
+  what disappeared, not only for what improved.
+- **Toolbars adapt by priority, the way Activity Monitor's does.** For each
+  screen decide what the person uses most there — it stays visible at every
+  window width — what is secondary and moves into the system's overflow
+  menu first, and let search collapse to its icon. Use toolbar placements,
+  `visibilityPriority`, the system overflow and `.searchable`; nothing is
+  ever clipped at the window edge. With the search field focused, one click
+  anywhere else must take focus away and do what was clicked.
+- **Categories are tabs, groups are rows that open — never one long list**
+  (owner, 2026-11-10, after a run's results came up as about 300 rows in one
+  flat list: "these should be tabs … just like the monitor … a cohesive and
+  consistent scenario to apply uniformly"). The app has one way of going
+  from many things to one, the same on every screen: the screen is a sidebar
+  item; its categories (different kinds of thing) are the shared scope tabs
+  with icon, title and count; inside a category, rows are grouped under the
+  real thing they belong to (a project, an app, a day) as one parent row
+  with its count and total that opens to its members; one thing is a row
+  whose detail is the inspector or its own screen. The row model carries
+  the category and the group as typed data — never recovered by splitting a
+  title — and every level says how much is in it. Biggest or newest first;
+  rows that are nothing (0 KB) fold into one closed row. One tabs control
+  for the whole app: no second segmented control, chips, cards or button
+  rows standing in for tabs. A filter (the same rows, fewer) is a toolbar
+  menu or a search token, not a tab; a screen with one kind of thing has no
+  tabs. A run's screen shows its results in the same categories and groups
+  as the task's own screen.
+- **One table for rows that open: `OutlineTable`** (2026-11-11, after
+  measuring every SwiftUI hierarchical control — `Table` with
+  `DisclosureTableRow`, `Table(children:)`, `List` with `OutlineGroup`,
+  `DisclosureGroup` rows or `Section(isExpanded:)` — logging AppKit's
+  "reentrant operation in its NSTableView delegate. This warning will become
+  an assert in the future." when all groups open or the rows are re-sorted
+  in place; a flat SwiftUI `Table` re-sorted in place logs it too; the
+  released app logged it on screen). Every table whose rows open to other
+  rows, and every sortable table, is an `OutlineTable`
+  (`UIComponents/OutlineTable/`): columns declared like `Table`, the caller
+  sorts its own rows, and selection, open groups (`RememberedExpansion`,
+  kept per screen), ticks and section headers are the screen's own
+  bindings; cells are SwiftUI or plain text. Inside the component the
+  system view is changed only from its updater and never while AppKit is
+  calling in, and every write back to a binding happens on the next main
+  turn — a change that breaks either rule is a defect even when no warning
+  shows. It uses the system's standard row height (automatic row heights
+  bring the warning back); a cell that needs more lines declares them.
+  `scripts/check.sh outline` runs the two changes that used to warn
+  (`scripts/outline-probe.sh` has the full set); its refusal of the SwiftUI
+  hierarchical controls is switched on when the last screen has moved, and
+  until then do not add a new one. A `List` is for a history whose rows
+  push a screen: it never gains more than 200 rows in one update (newest
+  200, then "Show Older"). A `DisclosureGroup` around ONE block of content
+  (raw output, details) is fine. Need something the component does not do?
+  Add it there — never a second grouped table. This is a deliberate
+  departure from "SwiftUI controls only" in the rule above: the system's
+  outline view is the platform's control for hierarchical data, wrapped
+  once.
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;

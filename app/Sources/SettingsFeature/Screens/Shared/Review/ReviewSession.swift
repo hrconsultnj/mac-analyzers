@@ -51,6 +51,12 @@ final class ReviewSession {
         ticks.save(selection.deselected, for: previewID)
     }
 
+    /// Many keys at once (a group's tick): one save, not one per key.
+    func setTicked(_ ids: [String], _ ticked: Bool) {
+        for id in ids { selection.setTicked(id, ticked) }
+        ticks.save(selection.deselected, for: previewID)
+    }
+
     func selectAll() { selection.selectAll(); ticks.save(selection.deselected, for: previewID) }
     var isAllSelected: Bool { selection.isAllSelected }
 

@@ -14,9 +14,15 @@ public enum LogParser {
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0
         let window: UInt64 = 262_144
-        try? handle.seek(toOffset: size > window ? size - window : 0)
-        guard let data = try? handle.readToEnd(),
-              let text = String(data: data, encoding: .utf8) else { return [] }
+        let start = size > window ? size - window : 0
+        try? handle.seek(toOffset: start)
+        guard var data = try? handle.readToEnd() else { return [] }
+        // The window starts at a byte, which can be the middle of a multi-byte
+        // character; decoding that strictly makes the whole tail nothing, so a log
+        // would vanish until it grew past the offset. Start at the first whole line
+        // and decode leniently.
+        if start > 0, let newline = data.firstIndex(of: 10) { data = data[data.index(after: newline)...] }
+        let text = String(decoding: data, as: UTF8.self)
         let lines = text.split(separator: "\n", omittingEmptySubsequences: true)
             .map { String($0).trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }

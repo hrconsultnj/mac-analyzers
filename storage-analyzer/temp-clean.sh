@@ -179,10 +179,20 @@ keep_match() {
 # SHRINK what gets touched, never add to it.
 approved() {
   [[ -z "${ONLY_PATHS}" ]] && return 0
-  grep -qxF -- "$1" "${ONLY_PATHS}" && return 0
-  [[ -n "${2:-}" ]] && grep -qxF -- "$2" "${ONLY_PATHS}" && return 0
+  approved_list_has "$1" && return 0
+  [[ -n "${2:-}" ]] && approved_list_has "$2" && return 0
   return 1
 }
+
+# The reviewed list is read once (lib/approved-list.sh): a `grep` per item made a
+# 6,000-item apply take minutes. A list that cannot be checked stops the run.
+if [[ -n "${ONLY_PATHS}" ]]; then
+  if ! source "${ANALYZERS_ROOT}/lib/approved-list.sh" 2>/dev/null; then
+    echo "FATAL: lib/approved-list.sh is missing — refusing to run with a reviewed list it cannot check." >&2
+    exit 78
+  fi
+  approved_list_load "${ONLY_PATHS}"
+fi
 
 # ---------------------------------------------------------------------------
 # Facts, gathered once
@@ -856,7 +866,7 @@ emit_section() {
       ok=("${members[@]}"); okkb="$kb"
     else
       for (( k = 0; k < ${#members[@]}; k++ )); do
-        if grep -qxF -- "${members[$k]}" "${ONLY_PATHS}"; then
+        if approved_list_has "${members[$k]}"; then
           ok+=("${members[$k]}"); okkb=$((okkb + mkb[k]))
         fi
       done

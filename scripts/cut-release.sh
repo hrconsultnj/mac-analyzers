@@ -93,7 +93,12 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 tag="v$version"
 if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-  echo "cut-release: $tag has already been released." >&2
+  if [[ "$(gh release view "$tag" --json isDraft -q .isDraft 2>/dev/null || true)" == "false" ]]; then
+    echo "cut-release: $tag has already been released." >&2
+  else
+    echo "cut-release: $tag is tagged but its release is not published (or GitHub could not be reached)." >&2
+    echo "If an earlier run stopped partway, finish it: run scripts/release.sh from the main worktree." >&2
+  fi
   exit 1
 fi
 say "releasing $tag (currently $current)"
@@ -155,7 +160,7 @@ fi
 )
 
 # ── 6. is it actually out? ─────────────────────────────────────────────────
-if gh release view "$tag" >/dev/null 2>&1; then
+if [[ "$(gh release view "$tag" --json isDraft -q .isDraft 2>/dev/null || true)" == "false" ]]; then
   say "published: $(gh release view "$tag" --json url -q .url)"
 else
   echo "cut-release: main was merged but $tag is not on GitHub yet." >&2
@@ -170,6 +175,9 @@ fi
 # from development right after a release is then the release itself — its
 # version line reads v<version>, not "Dev Build".
 git fetch --quiet --tags origin || true
+if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1; then
+  echo "cut-release: note — the tag $tag is not known on this Mac yet, so builds made here will say \"Dev Build\". Run: git fetch --tags" >&2
+fi
 if git merge --ff-only main >/dev/null 2>&1; then
   if git push --quiet origin development; then
     say "development now continues from $tag"

@@ -74,10 +74,14 @@ struct ReviewTable: View {
     /// The names the confirmation gives for the rows the apply acts on, when the screen knows them
     /// from what is SENT (the Memory track's list of apps); without it the session's acting rows.
     var actingNames: ((ReviewSession) -> [String])?
+    /// Names the screen for what the table remembers of it (which groups are open, column widths).
+    /// Without it the key is the preview's kind, or "readonly" for a review that is only read.
+    var screen: String?
 
     @Environment(JobStore.self) private var store
     @State private var sortOrder = [KeyPathComparator(\ReviewNode.sortBytes, order: .reverse)]
     @State private var tree = ReviewTreeCache()
+    @State private var expansions = ReviewExpansions()
     @State private var asking = false
     @State private var askingPermanent = false
     @State private var appliedFor = PerPreview<Job>()
@@ -117,9 +121,13 @@ struct ReviewTable: View {
         }
     }
 
+    /// What the table remembers per screen.
+    private var screenKey: String { "review.\(screen ?? preview?.kind.rawValue ?? "readonly")" }
+
     var body: some View {
         ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder, only: only), sortOrder: $sortOrder,
-                        session: readOnly ? nil : session)
+                        session: readOnly ? nil : session, expansion: expansions.expansion(for: screenKey),
+                        screen: screenKey)
             .safeAreaInset(edge: .bottom, spacing: 0) { bar }
             .confirmationDialog(frozen?.title ?? applyTitle, isPresented: $asking, titleVisibility: .visible) {
                 Button(applyTitle, role: .destructive) { chosen() }
