@@ -25,10 +25,15 @@ struct ReviewRow: Identifiable, Hashable, Sendable {
     var keptReason: String?
     /// Shown in the size column when the row has no byte count (a time, "257 MB").
     var valueText: String?
+    /// Set when the apply WILL act on this row although it is not ticked here (an app on the "also
+    /// quit" list): the action in words ("Will be asked to quit"). Never counted as kept, never in
+    /// the approved list; the bar counts it and the confirmation names it.
+    var actsWord: String?
 
     init(id: String, name: String, detail: String? = nil, group: String? = nil, bytes: Int64? = nil,
-         iconPath: String? = nil, keptReason: String? = nil, valueText: String? = nil) {
+         iconPath: String? = nil, keptReason: String? = nil, valueText: String? = nil, actsWord: String? = nil) {
         self.valueText = valueText
+        self.actsWord = actsWord
         self.id = id
         self.name = name
         self.detail = detail
@@ -38,7 +43,8 @@ struct ReviewRow: Identifiable, Hashable, Sendable {
         self.keptReason = keptReason
     }
 
-    var isChoosable: Bool { keptReason == nil }
+    var isChoosable: Bool { keptReason == nil && actsWord == nil }
+    var acts: Bool { actsWord != nil }
 
     /// Sort key for the size column (a row without a size sorts last).
     var sortBytes: Int64 { bytes ?? -1 }
@@ -59,6 +65,8 @@ struct ReviewNode: Identifiable, Hashable, Sendable {
     var children: [ReviewNode]?
     /// A row the cleanup leaves alone (its reason is `detail`), or a group of only those.
     var isKept: Bool
+    /// A row the apply acts on without a tick here.
+    var acts: Bool
 
     var isGroup: Bool { children != nil }
     var sortBytes: Int64 { bytes ?? -1 }
@@ -69,9 +77,11 @@ struct ReviewNode: Identifiable, Hashable, Sendable {
 
     init(row: ReviewRow) {
         id = row.id; title = row.name; bytes = row.bytes; iconPath = row.iconPath; valueText = row.valueText
-        isKept = !row.isChoosable
-        // a kept row says why where a chosen one says where it is; the path stays in the tooltip
-        detail = row.keptReason ?? row.detail
+        isKept = row.keptReason != nil
+        acts = row.acts
+        // a kept row says why, an acting row says what will happen, where a chosen one says where
+        // it is; the path stays in the tooltip
+        detail = row.keptReason ?? row.actsWord ?? row.detail
         rowIDs = row.isChoosable ? [row.id] : []
         children = nil
     }
@@ -88,6 +98,7 @@ struct ReviewNode: Identifiable, Hashable, Sendable {
         valueText = nil
         rowIDs = members.flatMap(\.rowIDs)
         isKept = kept == members.count
+        acts = false
         children = members
     }
 

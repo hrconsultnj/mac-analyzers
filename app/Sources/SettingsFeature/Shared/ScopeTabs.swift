@@ -18,7 +18,9 @@ import UIComponents
 /// View menu must not act on them. On a Mac before macOS 26.1 there is no visibility priority:
 /// the system's own overflow order applies (see `toolbarRank`).
 // The types live in UIComponents (the menu-bar panel imports that module). These module-internal
-// names let a screen that only uses the toolbar modifier compile without importing it.
+// names let a screen USE them in expressions without importing it (a call to `scopeTabsToolbar`
+// with `ScopeTabItem(...)` items). A file that declares a STORED PROPERTY of these types must
+// still `import UIComponents`: the compiler warns otherwise, and `scripts/check.sh app` fails on it.
 typealias ScopeTabItem<Value: Hashable & Sendable> = UIComponents.ScopeTabItem<Value>
 typealias ScopeTabs<Value: Hashable & Sendable> = UIComponents.ScopeTabs<Value>
 typealias ScopeTabMemory = UIComponents.ScopeTabMemory

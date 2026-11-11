@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// What Apply may do right now, decided from the review and its preview alone.
 public enum ReviewApplyGate: Equatable, Sendable {
@@ -33,19 +34,23 @@ public struct ReviewSelection: Sendable {
     public struct Item: Sendable, Hashable {
         public let id: String
         public let choosable: Bool
-        public init(id: String, choosable: Bool = true) {
+        /// Not ticked here, but the apply acts on it by another argument ("will quit"): never
+        /// choosable, never in the approved list, and not "kept" either.
+        public let acts: Bool
+        public init(id: String, choosable: Bool = true, acts: Bool = false) {
             self.id = id
-            self.choosable = choosable
+            self.choosable = choosable && !acts
+            self.acts = acts
         }
     }
 
     public let previewID: UUID
     /// Every key once, in the order the preview listed them.
-    public let items: [Item]
+    public private(set) var items: [Item]
     public private(set) var deselected: Set<String>
-    private let choosable: Set<String>
+    private var choosable: Set<String>
     /// Rows that start unticked (the folded empty ones nobody can see): Select All leaves them as they are.
-    private let startsUnticked: Set<String>
+    private var startsUnticked: Set<String>
 
     /// `deselected` restores what a person had unticked for this same preview; nil means a
     /// first look, where `startsUnticked` rows are unticked and everything else is ticked.
@@ -53,7 +58,11 @@ public struct ReviewSelection: Sendable {
         self.previewID = previewID
         var seen = Set<String>()
         let unique = items.filter { seen.insert($0.id).inserted }
-        assert(unique.count == items.count, "a review was given the same key twice")
+        if unique.count != items.count {
+            // keep the first of each key and say so; a debug build must not stop for it
+            Logger(subsystem: "com.mac-analyzers.app", category: "review")
+                .error("a review was given \(items.count - unique.count) repeated key(s); the first of each is kept")
+        }
         self.items = unique
         choosable = Set(unique.filter(\.choosable).map(\.id))
         self.startsUnticked = startsUnticked.intersection(choosable)
@@ -73,9 +82,32 @@ public struct ReviewSelection: Sendable {
 
     /// True when nothing but the folded rows is unticked: Select All has nothing to do.
     public var isAllSelected: Bool { deselected.isSubset(of: startsUnticked) }
+    /// Changes which rows can be chosen while the review is open (a program ended): ticks on rows
+    /// that stay choosable are untouched; a row that stops being choosable is unticked and can
+    /// never be approved; a row that BECOMES choosable starts UNTICKED: nobody approves a row
+    /// they only now see as choosable (a process whose session just ended joins the apply only
+    /// when the person ticks it). Keys not in `now` and keys the review never listed are
+    /// ignored. Returns whether any row actually changed, so a screen that calls this on every
+    /// refresh can tell a quiet one from a real change.
+    @discardableResult
+    public mutating func updateChoosable(_ now: [String: Bool]) -> Bool {
+        let before = choosable
+        items = items.map { item in
+            guard let canChoose = now[item.id], !item.acts else { return item }
+            return Item(id: item.id, choosable: canChoose)
+        }
+        choosable = Set(items.filter(\.choosable).map(\.id))
+        let became = choosable.subtracting(before)
+        startsUnticked.formIntersection(choosable)
+        deselected.formUnion(became)
+        deselected.formIntersection(choosable)
+        return choosable != before
+    }
+
     public mutating func selectNone() { deselected = choosable }
 
     public var tickedIDs: [String] { items.map(\.id).filter(isTicked) }
+    public var actingIDs: [String] { items.filter(\.acts).map(\.id) }
     public var choosableCount: Int { choosable.count }
 
     /// What Apply sends. Rows that cannot be chosen are passed as deselected, so the set
@@ -91,10 +123,10 @@ public struct ReviewSelection: Sendable {
     /// allow. Kept rows, unticked rows (the fold's included) and keys the review never listed are
     /// removed whatever the caller returns; an unrestricted set means "the ticks".
     public func narrowed(_ wanted: ApprovedSet) -> ApprovedSet {
-        guard !wanted.isUnrestricted else { return approved }
-        let keep = Set(wanted.approved).intersection(Set(tickedIDs))
-        let all = items.map(\.id)
-        return ApprovedSet(approvable: all, deselected: Set(all).subtracting(keep))
+        // The result is a copy of the CALLER'S set, restricted: whatever else it carries rides along.
+        // An unrestricted result means "the ticks", still through the caller's set.
+        let keep = wanted.isUnrestricted ? Set(approved.approved) : Set(wanted.approved).intersection(Set(tickedIDs))
+        return wanted.restricted(over: items.map(\.id), keeping: keep)
     }
 
     /// Whether Apply is allowed against `preview` at `now`.
