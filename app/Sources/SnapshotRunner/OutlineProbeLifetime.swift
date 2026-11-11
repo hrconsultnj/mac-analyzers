@@ -54,27 +54,23 @@ enum ProbeLifetime {
         let model = ProbeModel(rows: makeProbeRows(parents: 20, kids: 3))
         func open(_ build: (NSOutlineView, ProbeWindow) -> Void) {
             autoreleasepool {
-                let window = ProbeWindow(contentViewController: NSHostingController(
-                    rootView: ProbeScreen(model: model, hosted: false, autosave: autosave)))
-                window.styleMask = [.titled, .resizable]
-                window.setContentSize(NSSize(width: 700, height: 500))
-                window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-                window.orderFrontRegardless()
-                _ = settle(); spin(0.5)
-                if let outline = window.contentView.flatMap(findOutline(in:)) { build(outline, window) }
-                window.contentViewController = nil
-                window.close()
+                let harness = ProbeHarness(ProbeScreen(model: model, hosted: false, autosave: autosave))
+                build(harness.outline, harness.window)
+                harness.window.contentViewController = nil
+                harness.window.close()
             }
         }
         open { outline, window in
-            outline.tableColumns[1].width = 133                        // the person's width, autosaved
+            outline.tableColumns[1].width = 133                        // the person's width, autosaved with a column move
+            outline.tableColumns[2].isHidden = true
+            outline.moveColumn(1, toColumn: 3)
             _ = settle(); spin(0.5); _ = settle()
-            NotificationCenter.default.post(name: NSTableView.columnDidResizeNotification, object: outline)   // queues a fit ... (the table leaves right after)
-            _ = window
+            window.setContentSize(NSSize(width: 720, height: 500))     // a frame change queues a fit ... (the table leaves right after)
+
         }
         spin(0.8); _ = settle()
         var found: CGFloat = 0
-        open { outline, _ in found = outline.tableColumns[1].width }
+        open { outline, _ in found = outline.tableColumn(withIdentifier: NSUserInterfaceItemIdentifier("cpu"))?.width ?? 0 }
         let kept = Int(found.rounded()) == 133
         say("\(kept ? "PASS" : "FAIL") lifetime:window: a fit queued as the table left its window saved nothing over the person's width (CPU \(Int(found.rounded())), was 133)")
         return kept ? 0 : 1

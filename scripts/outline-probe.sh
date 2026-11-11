@@ -172,7 +172,7 @@ plain() { # plain <label> <probe args…>
 review() {
   local name
   echo "REVIEW — the real ReviewTable, driven"
-  for name in ticks sameTurn updateChoosable acting only readonly unlistable menu; do
+  for name in ticks sameTurn updateChoosable acting only readonly unlistable menu sort; do
     run_probe "review:$name"
     echo "case=review:$name warnings=$WARN outside=$OUTSIDE exit=$RC"
     say_out
@@ -300,7 +300,7 @@ check() {
   # work queued for the next turn when a screen replaces its table: nothing crashes and nothing is written to
   # the caller's bindings. One process per case: a crash is the failure and must not hide the other cases.
   local lifetime
-  for lifetime in fit selection expansion sort; do
+  for lifetime in fit selection expansion sort window; do
     run_probe "lifetime:$lifetime"
     echo "lifetime:$lifetime warnings=$WARN outside=$OUTSIDE exit=$RC"
     say_out

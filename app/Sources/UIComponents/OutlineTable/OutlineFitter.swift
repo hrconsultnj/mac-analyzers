@@ -158,7 +158,7 @@ final class OutlineFitter {
     func fit() {
         // a table being taken out of its window has no room to speak of: fitting it would save that
         // (AppKit autosaves a width change) over what the person had
-        guard columns.count > 1, available > 0 else { return }
+        guard columns.count > 1, scrollView.window != nil, available > 0 else { return }
         // 1. hide optional columns, rightmost first, while the rest does not fit
         for column in columns.reversed() where column.fit == .optional && needed() > available {
             guard isShown(column.id), !personShown.contains(column.id), !personHidden.contains(column.id) else { continue }
