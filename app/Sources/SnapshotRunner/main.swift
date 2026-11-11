@@ -38,7 +38,12 @@ if arguments.first == "--outline-probe" { OutlineProbe.run(Array(arguments.dropF
 // the example screens (`review:fixture`) can be linked only in this process; this tool has no
 // app bundle, so MA_CHANGELOG names the changelog What's New shows (read HERE, never by the app)
 let changelog = ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fileURLWithPath: $0) }
-await MainActor.run { DeepLinkRouter.installFixtures(changelog: changelog) }
+// Called directly, never awaited: one `await` in this file's top-level code makes the whole of it
+// an async task, and `NSApplication.run()` started inside a task never services the main dispatch
+// queue, so the delayed capture below would never fire and the tool would sit there until killed
+// (`scripts/check.sh snapshot` refuses a top-level await here). Top-level code is already on the
+// main actor.
+DeepLinkRouter.installFixtures(changelog: changelog)
 guard arguments.count >= 2 else {
     FileHandle.standardError.write(Data("usage: snapshot-runner <target> <out.png> [--size WxH] [--wait seconds] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available]\n".utf8))
     exit(2)
