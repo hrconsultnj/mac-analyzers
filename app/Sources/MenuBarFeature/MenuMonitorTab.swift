@@ -82,6 +82,9 @@ struct ProcessGroupRow: View {
                         if let detail = row.detail {
                             Text(detail).font(.caption).foregroundStyle(.secondary)
                         }
+                        if let reason = lockedReason {
+                            Text(reason).font(.caption).foregroundStyle(.tertiary)
+                        }
                     }
                     .fixedSize(horizontal: false, vertical: true)
                 }
@@ -114,6 +117,13 @@ struct ProcessGroupRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    /// Said in words under the name, because a padlock alone explains nothing in a panel.
+    private var lockedReason: String? {
+        if row.canQuit && row.isApp { return nil }
+        return row.canQuit ? "Stop it in \(Names.Screen.monitor), which protects live coding sessions"
+                           : "Part of macOS"
     }
 
     @ViewBuilder private var icon: some View {

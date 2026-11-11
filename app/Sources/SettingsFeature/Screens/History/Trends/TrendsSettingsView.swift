@@ -16,16 +16,44 @@ struct TrendsSettingsView: View {
     @Environment(Navigator.self) var navigator
     @State var period: TrendsModel.Period = .day30
     @State var snapshot: TrendsSnapshot?
-    /// The tab shown, remembered across launches; `trends:memory` / `trends:storage` choose it.
-    @AppStorage("trends.category") private var categoryRaw = TrendCategory.memory.rawValue
-    var category: TrendCategory {
-        get { TrendCategory(rawValue: categoryRaw) ?? .memory }
-        nonmutating set { categoryRaw = newValue.rawValue }
-    }
+    /// The tab shown; the shared tabs remember it across launches and
+    /// `trends:memory` / `trends:storage` choose it.
+    @State var category: TrendCategory = .memory
     /// Storage tab, level 3: what was deleted, by project.
     @State var projects: [DiskReclaimedGroup] = []
 
+    private var tabItems: [ScopeTabItem<TrendCategory>] {
+        TrendCategory.allCases.map {
+            ScopeTabItem(value: $0, title: $0.title, symbol: $0.symbol, count: count($0))
+        }
+    }
+
     var body: some View {
+        DataScreen(title: Names.Screen.trends, subtitle: period.headlinePrefix) { list }
+            .scopeTabsToolbar(screen: "trends", items: tabItems, selection: $category)
+            .toolbar {
+                // A menu `Picker` in the toolbar draws an empty capsule (it does not show the
+                // selected title there); a `Menu` shows its icon, and the period is in the subtitle.
+                ToolbarItem {
+                    Menu {
+                        Picker("Period", selection: $period) {
+                            ForEach(TrendsModel.Period.allCases, id: \.self) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Label(period.label, systemImage: "calendar")
+                    }
+                }
+            }
+            .task {
+                if let payload = navigator.takeIntent(for: HistoryGroup.trends),
+                   let requested = TrendCategory(rawValue: payload) { category = requested }
+                await load()
+            }
+            .onChange(of: period) { Task { await load() } }
+    }
+
+    private var list: some View {
         List {
             if let snap = snapshot {
                 Section {
@@ -47,38 +75,6 @@ struct TrendsSettingsView: View {
                 Section { ProgressView("Reading the logs…") }
             }
         }
-        .navigationTitle(Names.Screen.trends)
-        .navigationSubtitle(period.headlinePrefix)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("Show", selection: Binding(get: { category }, set: { category = $0 })) {
-                    ForEach(TrendCategory.allCases) { kind in
-                        Label("\(kind.title)\(count(kind).map { " (\($0))" } ?? "")", systemImage: kind.symbol)
-                            .labelStyle(.titleAndIcon)
-                            .tag(kind)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-            // A menu `Picker` in the toolbar draws an empty capsule (it does not show the
-            // selected title there); a `Menu` shows its icon, and the period is in the subtitle.
-            ToolbarItem {
-                Menu {
-                    Picker("Period", selection: $period) {
-                        ForEach(TrendsModel.Period.allCases, id: \.self) { Text($0.label).tag($0) }
-                    }
-                    .pickerStyle(.inline)
-                } label: {
-                    Label(period.label, systemImage: "calendar")
-                }
-            }
-        }
-        .task {
-            if let payload = navigator.takeIntent(for: HistoryGroup.trends),
-               let requested = TrendCategory(rawValue: payload) { category = requested }
-            await load()
-        }
-        .onChange(of: period) { Task { await load() } }
     }
 
     /// How much each tab holds: guard events in Memory, cleanups that freed space in Storage.

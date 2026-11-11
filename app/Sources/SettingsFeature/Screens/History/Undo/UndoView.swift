@@ -29,7 +29,34 @@ struct UndoView: View {
 
     private var shown: [UndoEntry] { entries.filter { $0.scope == scope } }
 
+    private var tabItems: [ScopeTabItem<UndoEntry.Scope>] {
+        UndoEntry.Scope.allCases.map { kind in
+            ScopeTabItem(value: kind, title: title(kind), symbol: kind == .trashed ? "trash" : "hand.raised",
+                         count: entries.filter { $0.scope == kind }.count)
+        }
+    }
+
     var body: some View {
+        DataScreen(title: Names.Screen.undo, subtitle: subtitle) { content }
+            .scopeTabsToolbar(screen: "undo", items: tabItems, selection: $scope)
+            .alert("Couldn't Restore", isPresented: Binding(get: { restoreError != nil },
+                                                            set: { if !$0 { restoreError = nil } })) {
+                Button("OK") { restoreError = nil }
+            } message: {
+                Text(restoreError ?? "")
+            }
+            .task {
+                // `undo:trashed`, `undo:servers`, `undo:opened`: which kind, and whether every run is open
+                switch navigator.takeIntent(for: HistoryGroup.undo) {
+                case "servers": scope = .stopped
+                case "opened": scope = .trashed; openAll = true
+                default: break
+                }
+                await load()
+            }
+    }
+
+    private var content: some View {
         Group {
             if loaded && shown.isEmpty {
                 empty
@@ -48,36 +75,6 @@ struct UndoView: View {
                     }
                 }
             }
-        }
-        .navigationTitle(Names.Screen.undo)
-        .navigationSubtitle(subtitle)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("Show", selection: $scope) {
-                    ForEach(UndoEntry.Scope.allCases, id: \.self) { kind in
-                        Label("\(title(kind)) (\(entries.filter { $0.scope == kind }.count))",
-                              systemImage: kind == .trashed ? "trash" : "hand.raised")
-                            .labelStyle(.titleAndIcon)
-                            .tag(kind)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-        }
-        .alert("Couldn't Restore", isPresented: Binding(get: { restoreError != nil },
-                                                        set: { if !$0 { restoreError = nil } })) {
-            Button("OK") { restoreError = nil }
-        } message: {
-            Text(restoreError ?? "")
-        }
-        .task {
-            // `undo:trashed`, `undo:servers`, `undo:opened`: which kind, and whether every run is open
-            switch navigator.takeIntent(for: HistoryGroup.undo) {
-            case "servers": scope = .stopped
-            case "opened": scope = .trashed; openAll = true
-            default: break
-            }
-            await load()
         }
     }
 

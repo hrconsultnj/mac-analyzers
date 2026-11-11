@@ -49,7 +49,7 @@ extension MenuContentView {
         storageRow(title: "Deep Clean",
                    summary: store.storageDeepSummary,
                    when: ScheduleKit.describe(GuardControl.storageDeepLabel),
-                   what: "Also the node_modules of idle projects, idle worktrees, package-manager and app caches, unused Docker images and Time Machine snapshots.",
+                   what: "Also clears idle projects, old caches, unused Docker images and Time Machine snapshots.",
                    label: GuardControl.storageDeepLabel, symbol: "wand.and.stars", color: .purple)
 
         Divider()

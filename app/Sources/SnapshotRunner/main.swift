@@ -53,8 +53,6 @@ let fakeRunning = arguments.contains("--fake-running")
 let fakeFailed = arguments.contains("--fake-failed")
 let fakeReview = arguments.contains("--fake-review")
 let scrollToEnd = arguments.contains("--scroll-end")
-/// `--old-version`: pretend this copy is v1.0.0, so a newer release exists and the screens that react to an update can be seen.
-let oldVersion = arguments.contains("--old-version")
 /// `--update-state uptodate|dev|available`: which state the sidebar's version item shows
 /// (the network is not asked), to render every state of it.
 let updateStateOption = option("--update-state")
@@ -72,8 +70,8 @@ final class Snapshot: NSObject, NSApplicationDelegate {
     /// bundle comes from the repository's VERSION file here — the render then
     /// shows what the installed app would.
     let updates: UpdateState = {
-        let version = oldVersion ? "1.0.0" : ((try? String(contentsOf: AnalyzersPaths.suiteRoot.appending(path: "VERSION"), encoding: .utf8))
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? "0")
+        let version = (try? String(contentsOf: AnalyzersPaths.suiteRoot.appending(path: "VERSION"), encoding: .utf8))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? "0"
         // the stamp build.sh would have written, read from git here instead
         func git(_ args: [String]) -> String {
             let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
