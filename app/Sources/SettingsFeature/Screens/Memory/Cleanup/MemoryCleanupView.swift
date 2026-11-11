@@ -67,12 +67,15 @@ struct MemoryCleanupView: View {
 
     @ViewBuilder private var reviewTable: some View {
         if let session = model.session, let job = model.previewJob, let review = model.review {
-            let tabs = CleanupTabs(review)
+            let tabs = CleanupTabs(review, includingAppQuits: false)
             let current = tabs.items.contains { $0.value == tab } ? tab : (tabs.items.first?.value ?? tab)
+            let apps = review.appQuits.map(\.name)
             ReviewTable(session: session, preview: job, applyTitle: Names.Cleanup.closePrograms,
                         confirmation: ReviewConfirmation(
-                            verb: "Close", destination: "now",
-                            message: "Each program is asked to stop. Programs that belong to a live coding session are never touched.",
+                            verb: "Close", destination: apps.isEmpty ? "now" : "now, and quit \(apps.joined(separator: ", "))",
+                            message: apps.isEmpty
+                                ? "Each program is asked to stop. Programs that belong to a live coding session are never touched."
+                                : "Each program is asked to stop, and \(apps.joined(separator: ", ")) \(apps.count == 1 ? "is" : "are") asked to quit; they still ask before discarding unsaved work. Programs that belong to a live coding session are never touched.",
                             permanent: nil),
                         note: review.protectedNote,
                         onPreviewAgain: preview,
@@ -80,6 +83,22 @@ struct MemoryCleanupView: View {
                         only: tabs.hasTabs ? tabs.rowIDs[current] : nil,
                         approval: { model.approval(for: $0) })
                 .modifier(CleanupTabsModifier(tabs: tabs, screen: "cleanup", selection: $tab))
+                .safeAreaInset(edge: .top, spacing: 0) { appQuitNote(review.appQuits) }
+        }
+    }
+
+    /// The apps that will be asked to quit as well. They are not rows (they are not ticked), so they are said here.
+    @ViewBuilder private func appQuitNote(_ apps: [CleanupCandidate]) -> some View {
+        if !apps.isEmpty {
+            let names = apps.map(\.name).joined(separator: ", ")
+            HStack {
+                Label("\(apps.count == 1 ? "This app is" : "These apps are") on your list and will be asked to quit as well: \(names). Turn off Also Quit in Options to leave \(apps.count == 1 ? "it" : "them") open.",
+                      systemImage: "app.badge")
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(.bar)
         }
     }
 
@@ -93,13 +112,15 @@ struct MemoryCleanupView: View {
             let selected = session.selectedRows
             if selected.isEmpty { return "Nothing selected" }
             // Select All ticks every tab: never let a person approve rows on a tab they have not looked at unknowingly
-            let tabs = CleanupTabs(review)
+            let tabs = CleanupTabs(review, includingAppQuits: false)
             let current = tabs.items.contains { $0.value == tab } ? tab : (tabs.items.first?.value ?? tab)
             let inView = tabs.rowIDs[current] ?? []
             let covers = tabs.hasTabs ? tabs.tabsCovered(by: selected.map(\.id)) : 1
             let beyond = tabs.hasTabs && selected.contains { !inView.contains($0.id) }
             let size = ByteSize.format(session.selectedBytes)
-            return beyond ? "\(selected.count) selected across \(covers) tabs · \(size)" : "\(selected.count) selected · \(size)"
+            let apps = review.appQuits.count
+            let quits = apps == 0 ? "" : " · \(apps) \(apps == 1 ? "app" : "apps") will quit"
+            return (beyond ? "\(selected.count) selected across \(covers) tabs · \(size)" : "\(selected.count) selected · \(size)") + quits
         case .done(let summary): return summary
         case .failed: return "Didn't finish"
         }

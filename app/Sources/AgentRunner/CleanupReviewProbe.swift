@@ -53,14 +53,14 @@ func probeCleanupReview(_ args: [String]) -> Never {
     print("\nselection:")
     let keys = review.approvableKeys
     print("  tickable rows: \(keys.count), asks apps to quit: \(review.appQuits.count)")
-    let none = review.approvedSet(deselected: [])
-    print("  nothing unticked → narrowed: \(none.isNarrowed), list sent: \(none.isNarrowed || JobKind.memoryClean.alwaysSendsApprovalList)")
+    let all = review.approvedSet(ticked: Set(keys))
+    print("  everything ticked → narrowed: \(all.isNarrowed), approved \(all.approved.count) of \(keys.count), apps \(all.apps ?? [])")
     if let first = keys.first {
-        let some = review.approvedSet(deselected: [first])
+        let some = review.approvedSet(ticked: Set(keys).subtracting([first]))
         print("  one unticked   → approved \(some.approved.count) of \(keys.count), narrowed: \(some.isNarrowed)")
     }
     let empty = CleanupReview(run: ReapParser.parse(runHeader: "x", lines: []))
-    let emptySet = empty.approvedSet(deselected: [])
+    let emptySet = empty.approvedSet(ticked: [])
     print("  nothing to tick → an explicit empty list is sent: narrowed \(emptySet.isNarrowed), approved \(emptySet.approved.count)")
 
     print("\narguments:")
@@ -96,46 +96,108 @@ func probeCleanupReview(_ args: [String]) -> Never {
     """.write(to: script, atomically: true, encoding: .utf8)
     chmod(script.path, 0o755)
 
-    let lines = ["### 3. Dev servers older than 24h",
-                 "[DRY]    310 MB  pid=4242  stale-dev (30h): next-server (v16.2.7)",
-                 "[DRY]    120 MB  pid=4243  stale-dev (26h): next-server (v16.3.1)",
-                 "[DRY]     64 MB  pid=4244  stale-dev (25h): vite"]
+    // real throwaway programs, so every row has a real identity (a made-up pid would count as ended)
+    func sleeper() -> Process {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        p.arguments = ["120"]
+        try? p.run()
+        return p
+    }
+    let procs = [sleeper(), sleeper(), sleeper(), sleeper()]
+    defer { for p in procs where p.isRunning { p.terminate() } }
+    try? await Task.sleep(for: .milliseconds(400))
+    let pids = procs.map { Int($0.processIdentifier) }
+    let (a, b, c, busy) = (pids[0], pids[1], pids[2], pids[3])
+
     let store = JobStore(ledger: JobLedger(url: dir.appending(path: "jobs.jsonl")))
     store.scriptOverride = script
-    store.outcomeOverride = { _, header in
-        let banner = header ?? "memory auto-clean  |  DRY RUN"
-        return JobOutcome(parsed: .reap(ReapParser.parse(runHeader: banner, lines: lines)),
-                          run: LogRun(id: 0, header: banner, lines: lines), match: .exact)
-    }
     func wait(_ job: Job) async { while !job.state.isFinished { try? await Task.sleep(for: .milliseconds(30)) } }
     func idle() async { while store.running != nil || !store.queued.isEmpty { try? await Task.sleep(for: .milliseconds(30)) } }
-    func last() -> String { ((try? String(contentsOf: record, encoding: .utf8)) ?? "").split(separator: "\n").suffix(2).joined(separator: "  |  ") }
+    func recorded() -> String {
+        ((try? String(contentsOf: record, encoding: .utf8)) ?? "").split(separator: "\n").suffix(2).joined(separator: "  |  ")
+            .replacingOccurrences(of: "\n", with: "\\n")
+    }
+    var failed = false
+    func check(_ name: String, _ ok: Bool, _ detail: String) {
+        print("  \(ok ? "ok  " : "FAIL") \(name)\n       \(detail)")
+        if !ok { failed = true }
+    }
 
-    func scenario(_ title: String, kind: JobKind = .memoryClean, options: JobOptions = JobOptions(),
-                  deselect: Set<String> = []) async {
+    /// Previews `lines`, ticks what `ticked` says (by pid), applies through the store the way the screen does
+    /// (`approvedSet(ticked:)`), and returns what the engine was given.
+    func scenario(_ title: String, lines: [String], kind: JobKind = .memoryClean, options: JobOptions = JobOptions(),
+                  ticked: ([Int]) -> Set<String>) async -> (given: String, approved: ApprovedSet, file: [String]?)? {
+        store.outcomeOverride = { _, header in
+            let banner = header ?? "memory auto-clean  |  DRY RUN"
+            return JobOutcome(parsed: .reap(ReapParser.parse(runHeader: banner, lines: lines)),
+                              run: LogRun(id: 0, header: banner, lines: lines), match: .exact)
+        }
         let preview = store.enqueue(JobRequest(kind: kind, intent: .preview, options: options), trigger: .user)
         await wait(preview)
         await idle()
         try? FileManager.default.removeItem(at: record)
         guard case .succeeded(let outcome) = preview.state, case .reap(let run) = outcome.parsed else {
-            print("\(title): preview did not finish"); return
+            print("\(title): preview did not finish"); return nil
         }
         let review = CleanupReview(run: run)
-        let previewArgs = (try? kind.previewArgs(options)) ?? []
-        let approved = review.approvedSet(deselected: deselect)
+        let approved = review.approvedSet(ticked: ticked(review.approvableKeys.compactMap(Int.init)))
         let apply = store.apply(from: preview, approved: approved)
         await wait(apply)
         await idle()
-        print("\(title)\n    preview args: \(previewArgs.joined(separator: " "))\n    ticked: \(review.selectedCount(deselected: deselect)) of \(review.approvableKeys.count)\n    engine was given: \(last())")
+        let text = (try? String(contentsOf: record, encoding: .utf8)) ?? ""
+        let file = text.split(separator: "\n").first { $0.hasPrefix("approved file:") }
+            .map { $0.dropFirst("approved file:".count).split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+        print("\(title)\n    ticked: \(approved.approved.count) of \(review.approvableKeys.count), apps \(approved.apps ?? [])\n    engine was given: \(recorded())")
+        return (text, approved, file)
     }
 
-    await scenario("1. nothing unticked")
-    await scenario("2. one row unticked (pid 4243)", deselect: ["4243"])
-    await scenario("3. everything unticked", deselect: ["4242", "4243", "4244"])
-    await scenario("4. busy orphans included", options: JobOptions(includeBusyOrphans: true))
-    await scenario("5. reclaim, also quit Opera and Docker", kind: .reclaim, options: JobOptions(alsoQuit: ["Opera", "Docker"]))
+    let base = ["### 3. Dev servers older than 24h",
+                "[DRY]    310 MB  pid=\(a)  stale-dev (30h): next-server (v16.2.7)",
+                "[DRY]    120 MB  pid=\(b)  stale-dev (26h): next-server (v16.3.1)",
+                "[DRY]     64 MB  pid=\(c)  stale-dev (25h): vite"]
+    print("scenarios, each applied the way the screen applies (approvedSet(ticked:), real programs):")
+    let s1 = await scenario("1. everything ticked, nothing left alone", lines: base) { Set($0.map(String.init)) }
+    check("a list is ALWAYS sent, even with everything ticked and nothing kept",
+          s1?.file.map { Set($0) == Set([a, b, c].map(String.init)) } == true, "file \(s1?.file ?? [])")
+    let s2 = await scenario("2. one row unticked", lines: base) { Set($0.map(String.init)).subtracting([String(b)]) }
+    check("an unticked row is not in the list", s2?.file.map { Set($0) == Set([a, c].map(String.init)) } == true, "file \(s2?.file ?? [])")
+    let s3 = await scenario("3. everything unticked", lines: base) { _ in [] }
+    check("nothing ticked sends an explicit empty list", s3?.file?.isEmpty == true, "file \(s3?.file ?? ["no list"])")
+    let s4 = await scenario("4. busy orphans included", lines: base, options: JobOptions(includeBusyOrphans: true)) { Set($0.map(String.init)) }
+    check("the option reaches the apply and a list is sent", (s4?.given.contains("--orphans-all")) == true && s4?.file != nil,
+          "file \(s4?.file ?? [])")
+
+    // all ticked with one program left alone (a busy one the review shows as left alone)
+    let withLeftAlone = base + ["[SKIP]   200 MB  pid=\(busy)  in use - no session or terminal in its project: next-server (v16.2.9)"]
+    let s5 = await scenario("5. everything closable ticked, one program left alone", lines: withLeftAlone) { Set($0.map(String.init)) }
+    check("the left-alone program is not in the list, and a list is sent",
+          s5?.file.map { !$0.contains(String(busy)) && Set($0) == Set([a, b, c].map(String.init)) } == true, "file \(s5?.file ?? [])")
+
+    // all ticked with a live-session row ("Kept"): an aggregate the engine counts and never closes
+    let withSession = base + ["4× claude    325 MB total"]
+    let s6 = await scenario("6. everything closable ticked, a live-session row kept", lines: withSession) { Set($0.map(String.init)) }
+    check("a live-session row never changes the list, which is sent", s6?.file.map { Set($0) == Set([a, b, c].map(String.init)) } == true,
+          "file \(s6?.file ?? [])")
+
+    // reclaim, an app on the list that is eligible, one that was not running, and one that hosts a session
+    let appLines = base + ["### 12. Quitting heavy apps",
+                           "[DRY]   1413 MB  would quit: Opera",
+                           "[SKIP]  Docker — not running",
+                           "[SKIP]  Visual Studio Code — hosts 1 live coding session(s); quit it yourself to end them"]
+    let s7 = await scenario("7. reclaim, also quit Opera, Docker and Visual Studio Code", lines: appLines, kind: .reclaim,
+                            options: JobOptions(alsoQuit: ["Opera", "Docker", "Visual Studio Code"])) { Set($0.map(String.init)) }
+    check("the apply quits exactly the app the review listed as 'would quit', not the names that match now",
+          (s7?.given.contains("--apps-list Opera")) == true && s7?.given.contains("Docker") == false
+              && s7?.given.contains("Visual Studio Code") == false && s7?.file != nil,
+          recorded())
+    let s8 = await scenario("8. reclaim, the only action is an app", lines: ["### 12. Quitting heavy apps", "[DRY]   1413 MB  would quit: Opera"],
+                            kind: .reclaim, options: JobOptions(alsoQuit: ["Opera"])) { Set($0.map(String.init)) }
+    check("with nothing to tick, an explicit empty list is sent and the listed app is still named",
+          s8?.file?.isEmpty == true && s8?.given.contains("--apps-list Opera") == true, "file \(s8?.file ?? ["no list"])")
+
     approvalCases()
-    exit(0)
+    exit(failed ? 1 : 0)
 }
 
 /// What Apply sends must be the very set the review counts: a row that is left alone, folded away as

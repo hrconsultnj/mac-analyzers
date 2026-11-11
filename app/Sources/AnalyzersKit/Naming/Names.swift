@@ -240,7 +240,7 @@ public enum Names {
         public static let stateKept = "Kept"
         public static let stateClosed = "Closed"
         public static let stateGone = "Already Gone"
-        public static let stateNotApproved = "Not Approved"
+        public static let stateNotApproved = "Left Out by You"
     }
 
     // MARK: - everything above, for the check

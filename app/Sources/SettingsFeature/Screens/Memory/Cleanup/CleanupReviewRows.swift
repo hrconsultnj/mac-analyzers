@@ -10,8 +10,11 @@ extension CleanupReview {
     /// what the engine's list is made of); everything else is shown with the reason it is
     /// left alone, and can never be ticked.
     /// `changed` are the keys of programs that are no longer the ones reviewed: shown, not tickable.
+    ///
+    /// An app on the "also quit" list is NOT a row of the review: it acts without being ticked, and the shared
+    /// table counts a row it cannot tick as "kept". The screen says in words which apps will be quit instead.
     func reviewRows(changed: Set<String> = []) -> [ReviewRow] {
-        candidates.map { row(for: $0, changed: changed) }
+        candidates.filter { $0.state != .willBeAskedToQuit }.map { row(for: $0, changed: changed) }
     }
 
     /// The same findings as a finished run's results: nothing to tick, what became of each as its detail.
@@ -35,7 +38,6 @@ extension CleanupReview {
                     ? "Uses no memory, so closing it would free nothing."
                     : "It ended, or another program took its process number, since the preview."
             }
-            if candidate.state == .willBeAskedToQuit { return "Will be asked to quit because it is on your list." }
             return candidate.reason.isEmpty ? candidate.stateText : candidate.reason
         }()
         return ReviewRow(id: candidate.reviewKey, name: name, detail: candidate.detail, group: candidate.groupName,
@@ -67,8 +69,15 @@ struct CleanupTabs {
         return rowIDs.values.filter { !$0.isDisjoint(with: wanted) }.count
     }
 
-    init(_ review: CleanupReview) {
-        let totals = review.categories()
+    /// `shown` are the findings the tabs are made of: the review leaves out the apps that will be quit
+    /// (they are not rows), the results show everything.
+    init(_ review: CleanupReview, includingAppQuits: Bool = true) {
+        let rows = review.candidates.filter { includingAppQuits || $0.state != .willBeAskedToQuit }
+        let totals = CleanupCandidate.Category.allCases.compactMap { category -> (category: CleanupCandidate.Category, count: Int, bytes: Int64)? in
+            let mine = rows.filter { $0.category == category }
+            guard !mine.isEmpty else { return nil }
+            return (category, mine.reduce(0) { $0 + $1.count }, mine.reduce(Int64(0)) { $0 + $1.memoryBytes })
+        }
         let limit = 6
         // keep the biggest kinds when there are too many; the rest go under Other
         let kept = totals.count > limit
@@ -80,14 +89,14 @@ struct CleanupTabs {
         for total in totals where keptCategories.contains(total.category) {
             let tab = CleanupTab(total.category)
             items.append(ScopeTabItem(value: tab, title: total.category.title, symbol: total.category.symbol, count: total.count))
-            ids[tab] = Set(review.candidates.filter { $0.category == total.category }.map(CleanupReview.rowID))
+            ids[tab] = Set(rows.filter { $0.category == total.category }.map(CleanupReview.rowID))
         }
         let rest = totals.filter { !keptCategories.contains($0.category) }
         if !rest.isEmpty {
             items.append(ScopeTabItem(value: .other, title: Names.Cleanup.other, symbol: "ellipsis.circle",
                                       count: rest.reduce(0) { $0 + $1.count }))
             let others = Set(rest.map(\.category))
-            ids[.other] = Set(review.candidates.filter { others.contains($0.category) }.map(CleanupReview.rowID))
+            ids[.other] = Set(rows.filter { others.contains($0.category) }.map(CleanupReview.rowID))
         }
         self.items = items
         rowIDs = ids

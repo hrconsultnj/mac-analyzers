@@ -187,7 +187,10 @@ public final class JobStore {
     /// no longer what an apply would act on.
     @discardableResult
     public func apply(from preview: Job, approved: ApprovedSet) -> Job {
-        let request = JobRequest(kind: preview.kind, intent: .apply, options: preview.request.options,
+        // the apps to quit are the ones the review listed, not whatever the name list matches now
+        var options = preview.request.options
+        if let apps = approved.apps { options.alsoQuit = apps }
+        let request = JobRequest(kind: preview.kind, intent: .apply, options: options,
                                  approved: approved)
         let reason: String?
         if !preview.kind.isCleaner {

@@ -16,19 +16,37 @@ public struct ApprovedSet: Sendable, Hashable {
     /// True for `ApprovedSet.everything`: no per-row list exists.
     public let isUnrestricted: Bool
 
+    /// For a cleanup that can also quit apps: exactly the apps the review listed as "would quit".
+    /// nil leaves the apply with the apps its preview was started with. An app that became eligible
+    /// after the preview (it was not running, or its live session ended) is not in this list and is
+    /// not quit.
+    public let apps: [String]?
+
     /// `approvable` is every key the review offered; `deselected` the ones the
     /// user unticked.
     public init(approvable: [String], deselected: Set<String>) {
         self.approved = approvable.filter { !deselected.contains($0) }
         self.isNarrowed = !deselected.isEmpty
         self.isUnrestricted = false
+        self.apps = nil
     }
 
     private init() {
         approved = []
         isNarrowed = false
         isUnrestricted = true
+        apps = nil
     }
+
+    private init(copying other: ApprovedSet, apps: [String]?) {
+        approved = other.approved
+        isNarrowed = other.isNarrowed
+        isUnrestricted = other.isUnrestricted
+        self.apps = apps
+    }
+
+    /// The same set, with exactly these apps to quit at apply time.
+    public func withApps(_ apps: [String]) -> ApprovedSet { ApprovedSet(copying: self, apps: apps) }
 
     /// For jobs with no per-row approval (Spotlight, login items, Time Machine)
     /// and for cleaners where nothing was deselected. Never valid for a kind

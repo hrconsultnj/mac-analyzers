@@ -53,24 +53,6 @@ public struct CleanupReview: Sendable {
     /// Every key the review offered: one pid per tickable row.
     public var approvableKeys: [String] { selectable.compactMap(\.approvalKey) }
 
-    /// What the person left ticked, for `JobStore.apply(from:approved:)`.
-    /// Nothing unticked sends no list (the engine runs as it always did);
-    /// unticking sends the ticked pids, and an engine that finds more than was
-    /// reviewed can only close fewer. When there is nothing to tick at all — a
-    /// run whose only action is asking apps to quit — an explicit EMPTY list is
-    /// sent, so an apply can never close a process nobody reviewed.
-    ///
-    /// A row whose pid is no longer the program the review showed (it ended, or
-    /// the system gave the pid to another program) counts as unticked, whatever
-    /// the person did: the engine has its own check, and this is the app's.
-    public func approvedSet(deselected: Set<String>) -> ApprovedSet {
-        guard !approvableKeys.isEmpty else {
-            return ApprovedSet(approvable: ["none"], deselected: ["none"])
-        }
-        let changed = Set(changedSinceReview().compactMap(\.approvalKey))
-        return ApprovedSet(approvable: approvableKeys, deselected: deselected.union(changed))
-    }
-
     /// What may be ticked in the review: a program the preview found that is still the program it
     /// found, and that is worth closing. A program using no memory is shown folded away and is never
     /// chosen (closing it frees nothing); one whose pid is no longer the reviewed program, or that is
@@ -85,18 +67,26 @@ public struct CleanupReview: Sendable {
         Set(changedSinceReview().compactMap(\.approvalKey))
     }
 
+    /// The one extra key every Apply from this screen deselects, so the set is ALWAYS narrowed and the
+    /// engine is ALWAYS given a list: without a list it closes whatever qualifies when the apply runs,
+    /// including a busy program the review showed as left alone that has gone idle since, and anything
+    /// that appeared after the preview.
+    static let listMarker = "reviewed"
+
     /// What Apply sends: exactly the ticked rows, minus any whose pid is no longer the reviewed program.
-    /// Rows that cannot be ticked (left alone, kept, folded away as nothing) are never in it, whatever
-    /// "Select All" did. Nothing to send at all is an explicit empty list, so an apply can never close a
-    /// process nobody reviewed.
+    /// Every other row the review shows (left alone, kept for a live session, folded away as nothing, an
+    /// app that will be asked to quit) counts as deselected, whatever "Select All" did, and the list is
+    /// always sent, even when everything that can be closed is ticked and nothing is left alone. Nothing
+    /// to send is an explicit empty list, so an apply can never close a process nobody reviewed.
+    ///
+    /// The apps it carries are exactly the ones the review listed as "would quit": an app that was not
+    /// running, or hosted a live session, when it was previewed is not quit because it is eligible now.
     public func approvedSet(ticked: Set<String>) -> ApprovedSet {
-        guard !approvableKeys.isEmpty else {
-            return ApprovedSet(approvable: ["none"], deselected: ["none"])
-        }
-        let changed = changedKeys()
-        let wanted = Set(approvableKeys).intersection(ticked).subtracting(changed)
-        if wanted.isEmpty { return ApprovedSet(approvable: ["none"], deselected: ["none"]) }
-        return ApprovedSet(approvable: approvableKeys, deselected: Set(approvableKeys).subtracting(wanted))
+        let wanted = Set(approvableKeys).intersection(ticked).subtracting(changedKeys())
+        var deselected = Set(candidates.map(\.reviewKey)).subtracting(wanted)
+        deselected.insert(Self.listMarker)
+        return ApprovedSet(approvable: approvableKeys, deselected: deselected)
+            .withApps(appQuits.map(\.name))
     }
 
     /// Tickable rows whose pid is not the program that was reviewed any more.
@@ -154,19 +144,5 @@ public struct CleanupReview: Sendable {
                 return row.renamed("\(row.name) (process \(pid))")
             }
             .sorted { $0.memoryBytes != $1.memoryBytes ? $0.memoryBytes > $1.memoryBytes : $0.id < $1.id }
-    }
-
-    public func selectedCount(deselected: Set<String>) -> Int {
-        approvableKeys.filter { !deselected.contains($0) }.count
-    }
-
-    public func selectedBytes(deselected: Set<String>) -> Int64 {
-        selectable.filter { !deselected.contains($0.approvalKey ?? "") }
-            .reduce(0) { $0 + $1.memoryBytes }
-    }
-
-    /// Whether Apply has anything to do.
-    public func hasAction(deselected: Set<String>) -> Bool {
-        selectedCount(deselected: deselected) > 0 || !appQuits.isEmpty
     }
 }
