@@ -3,7 +3,7 @@ import Foundation
 /// Parsed login-items-audit run: the four audit scopes with per-entry
 /// verdicts and — the whole point — the exact remediation command per row.
 public struct LoginItemEntry: Identifiable, Hashable, Sendable {
-    public enum Verdict: String, Sendable {
+    public enum Verdict: String, Sendable, CaseIterable {
         case orphan = "ORPHAN"
         case orphanSudo = "NEEDS SUDO"
         case removed = "REMOVED"

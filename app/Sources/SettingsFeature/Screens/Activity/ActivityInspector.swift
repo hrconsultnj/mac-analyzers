@@ -46,7 +46,7 @@ struct ActivityInspector: View {
         let current = tabs.contains(tab) ? tab : (tabs.first ?? tab)
         return DataScreen(title: row.displayTitle, subtitle: statusSentence(row, live: live)) {
             VStack(alignment: .leading, spacing: 0) {
-                facts(row).padding([.horizontal, .top]).padding(.bottom, 8)
+                facts(row).padding([.horizontal, .top]).padding(.bottom, Tokens.Space.m)
                 banners(row, live: live)
                 results(row, live: live, sections: sections, current: current)
             }
@@ -96,9 +96,9 @@ struct ActivityInspector: View {
         if let live, live.isActive {
             EmptyView()
         } else if row.needsReview || (row.intent == .preview && row.findings > 0) {
-            review(row).padding(.horizontal).padding(.bottom, 8)
+            review(row).padding(.horizontal).padding(.bottom, Tokens.Space.m)
         } else if lostItsResults(live) {
-            lostResults(row).padding(.horizontal).padding(.bottom, 8)
+            lostResults(row).padding(.horizontal).padding(.bottom, Tokens.Space.m)
         }
     }
 

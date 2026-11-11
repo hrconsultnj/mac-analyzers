@@ -117,7 +117,8 @@ struct RunHistoryList: View {
 
     @Environment(JobStore.self) private var store
     @Environment(Navigator.self) private var navigator
-    @State private var expanded = false
+    /// Runs added by each "Show Older" / "Show All" press, 200 at a time.
+    @State private var extra = 0
     private var model: ActivityModel { .shared }
 
     /// Changes only when a job moves between queued, running and finished.
@@ -136,8 +137,7 @@ struct RunHistoryList: View {
     }
 
     private func shownDays(of all: [ActivityDay]) -> (days: [ShownDay], cut: Bool) {
-        let budget = limit ?? Self.cap
-        guard !expanded else { return (all.map { ShownDay(day: $0, rows: $0.rows) }, false) }
+        let budget = (limit ?? Self.cap) + extra
         var days: [ShownDay] = []
         var used = 0
         for day in all {
@@ -180,11 +180,11 @@ struct RunHistoryList: View {
             }
             if cut {
                 Section {
-                    Button(limit != nil ? Names.Raw.showAll : Names.Raw.showOlder) { expanded = true }
+                    Button(limit != nil ? Names.Raw.showAll : Names.Raw.showOlder) { extra += Self.cap }
                 }
             }
         }
         .task { if refreshes { await model.refreshIfNeeded(store: store) } }
-        .onChange(of: storeStamp) { if refreshes { Task { await model.refresh(store: store) } } }
+        .onChange(of: storeStamp) { if refreshes { Task { await model.refreshIfNeeded(store: store, maxAge: 0) } } }
     }
 }

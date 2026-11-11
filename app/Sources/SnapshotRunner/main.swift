@@ -113,7 +113,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         jobs.scriptOverride = nothing
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
         if updateStateOption == nil { Task { await updates.check() } }
-        let root = MainWindowView()
+        let root = MainWindowView(restoresLocation: false)
             .environment(store)
             .environment(config)
             .environment(jobs)

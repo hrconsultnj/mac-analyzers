@@ -29,6 +29,6 @@ struct JobScreen: View {
         }
         .navigationTitle(row?.displayTitle ?? "Run")
         .task { await model.refreshIfNeeded(store: store) }
-        .onChange(of: storeStamp) { Task { await model.refresh(store: store) } }
+        .onChange(of: storeStamp) { Task { await model.refreshIfNeeded(store: store, maxAge: 0) } }
     }
 }

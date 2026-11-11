@@ -21,6 +21,16 @@ extension SetupSettingsView {
     }
 
     private func notificationCheck() async -> SetupCheck {
+        // A bare executable has no app bundle, and the notification center throws without
+        // one (a tool quirk: the installed app always has a bundle). Say so instead.
+        guard Bundle.main.bundleIdentifier != nil else {
+            return SetupCheck(
+                id: "notifications", title: "Alerts when something happens",
+                why: "Tells you when an app was stopped or space was reclaimed, so nothing happens behind your back.",
+                verdict: .unset,
+                detail: "Can't be checked here: this is running without an app bundle.",
+                repair: .none, repairTitle: nil)
+        }
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         switch settings.authorizationStatus {
         case .authorized, .provisional:
