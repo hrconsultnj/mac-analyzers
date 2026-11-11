@@ -54,6 +54,10 @@ let package = Package(
         // window that is never on a display (see Sources/SnapshotRunner/main.swift)
         .executableTarget(name: "SnapshotRunner", dependencies: ["AnalyzersKit", "SettingsFeature", "UIComponents"],
                           swiftSettings: strictSwift),
+        // development tool, never bundled: renders the menu-bar panel's content to a
+        // PNG in a plain window of the panel's size (see Sources/MenuSnapshot/main.swift)
+        .executableTarget(name: "MenuSnapshot", dependencies: ["AnalyzersKit", "MenuBarFeature", "UIComponents"],
+                          swiftSettings: strictSwift),
         // features ("pages/components")
         .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit", "UIComponents"], swiftSettings: strictSwift),
         .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "NotifierKit", "UIComponents"] + proTargetDependencies,

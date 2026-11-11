@@ -73,6 +73,7 @@ public struct ActivityOutcome: Sendable {
     }
 
     public static func make(_ parsed: JobOutcome.Parsed, run: LogRun?, log: EngineLog?) -> ActivityOutcome {
+        if let run, RestoreBlock.isRestore(header: run.header) { return RestoreBlock.outcome(run) }
         var b = Builder()
         switch parsed {
         case .reap(let reap):

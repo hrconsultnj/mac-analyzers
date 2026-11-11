@@ -66,7 +66,7 @@ enum OverviewGroup {
 
     @ViewBuilder private static func screen(_ section: SectionID) -> some View {
         switch section {
-        case overview: HomeSettingsView()
+        case overview: OverviewView()
         case activity: ActivityView()
         case setup: SetupSettingsView()
         default: EmptyView()

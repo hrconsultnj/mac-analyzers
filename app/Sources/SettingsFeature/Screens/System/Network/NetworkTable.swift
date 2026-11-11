@@ -32,14 +32,17 @@ struct NetworkTable: View {
                           sortUsing: KeyPathComparator(\NetworkNode.downloaded))
                 .alignment(.trailing).monospacedDigits()
                 .width(min: 80, ideal: 100)
+                .fit(.optional)
             OutlineColumn("uploaded", Names.Column.uploaded, text: \.uploadedText,
                           sortUsing: KeyPathComparator(\NetworkNode.uploaded))
                 .alignment(.trailing).monospacedDigits()
                 .width(min: 70, ideal: 90)
+                .fit(.optional)
             OutlineColumn("share", Names.Column.share, text: \.shareText,
                           sortUsing: KeyPathComparator(\NetworkNode.share))
                 .alignment(.trailing).monospacedDigits().textStyle { _ in .secondary }
                 .width(min: 50, ideal: 60)
+                .fit(.optional)
             OutlineColumn("running", Names.Column.running,
                           sortUsing: KeyPathComparator(\NetworkNode.runningText)) { node in
                 if let row = node.row {
@@ -54,10 +57,12 @@ struct NetworkTable: View {
                           sortUsing: KeyPathComparator(\NetworkNode.pidValue))
                 .alignment(.trailing).monospacedDigits().textStyle { _ in .secondary }
                 .width(min: 50, ideal: 70)
+                .fit(.optional)
             OutlineColumn("kind", Names.Column.kind, text: \.kindText,
                           sortUsing: KeyPathComparator(\NetworkNode.kindText))
                 .textStyle { _ in .secondary }
                 .width(min: 90, ideal: 110)
+                .fit(.optional)
         }
         .contextMenu({ ids in
             if let row = row(ids) {

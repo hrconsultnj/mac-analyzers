@@ -13,9 +13,12 @@ enum HealthReport {
         panel.allowedContentTypes = [.html]
         panel.message = "Save a shareable summary of this Mac's memory, storage and activity."
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let html = build()
-        try? html.write(to: url, atomically: true, encoding: .utf8)
-        NSWorkspace.shared.activateFileViewerSelecting([url])
+        // reading the logs takes a moment: off the main thread, then written and revealed
+        Task {
+            let html = await Task.detached(priority: .userInitiated) { build() }.value
+            try? html.write(to: url, atomically: true, encoding: .utf8)
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
     }
 
     // MARK: - content
@@ -78,12 +81,12 @@ enum HealthReport {
           <div class="card"><b>\(trends.kills)</b><span>runaways stopped</span></div>
           <div class="card"><b>\(trends.spikes)</b><span>spikes caught</span></div>
           <div class="card"><b>\(String(format: "%.1f GB", Double(trends.memoryFreedMB) / 1024))</b><span>memory freed</span></div>
-          <div class="card"><b>\(ByteSize.format(trends.storageFreedBytes))</b><span>disk reclaimed</span></div>
+          <div class="card"><b>\(ByteSize.format(trends.storageFreedBytes))</b><span>removed from disk by cleanups</span></div>
         </div>
 
         <h2>Storage</h2>
         <p>\(escape(diskLine))</p>
-        <p class="quiet">Reclaimable in the latest dry run: \(ByteSize.format(trends.latestReclaimableBytes))</p>
+        <p class="quiet">Reclaimable in the latest dry run: \(trends.latestReclaimableBytes.map(ByteSize.format) ?? "nothing waiting")</p>
 
         <h2>Repeat offenders</h2>
         <table>

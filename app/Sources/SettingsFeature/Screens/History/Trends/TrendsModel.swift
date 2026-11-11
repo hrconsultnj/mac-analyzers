@@ -26,7 +26,8 @@ struct TrendsSnapshot {
     let cpuHogs: Int
     let memoryFreedMB: Int
     let storageFreedBytes: Int64
-    let latestReclaimableBytes: Int64
+    /// nil when the newest storage run was an apply: nothing is waiting to be reclaimed.
+    let latestReclaimableBytes: Int64?
     let cleanRuns: Int
     let days: [DayCount]
     let offenders: [Offender]
@@ -105,18 +106,10 @@ enum TrendsModel {
         }
     }
 
-    private static let headerDate: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd HH:mm"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = .current
-        return f
-    }()
-
     static func snapshot(period: Period) -> TrendsSnapshot {
         let cutoff = Date().addingTimeInterval(-period.interval)
         let events = GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
-                                              within: period.interval, limit: 2000)
+                                              within: period.interval)
 
         var kills = 0, spikes = 0, pressure = 0, cpuHogs = 0
         var guardFreedMB = 0
@@ -147,40 +140,26 @@ enum TrendsModel {
             perDay[day] = bucket
 
             if event.pid != nil {
-                var entry = perProcess[event.friendlyName] ?? (0, 0)
+                var entry = perProcess[event.displayName] ?? (0, 0)
                 entry.count += 1
                 if event.isKill { entry.kills += 1 }
-                perProcess[event.friendlyName] = entry
+                perProcess[event.displayName] = entry
             }
         }
 
         // memory reaps: actual closures only (dry rows are intent, not effect)
-        var reapFreedMB = 0
-        for kind in [LogKind.memoryClean, .reclaim] {
-            for run in LogParser.runs(for: kind) {
-                guard let date = runDate(run.header), date >= cutoff else { continue }
-                let parsed = ReapParser.parse(runHeader: run.header, lines: run.lines)
-                reapFreedMB += parsed.allItems
-                    .filter { $0.status == .killed || $0.status == .quit }
-                    .compactMap(\.mb).reduce(0, +)
-            }
-        }
+        let reapFreedMB = TrendTotals.reapedMemoryMB(within: period.interval)
 
         // storage: deleted bytes across real runs; latest run's identified total
         var storageFreed: Int64 = 0
-        var latestReclaimable: Int64 = 0
         var cleanRuns = 0
-        let storageRuns = LogParser.runs(for: .storageClean)
-        for (index, run) in storageRuns.enumerated() {
+        let storageRuns = LogParser.allRuns(for: .storageClean)
+        for run in storageRuns {
             guard let date = runDate(run.header), date >= cutoff else { continue }
             cleanRuns += 1
             let parsed = StorageCleanParser.parse(runHeader: run.header, lines: run.lines)
             storageFreed += parsed.items.filter { $0.status == .deleted }
                 .map(\.sizeBytes).reduce(0, +)
-            if index == 0 {
-                latestReclaimable = parsed.items.filter { $0.status == .dry }
-                    .map(\.sizeBytes).reduce(0, +)
-            }
         }
 
         let days = perDay.map {
@@ -200,7 +179,7 @@ enum TrendsModel {
         if memoryFreedMB > 0 {
             claims.append("\(String(format: "%.1f", Double(memoryFreedMB) / 1024)) GB of memory freed")
         }
-        if storageFreed > 0 { claims.append("\(ByteSize.format(storageFreed)) of disk reclaimed") }
+        if storageFreed > 0 { claims.append("\(ByteSize.format(storageFreed)) removed from disk by cleanups") }
         let headline = claims.isEmpty
             ? "\(period.headlinePrefix): all quiet — nothing needed defending."
             : "\(period.headlinePrefix): \(claims.joined(separator: ", "))."
@@ -208,7 +187,7 @@ enum TrendsModel {
         return TrendsSnapshot(kills: kills, spikes: spikes, pressure: pressure,
                               cpuHogs: cpuHogs, memoryFreedMB: memoryFreedMB,
                               storageFreedBytes: storageFreed,
-                              latestReclaimableBytes: latestReclaimable,
+                              latestReclaimableBytes: TrendTotals.latestPreview()?.bytes,
                               cleanRuns: cleanRuns, days: days,
                               offenders: offenders, headline: headline)
     }
@@ -217,7 +196,7 @@ enum TrendsModel {
     /// drill-down list behind each Defended tile.
     static func events(period: Period, category: GuardEvent.Category) -> [GuardEvent] {
         GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
-                                 within: period.interval, limit: 2000)
+                                 within: period.interval)
             .filter { $0.category == category }
     }
 
@@ -229,16 +208,16 @@ enum TrendsModel {
         var perProcess: [String: Int] = [:]
 
         for event in GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
-                                              within: period.interval, limit: 2000)
+                                              within: period.interval)
         where event.isKill {
-            perProcess[event.friendlyName, default: 0] += event.residentMB ?? 0
+            perProcess[freedName(event.displayName), default: 0] += event.residentMB ?? 0
         }
         for kind in [LogKind.memoryClean, .reclaim] {
-            for run in LogParser.runs(for: kind) {
+            for run in LogParser.allRuns(for: kind) {
                 guard let date = runDate(run.header), date >= cutoff else { continue }
                 let parsed = ReapParser.parse(runHeader: run.header, lines: run.lines)
                 for item in parsed.allItems where item.status == .killed || item.status == .quit {
-                    perProcess[item.friendlyName, default: 0] += item.mb ?? 0
+                    perProcess[freedName(item.friendlyName), default: 0] += item.mb ?? 0
                 }
             }
         }
@@ -246,12 +225,30 @@ enum TrendsModel {
             .sorted { $0.freedMB > $1.freedMB }
     }
 
+    /// What a cleanup called the thing it closed, as a name a person would use: the engine's
+    /// own description ("idle-simulator (idle 21m of 20m): iPhone 18 Pro",
+    /// "supabase:nutri-journey 11 containers owners=…") says how it was chosen, not what it is.
+    static func freedName(_ raw: String) -> String {
+        var name = raw
+        if let paren = name.range(of: " (") { name = String(name[..<paren.lowerBound]) }
+        if let colon = name.firstIndex(of: ":") { name = String(name[..<colon]) }
+        name = name.trimmingCharacters(in: .whitespaces)
+        let words: [String: String] = ["idle-simulator": "iOS Simulator", "idle-metro": "Metro bundler",
+                                       "supabase": "Supabase local database"]
+        if let known = words[name.lowercased()] { return known }
+        if name.lowercased().hasPrefix("idle-") {
+            let rest = name.dropFirst(5)
+            return rest.prefix(1).uppercased() + rest.dropFirst()
+        }
+        return name.isEmpty ? raw : name
+    }
+
     /// Deleted storage items across real runs in the window, grouped by
     /// project and sorted by size — the receipts behind "Disk reclaimed."
     static func diskReclaimedByProject(period: Period) -> [DiskReclaimedGroup] {
         let cutoff = Date().addingTimeInterval(-period.interval)
         var deleted: [StoragePathItem] = []
-        for run in LogParser.runs(for: .storageClean) {
+        for run in LogParser.allRuns(for: .storageClean) {
             guard let date = runDate(run.header), date >= cutoff else { continue }
             let parsed = StorageCleanParser.parse(runHeader: run.header, lines: run.lines)
             deleted.append(contentsOf: parsed.items.filter { $0.status == .deleted })
@@ -266,27 +263,21 @@ enum TrendsModel {
     /// The latest storage run's dry-run findings — "reclaimable right now"
     /// is always the most recent scan, independent of the selected period.
     static func reclaimableNow() -> [StoragePathItem] {
-        guard let newest = LogParser.runs(for: .storageClean).first else { return [] }
-        let parsed = StorageCleanParser.parse(runHeader: newest.header, lines: newest.lines)
-        return parsed.items.filter { $0.status == .dry }.sorted { $0.sizeBytes > $1.sizeBytes }
+        TrendTotals.latestPreview()?.items ?? []
     }
 
     /// One process's full guard timeline in the window, across every event
     /// kind, plus the stat row the offender drill-down leads with.
     static func offenderTimeline(name: String, period: Period) -> OffenderTimeline {
         let events = GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
-                                              within: period.interval, limit: 2000)
-            .filter { $0.friendlyName == name }
+                                              within: period.interval)
+            .filter { $0.displayName == name }
         return OffenderTimeline(events: events,
                                 eventCount: events.count,
                                 killCount: events.filter(\.isKill).count,
                                 peakResidentMB: events.compactMap(\.residentMB).max() ?? 0)
     }
 
-    /// Run headers open with "yyyy-MM-dd HH:mm | …" (block logs). Day-grouped
-    /// logs use bare "yyyy-MM-dd" headers.
-    private static func runDate(_ header: String) -> Date? {
-        headerDate.date(from: String(header.prefix(16)))
-            ?? headerDate.date(from: String(header.prefix(10)) + " 12:00")
-    }
+    /// A run's start time, from its header (see `TrendTotals.runDate`).
+    private static func runDate(_ header: String) -> Date? { TrendTotals.runDate(header) }
 }

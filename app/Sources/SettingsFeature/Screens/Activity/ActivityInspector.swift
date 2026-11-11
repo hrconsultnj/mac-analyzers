@@ -51,6 +51,9 @@ struct ActivityInspector: View {
                 banners(row, live: live)
                 results(row, live: live, sections: sections, current: current)
             }
+            // a run's facts start at the top whatever is under them (a running job's box is shorter than the window);
+            // only an empty state is centred, and it centres itself inside what is left
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .modifier(RunTabsModifier(row: row, tabs: tabs, sections: sections, selection: $tab))
         .toolbar { actions(row, live: live) }

@@ -82,6 +82,10 @@ public struct ActivityRow: Identifiable, Sendable, Hashable {
     /// or its kind where it writes none.
     var taskKey: String { log?.rawValue ?? kind?.rawValue ?? id }
 
+    /// A restore from Undo, listed from its own block in a cleaner's log. It is not a run of
+    /// that cleaner: it never replaces a waiting preview, and it has nothing to apply.
+    public var isRestore: Bool { header.map(RestoreBlock.isRestore(header:)) ?? false }
+
     public var isRunning: Bool { status == .running || status == .queued }
     public var isFailed: Bool { status == .failed }
 

@@ -237,7 +237,7 @@ public enum TempCleanParser {
             }
 
             guard zone == .items, let status = TempItem.Status(rawValue: tag) else { continue }
-            let pieces = body.components(separatedBy: "  ->  ")
+            let pieces = ReceiptIdentity.split(body).text.components(separatedBy: "  ->  ")
             items.append((status, bytes,
                           pieces[0].trimmingCharacters(in: .whitespaces),
                           pieces.count > 1 ? pieces[1].trimmingCharacters(in: .whitespaces) : nil,
