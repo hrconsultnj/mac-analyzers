@@ -56,9 +56,6 @@ timed() {
 
 # ---------- derive the Activity-Monitor numbers ----------
 P_FREE=$(pages "Pages free")
-P_ACTIVE=$(pages "Pages active")
-P_INACTIVE=$(pages "Pages inactive")
-P_SPECULATIVE=$(pages "Pages speculative")
 P_WIRED=$(pages "Pages wired down")
 P_PURGEABLE=$(pages "Pages purgeable")
 P_FILEBACKED=$(pages "File-backed pages")

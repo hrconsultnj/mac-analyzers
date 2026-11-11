@@ -151,7 +151,6 @@ norm() {
 
 ME="$(id -un)"
 MY_UID="$(id -u)"
-NOW="$(date +%s)"
 TMP_ROOT="/private/tmp"
 USER_T="$(norm "$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null)")"
 USER_C="$(norm "$(getconf DARWIN_USER_CACHE_DIR 2>/dev/null)")"

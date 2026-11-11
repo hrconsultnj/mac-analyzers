@@ -85,14 +85,36 @@ plist_target() {
 # does NOT prove the entry is still wanted. Checks Spotlight by bundle-id
 # prefix plus the non-indexed PrivilegedHelperTools dir.
 vendor_has_app() {
-  local vendor="$1" tail="${vendor##*.}"
+  # two statements: in one `local`, "$vendor" would still be empty when the
+  # second assignment expands it
+  local vendor="$1"
+  local tail="${vendor##*.}"
   # real app locations only — an uninstaller stub in App Support must NOT count
   mdfind -onlyin /Applications "kMDItemCFBundleIdentifier == '${vendor}*'" 2>/dev/null | grep -q . && return 0
   mdfind -onlyin "$HOME/Applications" "kMDItemCFBundleIdentifier == '${vendor}*'" 2>/dev/null | grep -q . && return 0
   # bundle-id prefix can differ from vendor label (OrbStack = dev.kdrag0n.*) — match by name too
-  ls /Applications "$HOME/Applications" 2>/dev/null | grep -qi -- "$tail" && return 0
-  ls -d /Library/PrivilegedHelperTools/*.app 2>/dev/null | grep -qi -- "$tail" && return 0
-  return 1
+  # (a glob and `case`, not `ls | grep`: app names with spaces or odd characters
+  # stay whole; nocasematch is switched back on every path out)
+  local restore d a hit=1
+  restore="$(shopt -p nocasematch)"
+  shopt -s nocasematch
+  for d in /Applications "$HOME/Applications"; do
+    for a in "$d"/*; do
+      # -L too: an app that is a link to a drive that is not plugged in still
+      # counts as installed. Skipping it would report its helper as a leftover
+      # and print the command to delete it.
+      [[ -e "$a" || -L "$a" ]] || continue
+      case "${a##*/}" in *"$tail"*) hit=0; break 2 ;; esac
+    done
+  done
+  if [[ "$hit" -ne 0 ]]; then
+    for a in /Library/PrivilegedHelperTools/*.app; do
+      [[ -e "$a" || -L "$a" ]] || continue
+      case "${a##*/}" in *"$tail"*) hit=0; break ;; esac
+    done
+  fi
+  eval "$restore"
+  return "$hit"
 }
 
 # classify one plist. args: plist_path, scope(user|system)

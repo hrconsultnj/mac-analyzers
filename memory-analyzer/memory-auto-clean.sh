@@ -107,7 +107,6 @@ MCP_RE='[Mm]cp'
 [[ -n "${ANALYZERS_MCP_EXTRA_RE:-}" ]] && MCP_RE="${MCP_RE}|${ANALYZERS_MCP_EXTRA_RE}"
 DEV_SERVER_RE='next-server|next dev|vite( |$)|pnpm( run)? dev|npm run dev|nodemon|turbo run dev'
 PLAYWRIGHT_RE='headless_shell|ms-playwright|--headless'
-NODEISH_RE='(^|/)(node|npm|npx|bun|tsx|deno)( |$)'
 PROTECT_RE='.local/bin/claude|(^|/)claude( |$)|Claude.app|Visual Studio Code|Code Helper|zoom.us|ZoomCef|Docker|OrbStack|Opera.app|Google Chrome.app|Safari|WindowServer|loginwindow|mds|Finder|screencapture|QuickTime|CoreServices|iTerm'
 [[ -n "${ANALYZERS_PROTECT_EXTRA:-}" ]] && PROTECT_RE="${PROTECT_RE}|${ANALYZERS_PROTECT_EXTRA}"
 
@@ -389,7 +388,7 @@ DSNAP="$(LC_ALL=C ps axo pid=,ppid=,tt=,rss=,pcpu=,time=,etime=,args= | awk '
 
 # build the units — one awk over sockets (S) + processes (P)
 dev_build_units() {
-  local launchd_pids exempt roots
+  local launchd_pids exempt
   launchd_pids="$(launchctl list 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ {printf "%s ", $1}')"
   exempt="$(live_session_exempt "$DEV_SESSION_ROOTS" | tr '\n' ' ')"
   {
@@ -549,7 +548,7 @@ dev_footprint_kb() {
 # booted simulators: udid \t name \t launchd_sim pid \t footprint_kb
 dev_booted_sims() {
   pgrep -x launchd_sim >/dev/null 2>&1 || return 0
-  local udid name lpid
+  local udid name lpid kids kid footprint
   while IFS=$'\t' read -r udid name; do
     [[ -z "$udid" ]] && continue
     lpid="$(echo "$DSNAP" | awk -F'\t' -v u="$udid" '$8 ~ /launchd_sim/ && index($8, u) { print $1; exit }')"
@@ -558,9 +557,13 @@ dev_booted_sims() {
     if printf '%s\n%s\n' "$name" "$(echo "$DSNAP" | awk -F'\t' -v p="$lpid" '$1 == p {print $8}')" | grep -qE -- "$PROTECT_RE"; then
       continue
     fi
-    printf '%s\t%s\t%s\t%s\n' "$udid" "$name" "$lpid" "$(dev_footprint_kb $(echo "$DSNAP" | awk -F'\t' -v root="$lpid" '
+    # the simulator's process tree, as an array so each pid is its own argument
+    kids=()
+    while IFS= read -r kid; do kids+=("$kid"); done < <(echo "$DSNAP" | awk -F'\t' -v root="$lpid" '
       { pp[$1] = $2 }
-      END { for (p in pp) { q = p; while (q > 1 && q != "") { if (q == root) { print p; break }; q = pp[q] } } }'))"
+      END { for (p in pp) { q = p; while (q > 1 && q != "") { if (q == root) { print p; break }; q = pp[q] } } }')
+    footprint="$(dev_footprint_kb ${kids[@]+"${kids[@]}"})"
+    printf '%s\t%s\t%s\t%s\n' "$udid" "$name" "$lpid" "$footprint"
   done < <(with_timeout 20 xcrun simctl list devices booted 2>/dev/null | awk '
     /\(Booted\)/ && match($0, /\([0-9A-F-]{36}\)/) {
       name = substr($0, 1, RSTART - 1); gsub(/^[ \t]+|[ \t]+$/, "", name)
@@ -980,12 +983,12 @@ dev_idle_stacks() {
 
   # ---- live projects: the main worktree of each live claude/codex session's cwd AND of each interactive
   # terminal shell's cwd (a linked worktree counts as its repo). Who is looking is kept for the report.
-  local -A LIVE_PATH=() LIVE_NAME=() LIVE_SRC=() LIVE_NSRC=() PID_ROOT=() ST_KIND=() ST_ID=() ST_WD=() ST_CIDS=() ST_N=()
+  local -A LIVE_PATH=() LIVE_SRC=() LIVE_NSRC=() PID_ROOT=() ST_KIND=() ST_ID=() ST_WD=() ST_CIDS=() ST_N=()
   local -a ST_KEYS=()
-  local sroot cwd root unresolved=0 label
+  local sroot cwd root unresolved=0
   stack_mark_live() {  # <root> <source>
     local r="$1" src="$2" nm="${1##*/}"
-    LIVE_PATH[$r]=1; LIVE_NAME[$nm]=1
+    LIVE_PATH[$r]=1
     [[ " ${LIVE_SRC[$r]:-} " == *" $src "* ]] || LIVE_SRC[$r]="${LIVE_SRC[$r]:+${LIVE_SRC[$r]} }$src"
     [[ " ${LIVE_NSRC[$nm]:-} " == *" $src "* ]] || LIVE_NSRC[$nm]="${LIVE_NSRC[$nm]:+${LIVE_NSRC[$nm]} }$src"
   }
@@ -1015,7 +1018,7 @@ dev_idle_stacks() {
   done <<< "$ps_out"
 
   # ---- supabase project_id -> repo: live sessions' repos first, the configured roots only if still needed
-  local need=0 line pid r d
+  local need=0 pid r d
   for key in "${ST_KEYS[@]}"; do [[ "${ST_KIND[$key]}" == supabase ]] && need=1; done
   if [[ $need -eq 1 ]]; then
     for root in "${!LIVE_PATH[@]}"; do
@@ -1038,7 +1041,7 @@ dev_idle_stacks() {
 
   # ---- judge each stack; remember when it was first seen orphaned
   declare -A PREV=()
-  local first now_s state_tmp="${STACK_STATE_FILE}.tmp.$$" ts_key ts_val
+  local first state_tmp="${STACK_STATE_FILE}.tmp.$$" ts_key ts_val
   if [[ -f "$STACK_STATE_FILE" ]]; then
     while IFS=$'\t' read -r ts_key ts_val; do [[ -n "$ts_key" && -n "$ts_val" ]] && PREV[$ts_key]="$ts_val"; done < "$STACK_STATE_FILE"
   fi

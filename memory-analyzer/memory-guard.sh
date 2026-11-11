@@ -195,7 +195,8 @@ kill_proc() {
 
 # forensic snapshot for post-mortems ("what actually spiked?")
 dump_forensics() {
-  local f="${LOG_DIR}/$(date +%Y-%m-%d)/guard-critical-$(date +%H%M%S).log"
+  local f
+  f="${LOG_DIR}/$(date +%Y-%m-%d)/guard-critical-$(date +%H%M%S).log"
   mkdir -p "$(dirname "$f")"
   {
     echo "=== memory guard forensic snapshot: $(date '+%Y-%m-%d %H:%M:%S') ==="

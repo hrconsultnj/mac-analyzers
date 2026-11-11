@@ -47,7 +47,7 @@ usage() {
 describe() {
   case "$1" in
     syntax)    echo "bash -n on every tracked *.sh and *.command; also under /bin/bash when it is older than 4" ;;
-    lint)      echo "shellcheck: error severity fails the check, warnings are printed" ;;
+    lint)      echo "shellcheck on every tracked *.sh and *.command: any warning or error fails the check" ;;
     secrets)   echo "curated secret-pattern sweep over every tracked file" ;;
     changelog) echo "CHANGELOG.md has a '## Next' section or an entry for VERSION, and that entry reads as release notes" ;;
     tests)     echo "every executable under memory-analyzer/tests/ and tests/ (macOS only; skipped, visibly, elsewhere)" ;;
@@ -93,25 +93,24 @@ check_lint() {
     echo "install it:  brew install shellcheck   (macOS)   |   sudo apt-get install shellcheck   (Debian/Ubuntu)" >"$OUT"
     return 1
   fi
-  local n errors warnings rc
+  local n findings rc
   n="$(script_list | wc -l | tr -d ' ')"
-  # one pass at warning severity (what we print), one at error (what gates)
-  script_list | tr '\n' '\0' | xargs -0 shellcheck -f gcc -S warning >"$TMP/lint.warn" 2>&1
-  script_list | tr '\n' '\0' | xargs -0 shellcheck -f gcc -S error >"$TMP/lint.err" 2>&1
+  # Warnings are defects: shellcheck is telling us the code is not written the
+  # way its documentation intends. Fix the code; where a warning is a false
+  # positive, say why with a `# shellcheck disable=SCxxxx  # reason` line.
+  # One file per shellcheck run: given every script at once, shellcheck can
+  # stay silent about a finding it reports when the file is checked alone (an
+  # unused local did exactly that), and an editor checks one file at a time.
+  script_list | tr '\n' '\0' | xargs -0 -n1 shellcheck -f gcc -S warning >"$TMP/lint.out" 2>&1
   rc=$?
-  errors="$(grep -c ': error: ' "$TMP/lint.err")"
-  warnings="$(grep -c ': warning: ' "$TMP/lint.warn")"
   if [ "$rc" -ne 0 ]; then
-    [ "$errors" -gt 0 ] || errors="?"
-    DETAIL="$errors error(s) in $n scripts"
-    cat "$TMP/lint.err" >"$OUT"
+    findings="$(grep -c -E ': (warning|error): ' "$TMP/lint.out")"
+    [ "$findings" -gt 0 ] || findings="?"
+    DETAIL="$findings finding(s) in $n scripts (a warning fails the check)"
+    cat "$TMP/lint.out" >"$OUT"
     return 1
   fi
   DETAIL="$n scripts"
-  if [ "$warnings" -gt 0 ]; then
-    DETAIL="$DETAIL, $warnings warning(s) (not blocking)"
-    cat "$TMP/lint.warn" >"$OUT"
-  fi
   return 0
 }
 
