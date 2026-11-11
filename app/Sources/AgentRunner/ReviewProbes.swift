@@ -214,12 +214,26 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     check("ticks survive leaving and returning",
           !returned.isTicked("/b") && returned.isTicked("/a") && returned.approved.approved == ["/a", "/c"],
           "approved: \(returned.approved.approved)")
-    check("another preview starts fully ticked", ReviewTickStore().deselected(for: second).isEmpty)
+    check("another preview starts fully ticked", ReviewTickStore().deselected(for: second) == nil)
     store.drop(first)
-    check("dropped once applied or discarded", store.deselected(for: first).isEmpty)
+    check("dropped once applied or discarded", store.deselected(for: first) == nil)
     store.save(["/x"], for: second)
     store.keepOnly([first])
-    check("an expired preview's ticks are forgotten", store.deselected(for: second).isEmpty)
+    check("an expired preview's ticks are forgotten", store.deselected(for: second) == nil)
+
+    // folded empty rows start unticked, and Select All returns to that
+    var folded = ReviewSelection(previewID: first, items: [.init(id: "/big"), .init(id: "/empty")], startsUnticked: ["/empty"])
+    check("rows folded out of sight start unticked", folded.isTicked("/big") && !folded.isTicked("/empty"))
+    check("Select All with only the fold unticked: nothing to do, button disabled", folded.isAllSelected)
+    folded.selectAll()
+    check("Select All changes nothing there; the folded row reaches the kernel as deselected",
+          !folded.isTicked("/empty") && folded.approved.approved == ["/big"] && folded.approved.isNarrowed)
+    folded.setTicked("/empty", true)
+    folded.selectAll()
+    check("a hand-ticked folded row survives Select All", folded.isTicked("/empty") && folded.isAllSelected)
+    folded.setTicked("/big", false)
+    check("an unticked visible row enables Select All, which ticks it and leaves the fold alone",
+          !folded.isAllSelected && { folded.selectAll(); return folded.isTicked("/big") && folded.isTicked("/empty") }())
 
     // 6. a new review with the SAME number of rows shows its own rows, not the old tree
     final class Owner {}

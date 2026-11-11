@@ -4,7 +4,7 @@ import Foundation
 /// memory-reclaim. Their item shapes are ~90% identical ([STATUS] MB pid
 /// description); the group names differ and only reclaim has EXEMPT rows.
 public struct ReapItem: Identifiable, Hashable, Sendable {
-    public enum Status: String, Sendable {
+    public enum Status: String, Sendable, CaseIterable {
         case dry = "DRY"
         case killed = "KILLED"
         case reported = "REPORT"

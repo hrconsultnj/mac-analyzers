@@ -73,7 +73,7 @@ public struct TempItem: Identifiable, Hashable, Sendable {
 }
 
 public struct TempMount: Identifiable, Hashable, Sendable {
-    public enum Status: String, Sendable {
+    public enum Status: String, Sendable, CaseIterable {
         case mounted = "MOUNTED"
         case ejected = "EJECTED"
         case ejectFailed = "EJECT FAILED"
