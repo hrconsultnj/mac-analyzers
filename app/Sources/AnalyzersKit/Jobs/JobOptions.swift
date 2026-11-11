@@ -27,6 +27,9 @@ public struct JobOptions: Sendable, Hashable, Codable {
     /// preview was, so an apply carries exactly the same list.
     public var alsoQuit: [String] = []
 
+    /// Time Machine: start a fresh backup after the snapshots are thinned (`tm-reclaim.sh` without `--no-backup`).
+    public var startBackup = true
+
     /// A scheduled run replayed by hand ("Run Now"): the arguments from the
     /// installed launchd plist, after the script path. The store fills this in
     /// itself from the plist for a `.schedule(label)` run, and ignores whatever a
@@ -35,7 +38,7 @@ public struct JobOptions: Sendable, Hashable, Codable {
 
     public init(deep: Bool = false, permanent: Bool = false, mountPoint: String? = nil,
                 recordingsDays: Int = 90, scheduleArguments: [String]? = nil,
-                includeBusyOrphans: Bool = false, alsoQuit: [String] = []) {
+                includeBusyOrphans: Bool = false, alsoQuit: [String] = [], startBackup: Bool = true) {
         self.deep = deep
         self.permanent = permanent
         self.mountPoint = mountPoint
@@ -43,5 +46,6 @@ public struct JobOptions: Sendable, Hashable, Codable {
         self.scheduleArguments = scheduleArguments
         self.includeBusyOrphans = includeBusyOrphans
         self.alsoQuit = alsoQuit
+        self.startBackup = startBackup
     }
 }

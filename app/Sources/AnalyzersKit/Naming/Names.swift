@@ -139,6 +139,17 @@ public enum Names {
         public static let dateUnknown = "Date Unknown"
     }
 
+    /// Time Machine: the words of its actions and its one-time permission.
+    public enum TimeMachine {
+        public static let allow = "Allow…"
+        public static let thin = "Thin Snapshots…"
+        public static let startBackup = "Start a Backup Afterwards"
+        public static let permissionTitle = "Thinning Needs a One-Time Permission"
+        public static let permissionDetail = "macOS asks for your administrator password once to allow one command: thinning local snapshots. Nothing else is ever run with administrator rights."
+        public static let nothingToThin = "No Local Snapshots"
+        public static let nothingToThinDetail = "Time Machine keeps hourly snapshots on this Mac while it backs up. There are none right now, so there is nothing to thin."
+    }
+
     /// Unused Apps and Old Recordings: the groups and the words of what a finished run did.
     public enum Unused {
         public static let neverOpened = "Never Opened"
@@ -376,6 +387,7 @@ public enum Names {
         case .loginItems: Screen.loginItems
         case .spotlightAudit: Screen.spotlight
         case .cleanupApps: Screen.unusedApps
+        case .tmReclaim: Screen.timeMachine
         case .cleanupRecordings: Screen.oldRecordings
         case .forensics: crisisReports
         }

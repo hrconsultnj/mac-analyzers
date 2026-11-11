@@ -36,6 +36,7 @@ public enum StorageSetting {
         switch kind {
         case .storageClean: JobOptions(deep: banner.contains("mode=deep"))
         case .tempClean: JobOptions(permanent: banner.lowercased().contains("permanent"))
+        case .tmReclaim: JobOptions(startBackup: !banner.contains("backup=off"))
         default: JobOptions()
         }
     }
@@ -45,6 +46,7 @@ public enum StorageSetting {
         switch kind {
         case .storageClean: JobOptions(deep: options.deep)
         case .tempClean: JobOptions(permanent: options.permanent)
+        case .tmReclaim: JobOptions(startBackup: options.startBackup)
         default: JobOptions()
         }
     }
@@ -78,10 +80,19 @@ public struct CleanWords: Equatable, Sendable {
                          permanentWarning: nil)
     }
 
+    /// Thin the local snapshots: the whole list at once, backups on the Time Machine disk never touched.
+    public static func timeMachine(backup: Bool) -> CleanWords {
+        CleanWords(applyTitle: "Thin Snapshots", verb: "Thin", destination: "now",
+                   message: "Every local snapshot on this Mac is thinned, which releases the space they hold. Your backups on the Time Machine disk are never touched."
+                       + (backup ? " A new backup starts afterwards." : ""),
+                   permanentWarning: nil)
+    }
+
     public static func words(kind: JobKind, setting: JobOptions) -> CleanWords? {
         switch kind {
         case .storageClean: caches(deep: setting.deep)
         case .tempClean: temp(permanent: setting.permanent)
+        case .tmReclaim: timeMachine(backup: setting.startBackup)
         default: nil
         }
     }

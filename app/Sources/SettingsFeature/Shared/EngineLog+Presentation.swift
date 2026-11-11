@@ -22,6 +22,7 @@ extension EngineLog {
         case .loginItems: "person.crop.circle.badge.questionmark"
         case .spotlightAudit: "magnifyingglass"
         case .cleanupApps: "app.badge.checkmark"
+        case .tmReclaim: "clock.arrow.circlepath"
         case .cleanupRecordings: "film"
         case .forensics: "stethoscope"
         }
@@ -39,6 +40,7 @@ extension EngineLog {
         case .loginItems: .brown
         case .spotlightAudit: .yellow
         case .cleanupApps: .pink
+        case .tmReclaim: .cyan
         case .cleanupRecordings: .gray
         case .forensics: .purple
         }

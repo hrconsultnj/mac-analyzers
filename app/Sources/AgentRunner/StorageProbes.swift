@@ -128,6 +128,7 @@ func probeStorage(_ which: String, logOverride: String?) -> Never {
         for row in cloud where row.isChoosable || row.bytes != nil || row.valueText == nil {
             problems.append("iCloud-only row \"\(row.title)\" is offered for a tick, counted as freeing space, or has no size")
         }
+        print("\n-- Time Machine example"); problems += printLevels(StorageFixtures.timeMachine(), TimeMachineCategory.self)
         print("\n-- Unused Apps example"); problems += printLevels(StorageFixtures.unusedApps(), UnusedAppCategory.self)
         let unused = StorageFixtures.unusedApps()
         let keptTitles = Set(unused.rows.filter { $0.keptReason != nil }.map(\.title))

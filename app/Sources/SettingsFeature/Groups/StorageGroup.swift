@@ -23,6 +23,7 @@ enum StorageGroup {
     static let downloads = SectionID("downloads")
     static let temp = SectionID("temp")
     static let spotlight = SectionID("spotlight")
+    static let timeMachine = SectionID("timemachine")
     static let unused = SectionID("unused")
     static let recordings = SectionID("recordings")
 
@@ -33,6 +34,8 @@ enum StorageGroup {
          "downloads:fixture": .main(Location(downloads, path: [.storage(.fixture("downloads"))])),
          "temp:fixture": .main(Location(temp, path: [.storage(.fixture("temp"))])),
          "disk:fixture": .main(Location(disk, path: [.storage(.fixture("disk"))])),
+         "timemachine:fixture": .main(Location(timeMachine, path: [.storage(.fixture("timemachine"))])),
+         "timemachine:nopermission": .main(Location(timeMachine, path: [.storage(.fixture("timemachine-nopermission"))])),
          "unused:fixture": .main(Location(unused, path: [.storage(.fixture("unused"))])),
          "recordings:fixture": .main(Location(recordings, path: [.storage(.fixture("recordings"))]))]
     }
@@ -46,6 +49,7 @@ enum StorageGroup {
             SidebarRow(caches, Names.Screen.cachesAndBuilds, symbol: "shippingbox"),
             SidebarRow(downloads, Names.Screen.downloads, symbol: "arrow.down.circle"),
             SidebarRow(temp, Names.Screen.tempAndAgents, symbol: "tray.full"),
+            SidebarRow(timeMachine, Names.Screen.timeMachine, symbol: "clock.arrow.circlepath"),
             SidebarRow(spotlight, Names.Screen.spotlight, symbol: "magnifyingglass"),
             SidebarRow(unused, Names.Screen.unusedApps, symbol: "app.badge.checkmark"),
             SidebarRow(recordings, Names.Screen.oldRecordings, symbol: "film"),
@@ -64,6 +68,8 @@ enum StorageGroup {
             "actions:tempClean": .main(Location(temp)),
             "spotlight": .main(Location(spotlight)),
             "log:spotlightAudit": .main(Location(spotlight, path: [log(.spotlightAudit)])),
+            "timemachine": .main(Location(timeMachine)),
+            "log:tmReclaim": .main(Location(timeMachine, path: [log(.tmReclaim)])),
             "unused": .main(Location(unused)),
             "log:cleanupApps": .main(Location(unused, path: [log(.cleanupApps)])),
             "recordings": .main(Location(recordings)),
@@ -106,6 +112,11 @@ enum StorageGroup {
                     TempReview.build(from: TempCleanParser.parse(runHeader: block.banner, lines: block.lines), results: results).rows
                 }.id(row.id))
             },
+            .tmReclaim: { row in
+                AnyView(StorageResultsView<TimeMachineCategory>(row: row, kind: .tmReclaim, screenKey: "timemachine") { block, results in
+                    TimeMachineReview.build(lines: block.lines, results: results).rows
+                }.id(row.id))
+            },
             .unusedApps: { row in
                 AnyView(StorageResultsView<UnusedAppCategory>(row: row, kind: .unusedApps, screenKey: "unusedapps") { block, results in
                     UnusedReview.apps(lines: block.lines, results: results)
@@ -131,6 +142,7 @@ enum StorageGroup {
         case downloads: DownloadsScreen()
         case temp: TempScreen()
         case spotlight: SpotlightScreen()
+        case timeMachine: TimeMachineScreen()
         case unused: UnusedAppsScreen()
         case recordings: RecordingsScreen()
         default: EmptyView()
@@ -145,6 +157,8 @@ enum StorageGroup {
             case "downloads": DownloadsScreen(fixture: StorageFixtures.downloads())
             case "temp": TempScreen(fixture: StorageFixtures.temp())
             case "disk": DiskScreen(fixture: StorageFixtures.disk())
+            case "timemachine": TimeMachineScreen(fixture: StorageFixtures.timeMachine())
+            case "timemachine-nopermission": TimeMachineScreen(fixture: StorageFixtures.timeMachine(), fixtureNeedsPermission: true)
             case "unused": UnusedAppsScreen(fixture: StorageFixtures.unusedApps())
             case "recordings": RecordingsScreen(fixture: StorageFixtures.recordings())
             default: CachesScreen(fixture: StorageFixtures.caches())

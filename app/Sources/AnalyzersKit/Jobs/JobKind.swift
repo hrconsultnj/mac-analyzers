@@ -91,7 +91,8 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .loginItems: .loginItems
         case .unusedApps: .cleanupApps
         case .recordings: .cleanupRecordings
-        case .tmReclaim, .networkSnapshot, .memoryReport, .storageReport,
+        case .tmReclaim: .tmReclaim
+        case .networkSnapshot, .memoryReport, .storageReport,
              .installAgents, .uninstallAgents, .sudoersInstall: nil
         }
     }
@@ -230,9 +231,8 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .spotlight:
             return ["--apply"]
         case .tmReclaim:
-            // tm-reclaim.sh acts without a flag today (its dry run is
-            // `--dry-run`); when it gains `--apply` this is the one line to change.
-            return []
+            // looks first (`--dry-run`, the default) and acts only with `--apply`; no list: there is one thing to do
+            return ["--apply"] + (options.startBackup ? [] : ["--no-backup"])
         case .unusedApps:
             return ["--stale-apps", "--execute", "--yes"] + approval
         case .recordings:

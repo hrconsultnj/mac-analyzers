@@ -5,7 +5,7 @@ import Foundation
 /// extension in SettingsFeature.
 public enum EngineLog: String, CaseIterable, Identifiable, Sendable {
     case guardLog, memoryClean, reclaim, storageClean, janitor, tempSpace, persistence,
-         loginItems, spotlightAudit, cleanupApps, cleanupRecordings, forensics
+         loginItems, spotlightAudit, cleanupApps, cleanupRecordings, tmReclaim, forensics
     public var id: String { rawValue }
 
     public var url: URL? {
@@ -21,6 +21,7 @@ public enum EngineLog: String, CaseIterable, Identifiable, Sendable {
         case .spotlightAudit: AnalyzersPaths.spotlightAuditLog
         case .cleanupApps: AnalyzersPaths.storageReports.appending(path: "cleanup-apps.log")
         case .cleanupRecordings: AnalyzersPaths.storageReports.appending(path: "cleanup-recordings.log")
+        case .tmReclaim: AnalyzersPaths.storageReports.appending(path: "tm-reclaim.log")
         case .forensics: AnalyzersPaths.latestForensics()
         }
     }

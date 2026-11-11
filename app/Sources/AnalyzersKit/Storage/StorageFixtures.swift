@@ -55,6 +55,18 @@ public enum StorageFixtures {
                              detail: "13 developer folders still indexed.")])
     }
 
+    /// What a preview of Time Machine's local snapshots shows: two days of hourly snapshots and one of macOS's own.
+    public static func timeMachine() -> StorageRows {
+        let stamp = DateFormatter(); stamp.locale = Locale(identifier: "en_US_POSIX"); stamp.dateFormat = "yyyy-MM-dd-HHmmss"
+        let now = Date()
+        var lines = ["FREE_BEFORE 51Gi"]
+        for hours in [1, 2, 3, 4, 26, 27, 28, 50] {
+            lines.append("SNAPSHOT \(stamp.string(from: now.addingTimeInterval(-Double(hours) * 3_600)))")
+        }
+        lines.append("OSSNAPSHOT com.apple.os.update-0123456789ABCDEF")
+        return TimeMachineReview.build(lines: lines, now: now).rows
+    }
+
     /// What a preview of unused apps shows: the apps by how long since they were opened.
     public static func unusedApps() -> StorageRows {
         func app(_ name: String, _ opened: String?, _ items: [(String, String)]) -> [String] {

@@ -347,6 +347,7 @@ public enum ActivityJoin {
         case .spotlightAudit: .spotlight
         case .loginItems: .loginItems
         case .cleanupApps: .unusedApps
+        case .tmReclaim: .tmReclaim
         case .cleanupRecordings: .recordings
         case .guardLog, .persistence, .forensics: nil
         }

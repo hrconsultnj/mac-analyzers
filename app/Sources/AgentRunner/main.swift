@@ -208,6 +208,11 @@ if args.first == "--probe-disk-runway" {
 }
 // `--probe-cleanup-parse` runs the real cleanup.sh as a dry run in a throwaway HOME and checks the screens' rows
 // agree with what it printed. See CleanupParseProbe.swift.
+// `--probe-tm` runs the real tm-reclaim.sh against stand-in tmutil/sudo/df and checks what the Time Machine screen
+// reads and what the app sends. See TimeMachineProbe.swift.
+if args.first == "--probe-tm" {
+    await probeTimeMachine()
+}
 if args.first == "--probe-cleanup-parse" {
     await probeCleanupParse()
 }

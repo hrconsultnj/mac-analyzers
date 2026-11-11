@@ -5,7 +5,8 @@
 #   ./storage-manage-agents.sh install     # validate, copy to ~/Library/LaunchAgents, load
 #   ./storage-manage-agents.sh uninstall   # unload + remove
 #   ./storage-manage-agents.sh status      # show whether they're loaded + next run
-#   ./storage-manage-agents.sh sudoers-install    # install the scoped tmutil-thin NOPASSWD rule (asks for your password)
+#   ./storage-manage-agents.sh sudoers-install    # install the scoped tmutil-thin NOPASSWD rule (asks for your password; run as yourself)
+#   ./storage-manage-agents.sh sudoers-status     # exit 0 when the rule is installed
 #   ./storage-manage-agents.sh sudoers-uninstall  # remove that rule
 #
 # Installing schedules UNATTENDED deletion (daily build caches; deep node_modules
@@ -101,7 +102,20 @@ case "$cmd" in
       fi
     done
     ;;
+  sudoers-status)
+    # readable without root: /etc/sudoers.d can be searched by anyone, so the file's existence can be seen
+    if [[ -e "${SUDOERS_DEST}" ]]; then echo "installed: ${SUDOERS_DEST}"; exit 0; fi
+    echo "not installed"; exit 1
+    ;;
   sudoers-install)
+    # For a person at a terminal, who runs it themselves with their OWN sudo. The Mac Analyzers app does not run this
+    # script as root: its "Allow…" button installs the same rule with a fixed command built into the app, so nothing
+    # a user account can write (this script, the template) is ever executed or read as root.
+    if [[ "$(id -u)" -eq 0 ]]; then
+      echo "‼ run this as yourself, not as root or with sudo: it asks for your password itself and writes the rule for you."
+      exit 2
+    fi
+    TARGET_USER="$(id -un)"
     # sudo must be able to PROMPT for your password — needs a real terminal.
     if ! sudo -v; then
       echo ""
@@ -109,21 +123,25 @@ case "$cmd" in
       echo "  not via Claude's '!' prefix — that has no TTY for the password prompt."
       exit 1
     fi
-    # Substitute the current username (sudoers rules are per-user), then
-    # validate syntax FIRST (a malformed sudoers file breaks ALL sudo).
+    # Substitute your user name (sudoers rules are per-user), then validate syntax
+    # FIRST (a malformed sudoers file breaks ALL sudo).
     SUDOERS_TMP="$(mktemp)"
-    sed "s/^__USERNAME__ /$(id -un) /" "${SUDOERS_SRC}" > "${SUDOERS_TMP}"
+    sed "s/^__USERNAME__ /${TARGET_USER} /" "${SUDOERS_SRC}" > "${SUDOERS_TMP}"
     if ! sudo visudo -cf "${SUDOERS_TMP}"; then
       echo "   sudoers file FAILED visudo syntax check — NOT installing."; rm -f "${SUDOERS_TMP}"; exit 1
     fi
-    sudo install -m 0440 -o root -g wheel "${SUDOERS_TMP}" "${SUDOERS_DEST}" \
-      && echo "✓ installed ${SUDOERS_DEST} (user: $(id -un))"
+    if ! sudo install -m 0440 -o root -g wheel "${SUDOERS_TMP}" "${SUDOERS_DEST}"; then
+      echo "   could not install ${SUDOERS_DEST}."; rm -f "${SUDOERS_TMP}"; exit 1
+    fi
+    echo "✓ installed ${SUDOERS_DEST} (user: ${TARGET_USER})"
     rm -f "${SUDOERS_TMP}"
     sudo visudo -c >/dev/null && echo "✓ live sudoers healthy"
-    if sudo -n /usr/bin/tmutil thinlocalsnapshots / 999999999999 4 >/dev/null 2>&1; then
-      echo "✓ passwordless thin verified — the deep agent will now reclaim snapshot space automatically."
+    # Ask sudo whether the rule allows the command: it LISTS, it does not run it, so nothing is thinned to find out.
+    if sudo -n -l /usr/bin/tmutil thinlocalsnapshots / 999999999999 4 >/dev/null 2>&1; then
+      echo "✓ snapshot thinning is allowed without a password for ${TARGET_USER}."
     else
-      echo "⚠ rule installed but the no-password test didn't pass; inspect ${SUDOERS_DEST}."
+      echo "⚠ rule installed but sudo does not list the command as allowed; inspect ${SUDOERS_DEST}."
+      exit 1
     fi
     ;;
   sudoers-uninstall)
@@ -133,5 +151,5 @@ case "$cmd" in
       echo "(not installed)"
     fi
     ;;
-  *) echo "usage: $0 {install|uninstall|status|sudoers-install|sudoers-uninstall}"; exit 2 ;;
+  *) echo "usage: $0 {install|uninstall|status|sudoers-install|sudoers-status|sudoers-uninstall}"; exit 2 ;;
 esac

@@ -35,6 +35,13 @@ without an entry here — see `scripts/cut-release.sh`.
   once the Trash is emptied it is gone from iCloud and from your other
   devices. They are listed under "Only in iCloud" with their real size, and the
   run's summary says how many were left.
+- Time Machine is a screen of its own under Storage. It lists the local
+  snapshots on this Mac by day, which hold space you have freed, and "Thin
+  Snapshots…" releases that space after you confirm; your backups on the Time
+  Machine disk are never touched, and a new backup can start afterwards. Thinning
+  needs a one-time permission for one command; the screen offers "Allow…", which
+  shows the standard macOS administrator prompt and installs it. In Terminal,
+  `tm-reclaim.sh` now looks first and only thins with `--apply`.
 - Two new screens under Storage. Unused Apps finds the apps you have not
   opened for six months or more, grouped by how long ago, each with what goes
   with it: its Application Support, caches and preferences. Tick the apps to
