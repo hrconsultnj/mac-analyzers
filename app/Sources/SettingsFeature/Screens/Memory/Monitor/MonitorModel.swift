@@ -1,14 +1,14 @@
 import AppKit
 import SwiftUI
 import AnalyzersKit
+import UIComponents
 
 /// What Monitor shows and how it stays current. The rows come from
-/// `MonitorTree`; this holds them between refreshes under the one rule that
-/// matters for a live table: a refresh updates values in place and never
-/// re-orders (prototype gate 1: re-ordering under a live table trips AppKit's
-/// reentrant-delegate warning, and moves a row out from under the pointer).
-/// Rows re-order when the person changes the sort, presses Refresh, or after
-/// ten quiet seconds with the pointer off the table.
+/// `MonitorTree`; this holds them between refreshes under one product rule: a
+/// refresh updates values and membership in place and never re-orders, because
+/// a row must not slide away from under the pointer. Rows re-order only when the
+/// person changes the sort or presses Refresh. (The table itself would take a
+/// re-order live, keeping scroll position, selection and focus.)
 @MainActor @Observable
 final class MonitorModel {
 
@@ -53,17 +53,8 @@ final class MonitorModel {
     /// Refresh, or the table has been left alone for a while.
     private(set) var sort = MonitorTree.Sort.biggestFirst
 
-    // expansion, remembered between launches by row id
-    private static let expandedKey = "monitor.expanded"
-    /// Not observed, on purpose: the table owns what is open once it is built,
-    /// and this only seeds it and records what the person opens. Observed, a
-    /// click on a row's arrow wrote here from inside AppKit's own callback, the
-    /// write re-ran the table's body, and AppKit logged "reentrant operation
-    /// in its NSTableView delegate" on every open (measured).
-    @ObservationIgnored var expanded: Set<String> = Set(UserDefaults.standard.stringArray(forKey: MonitorModel.expandedKey) ?? [])
-    {
-        didSet { UserDefaults.standard.set(Array(expanded), forKey: MonitorModel.expandedKey) }
-    }
+    /// Which groups are open, remembered across window close and relaunch by row id.
+    let expansion = RememberedExpansion<String>(screen: "monitor")
 
     private var meter = CPUMeter()
     private var lastCPU: [Int: Double] = [:]
@@ -112,7 +103,7 @@ final class MonitorModel {
         lastCPU = cpu
         let fresh = MonitorTree.rows(census: census, cpu: cpu)
         rows = rows.isEmpty ? MonitorTree.sorted(fresh, by: sort)
-                            : MonitorTree.merge(rows, with: fresh, open: expanded)
+                            : MonitorTree.merge(rows, with: fresh)
         readIcons()
         hasLoaded = true
         loaded.insert(.memory)
@@ -130,7 +121,7 @@ final class MonitorModel {
         let times = await Task.detached(priority: .utility) { ProcTable.cpuTimes(of: pids) }.value
         let cpu = meter.look(at: times)
         lastCPU = cpu
-        rows = MonitorTree.merge(rows, with: MonitorTree.rows(census: census, cpu: cpu), open: expanded)
+        rows = MonitorTree.merge(rows, with: MonitorTree.rows(census: census, cpu: cpu))
     }
 
     // MARK: - ordering
@@ -142,24 +133,13 @@ final class MonitorModel {
         resort()
     }
 
-    /// Bumped when the order really changed. A table that is re-ordered in
-    /// place makes AppKit log "reentrant operation in its NSTableView
-    /// delegate" every time (measured: three sorts, three warnings, with or
-    /// without animation); a table built fresh in the new order does not. The
-    /// view reads this as the table's identity, so a re-order is a rebuild —
-    /// expansion and selection live here and in the view, so they survive it.
-    private(set) var orderGeneration = 0
-
     func resort() {
-        let before = MonitorTree.order(of: rows)
         var latest = rows
         // the person asked for this: take the rows as they are NOW as well
         if let census = lastCensus {
             latest = MonitorTree.merge(rows, with: MonitorTree.rows(census: census, cpu: lastCPU))
         }
-        let sortedRows = MonitorTree.sorted(latest, by: sort)
-        rows = sortedRows
-        if MonitorTree.order(of: sortedRows) != before { orderGeneration += 1 }
+        rows = MonitorTree.sorted(latest, by: sort)
     }
 
     // MARK: - icons
@@ -173,6 +153,14 @@ final class MonitorModel {
             }
         }
         icons = found
+    }
+
+    /// Replaces the rows (what a refresh does, minus the census): the headless probe uses it to start and
+    /// end processes inside an open group without waiting for real ones.
+    func setRows(_ new: [MonitorRow]) {
+        rows = new
+        hasLoaded = true
+        loaded.insert(.memory)
     }
 
     // MARK: - what the screen asks
@@ -189,25 +177,16 @@ final class MonitorModel {
         return search(rows)
     }
 
-    /// Opens every row at once — a rebuild, because opening hundreds of rows in
-    /// place is another change AppKit warns about (opening one by hand is not).
+    /// Opens every group at once.
     func expandEverything() {
-        func open(_ rows: [MonitorRow]) {
-            for row in rows where row.hasChildren { expanded.insert(row.id); open(row.children) }
+        func open(_ rows: [MonitorRow]) -> Set<String> {
+            rows.filter(\.hasChildren).reduce(into: Set<String>()) { $0.insert($1.id); $0.formUnion(open($1.children)) }
         }
-        open(rows)
-        rebuildTable()
+        expansion.ids.formUnion(open(rows))
     }
 
-    /// Builds the table afresh (to show a change made outside its own clicks).
-    func rebuildTable() { orderGeneration += 1 }
-
-    func isExpanded(_ id: String) -> Binding<Bool> {
-        Binding(get: { self.expanded.contains(id) },
-                set: { open in
-                    if open { self.expanded.insert(id) } else { self.expanded.remove(id) }
-                })
-    }
+    /// Opens these groups, keeping whatever else is open.
+    func open(_ ids: some Sequence<String>) { expansion.ids.formUnion(ids) }
 
     /// "1,145 processes · 24.7 GB in use".
     var subtitle: String {

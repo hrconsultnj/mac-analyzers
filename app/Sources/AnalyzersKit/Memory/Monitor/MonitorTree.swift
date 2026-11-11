@@ -157,55 +157,23 @@ public enum MonitorTree {
 
     // MARK: - updating in place
 
-    /// A refresh: new values for rows that exist, in the order they already
-    /// have. Nothing is re-sorted.
-    ///
-    /// Rows that appeared or went away are applied everywhere a person cannot
-    /// see them — top-level rows and the children of a row that is closed. The
-    /// children of a row that is OPEN keep the rows they had (with new values)
-    /// until the next explicit refresh: adding or removing rows inside an open,
-    /// live table makes AppKit log "reentrant operation in its NSTableView
-    /// delegate" (measured with every group open: values-only ticks were clean,
-    /// ticks that changed the rows were not). A process that ended therefore
-    /// stays listed, at its last values, until Refresh Now or a new sort.
-    public static func merge(_ old: [MonitorRow], with new: [MonitorRow],
-                             open: Set<String> = []) -> [MonitorRow] {
+    /// A refresh: new values, new rows, rows that ended gone, in the order the rows already have.
+    /// Nothing is re-sorted: survivors keep their place at every level, rows that appeared go to the end of
+    /// their parent, and a row that ended leaves. The table applies membership changes live, inside an open
+    /// group too, and keeps scroll position, selection and what is open; rows move only when the person
+    /// sorts or presses Refresh (a choice about the pointer: a row must not slide away under it).
+    public static func merge(_ old: [MonitorRow], with new: [MonitorRow]) -> [MonitorRow] {
         let fresh = Dictionary(new.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var result: [MonitorRow] = []
         var kept = Set<String>()
         for row in old {
             guard var updated = fresh[row.id] else { continue }
-            if open.contains(row.id) {
-                let known = Set(row.children.map(\.id))
-                updated.pendingNew = updated.children.filter { !known.contains($0.id) }.count
-                updated.children = values(of: updated.children, into: row.children, open: open)
-                updated.pendingEnded = updated.children.filter(\.isEnded).count
-            } else {
-                updated.children = merge(row.children, with: updated.children, open: open)
-            }
+            updated.children = merge(row.children, with: updated.children)
             result.append(updated)
             kept.insert(row.id)
         }
         result.append(contentsOf: new.filter { !kept.contains($0.id) })
         return result
-    }
-
-    /// The rows that were there, with whatever fresh values exist for them; a
-    /// row with none keeps its last values, and nothing new is added.
-    private static func values(of fresh: [MonitorRow], into old: [MonitorRow], open: Set<String>) -> [MonitorRow] {
-        let latest = Dictionary(fresh.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return old.map { row in
-            guard var updated = latest[row.id] else {
-                // it has ended: kept, at its last values, and not stoppable
-                var ended = row
-                ended.isEnded = true
-                ended.cpu = nil
-                ended.stop = .unavailable("This process has ended.")
-                return ended
-            }
-            updated.children = values(of: updated.children, into: row.children, open: open)
-            return updated
-        }
     }
 
     // MARK: - sorting

@@ -26,7 +26,7 @@ struct CleanupResultsView: View {
     var body: some View {
         let current = tabs.items.contains { $0.value == tab } ? tab : (tabs.items.first?.value ?? tab)
         ReviewTable(session: session, readOnly: true, note: note ?? review.protectedNote,
-                    only: tabs.hasTabs ? tabs.rowIDs[current] : nil)
+                    only: tabs.hasTabs ? tabs.rowIDs[current] : nil, screen: "cleanup")
             .modifier(CleanupTabsModifier(tabs: tabs, screen: screen, selection: $tab))
     }
 }

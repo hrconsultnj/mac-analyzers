@@ -9,7 +9,8 @@ import UIComponents
 ///
 /// One job per file next to it:
 ///   MonitorModel.swift       the rows between refreshes: values update in place, order only when asked
-///   MonitorOutline.swift     the table — the one file that knows it is a SwiftUI Table
+///   MonitorOutline.swift     the table — the one file that knows how it is drawn (the app's `OutlineTable`)
+///   MonitorProbe.swift       the same table driven headless, for `scripts/monitor-probe.sh`
 ///   MonitorCategory.swift    the tabs, in the shape the shared tabs control takes
 ///   MonitorView+Strip.swift  the memory bar above the table
 ///   MonitorView+Toolbar.swift  lens, refresh, Stop, inspector toggle
@@ -37,6 +38,8 @@ struct MonitorView: View {
     @Environment(Navigator.self) var navigator
     @State var model = MonitorModel()
     @State var selection: MonitorRow.ID?
+    /// The Energy and Disk I/O tables select too (nothing reads it).
+    @State var lensSelection: Int?
     @State var search = ""
     @State var scope: Scope = .everything
     @State var sortOrder: [KeyPathComparator<MonitorRow>] = [KeyPathComparator(\.memoryBytes, order: .reverse)]
@@ -100,27 +103,19 @@ struct MonitorView: View {
             .task(id: "\(model.lens.rawValue)-\(refreshSeconds)") { await refreshLoop() }
     }
 
-    /// A table is built only once it has rows. A table that is created empty
-    /// and then handed its first rows trips AppKit's reentrant-delegate warning
-    /// (measured with the headless renderer: one warning on every load, none
-    /// when the table is created with its data), so the wait is a plain
-    /// progress view and the table appears whole.
+    /// The table exists from the start: until the first reading it shows a progress indicator in place of
+    /// the rows, and when the scope or the search leaves none it says so there.
     @ViewBuilder private var content: some View {
-        if model.isLoaded(model.lens) {
-            switch model.lens {
-            case .memory:
-                MonitorOutline(rows: visibleRows, sortOrder: $sortOrder, selection: $selection,
-                               isExpanded: model.isExpanded, icons: model.icons,
-                               identity: "\(model.orderGeneration)|\(scope.rawValue)|\(search)",
-                               rowFor: { model.row($0) }, begin: stopFlow.begin, open: showDetails) { row in
-                    rowMenu(row)
-                }
-                .overlay { emptyState }
-            case .energy: energyTable
-            case .diskIO: diskIOTable
+        switch model.lens {
+        case .memory:
+            MonitorOutline(rows: visibleRows, sortOrder: $sortOrder, selection: $selection,
+                           expanded: model.expansion.binding, icons: model.icons,
+                           isLoading: !model.isLoaded(.memory), empty: AnyView(emptyState),
+                           rowFor: { model.row($0) }, begin: stopFlow.begin, open: showDetails) { row in
+                rowMenu(row)
             }
-        } else {
-            ProgressView("Reading the process table…")
+        case .energy: model.isLoaded(.energy) ? AnyView(energyTable) : AnyView(ProgressView("Reading the process table…"))
+        case .diskIO: model.isLoaded(.diskIO) ? AnyView(diskIOTable) : AnyView(ProgressView("Reading the process table…"))
         }
     }
 
@@ -153,9 +148,7 @@ struct MonitorView: View {
         if link.expandAll { model.expandEverything() }
         if let name = link.open,
            let row = model.rows.first(where: { $0.name.localizedCaseInsensitiveContains(name) }) {
-            model.expanded.insert(row.id)
-            for child in row.children { model.expanded.insert(child.id) }
-            model.rebuildTable()
+            model.open([row.id] + row.children.map(\.id))
         }
         if let name = link.preview,
            let row = model.rows.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }),
@@ -166,8 +159,7 @@ struct MonitorView: View {
             scope = .everything
             search = ""
             if let path = MonitorTree.path(toPID: pid, in: model.rows) {
-                for id in path.dropLast() { model.expanded.insert(id) }
-                model.rebuildTable()
+                model.open(path.dropLast())
                 selection = path.last
             }
             // the reason is shown whether or not the row is still there

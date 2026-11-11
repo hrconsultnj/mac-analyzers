@@ -1,90 +1,65 @@
 import SwiftUI
 import AnalyzersKit
+import UIComponents
 
-/// The ONLY place Monitor knows its table is a SwiftUI `Table` with
-/// `DisclosureTableRow`s. It takes the tree, the sort, the selection, what is
-/// open and the row actions, and nothing else in the Memory screens reaches
-/// into it — so if the outline control changes (the app is measuring AppKit's
-/// reentrancy warning to choose one control for every opening-group table),
-/// this one file changes.
+/// The ONLY place Monitor knows how its table is drawn: one `OutlineTable`, the app's table for rows
+/// that open. It takes the tree, the sort, the selection, what is open and the row actions; nothing
+/// else in the Memory screens reaches into it.
 ///
-/// Two things it does on purpose, both measured (see `MonitorModel`):
-///  - the table is given an `identity`; a new identity is a new table, which is
-///    how a re-order or a filter change avoids AppKit's reentrant-delegate
-///    warning. Selection and what is open survive (they are bindings); the
-///    scroll position goes back to the top, and keyboard focus is not kept.
-///  - the children of an open row are not changed under it — see
-///    `MonitorTree.merge`; a row that has ended is drawn as ended.
+/// What the table does for Monitor, and what Monitor no longer does for itself:
+///  - a re-sort keeps scroll position, selection and keyboard focus (no rebuilding the table);
+///  - rows appear and leave inside an open group live (no holding them back);
+///  - the table exists before it has rows (`emptyContent`), and shows a progress indicator until the
+///    first reading.
 struct MonitorOutline<Menu: View>: View {
     let rows: [MonitorRow]
     @Binding var sortOrder: [KeyPathComparator<MonitorRow>]
     @Binding var selection: MonitorRow.ID?
-    let isExpanded: (String) -> Binding<Bool>
+    let expanded: Binding<Set<String>>
     let icons: [String: NSImage]
-    let identity: String
+    let isLoading: Bool
+    let empty: AnyView
     let rowFor: (MonitorRow.ID) -> MonitorRow?
     let begin: (MonitorStop) -> Void
     let open: (MonitorRow) -> Void
     @ViewBuilder let menu: (MonitorRow) -> Menu
 
     var body: some View {
-        Table(of: MonitorRow.self, selection: $selection, sortOrder: $sortOrder) {
-            TableColumn(Names.Monitor.name, value: \.name) { row in
+        OutlineTable(rows, children: \.childRows, selection: $selection, sortOrder: $sortOrder,
+                     expanded: expanded, autosave: "monitor") {
+            OutlineColumn("name", Names.Monitor.name, sortUsing: KeyPathComparator(\MonitorRow.name)) { row in
                 MonitorNameCell(row: row, icon: icons[row.id])
             }
             .width(min: 150, ideal: 210)
-            TableColumn(Names.Monitor.whatItIs) { row in
-                Text(row.detailText).foregroundStyle(row.pendingNew + row.pendingEnded > 0 ? Color.orange : Color.secondary)
-            }
-            .width(min: 130, ideal: 260)
-            TableColumn(Names.Monitor.memory, value: \.memoryBytes) { row in
-                Text(row.memoryText)
-                    .monospacedDigit()
-                    .foregroundStyle(row.memoryBytes > 4 * 1_073_741_824 ? Color.orange : Color.secondary)
-            }
-            .width(min: 76, ideal: 84)
-            TableColumn(Names.Monitor.cpu, value: \.cpuSort) { row in
-                Text(row.cpuText).monospacedDigit().foregroundStyle(.secondary)
-            }
-            .width(min: 60, ideal: 70)
-            TableColumn(Names.Monitor.pid, value: \.pidSort) { row in
-                // a pid is an identifier: a String, so it never gains a thousands separator
-                Text(row.pid.map { String($0) } ?? "").monospacedDigit().foregroundStyle(.secondary)
-            }
-            .width(min: 56, ideal: 64)
-            TableColumn("") { row in stopControl(row) }
+            .typeSelect { $0.name }
+            OutlineColumn("what", Names.Monitor.whatItIs, text: { $0.detail })
+                .textStyle { _ in .secondary }
+                .width(min: 130, ideal: 260)
+            OutlineColumn("memory", Names.Monitor.memory, text: { $0.memoryText },
+                          sortUsing: KeyPathComparator(\MonitorRow.memoryBytes))
+                .alignment(.trailing).monospacedDigits()
+                .textStyle { $0.memoryBytes > 4 * 1_073_741_824 ? .warning : .secondary }
+                .width(min: 76, ideal: 84)
+            OutlineColumn("cpu", Names.Monitor.cpu, text: { $0.cpuText },
+                          sortUsing: KeyPathComparator(\MonitorRow.cpuSort))
+                .alignment(.trailing).monospacedDigits().textStyle { _ in .secondary }
+                .width(min: 60, ideal: 70)
+            // a pid is an identifier: text, so it never gains a thousands separator
+            OutlineColumn("pid", Names.Monitor.pid, text: { $0.pid.map { String($0) } ?? "" },
+                          sortUsing: KeyPathComparator(\MonitorRow.pidSort))
+                .alignment(.trailing).monospacedDigits().textStyle { _ in .secondary }
+                .width(min: 56, ideal: 64)
+                .defaultHidden()
+            OutlineColumn("stop", "") { row in stopControl(row) }
+                .hideable(false)
                 .width(min: 50, ideal: 56)
-        } rows: {
-            ForEach(rows) { group in groupRows(group) }
         }
-        .id(identity)
-        .contextMenu(forSelectionType: MonitorRow.ID.self) { ids in
+        .contextMenu({ ids in
             if let row = ids.first.flatMap(rowFor) { menu(row) }
-        } primaryAction: { ids in
+        }, primaryAction: { ids in
             if let row = ids.first.flatMap(rowFor) { open(row) }
-        }
-    }
-
-    // MARK: - rows (three levels: an app or tool, its parts or programs, their processes)
-
-    @TableRowBuilder<MonitorRow> private func groupRows(_ group: MonitorRow) -> some TableRowContent<MonitorRow> {
-        if group.hasChildren {
-            DisclosureTableRow(group, isExpanded: isExpanded(group.id)) {
-                ForEach(group.children) { child in childRows(child) }
-            }
-        } else {
-            TableRow(group)
-        }
-    }
-
-    @TableRowBuilder<MonitorRow> private func childRows(_ child: MonitorRow) -> some TableRowContent<MonitorRow> {
-        if child.hasChildren {
-            DisclosureTableRow(child, isExpanded: isExpanded(child.id)) {
-                ForEach(child.children) { leaf in TableRow(leaf) }
-            }
-        } else {
-            TableRow(child)
-        }
+        })
+        .emptyContent(isLoading: isLoading) { empty }
     }
 
     // MARK: - the row's own Stop or Quit

@@ -74,6 +74,11 @@ func probeMonitor() -> Never {
     print("\nrefresh merged in place: \(merged.count) groups; survivors keep their order: \(stable ? "yes" : "NO")"
           + "; appended at the end: \(after.filter { !before.contains($0) }.count); dropped: \(before.filter { !after.contains($0) }.count)")
 
+    // helpers that live outside their app's bundle and are grouped with it by bundle identifier
+    let joined = MemoryCensus.helpersJoinedToApps()
+    print("\nhelpers grouped with their app by bundle identifier: "
+          + (joined.isEmpty ? "none right now" : joined.map { "\($0.app) <- \($0.helper)" }.joined(separator: "; ")))
+
     let byCPU = MonitorTree.sorted(rows, by: MonitorTree.Sort(.cpu, ascending: false)).prefix(5)
     print("busiest right now: " + byCPU.map { "\($0.name) \($0.cpuText)" }.joined(separator: ", "))
     exit(stable && repeated.isEmpty ? 0 : 1)

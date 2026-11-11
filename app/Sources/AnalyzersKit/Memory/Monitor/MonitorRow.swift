@@ -22,7 +22,8 @@ public enum MonitorStop: Sendable {
 /// One line of Monitor's table. The table is a tree: an app or tool, the
 /// parts of it (or, for command-line tools, its separate programs), and the
 /// processes. Ids are stable across refreshes — a row is the same row on
-/// every tick — which is what lets the table update values in place.
+/// every tick — which is what lets the table update values in place and keep
+/// scroll position, selection and what is open.
 public struct MonitorRow: Identifiable, Sendable {
 
     public enum Kind: Sendable { case group, part, program, process }
@@ -45,24 +46,15 @@ public struct MonitorRow: Identifiable, Sendable {
     public var stop: MonitorStop
     /// The app's icon comes from this pid.
     public let iconPID: Int?
-    /// The process ended after the person opened its group: the row stays, at
-    /// its last values, until the next explicit refresh (see `MonitorTree.merge`).
-    public var isEnded = false
-    /// Rows that appeared, and rows that ended, inside this OPEN row since the
-    /// last explicit refresh — held back from the table, and counted here so
-    /// the row can say so.
-    public var pendingNew = 0
-    public var pendingEnded = 0
-
-    /// What it is, plus what is waiting to appear ("2 new, 1 ended — Refresh").
-    public var detailText: String {
-        var parts: [String] = []
-        if !detail.isEmpty { parts.append(detail) }
-        var held: [String] = []
-        if pendingNew > 0 { held.append("\(pendingNew) new") }
-        if pendingEnded > 0 { held.append("\(pendingEnded) ended") }
-        if !held.isEmpty { parts.append(held.joined(separator: ", ") + " — Refresh") }
-        return parts.joined(separator: " · ")
+    /// Whether the process this row stands for has ended since the last refresh. Rows of ended processes
+    /// leave the table at the next refresh; in the moment between, the row says so instead of offering a
+    /// Stop (and a Stop re-checks the process's start time regardless).
+    public var isEnded: Bool {
+        switch stop {
+        case .stopProcess(_, let identity): !identity.isStillRunning
+        case .stopProgram(let program): program.identity.map { !$0.isStillRunning } ?? false
+        default: false
+        }
     }
 
     public var memoryText: String { MemorySize.text(memoryBytes) }
@@ -70,6 +62,13 @@ public struct MonitorRow: Identifiable, Sendable {
     public var hasChildren: Bool { !children.isEmpty }
     /// For the table's disclosure: nil on a leaf.
     public var childRows: [MonitorRow]? { children.isEmpty ? nil : children }
+
+    /// The same row under another id, name and pid, without children: what a process that starts inside a group
+    /// looks like (the headless probe uses it to make one).
+    public func copy(id: String, name: String, pid: Int) -> MonitorRow {
+        MonitorRow(id: id, kind: kind, category: category, name: name, detail: detail, memoryBytes: memoryBytes,
+                   cpu: cpu, processCount: 1, pid: pid, children: [], stop: .none, iconPID: nil)
+    }
 
     /// Whether a search matches this row or anything under it.
     public func matches(_ text: String) -> Bool {
