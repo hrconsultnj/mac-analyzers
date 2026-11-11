@@ -29,8 +29,9 @@ final class OutlineFitter {
     /// What the inset style adds at the table's edge, measured: with none of it counted the last column
     /// ends 5 points past the visible rect.
     private static let edge: CGFloat = 5
-    /// Asked before a fit changes anything: false while AppKit is calling in.
-    var mayChangeColumns: () -> Bool = { true }
+    /// Asked before a fit changes anything: false while AppKit is calling in, nil when the table that
+    /// owned this is gone (then nothing is done and nothing is queued again).
+    var mayChangeColumns: () -> Bool? = { true }
 
     init(outline: NSOutlineView, scrollView: NSScrollView) {
         self.outline = outline
@@ -94,11 +95,15 @@ final class OutlineFitter {
     func schedule() {
         guard !queued else { return }
         queued = true
-        DispatchQueue.main.async { [self] in
+        DispatchQueue.main.async { [weak self] in
             MainActor.assumeIsolated {
-                queued = false
-                guard mayChangeColumns() else { schedule(); return }
-                fit()
+                guard let self else { return }
+                self.queued = false
+                switch self.mayChangeColumns() {
+                case nil: return                    // the table is gone
+                case false?: self.schedule()        // AppKit is calling in: next turn
+                case true?: self.fit()
+                }
             }
         }
     }
