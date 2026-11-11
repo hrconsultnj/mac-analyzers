@@ -1,5 +1,6 @@
 import AnalyzersKit
 import SwiftUI
+import UIComponents
 
 /// Login & Startup Items: everything that starts by itself on this Mac, as a
 /// table you can sort and search, with what the audit found about each one.

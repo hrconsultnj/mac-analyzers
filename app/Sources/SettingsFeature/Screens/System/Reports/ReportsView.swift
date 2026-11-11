@@ -1,6 +1,7 @@
 import AppKit
 import AnalyzersKit
 import SwiftUI
+import UIComponents
 
 /// Reports: the memory and storage reports the analyzers write, as a reader.
 /// The list of reports is on the left, named for when each was written; the

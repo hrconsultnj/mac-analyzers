@@ -1,6 +1,7 @@
 import AppKit
 import AnalyzersKit
 import SwiftUI
+import UIComponents
 
 /// Network: which programs have moved the most data, from the newest snapshot
 /// (or an older one picked from History). nettop's counters are totals since
