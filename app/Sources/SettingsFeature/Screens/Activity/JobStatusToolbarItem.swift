@@ -13,13 +13,14 @@ struct JobStatusToolbarItem: ToolbarContent {
     let navigator: Navigator
 
     /// Priority: the screen's own controls come first, and this item is secondary.
-    /// On Activity it is not shown at all: that screen lists the running job at its
+    /// On Activity's own list it is not shown at all (it is on a run screen pushed over
+    /// it, which may show another job): that list shows the running job at its
     /// top and its scope buttons are what the person uses there, so the item would
     /// only compete with them for the toolbar's width (the system moved the whole
     /// group into the overflow menu at 900 points when both were present). It is
     /// on every other screen.
     var body: some ToolbarContent {
-        if navigator.section != OverviewGroup.activity {
+        if !(navigator.section == OverviewGroup.activity && navigator.path.isEmpty) {
             ToolbarItem(placement: .status) {
                 JobStatusItemView(store: store, navigator: navigator)
             }
