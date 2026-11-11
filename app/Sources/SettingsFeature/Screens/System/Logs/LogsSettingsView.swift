@@ -10,19 +10,13 @@ struct LogsSettingsView: View {
     @State private var runs: [LogRun] = []
 
     var body: some View {
-        // every log now has a structured pane; the generic run list remains
-        // only for the standalone forensics browser entry
+        // the logs that have their own screen use it; the rest read as runs
         switch kind {
-        case .guardLog: GuardLogView()
         case .loginItems: LoginItemsView()
         case .spotlightAudit: SpotlightAuditView()
         case .tempSpace: TempSpaceView()
         case .storageClean: StorageCleanView()
-        case .memoryClean, .reclaim: ReapLogView(kind: kind)
         case .janitor: StorageCleanView(kind: .janitor)
-        // QA fix: forensics files are NOT run-shaped — the generic parser
-        // garbled them while the proper detail screen sat unwired
-        case .forensics: ForensicsBrowserView()
         default: genericRunList
         }
     }

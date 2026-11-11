@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -57,6 +57,8 @@ func option(_ name: String) -> String? {
     guard let index = arguments.firstIndex(of: name), arguments.indices.contains(index + 1) else { return nil }
     return arguments[index + 1]
 }
+// `--guard-log <file>`: show Memory Guard's history from this log instead of the real one.
+if let log = option("--guard-log") { GuardHistory.useLog(at: URL(fileURLWithPath: log)) }
 let sizeParts = (option("--size") ?? "1100x720").split(separator: "x").compactMap { Double($0) }
 let size = NSSize(width: sizeParts.first ?? 1100, height: sizeParts.count > 1 ? sizeParts[1] : 720)
 let wait = Double(option("--wait") ?? "3") ?? 3

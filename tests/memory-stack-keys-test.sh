@@ -29,7 +29,7 @@ check() { if [[ "$2" == "ok" ]]; then echo "PASS  $1"; else echo "FAIL  $1 ($2)"
 mkdir -p "$TMP/tree/memory-analyzer" "$TMP/tree/lib" "$TMP/stubs" "$TMP/home/.orbstack/run" \
          "$TMP/repos/site/.git" "$TMP/repos/site/supabase"
 cp "$SCRIPT" "$TMP/tree/memory-analyzer/memory-auto-clean.sh"
-cp "$HERE"/../lib/*.sh "$TMP/tree/lib/"                       # the live-session exemption is part of the script
+cp "$HERE"/../lib/* "$TMP/tree/lib/"                          # the live-session exemption and its list of agents are part of the script
 printf 'notify() { :; }\n' > "$TMP/tree/lib/notify.sh"       # ...but nobody is notified
 printf 'project_id = "demo"\n' > "$TMP/repos/site/supabase/config.toml"
 python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])' "$TMP/home/.orbstack/run/docker.sock"

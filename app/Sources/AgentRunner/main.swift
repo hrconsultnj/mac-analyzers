@@ -11,6 +11,9 @@ import Foundation
 
 let args = Array(CommandLine.arguments.dropFirst())
 
+// a probe that judges itself runs in a throwaway home, never in the person's (see ProbeSandbox.swift)
+if let first = args.first, ProbeSandbox.names.contains(first) { ProbeSandbox.enter(first) }
+
 // `agent-runner --probe-setup` prints the same checklist the Setup screen
 // shows, as plain text. Support can ask for its output, and it is the only
 // way to see the verdicts on a Mac you cannot click through.
@@ -195,6 +198,38 @@ if args.first == "--probe-review-rules" {
 }
 if args.first == "--probe-quit" {
     await probeQuit()
+}
+
+// `--probe-guard-history` prints Memory Guard's history as the screen groups it.
+// See GuardHistoryProbe.swift.
+if args.first == "--probe-guard-rules" {
+    probeGuardRules()
+}
+if args.first == "--probe-guard-history" {
+    probeGuardHistory(args)
+}
+
+// `--probe-cleanup-review [reclaim]` prints Memory Cleanup's review as the table
+// shows it. See CleanupReviewProbe.swift.
+if args.first == "--probe-cleanup-review" {
+    probeCleanupReview(args)
+}
+
+// `--probe-cleanup-apply` proves what the engine is given when a review is applied.
+if args.first == "--probe-cleanup-apply" {
+    await probeCleanupApply()
+}
+
+// `--probe-monitor` prints Monitor's table; `--probe-stop-targets` what a group
+// Stop offers and the guards behind it. See MonitorProbes.swift.
+if args.first == "--probe-monitor" {
+    probeMonitor()
+}
+if args.first == "--probe-agents" {
+    probeAgents(args)
+}
+if args.first == "--probe-stop-targets" {
+    await probeStopTargets(args)
 }
 
 // `agent-runner --probe-procargs` proves a process's arguments are read without its
