@@ -42,6 +42,11 @@ struct OutlineRepresentable<Row: Identifiable>: NSViewRepresentable {
         context.coordinator.scrollView
     }
 
+    /// The table is being taken away: what it queued for a later turn is dropped.
+    static func dismantleNSView(_ nsView: NSScrollView, coordinator: OutlineCoordinator<Row>) {
+        coordinator.tearDown()
+    }
+
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         context.coordinator.update(configuration, environment: context.environment)
     }

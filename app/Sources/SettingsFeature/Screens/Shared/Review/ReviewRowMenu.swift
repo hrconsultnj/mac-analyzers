@@ -34,10 +34,21 @@ struct ReviewFileItems: View {
             Button(Names.Review.showInFinder) {
                 NSWorkspace.shared.activateFileViewerSelecting(paths.map { URL(fileURLWithPath: $0) })
             }
-            Button(paths.count == 1 ? Names.Review.copyPath : Names.Review.copyPaths) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(paths.joined(separator: "\n"), forType: .string)
-            }
+            Button(paths.count == 1 ? Names.Review.copyPath : Names.Review.copyPaths) { Self.copy(paths) }
         }
+    }
+
+    /// One pasteboard item per path, each carrying the file itself and its path as text, the way
+    /// Finder copies: a path with a line break in its name stays ONE item and is never split into
+    /// two. (Pasted as text, several items arrive one per line.)
+    static func copy(_ paths: [String], to pasteboard: NSPasteboard = .general) {
+        let items = paths.map { path -> NSPasteboardItem in
+            let item = NSPasteboardItem()
+            item.setString(URL(fileURLWithPath: path).absoluteString, forType: .fileURL)
+            item.setString(path, forType: .string)
+            return item
+        }
+        pasteboard.clearContents()
+        pasteboard.writeObjects(items)
     }
 }

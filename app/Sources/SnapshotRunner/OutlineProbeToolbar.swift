@@ -19,13 +19,22 @@ enum ProbeToolbar {
         var insets = false
         /// Rows with a `headerTitle` draw as day section headers (Trends).
         var headers = false
+        /// The shared scope tabs' place: a bar under the toolbar the table sits below (`safeAreaBar`).
+        var bar = false
         var body: some View {
             NavigationSplitView {
                 List { Text("Overview"); Text("Login & Startup Items") }
             } detail: {
                 VStack(spacing: 0) {
                     if line { Text("Audited 8 hours ago: 29 items").padding() }
-                    if insets {
+                    if bar {
+                        ProbeScreen(model: model, hosted: false, headers: headers)
+                            .safeAreaBar(edge: .top, spacing: 0) {
+                                Picker("Tabs", selection: .constant(1)) { Text("Apps").tag(1); Text("Tools").tag(2) }
+                                    .pickerStyle(.segmented).labelsHidden()
+                                    .frame(maxWidth: .infinity, alignment: .leading).scenePadding(.horizontal).padding(.vertical, 8)
+                            }
+                    } else if insets {
                         ProbeScreen(model: model, hosted: false, headers: headers)
                             .safeAreaInset(edge: .bottom, spacing: 0) {
                                 Text("Audited 8 hours ago: 29 items, 11 of them leftovers.").font(.caption).padding()
@@ -43,7 +52,7 @@ enum ProbeToolbar {
         }
     }
 
-    private static func window(line: Bool, insets: Bool = false, headers: Bool = false, size: NSSize = NSSize(width: 1100, height: 720)) -> (ProbeWindow, ProbeModel) {
+    private static func window(line: Bool, insets: Bool = false, headers: Bool = false, bar: Bool = false, size: NSSize = NSSize(width: 1100, height: 720)) -> (ProbeWindow, ProbeModel) {
         let model: ProbeModel
         if headers {
             var next = 0
@@ -59,7 +68,7 @@ enum ProbeToolbar {
         } else {
             model = ProbeModel(rows: makeProbeRows(parents: 3, kids: 2))
         }
-        let host = NSHostingController(rootView: Screen(model: model, line: line, insets: insets, headers: headers))
+        let host = NSHostingController(rootView: Screen(model: model, line: line, insets: insets, headers: headers, bar: bar))
         let window = ProbeWindow(contentViewController: host)
         window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
         window.setContentSize(size)
@@ -97,9 +106,9 @@ enum ProbeToolbar {
         let runs = arguments.first.flatMap(Int.init) ?? 10
         var failures = 0
         for run in 1...runs {
-            for kind in ["bare", "review"] {
+            for kind in ["bare", "bar", "review"] {
                 let window: ProbeWindow
-                if kind == "bare" { window = Self.window(line: false).0 } else { window = reviewWindow().0 }
+                if kind == "bare" { window = Self.window(line: false).0 } else if kind == "bar" { window = Self.window(line: false, bar: true).0 } else { window = reviewWindow().0 }
                 guard let outline = window.contentView.flatMap(findOutline(in:)), let header = outline.headerView else {
                     say("FAIL first appearance \(kind) #\(run): no table"); failures += 1; continue
                 }
@@ -118,7 +127,7 @@ enum ProbeToolbar {
         if name == "first" { return firstAppearance(arguments) }
         if name == "render" {
             guard arguments.count >= 2 else { return 2 }
-            let (window, model) = window(line: arguments[0] == "line", insets: arguments[0] == "inset", headers: arguments[0] == "headers")
+            let (window, model) = window(line: arguments[0] == "line", insets: arguments[0] == "inset", headers: arguments[0] == "headers", bar: arguments[0] == "bar")
             // an update after the first draw, as a screen's refresh is
             if arguments[0] != "headers" { model.rows.append(ProbeRow(id: model.newID(), name: "Parent new", cpu: 1, mem: 5, kind: "App", children: nil)) }
             else { model.rows.append(ProbeRow(id: model.newID(), name: "More", cpu: 0, mem: 0, kind: "", children: [], headerTitle: "Friday")) }
@@ -132,7 +141,7 @@ enum ProbeToolbar {
             say("render toolbar:\(arguments[0]) -> \(arguments[1])")
             return 0
         }
-        let (window, model) = window(line: name == "line", insets: name == "inset")
+        let (window, model) = window(line: name == "line", insets: name == "inset", bar: name == "bar")
         guard let outline = window.contentView.flatMap(findOutline(in:)),
               let header = outline.headerView, let scroll = outline.enclosingScrollView else {
             say("FAIL toolbar:\(name): no table or no header")
@@ -171,6 +180,14 @@ enum ProbeToolbar {
         model.rows.append(ProbeRow(id: model.newID(), name: "Zed", cpu: 1, mem: 5, kind: "App", children: nil))
         _ = settle(); spin(0.3)
         check(abs(clip.bounds.origin.y - placed) < 1, "toolbar:\(name): a table the person scrolled keeps its position (\(Int(placed)) -> \(Int(clip.bounds.origin.y)))")
+        // scrolled to the end and back to the top
+        outline.scrollRowToVisible(outline.numberOfRows - 1); spin(0.3)
+        check(clip.bounds.origin.y > placed, "toolbar:\(name): scrolled to the end (origin \(Int(clip.bounds.origin.y)))")
+        clip.scroll(to: NSPoint(x: 0, y: -clip.contentInsets.top)); scroll.reflectScrolledClipView(clip); spin(0.3)
+        check(report(), "toolbar:\(name): back at the top, the first row is below the header")
+        model.rows.append(ProbeRow(id: model.newID(), name: "Late", cpu: 1, mem: 5, kind: "App", children: nil))
+        _ = settle(); spin(0.3)
+        check(report(), "toolbar:\(name): and still so after an update")
         return ok ? 0 : 1
     }
 }
