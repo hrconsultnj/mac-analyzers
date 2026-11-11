@@ -110,7 +110,7 @@ sweep() {
   else
     find_args+=(-maxdepth 1)
   fi
-  local item name kb size dest
+  local item name kb size dest tid
   while IFS= read -r -d '' item; do
     name="$(basename "${item}")"
     if keep_match "${name}"; then
@@ -137,7 +137,12 @@ sweep() {
       # collision the Trash copy is renamed, so reconstructing the path
       # from the basename can point at a different file the user trashed
       # themselves — and restoring would overwrite their file.
-      log "[TRASHED] ${size}  ${item}  ->  ${dest}"
+      # The item's identity (device:inode, which a rename keeps) goes at the END
+      # of the receipt so Undo can prove the Trash still holds THIS item and not
+      # a later one with the same name. Readers that stop at the destination
+      # (`UndoLedger`, the parsers) strip the "  #id=" suffix.
+      tid="$(/usr/bin/stat -f '%d:%i' "${dest}" 2>/dev/null || true)"
+      log "[TRASHED] ${size}  ${item}  ->  ${dest}${tid:+  #id=${tid}}"
     fi
     TOTAL_KB=$((TOTAL_KB + kb))
     COUNT=$((COUNT + 1))

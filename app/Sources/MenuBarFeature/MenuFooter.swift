@@ -6,19 +6,16 @@ import UIComponents
 /// The footer shared by every tab, and the small helpers the tabs share.
 extension MenuContentView {
 
-    // MARK: - shared
-
     var footer: some View {
         HStack {
             Button {
                 ActivationPolicy.windowOpening()
                 openWindow(id: "main")
             } label: {
-                Label("Settings…", systemImage: "gearshape")
+                Label("Open \(Names.app)", systemImage: "macwindow")
             }
-            if let latest = latestVersion,
-               UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion) {
-                Button("Upgrade to v\(latest)") { updates.requestInstall() }
+            if updates.isAvailable, let latest = updates.latest {
+                Button("Update to v\(latest)") { updates.requestInstall() }
                     .buttonStyle(.borderedProminent)
                     .help("Update in Terminal, then relaunch; settings are kept")
             } else {
@@ -30,19 +27,17 @@ extension MenuContentView {
             Button {
                 GuardControl.restartApp()
             } label: {
-                Image(systemName: "arrow.clockwise")
+                Label("Restart", systemImage: "arrow.clockwise")
+                    .labelStyle(.iconOnly)
             }
             .help("Restart this app only — nothing else is touched")
-            .accessibilityLabel("Restart app")
             Button("Quit") { NSApp.terminate(nil) }
         }
-        .controlSize(.regular)
-        .task { latestVersion = await UpdateChecker.latestVersion() }
     }
 
     func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.caption2.weight(.semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(.secondary)
     }
 

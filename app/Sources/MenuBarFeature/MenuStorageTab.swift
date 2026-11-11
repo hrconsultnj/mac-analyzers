@@ -2,113 +2,98 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// The Storage tab: disk usage and the storage cleanups.
+/// The Storage tab: disk, the scheduled cleans, and where to review each cleanup.
 extension MenuContentView {
-
-    // MARK: - Storage tab
 
     @ViewBuilder var storageTab: some View {
         sectionLabel("Storage Now")
         if let disk = store.disk {
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
                     IconTile(symbol: "internaldrive.fill", color: .indigo)
-                        .accessibilityHidden(true)  // decorative — "Macintosh HD" below already names it
-                    Text("Macintosh HD")
-                        .font(.callout.weight(.medium))
-                    Text("\(disk.usedText) of \(disk.totalText) used")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)  // decorative — the name already says what it is
+                    Text("Macintosh HD").font(.callout.weight(.medium))
                     Spacer()
                     Text("\(disk.freeText) free")
-                        .font(.callout.weight(.medium))
+                        .font(.callout.monospacedDigit())
                         .foregroundStyle(disk.usedFraction > 0.9 ? .red : .primary)
                 }
-                CapacityBar(fraction: disk.usedFraction)
+                ProgressView(value: disk.usedFraction)
+                    .tint(disk.usedFraction > 0.9 ? .red : disk.usedFraction > 0.75 ? .orange : .accentColor)
+                    .accessibilityLabel("Disk used")
+                    .accessibilityValue(Text(disk.usedFraction, format: .percent.precision(.fractionLength(0))))
+                Text("\(disk.usedText) of \(disk.totalText) used")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         } else {
-            Text("Couldn't read the boot volume.")
+            Text("The startup disk could not be read.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
         if let last = store.lastCleanDiskState {
-            HStack(spacing: 6) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("At last clean (\(runText(store.lastStorageCleanRun))): \(last)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            .help("What the last scheduled clean recorded — compare with the bar above")
+            Text("At the last clean (\(runText(store.lastStorageCleanRun))): \(last)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
 
         Divider()
 
         sectionLabel("Scheduled Cleans")
-        storageRow(
-            title: "Daily Clean",
-            detail: store.storageDailySummary.map { "last: \($0)" } ?? "no runs yet",
-            sub: "\(ScheduleKit.describe(GuardControl.storageCleanLabel)) — stale build caches only",
-            label: GuardControl.storageCleanLabel,
-            symbol: "sparkles", color: .green
-        )
-        storageRow(
-            title: "Deep Clean",
-            detail: store.storageDeepSummary.map { "last: \($0)" } ?? "no runs yet",
-            sub: "\(ScheduleKit.describe(GuardControl.storageDeepLabel)) — + node_modules of idle repos, idle worktrees (never main), package-manager and app caches, ALL unused Docker images, Time Machine snapshot thinning",
-            label: GuardControl.storageDeepLabel,
-            symbol: "wand.and.stars", color: .purple
-        )
+        storageRow(title: "Daily Clean",
+                   summary: store.storageDailySummary,
+                   when: ScheduleKit.describe(GuardControl.storageCleanLabel),
+                   what: "Stale build caches only.",
+                   label: GuardControl.storageCleanLabel, symbol: "sparkles", color: .green)
+        storageRow(title: "Deep Clean",
+                   summary: store.storageDeepSummary,
+                   when: ScheduleKit.describe(GuardControl.storageDeepLabel),
+                   what: "Also the node_modules of idle projects, idle worktrees, package-manager and app caches, unused Docker images and Time Machine snapshots.",
+                   label: GuardControl.storageDeepLabel, symbol: "wand.and.stars", color: .purple)
 
         Divider()
 
-        // the bigger, reviewed cleans — dry-run → review → apply in the app
-        sectionLabel("Review and Clean")
-        HStack(spacing: 12) {
-            Button("\(Names.Screen.cachesAndBuilds)…") { SettingsOpener.open(target: "actions:storageClean") }
-                .help("Preview what storage clean would remove, review, then apply")
-            Button("\(Names.Screen.downloads)…") { SettingsOpener.open(target: "actions:janitor") }
-                .help("Stale Downloads and old screenshots — to the Trash, reviewed first")
-            Button("\(Names.Screen.tempAndAgents)…") { SettingsOpener.open(target: "actions:tempClean") }
-                .help("Idle /tmp, /var and AI-agent leftovers — to the Trash, reviewed first")
-            Button("\(Names.Screen.memoryCleanup)…") { SettingsOpener.open(target: "actions:memoryClean") }
-                .help("Close helper processes whose app already closed — reviewed first")
-            Spacer()
+        sectionLabel("Review a Cleanup")
+        Grid(horizontalSpacing: 8, verticalSpacing: 6) {
+            GridRow {
+                openButton(Names.Screen.cachesAndBuilds, target: "caches")
+                openButton(Names.Screen.downloads, target: "downloads")
+            }
+            GridRow {
+                openButton(Names.Screen.tempAndAgents, target: "temp")
+                openButton(Names.Screen.memoryCleanup, target: "log:memoryClean")
+            }
+            GridRow {
+                openButton(Names.Screen.spotlight, target: "spotlight")
+                openButton(Names.Screen.loginItems, target: "loginitems")
+            }
         }
-        .controlSize(.regular)
-
-        Divider()
-
-        HStack(spacing: 12) {
-            Button(Names.Screen.cachesAndBuilds) { SettingsOpener.open(target: "log:storageClean") }
-            Button(Names.Screen.loginItems) { SettingsOpener.open(target: "log:loginItems") }
-            Button(Names.Screen.spotlight) { SettingsOpener.open(target: "log:spotlightAudit") }
-            Button(Names.Screen.tempAndAgents) { SettingsOpener.open(target: "log:tempSpace") }
-            Spacer()
-            Text("Last run \(runText(store.lastStorageCleanRun))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .controlSize(.regular)
     }
 
-    private func storageRow(title: String, detail: String, sub: String, label: String,
-                            symbol: String, color: Color) -> some View {
-        HStack(alignment: .center) {
+    /// A button that opens a screen: it names the screen and carries no ellipsis.
+    private func openButton(_ title: String, target: String) -> some View {
+        Button(title) { SettingsOpener.open(target: target) }
+            .buttonSizing(.flexible)
+    }
+
+    private func storageRow(title: String, summary: String?, when: String, what: String,
+                            label: String, symbol: String, color: Color) -> some View {
+        HStack(alignment: .center, spacing: 8) {
             IconTile(symbol: symbol, color: color)
-                .accessibilityHidden(true)  // decorative — title below already names the row
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 6) {
-                    Text(title).font(.callout.weight(.medium))
-                    Text(detail).font(.callout).foregroundStyle(.secondary)
-                }
-                Text(sub).font(.caption2).foregroundStyle(.secondary)
+                .accessibilityHidden(true)  // decorative — the title already names the row
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.callout.weight(.medium))
+                Text(summary.map { "Last run: \($0)." } ?? "Has not run yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("\(when). \(what)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            Spacer()
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
             Button("Run Now") { runNow(label) }
-                .controlSize(.regular)
                 .disabled(runNowPlan(for: label).problem != nil)
                 .help(runNowPlan(for: label).problem
                       ?? "Same run the schedule does — it appears in Activity, and Stop ends it")
@@ -117,12 +102,12 @@ extension MenuContentView {
 
     // MARK: - Run now
 
-    /// Whether Run now may run for one schedule, worked out once when the panel
-    /// appears (`MenuContentView.onAppear`), not on every redraw. The rule is the
-    /// store's (`JobStore.scheduleProblem`): the agent is installed, and its plist
+    /// Whether Run Now may run for one schedule, worked out once when the panel
+    /// appears, not on every redraw. The rule is the store's
+    /// (`JobStore.scheduleProblem`): the agent is installed, and its plist
     /// names the script this app would run.
     struct RunNowPlan {
-        /// Why Run now must not run, in words; nil when it may.
+        /// Why Run Now must not run, in words; nil when it may.
         let problem: String?
     }
 

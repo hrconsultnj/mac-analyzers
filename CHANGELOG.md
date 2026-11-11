@@ -5,6 +5,21 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## Next
+
+Notes for the release being worked on collect here. When it ships, this
+heading becomes its version and title.
+
+- Overview, Trends and Undo are rebuilt as screens you can use. Overview has
+  three tiles that open Monitor, Memory Guard and Disk, a Needs Attention list
+  where every row opens the right screen, what is running now, and your recent
+  events by name. Trends shows its details as tables, and Disk Reclaimed now
+  adds up every cleanup in the period instead of reading "0 KB". Undo is a
+  history grouped by day, with Restore on each row.
+- The menu-bar panel is rebuilt with standard controls, so nothing is cut off,
+  and its process list matches Monitor: the same apps, the same names and the
+  same memory numbers.
+
 ## v2.69.0 — A new main window, and cleanups you can watch, stop and look back on
 
 Mac Analyzers has a new main window. The sidebar is organised by what you

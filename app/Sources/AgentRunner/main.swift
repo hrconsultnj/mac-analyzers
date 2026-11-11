@@ -65,6 +65,13 @@ if args.first == "--probe-build" {
     exit(0)
 }
 
+// Overview-track probes (trends totals, undo history, overview rows, menu panel): OverviewProbes.swift.
+if args.first == "--probe-trends" { probeTrends(args) }
+if args.first == "--probe-undo" { probeUndo(args) }
+if args.first == "--probe-overview" { probeOverview(args) }
+if args.first == "--probe-menu" { probeMenu(args) }
+if args.first == "--probe-undo-fixture" { probeUndoFixture(args) }
+
 // `agent-runner --probe-names` prints every name in the central name table
 // (`Names.all`) and checks it against title-style capitalization
 // (`TitleStyle`). Exit 1 when any name fails; `scripts/check.sh names` runs it.

@@ -3,181 +3,94 @@ import Charts
 import AnalyzersKit
 import UIComponents
 
-/// Trends pane: what the suite has actually done over time — the receipts,
-/// aggregated. Headline sentence, defended/recovered stat tiles, events-per-
-/// day chart, and the repeat offenders. All read from local logs.
+/// Trends: what the guard and the cleaners have done for this Mac, from its own
+/// logs. A dashboard: the headline, what was defended and recovered as tiles
+/// that open their detail as a table, the events per day, and the repeat
+/// offenders. The period is a native menu in the toolbar; nothing leaves the Mac.
+///
+/// This file is the screen's state and its composition. One job next to it:
+///   TrendsSettingsView+Sections.swift   the tiles, the chart and the offenders
+///   TrendsEventTable.swift              the table every event drill-down shares
 struct TrendsSettingsView: View {
 
-    @State private var period: TrendsModel.Period = .day30
-    @State private var snapshot: TrendsSnapshot?
-
-    private var extendedSelected: Bool {
-        TrendsModel.Period.extended.contains(period)
+    @Environment(Navigator.self) var navigator
+    @State var period: TrendsModel.Period = .day30
+    @State var snapshot: TrendsSnapshot?
+    /// The tab shown, remembered across launches; `trends:memory` / `trends:storage` choose it.
+    @AppStorage("trends.category") private var categoryRaw = TrendCategory.memory.rawValue
+    var category: TrendCategory {
+        get { TrendCategory(rawValue: categoryRaw) ?? .memory }
+        nonmutating set { categoryRaw = newValue.rawValue }
     }
+    /// Storage tab, level 3: what was deleted, by project.
+    @State var projects: [DiskReclaimedGroup] = []
 
     var body: some View {
-        PaneScaffold(symbol: "chart.xyaxis.line", color: .mint, title: Names.Screen.trends,
-                     caption: "What the guard and cleaners have done for this Mac — from its own logs, nothing leaves the machine.") {
-            Section {
-                // 3/7/30 fill the bar; the fixed-width ellipsis is a menu
-                // holding the longer (and shorter) ranges
-                HStack(spacing: 8) {
-                    FullWidthSegments(
-                        options: TrendsModel.Period.primary.map { ($0, $0.label) },
-                        selection: $period
-                    )
-                    // fixed-width sibling matching the segment bar's full
-                    // height and corner treatment — never a floating dot
-                    Menu {
-                        ForEach(TrendsModel.Period.extended, id: \.self) { option in
-                            Button {
-                                period = option
-                            } label: {
-                                if period == option {
-                                    Label(option.label, systemImage: "checkmark")
-                                } else {
-                                    Text(option.label)
-                                }
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .fontWeight(.semibold)
-                            .frame(width: 34)
-                            .frame(maxHeight: .infinity)
-                            .contentShape(Rectangle())
-                    }
-                    .menuStyle(.borderlessButton)
-                    .accessibilityLabel("More options")
-                    .menuIndicator(.hidden)
-                    .frame(width: 40)
-                    .frame(maxHeight: .infinity)
-                    .foregroundStyle(extendedSelected ? Color.white : Color.primary)
-                    .background(extendedSelected ? AnyShapeStyle(Color.accentColor)
-                                                 : Tokens.Surface.tile,
-                                in: RoundedRectangle(cornerRadius: 8))
-                    .help(extendedSelected ? period.label : "More ranges")
-                    .accessibilityLabel(extendedSelected ? period.label : "More ranges")
-                }
-                .fixedSize(horizontal: false, vertical: true)
-                if extendedSelected {
-                    Text("Showing: \(period.label)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+        List {
             if let snap = snapshot {
                 Section {
                     Text(snap.headline)
                         .font(.title3.weight(.semibold))
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.vertical, 2)
                 }
                 if snap.isEmpty {
                     Section {
-                        Text("No activity in this window yet — trends fill in as the agents run.")
+                        Text("No activity in this period yet. Trends fill in as the guard and cleanups run.")
                             .foregroundStyle(.secondary)
                     }
+                } else if category == .memory {
+                    memorySections(snap)
                 } else {
-                    statSections(snap)
+                    storageSections(snap)
+                }
+            } else {
+                Section { ProgressView("Reading the logs…") }
+            }
+        }
+        .navigationTitle(Names.Screen.trends)
+        .navigationSubtitle(period.headlinePrefix)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Show", selection: Binding(get: { category }, set: { category = $0 })) {
+                    ForEach(TrendCategory.allCases) { kind in
+                        Label("\(kind.title)\(count(kind).map { " (\($0))" } ?? "")", systemImage: kind.symbol)
+                            .labelStyle(.titleAndIcon)
+                            .tag(kind)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            // A menu `Picker` in the toolbar draws an empty capsule (it does not show the
+            // selected title there); a `Menu` shows its icon, and the period is in the subtitle.
+            ToolbarItem {
+                Menu {
+                    Picker("Period", selection: $period) {
+                        ForEach(TrendsModel.Period.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Label(period.label, systemImage: "calendar")
                 }
             }
         }
-        .task { await load() }
+        .task {
+            if let payload = navigator.takeIntent(for: HistoryGroup.trends),
+               let requested = TrendCategory(rawValue: payload) { category = requested }
+            await load()
+        }
         .onChange(of: period) { Task { await load() } }
     }
 
-    @ViewBuilder private func statSections(_ snap: TrendsSnapshot) -> some View {
-        Section("Defended") {
-            statGrid([
-                ("xmark.octagon.fill", .red, "\(snap.kills)", "Runaways stopped", TrendsRoute.kills(period)),
-                ("arrow.up.right", .orange, "\(snap.spikes)", "Spikes caught", TrendsRoute.spikes(period)),
-                ("exclamationmark.triangle.fill", .orange, "\(snap.pressure)", "Pressure alerts", TrendsRoute.pressure(period)),
-                ("cpu", .purple, "\(snap.cpuHogs)", "CPU hogs flagged", TrendsRoute.cpuHogs(period)),
-            ])
-        }
-        Section("Recovered") {
-            statGrid([
-                ("memorychip", .blue,
-                 String(format: "%.1f GB", Double(snap.memoryFreedMB) / 1024), "Memory freed", TrendsRoute.memoryFreed(period)),
-                ("internaldrive.fill", .indigo,
-                 ByteSize.format(snap.storageFreedBytes), "Disk reclaimed", TrendsRoute.diskReclaimed(period)),
-                ("sparkles", .teal,
-                 ByteSize.format(snap.latestReclaimableBytes), "Reclaimable right now", TrendsRoute.reclaimableNow),
-            ])
-        }
-        if !snap.days.isEmpty {
-            Section("Guard Events per Day") {
-                Chart(snap.days) { day in
-                    BarMark(x: .value("Day", day.day, unit: .day),
-                            y: .value("Kills", day.kills))
-                        .foregroundStyle(by: .value("Type", "Killed"))
-                    BarMark(x: .value("Day", day.day, unit: .day),
-                            y: .value("Spikes", day.spikes))
-                        .foregroundStyle(by: .value("Type", "Spikes"))
-                    BarMark(x: .value("Day", day.day, unit: .day),
-                            y: .value("Other", day.other))
-                        .foregroundStyle(by: .value("Type", "Other"))
-                }
-                .chartForegroundStyleScale([
-                    "Killed": Color.red, "Spikes": Color.orange, "Other": Color.purple,
-                ])
-                .frame(height: 150)
-                .padding(.vertical, 4)
-                // the bars themselves are unreadable to VoiceOver — say in
-                // words what the shape shows
-                .accessibilityLabel("Bar chart of guard events per day")
-                .accessibilityValue("\(snap.kills) killed, \(snap.spikes) spikes, over the \(period.label.lowercased()) window")
-            }
-        }
-        if !snap.offenders.isEmpty {
-            Section("Repeat Offenders") {
-                ForEach(snap.offenders) { offender in
-                    NavigationLink(value: Route.history(.trends(.offender(offender.name, period)))) {
-                        DataCard(symbol: "flame.fill", color: .orange,
-                                 title: offender.name,
-                                 subtitle: "\(offender.count) event\(offender.count == 1 ? "" : "s") in this window",
-                                 trailing: "\(offender.count)×",
-                                 badge: offender.kills > 0
-                                     ? ("\(offender.kills) Killed", .red) : nil)
-                    }
-                }
-            }
-        }
-    }
-
-    private func statGrid(_ stats: [(symbol: String, color: Color, value: String, label: String, route: TrendsRoute)]) -> some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10),
-                                 count: min(stats.count, 4)),
-                  spacing: 10) {
-            ForEach(stats, id: \.label) { stat in
-                NavigationLink(value: Route.history(.trends(stat.route))) {
-                    VStack(spacing: 3) {
-                        Image(systemName: stat.symbol)
-                            .foregroundStyle(stat.color)
-                            .font(.body)
-                            .accessibilityHidden(true) // decorative — value + label below already say this
-                        Text(stat.value)
-                            .font(.title3.weight(.semibold).monospacedDigit())
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                        Text(stat.label)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.tile))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.vertical, 2)
+    /// How much each tab holds: guard events in Memory, cleanups that freed space in Storage.
+    private func count(_ kind: TrendCategory) -> Int? {
+        guard let snapshot else { return nil }
+        return kind == .memory ? snapshot.kills + snapshot.spikes + snapshot.pressure + snapshot.cpuHogs
+                               : snapshot.cleanRuns
     }
 
     private func load() async {
         let window = period
         await awaitLoad({ TrendsModel.snapshot(period: window) }) { snapshot = $0 }
+        await awaitLoad({ TrendsModel.diskReclaimedByProject(period: window) }) { projects = $0 }
     }
 }

@@ -1,108 +1,104 @@
-import AppKit
 import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// REVIEW › Undo — the ledger of reversibility. A kill-guard people trust
-/// is one that can un-kill: janitor and temp-clean items come back from the
-/// Trash with a click (receipt written), and guard-killed dev servers offer their
-/// logged command for relaunch.
+/// Undo: what can be brought back, and what happened to the rest. Level 2 is the
+/// two kinds of thing it holds (moved to the Trash, stopped dev servers); level 3
+/// is the cleanup run (or the guard's day) as ONE parent row with its count and
+/// total, opening to what it moved. Runs with something to restore come first
+/// and open; runs whose Trash has been emptied are closed and say so once.
+///
+/// This file is the screen's state and its composition. One job per file:
+///   UndoView+Row.swift       a run's parent row and an item's row
+///   UndoView+Actions.swift   loading the history, restoring, copying a command
 struct UndoView: View {
 
-    @State private var trashed: [TrashedItem] = []
-    @State private var kills: [GuardEvent] = []
-    @State private var restoreError: String?
-    @State private var copiedID: String?
+    @Environment(Navigator.self) var navigator
+    @State var entries: [UndoEntry] = []
+    @State var loaded = false
+    @State var scope: UndoEntry.Scope = .trashed
+    @State var restoreError: String?
+    /// A restore is running: every Restore button is disabled until it finishes.
+    @State var restoring = false
+    @State var copiedID: String?
+    /// Runs the person opened or closed; the rest follow the default (open when
+    /// something in the run can still be restored).
+    @State var expansion: [String: Bool] = [:]
+    /// `undo:opened` opens every run (also what a link from a notification could ask for).
+    @State var openAll = false
+
+    private var shown: [UndoEntry] { entries.filter { $0.scope == scope } }
 
     var body: some View {
-        PaneScaffold(symbol: "arrow.uturn.backward", color: .gray, title: Names.Screen.undo,
-                     caption: "What can be brought back — items the Janitor or Temp & Agents moved to the Trash, restored with a receipt, and the commands behind stopped dev servers.") {
-            Section("Moved to the Trash") {
-                if let restoreError {
-                    Label(restoreError, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                }
-                if trashed.isEmpty {
-                    Text("Nothing to restore — nothing has been moved to the Trash by a cleaner recently.")
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(trashed) { item in
-                    HStack(spacing: 8) {
-                        DataCard(appIcon: NSWorkspace.shared.icon(
-                                    forFile: item.isGroup ? (item.trashPath ?? item.originalPath)
-                                                          : item.originalPath),
-                                 title: item.basename,
-                                 subtitle: item.originalPath,
-                                 trailing: item.sizeText,
-                                 badge: (item.source.uppercased(),
-                                         item.source == "Janitor" ? .orange : .mint))
-                        switch item.restorability {
-                        case .restorable:
-                            Button("Restore") { restore(item) }
-                        case .trashCopyGone:
-                            Text("Trash Emptied")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        case .pathOccupied:
-                            Text("Path Occupied")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .help("Something new is at the original path — restore from the Trash")
-                        case .destinationUnknown:
-                            Text("Restore Manually")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .help("Trashed before the app tracked origins — drag it back from the Trash yourself")
+        Group {
+            if loaded && shown.isEmpty {
+                empty
+            } else {
+                List {
+                    ForEach(UndoHistory.days(shown)) { day in
+                        Section {
+                            ForEach(day.runs) { run in runGroup(run) }
+                        } header: {
+                            HStack {
+                                Text(day.title(now: Date()))
+                                Spacer()
+                                Text(day.summary).foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
             }
-
-            Section("Stopped Dev Servers (Recent)") {
-                if kills.isEmpty {
-                    Text("The guard hasn't stopped anything recently.")
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(kills.prefix(15)) { event in
-                    HStack(spacing: 8) {
-                        DataCard(symbol: "xmark.octagon.fill", color: .red,
-                                 title: event.friendlyName,
-                                 subtitle: "\(event.processName) · \(event.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()))",
-                                 trailing: event.residentText,
-                                 badge: ("Killed", .red))
-                        Button(copiedID == event.id ? "Copied" : "Copy Command") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(event.processName, forType: .string)
-                            copiedID = event.id
-                        }
-                        .help(event.processName.count >= 140
-                              ? "This command was recorded before the app captured full command lines, so part of it may be missing — check it before running."
-                              : "The command as the guard recorded it. You still supply the working directory and environment.")
+        }
+        .navigationTitle(Names.Screen.undo)
+        .navigationSubtitle(subtitle)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Show", selection: $scope) {
+                    ForEach(UndoEntry.Scope.allCases, id: \.self) { kind in
+                        Label("\(title(kind)) (\(entries.filter { $0.scope == kind }.count))",
+                              systemImage: kind == .trashed ? "trash" : "hand.raised")
+                            .labelStyle(.titleAndIcon)
+                            .tag(kind)
                     }
                 }
+                .pickerStyle(.segmented)
             }
         }
-        .task { await load() }
-    }
-
-    private func restore(_ item: TrashedItem) {
-        do {
-            try UndoLedger.restore(item)
-            restoreError = nil
-        } catch {
-            restoreError = "Could not restore \(item.basename): \(error.localizedDescription)"
+        .alert("Couldn't Restore", isPresented: Binding(get: { restoreError != nil },
+                                                        set: { if !$0 { restoreError = nil } })) {
+            Button("OK") { restoreError = nil }
+        } message: {
+            Text(restoreError ?? "")
         }
-        Task { await load() }
+        .task {
+            // `undo:trashed`, `undo:servers`, `undo:opened`: which kind, and whether every run is open
+            switch navigator.takeIntent(for: HistoryGroup.undo) {
+            case "servers": scope = .stopped
+            case "opened": scope = .trashed; openAll = true
+            default: break
+            }
+            await load()
+        }
     }
 
-    private func load() async {
-        await awaitLoad({
-            (UndoLedger.trashedItems(),
-             GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog).filter(\.isKill))
-        }) {
-            trashed = $0.0
-            kills = $0.1
+    private func title(_ kind: UndoEntry.Scope) -> String {
+        kind == .trashed ? "Moved to the Trash" : "Stopped Dev Servers"
+    }
+
+    private var subtitle: String {
+        guard loaded else { return "Reading the history…" }
+        let restorable = entries.filter(\.isRestorable).count
+        return restorable > 0 ? "\(restorable) can still be restored" : "Nothing waiting to be restored"
+    }
+
+    @ViewBuilder private var empty: some View {
+        switch scope {
+        case .trashed:
+            ContentUnavailableView("Nothing in the Trash From Cleanups", systemImage: "trash",
+                                   description: Text("When a cleanup moves something to the Trash, it is listed here so you can put it back."))
+        case .stopped:
+            ContentUnavailableView("No Servers Stopped", systemImage: "hand.raised",
+                                   description: Text("The guard has not stopped anything recently."))
         }
     }
 }

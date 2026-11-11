@@ -273,7 +273,7 @@ report_row() {
 scan_dir() {
   local sec="$1" parent="$2" minutes="$3" rule="$4" glob="${5:-}"
   [[ -d "$parent" ]] || return 0
-  local pdev; pdev="$(stat -f '%d' "$parent" 2>/dev/null)"
+  local pdev; pdev="$(/usr/bin/stat -f '%d' "$parent" 2>/dev/null)"
   local -a nameargs=()
   [[ -n "$glob" ]] && nameargs=(-name "$glob")
 
@@ -282,7 +282,7 @@ scan_dir() {
   # thousands of entries.
   find "$parent" -mindepth 1 -maxdepth 1 ${nameargs[@]+"${nameargs[@]}"} -print0 2>/dev/null > "$WORK/list0"
   [[ -s "$WORK/list0" ]] || return 0
-  xargs -0 stat -f "%Su%t%HT%t%d%t%N" < "$WORK/list0" 2>/dev/null > "$WORK/st.tsv"
+  xargs -0 /usr/bin/stat -f "%Su%t%HT%t%d%t%N" < "$WORK/list0" 2>/dev/null > "$WORK/st.tsv"
   # du only what lives on this disk — never into a mounted image
   awk -F'\t' -v d="$pdev" '$3 == d { print $4 }' "$WORK/st.tsv" | tr '\n' '\0' \
     | xargs -0 du -xsk 2>/dev/null > "$WORK/du.tsv"
@@ -606,8 +606,8 @@ safe_target() {
     esac
   fi
   [[ -e "$p" || -L "$p" ]] || return 1
-  [[ "$(stat -f '%Su' "$p" 2>/dev/null)" == "$ME" ]] || return 1
-  [[ -L "$p" ]] || [[ "$(stat -f '%d' "$p")" == "$(stat -f '%d' "$(dirname "$p")")" ]] || return 1
+  [[ "$(/usr/bin/stat -f '%Su' "$p" 2>/dev/null)" == "$ME" ]] || return 1
+  [[ -L "$p" ]] || [[ "$(/usr/bin/stat -f '%d' "$p")" == "$(/usr/bin/stat -f '%d' "$(dirname "$p")")" ]] || return 1
   return 0
 }
 
@@ -652,7 +652,7 @@ trash_dest() {
 act_members() {
   local label="$1" kb="$2" count="$3"; shift 3
   local -a members=("$@")
-  local p i rc ok=0 failed=0 dest folder
+  local p i rc ok=0 failed=0 dest folder tid
 
   # eject anything these members back, deepest first
   local -a idx=()
@@ -698,7 +698,9 @@ act_members() {
       else failed=$((failed + 1)); fi
     done
     if [[ "$ok" -gt 0 ]]; then
-      log "  [TRASHED] $(human "$kb")  ${label}  ->  ${folder}"
+      # identity (device:inode) at the END of the receipt, for Undo (see downloads-janitor.sh)
+      tid="$(/usr/bin/stat -f '%d:%i' "$folder" 2>/dev/null || true)"
+      log "  [TRASHED] $(human "$kb")  ${label}  ->  ${folder}${tid:+  #id=${tid}}"
       log "    ↳ ${ok} items"
       ACTED_KB=$((ACTED_KB + kb)); ACTED_N=$((ACTED_N + ok))
     else
@@ -708,7 +710,8 @@ act_members() {
     p="${members[0]}"
     dest="$(trash_dest "$(basename "$p")")"
     if safe_target "$p" && mv -- "$p" "$dest" 2>/dev/null; then
-      log "  [TRASHED] $(human "$kb")  ${p}  ->  ${dest}"
+      tid="$(/usr/bin/stat -f '%d:%i' "$dest" 2>/dev/null || true)"
+      log "  [TRASHED] $(human "$kb")  ${p}  ->  ${dest}${tid:+  #id=${tid}}"
       ACTED_KB=$((ACTED_KB + kb)); ACTED_N=$((ACTED_N + 1))
     else
       failed=1
