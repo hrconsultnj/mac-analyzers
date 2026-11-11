@@ -28,7 +28,10 @@ public struct LiveProcess: Identifiable, Sendable, Hashable {
                 footprintBytes: Int64? = nil, label: String? = nil, canQuit: Bool = true) {
         self.pid = pid
         self.residentMB = residentMB
-        self.rawName = rawName
+        // shown on rows, searched and copied: never with a value that may be secret. Callers
+        // pass `CommandLineDisplay.shown(_:)` (redacted, then cut); this is the backstop for one
+        // that passes raw text.
+        self.rawName = CommandLineDisplay.redacted(rawName)
         self.kind = kind
         self.ppid = ppid
         self.footprintBytes = footprintBytes
