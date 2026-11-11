@@ -11,6 +11,7 @@ var message = ""
 var sound: String? = "Glass"
 var log: String?
 var pid: String?
+var start: String?
 
 var iterator = CommandLine.arguments.dropFirst().makeIterator()
 while let flag = iterator.next() {
@@ -21,6 +22,7 @@ while let flag = iterator.next() {
     case "--sound": sound = iterator.next()
     case "--log": log = iterator.next()
     case "--pid": pid = iterator.next()
+    case "--start": start = iterator.next()
     default: break
     }
 }
@@ -54,6 +56,7 @@ if let subtitle { userInfo["subtitle"] = subtitle }
 if let sound { userInfo["sound"] = sound }
 if let log { userInfo["log"] = log }
 if let pid { userInfo["pid"] = pid }
+if let start { userInfo["start"] = start }
 
 DistributedNotificationCenter.default().postNotificationName(
     Notification.Name(NotifyChannel.name),

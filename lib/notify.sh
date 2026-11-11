@@ -23,9 +23,9 @@
 #   ANALYZERS_NOTIFY_TIMEOUT=180    seconds an unclicked alerter alert lives
 # ---------------------------------------------------------------------------
 
-notify() {  # title, message, [sound], [log path], [subtitle], [pid]
+notify() {  # title, message, [sound], [log path], [subtitle], [pid], [pid start time, epoch seconds]
   local title="${1:-mac-analyzers}" msg="${2:-}" sound="${3:-Glass}"
-  local log="${4:-${LOG_FILE:-}}" subtitle="${5:-}" npid="${6:-}"
+  local log="${4:-${LOG_FILE:-}}" subtitle="${5:-}" npid="${6:-}" nstart="${7:-}"
   local backend="${ANALYZERS_NOTIFIER:-native}"
 
   # preferred: the menu-bar app's bundled CLI (posts to the persistent app —
@@ -37,6 +37,7 @@ notify() {  # title, message, [sound], [log path], [subtitle], [pid]
     "$app_cli" --title "$title" --message "$msg" --sound "$sound" \
       ${subtitle:+--subtitle "$subtitle"} \
       ${npid:+--pid "$npid"} \
+      ${nstart:+--start "$nstart"} \
       ${log:+--log "$log"} >/dev/null 2>&1 &
     disown 2>/dev/null || true
     return 0

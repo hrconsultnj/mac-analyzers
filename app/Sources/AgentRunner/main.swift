@@ -185,6 +185,35 @@ if args.first == "--probe-quit" {
     await probeQuit()
 }
 
+// `--probe-guard-history` prints Memory Guard's history as the screen groups it.
+// See GuardHistoryProbe.swift.
+if args.first == "--probe-guard-history" {
+    probeGuardHistory(args)
+}
+
+// `--probe-cleanup-review [reclaim]` prints Memory Cleanup's review as the table
+// shows it. See CleanupReviewProbe.swift.
+if args.first == "--probe-cleanup-review" {
+    probeCleanupReview(args)
+}
+
+// `--probe-cleanup-apply` proves what the engine is given when a review is applied.
+if args.first == "--probe-cleanup-apply" {
+    await probeCleanupApply()
+}
+
+// `--probe-monitor` prints Monitor's table; `--probe-stop-targets` what a group
+// Stop offers and the guards behind it. See MonitorProbes.swift.
+if args.first == "--probe-monitor" {
+    probeMonitor()
+}
+if args.first == "--probe-agents" {
+    probeAgents(args)
+}
+if args.first == "--probe-stop-targets" {
+    await probeStopTargets(args)
+}
+
 // `agent-runner --probe-pid-recycle` proves a stop refuses a recycled pid.
 // It starts a `sleep`, remembers its birth, then asks the signal path to act
 // twice: once with a birth one second off, which is what a recycled pid looks

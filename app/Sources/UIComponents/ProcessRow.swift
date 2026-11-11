@@ -9,6 +9,8 @@ public struct ProcessRow: View {
     let proc: LiveProcess
     let afterStop: () -> Void
     @State private var stopping = false
+    @State private var confirming = false
+    @State private var refusal: String?
 
     public init(proc: LiveProcess, afterStop: @escaping () -> Void) {
         self.proc = proc
@@ -35,17 +37,26 @@ public struct ProcessRow: View {
             }
             Spacer(minLength: 4)
             if proc.canQuit {
-                Button(stopping ? "…" : (proc.isDev ? "Stop" : "Quit")) {
-                    stopping = true
-                    GuardControl.stopProcess(proc)
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .seconds(1.5))
-                        afterStop()
-                        stopping = false
-                    }
-                }
+                Button(stopping ? "…" : (proc.isDev ? "Stop" : "Quit")) { confirming = true }
                 .controlSize(.small)
                 .disabled(stopping)
+                .confirmationDialog("\(proc.isDev ? "Stop" : "Quit") \(proc.friendlyName)?",
+                                    isPresented: $confirming, titleVisibility: .visible) {
+                    Button(proc.isDev ? "Stop" : "Quit", role: .destructive, action: stop)
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text(proc.isDev
+                         ? "It will be asked to stop. Anything it is doing is interrupted."
+                         : ["It will be asked to quit. It will still ask before discarding unsaved work.",
+                            MemoryStop.hostedNote(CodingAgentHosts.sessionsBelow(pid: proc.pid))]
+                            .compactMap { $0 }.joined(separator: " "))
+                }
+                .alert("Left Alone", isPresented: Binding(get: { refusal != nil },
+                                                          set: { if !$0 { refusal = nil } })) {
+                    Button("OK") { refusal = nil }
+                } message: {
+                    Text(refusal ?? "")
+                }
                 .help(proc.isDev
                       ? "Stops this dev process — it's asked to quit, so it can restart on its own next build or session. (Technically: SIGTERM, not a forced kill.)"
                       : "Ask this app to quit gracefully — same as ⌘Q, save dialogs still appear")
@@ -58,6 +69,18 @@ public struct ProcessRow: View {
                     .help("Part of macOS — not something to quit from here")
                     .accessibilityLabel("Part of macOS, not quittable here")
             }
+        }
+    }
+
+    private func stop() {
+        stopping = true
+        if case .refused(let why) = GuardControl.stopProcess(proc, identity: proc.identity) {
+            refusal = why
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            afterStop()
+            stopping = false
         }
     }
 

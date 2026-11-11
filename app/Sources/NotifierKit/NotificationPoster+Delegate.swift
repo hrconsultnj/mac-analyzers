@@ -14,6 +14,7 @@ extension NotificationPoster: UNUserNotificationCenterDelegate {
         let logPath = info["log"] as? String
         let pid = info["pid"] as? Int
         let token = info["token"] as? String ?? ""
+        let start = info["start"] as? Int
         let paneTarget = info["pane"] as? String
         let action = response.actionIdentifier
         Task { @MainActor in
@@ -22,7 +23,7 @@ extension NotificationPoster: UNUserNotificationCenterDelegate {
             case Self.openLogAction:
                 if let logPath { GuardControl.openLog(URL(fileURLWithPath: logPath)) }
             case Self.stopProcessAction:
-                if let pid { poster.stopProcess(pid: pid, token: token) }
+                if let pid { poster.stopProcess(pid: pid, token: token, start: start) }
             default:
                 // body click or "Open Mac Analyzers" → the app; a pane
                 // target (e.g. update notifications) deep-links to its screen

@@ -1,0 +1,46 @@
+# lib/coding-agents.tsv — the coding agents whose live sessions are never touched.
+#
+# ONE list, read by both sides: `lib/live-sessions.sh` (the cleaners' exemption)
+# and the app's `CodingAgentHosts` (what Monitor locks and the cleanup review
+# keeps). A session's ROOT is a running program that matches one of these
+# lines; every process that descends from a root belongs to the session.
+# `agent-runner --probe-agents` fails if the two sides ever disagree.
+#
+# An agent that is NOT listed here is NOT protected (it fails open): its
+# sessions look like any other dev tooling. Add a line to protect one.
+#
+# Columns, separated by TABS:
+#   agent <TAB> kind <TAB> text [<TAB> also]
+#   kind  exe       the executable's file name is exactly `text`
+#         fragment  the command line contains `text` (plain text, not a pattern);
+#                   with `also`, it must contain that too
+#         ignore    the executable is never a session root (a search helper)
+# The bundle of an app is NOT a session root: Antigravity's editor is not an
+# agent, its language server is.
+Claude Code	exe	claude
+Claude Code	fragment	.local/bin/claude
+Claude Code	fragment	.local/share/claude/
+Claude Code	fragment	@anthropic-ai/claude-code
+Claude Code	fragment	Application Support/Claude/claude-code/
+Codex	exe	codex
+Codex	fragment	ChatGPT.app	codex
+Codex	fragment	/.codex/packages/
+Antigravity	exe	agy
+Antigravity	fragment	Antigravity.app/Contents/Resources/bin/language_server
+Gemini CLI	exe	gemini
+Gemini CLI	fragment	@google/gemini-cli
+GitHub Copilot	fragment	copilot-runtime
+Grok	exe	grok
+Grok	fragment	/.grok/bin/
+Kimi Code	exe	kimi
+Kimi Code	fragment	/.kimi-code/
+OpenCode	exe	opencode
+OpenCode	fragment	/.opencode/
+-	ignore	awk
+-	ignore	grep
+-	ignore	ugrep
+-	ignore	rg
+-	ignore	sed
+-	ignore	ps
+-	ignore	pgrep
+-	ignore	lsof

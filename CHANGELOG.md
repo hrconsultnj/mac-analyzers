@@ -5,6 +5,24 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## Next
+
+Notes for the release being worked on collect here. When it ships, this
+heading becomes its version and title.
+
+- Monitor is now one table that fills the window: every app and tool with its
+  memory and processor use, the parts of each app, and a details panel. Open a
+  command-line tool such as Node.js and you see each separate program in its
+  own row, labelled by the project it runs in. Stopping a tool now stops only
+  the programs you choose, in a list you confirm, and never a live coding-agent
+  session or a program that has changed since you looked at it.
+- Memory Guard reads as a history: a section for each day, and a row for each
+  thing the guard stopped or flagged, named for the app or tool ("Stopped Vite
+  dev server", "9 processor alerts for Media Analysis") with what the guard did
+  about it. Repeats are folded into one row. Click a row to see what happened,
+  what the program was, and why the guard acts — and for a memory crisis, which
+  apps were using the memory.
+
 ## v2.69.0 — A new main window, and cleanups you can watch, stop and look back on
 
 Mac Analyzers has a new main window. The sidebar is organised by what you
