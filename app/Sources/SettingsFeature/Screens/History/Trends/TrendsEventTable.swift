@@ -55,7 +55,7 @@ struct TrendsEventTable: View {
                 }
                 .width(min: 150, ideal: 220)
                 OutlineColumn("outcome", Names.Column.whatHappened, text: { $0.row?.outcome ?? "" })
-                    .width(min: 260, ideal: 460)
+                    .width(min: 200, ideal: 320)
                 OutlineColumn("memory", Names.Column.memory, text: { $0.row.map { $0.event.residentText ?? "—" } ?? "" })
                     .textStyle { _ in .secondary }
                     .alignment(.trailing).monospacedDigits()

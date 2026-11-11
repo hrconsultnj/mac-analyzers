@@ -332,6 +332,195 @@ func probeUndoFixture(_ args: [String]) {
           temp.items.first?.destination ?? "no item")
     check("an old receipt (no suffix) still parses", ReceiptIdentity.split("/a  ->  /b").id == nil)
 
+    // 11. a restore writes ONE block of its own, in the shape the log's other blocks have
+    let rule = String(repeating: "=", count: 64)
+    let clock = DateFormatter(); clock.dateFormat = "yyyy-MM-dd HH:mm"; clock.locale = Locale(identifier: "en_US_POSIX")
+    func janitorBanner(_ date: Date, _ mode: String) -> String {
+        "\(clock.string(from: date)) | downloads janitor | \(mode) | downloads>30d screenshots>14d"
+    }
+    func trashedLine(_ tag: String) -> (original: String, line: String) {
+        let original = work.appending(path: "r11/\(tag)/file-\(tag)").path
+        let inTrash = trash.path + "/r11-\(tag)"
+        touch(inTrash, "item \(tag)")
+        try? fm.createDirectory(atPath: (original as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        return (original, "[TRASHED] 1 KB  \(original)  ->  \(inTrash)\(id(inTrash))")
+    }
+    func restoreBanners(_ url: URL) -> [String] {
+        ((try? String(contentsOf: url, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
+            .filter { RestoreBlock.isRestore(header: $0) }
+    }
+    func shape(_ runs: [LogRun]) -> [String] { runs.map { $0.header + "\n" + $0.lines.joined(separator: "\n") } }
+    let previewAt = now.addingTimeInterval(-3600)
+    let previewBanner = janitorBanner(previewAt, "DRY RUN")
+    let a = trashedLine("a"), b = trashedLine("b"), c = trashedLine("c"), d = trashedLine("d")
+    let logJ = ledger("janitor.log", [
+        rule, janitorBanner(now.addingTimeInterval(-7200), "APPLY"), "### Downloads",
+        a.line, b.line, c.line, d.line,
+        rule, previewBanner, "### Downloads",
+        "[DRY] 2.0 MB  /Users/x/Downloads/p1.zip", "[DRY] 3.0 MB  /Users/x/Downloads/p2.zip",
+        "[DRY] 4.0 MB  /Users/x/Downloads/p3.zip", "DRY RUN — would move 3 item(s), 9.0 MB, to the Trash. Re-run with --apply.",
+    ])
+    let runsBefore = shape(LogParser.runs(at: logJ))
+    let summariesBefore = LogParser.runs(at: logJ).map { ActivitySummary.of($0, in: .janitor).text }
+    let wholeBefore = WholeRun.find(banner: previewBanner, in: logJ)
+    let listedBefore = items(logJ).count
+    let wanted = items(logJ).filter { [a.original, b.original, c.original].contains($0.originalPath) }
+    let first = UndoLedger.restore(wanted, trash: trash)
+    check("a restore of three items put all three back", first.restored == 3 && first.failures.isEmpty && first.unrecorded == 0,
+          "restored \(first.restored), failed \(first.failures.count)")
+    let banners = restoreBanners(logJ)
+    check("one Restore action wrote one block, however many items", banners.count == 1, "\(banners.count) restore banners")
+    check("its banner is dated to the second and the matcher reads it as a banner",
+          banners.first.map { RunDate.parse(banner: $0)?.hasSeconds == true && RunMatcher.banner(in: $0) != nil } ?? false,
+          banners.first ?? "no banner")
+    let fileLines = ((try? String(contentsOf: logJ, encoding: .utf8)) ?? "").split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+    let at = fileLines.firstIndex { RestoreBlock.isRestore(header: $0) } ?? -1
+    check("the block is a rule, the banner, a rule, then the lines",
+          at > 0 && at + 1 < fileLines.count && fileLines[at - 1].allSatisfy { $0 == "=" } && fileLines[at + 1].allSatisfy { $0 == "=" })
+    let restoredLines = fileLines.filter { $0.hasPrefix("[RESTORED]") }
+    check("the block holds one receipt line per item", restoredLines.count == 3, "\(restoredLines.count) lines")
+
+    // 12. the ledger pairing does not depend on the block
+    let after = items(logJ)
+    check("a receipt answers its trashed line across the new banner: only the unrelated item is still offered",
+          after.count == listedBefore - 3 && after.first?.originalPath == d.original, "\(after.count) listed")
+    let aged = trashedLine("old")
+    let logOld = ledger("old-bannerless.log", [rule, janitorBanner(now.addingTimeInterval(-9000), "APPLY"), "### Downloads",
+                                              aged.line, "[RESTORED] 1 KB  \(aged.original)"])
+    check("an old log with a bannerless receipt still pairs it", items(logOld).isEmpty, "\(items(logOld).count) listed")
+
+    // 13. no other run changes because a restore came after it
+    check("the runs the log lists are the same lines, in the same order", shape(LogParser.runs(at: logJ)) == runsBefore)
+    check("each run's own result sentence is the same",
+          LogParser.runs(at: logJ).map { ActivitySummary.of($0, in: .janitor).text } == summariesBefore,
+          "\(LogParser.runs(at: logJ).map { ActivitySummary.of($0, in: .janitor).text })")
+    let everything = LogParser.runs(at: logJ, includingRestores: true)
+    check("asked for, the restore is the newest run and holds its three receipts",
+          everything.first.map { RestoreBlock.isRestore(header: $0.header) && RestoreBlock.items(in: $0.lines).count == 3 } ?? false)
+    if case .block(let block)? = Optional(WholeRun.find(banner: previewBanner, in: logJ)),
+       case .block(let was) = wholeBefore {
+        let leaked = block.lines.contains { $0.hasPrefix("[RESTORED") }
+        let bare = { (lines: [String]) in lines.filter { !$0.allSatisfy { $0 == "=" } } }   // a run is followed by its successor's rule
+        check("the matcher still finds the preview's own block, without the restore's lines",
+              bare(block.lines) == bare(was.lines) && !leaked)
+    } else {
+        check("the matcher still finds the preview's own block", false)
+    }
+    let outcome = RunMatcher.outcome(kind: .janitor, in: logJ, header: previewBanner, startedAt: previewAt)
+    var parsedItems = -1
+    if case .storage(let run) = outcome.parsed { parsedItems = run.items.count }
+    check("a job that wrote the preview still gets its own block back", outcome.match == .exact && parsedItems == 3,
+          "\(parsedItems) items")
+
+    // 14. Activity lists the restore as its own row
+    let snapshot = LiveJobSnapshot(id: UUID(), kind: .janitor, intent: .preview, trigger: .user, status: .done,
+                                   started: previewAt, finished: now.addingTimeInterval(-60), runHeader: previewBanner,
+                                   summary: ActivitySummary("Found 3 items", review: "Found 3 items — waiting for your review", findings: 3))
+    func rows(_ url: URL, live: [LiveJobSnapshot]) -> [ActivityRow] {
+        ActivityJoin.rows(live: live, index: [],
+                          logs: [ActivityJoin.LogRuns(log: .janitor, runs: LogParser.runs(at: url, includingRestores: true))],
+                          now: now, modified: { _ in nil }, hasOutput: { _ in true },
+                          titleForKind: { $0.rawValue }, titleForLog: { $0.rawValue })
+    }
+    let seen14 = rows(logJ, live: [snapshot])
+    let restoreRow = seen14.first { $0.isRestore }
+    let restoreFacts: Bool = {
+        guard let row = restoreRow else { return false }
+        let named = row.title == Names.Screen.undo
+        let started = row.trigger == .you && row.status == .done
+        return named && started && row.kind == nil
+    }()
+    check("the restore is a row of its own, started by you, done, named for Undo", restoreFacts,
+          restoreRow.map { "\($0.title) / \($0.trigger) / \($0.status)" } ?? "no restore row")
+    check("it says what it did, from the name table", restoreRow?.result == "Restored 3 Items", restoreRow?.result ?? "none")
+    let restoreQuiet: Bool = {
+        guard let row = restoreRow else { return false }
+        let nothing = row.freedBytes == 0 && row.findings == 0
+        return nothing && !row.needsReview && row.intent == .apply
+    }()
+    check("it frees and finds nothing, and is never waiting for review", restoreQuiet)
+    check("a preview waiting for review stays waiting although a restore came after it",
+          seen14.first { $0.header == previewBanner }?.needsReview == true)
+    if let run = everything.first {
+        let screen = ActivityOutcome.make(.none, run: run, log: .janitor)
+        check("its screen lists the three items it put back",
+              screen.sections.count == 1 && screen.sections[0].title == Names.Restore.putBack && screen.sections[0].items.count == 3,
+              "\(screen.sections.map { "\($0.title) \($0.items.count)" })")
+    } else {
+        check("its screen lists the items it put back", false)
+    }
+
+    // 15. two runs with the same minute-precision banner, a restore between them
+    let twin = janitorBanner(now.addingTimeInterval(-300), "APPLY")
+    let t1 = trashedLine("t1"), t3 = trashedLine("t3")
+    let firstRun = [rule, twin, "### Downloads", t1.line, "[TRASHED] 1 KB  /x/never  ->  /x/never2"]
+    let secondRun = [rule, twin, "### Downloads", t3.line, "[TRASHED] 2 KB  /x/other  ->  /x/other2"]
+    let logT = ledger("twins.log", firstRun)
+    let plainT = ledger("twins-without-restore.log", firstRun + secondRun)
+    _ = UndoLedger.restore(items(logT).filter { $0.originalPath == t1.original }, trash: trash)
+    if let handle = try? FileHandle(forWritingTo: logT) {
+        _ = try? handle.seekToEnd()
+        try? handle.write(contentsOf: Data((secondRun.joined(separator: "\n") + "\n").utf8))
+        try? handle.close()
+    }
+    check("the log with a restore between the twins reads as the log without it",
+          shape(LogParser.runs(at: logT)) == shape(LogParser.runs(at: plainT)),
+          "\(LogParser.runs(at: logT).count) runs vs \(LogParser.runs(at: plainT).count)")
+    let twinsPlain = Set(rows(plainT, live: []).map(\.id))
+    let twinsWith = rows(logT, live: [])
+    check("every row the plain log has keeps its id, and the restore is one more row",
+          twinsPlain == Set(twinsWith.filter { !$0.isRestore }.map(\.id)) && twinsWith.filter { $0.isRestore }.count == 1,
+          "\(twinsWith.count) rows")
+    if case .block(let last) = WholeRun.find(banner: twin, in: logT, notBefore: now.addingTimeInterval(-290)) {
+        let ownLine = last.lines.contains { $0.contains(t3.original) }
+        let foreign = last.lines.contains { $0.contains(t1.original) || $0.hasPrefix("[RESTORED") }
+        check("the matcher takes the LAST twin, with its own lines and none of the restore's", ownLine && !foreign)
+    } else {
+        check("the matcher takes the last twin", false)
+    }
+    if case .block(let early) = WholeRun.find(banner: twin, in: ledger("twins-first.log", firstRun + [rule, RestoreBlock.banner(at: now), rule, "Put back 1 item(s)", "[RESTORED] 1 KB  \(t1.original)"]),
+                                              notBefore: now.addingTimeInterval(-290)) {
+        check("a restore after the only twin is not part of it", !early.lines.contains { $0.hasPrefix("[RESTORED") })
+    } else {
+        check("a restore after the only twin is not part of it", false)
+    }
+
+    // 16. one action over items of two cleaners writes one block in each log
+    let e = trashedLine("e"), f = trashedLine("f"), g = trashedLine("g")
+    let logP = ledger("cleaner-one.log", [rule, janitorBanner(now.addingTimeInterval(-500), "APPLY"), "### Downloads", e.line, f.line])
+    let logQ = ledger("cleaner-two.log", [rule, janitorBanner(now.addingTimeInterval(-400), "APPLY"), "### Temporary files", g.line])
+    let both = UndoLedger.restore(items(logP) + items(logQ), trash: trash)
+    check("an action over two logs writes one block in each, and all three came back",
+          both.restored == 3 && restoreBanners(logP).count == 1 && restoreBanners(logQ).count == 1,
+          "\(both.restored) restored, \(restoreBanners(logP).count) + \(restoreBanners(logQ).count) blocks")
+
+    // 17. a report-style log (temp-clean's shape: a rule, the banner, a rule, the body, a closing summary)
+    let secs = DateFormatter(); secs.dateFormat = "yyyy-MM-dd HH:mm:ss"; secs.locale = Locale(identifier: "en_US_POSIX")
+    func tempRun(_ at: Date, _ lines: [String]) -> [String] {
+        [rule, " temp-clean  |  APPLY — to Trash  |  \(secs.string(from: at))", rule] + lines
+            + ["", rule, " DONE — moved \(lines.count) item(s), 2 KB, to the Trash (recoverable).", rule]
+    }
+    let h1 = trashedLine("h1"), h2 = trashedLine("h2")
+    let runA = tempRun(now.addingTimeInterval(-900), ["### Temporary files", h1.line])
+    let runB = tempRun(now.addingTimeInterval(120), ["### Temporary files", h2.line])   // after the restore, which is stamped when it runs
+    let logR = ledger("temp-shape.log", runA)
+    let plainR = ledger("temp-shape-without-restore.log", runA + runB)
+    _ = UndoLedger.restore(items(logR).filter { $0.originalPath == h1.original }, trash: trash)
+    if let handle = try? FileHandle(forWritingTo: logR) {
+        _ = try? handle.seekToEnd()
+        try? handle.write(contentsOf: Data((runB.joined(separator: "\n") + "\n").utf8))
+        try? handle.close()
+    }
+    check("a report-style log with a restore between its runs lists its own two runs exactly as it would without it",
+          shape(LogParser.runs(at: logR)) == shape(LogParser.runs(at: plainR)) && LogParser.runs(at: logR).count == 2,
+          "\(LogParser.runs(at: logR).count) runs")
+    let ordered = LogParser.runs(at: logR, includingRestores: true)
+    check("asked for, the restore sits between them, newest first",
+          ordered.count == 3 && RestoreBlock.isRestore(header: ordered[1].header) && !RestoreBlock.isRestore(header: ordered[0].header),
+          ordered.map { RestoreBlock.isRestore(header: $0.header) ? "restore" : "run" }.joined(separator: ", "))
+    let temp1 = LogParser.runs(at: logR).last.map { TempCleanParser.parse(runHeader: $0.header, lines: $0.lines).items.count } ?? -1
+    check("the run before the restore still parses to its own one item", temp1 == 1, "\(temp1) items")
+
     print(failures == 0 ? "all \(step) checks passed" : "\(failures) of \(step) checks FAILED")
     exit(failures == 0 ? 0 : 1)
 }

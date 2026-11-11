@@ -210,19 +210,37 @@ enum TrendsModel {
         for event in GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
                                               within: period.interval)
         where event.isKill {
-            perProcess[event.displayName, default: 0] += event.residentMB ?? 0
+            perProcess[freedName(event.displayName), default: 0] += event.residentMB ?? 0
         }
         for kind in [LogKind.memoryClean, .reclaim] {
             for run in LogParser.allRuns(for: kind) {
                 guard let date = runDate(run.header), date >= cutoff else { continue }
                 let parsed = ReapParser.parse(runHeader: run.header, lines: run.lines)
                 for item in parsed.allItems where item.status == .killed || item.status == .quit {
-                    perProcess[item.friendlyName, default: 0] += item.mb ?? 0
+                    perProcess[freedName(item.friendlyName), default: 0] += item.mb ?? 0
                 }
             }
         }
         return perProcess.map { MemoryFreedEntry(name: $0.key, freedMB: $0.value) }
             .sorted { $0.freedMB > $1.freedMB }
+    }
+
+    /// What a cleanup called the thing it closed, as a name a person would use: the engine's
+    /// own description ("idle-simulator (idle 21m of 20m): iPhone 18 Pro",
+    /// "supabase:nutri-journey 11 containers owners=…") says how it was chosen, not what it is.
+    static func freedName(_ raw: String) -> String {
+        var name = raw
+        if let paren = name.range(of: " (") { name = String(name[..<paren.lowerBound]) }
+        if let colon = name.firstIndex(of: ":") { name = String(name[..<colon]) }
+        name = name.trimmingCharacters(in: .whitespaces)
+        let words: [String: String] = ["idle-simulator": "iOS Simulator", "idle-metro": "Metro bundler",
+                                       "supabase": "Supabase local database"]
+        if let known = words[name.lowercased()] { return known }
+        if name.lowercased().hasPrefix("idle-") {
+            let rest = name.dropFirst(5)
+            return rest.prefix(1).uppercased() + rest.dropFirst()
+        }
+        return name.isEmpty ? raw : name
     }
 
     /// Deleted storage items across real runs in the window, grouped by

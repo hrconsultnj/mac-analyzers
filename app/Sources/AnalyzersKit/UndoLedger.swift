@@ -244,18 +244,70 @@ public enum UndoLedger {
         public let members: Int
     }
 
-    /// Move the Trash copy back to its original path, receipt included. The
-    /// state is checked again here, right before anything moves. A family moves
-    /// all of its members or none: every destination is checked first, and a
-    /// failed move puts back the ones already moved.
+    /// Move the Trash copy back to its original path, and write its receipt as a block of its own
+    /// (`RestoreBlock`). One item is one action; `restore(_:trash:)` over a list writes ONE block
+    /// per log for the whole action.
     @discardableResult
     public static func restore(_ item: TrashedItem, trash: URL = UndoLedger.trashDir) throws -> Restored {
+        var lines: [String] = []
+        let members: Int
+        do {
+            members = try perform(item, trash: trash, lines: &lines)
+        } catch {
+            if !lines.isEmpty { appendBlock(lines, to: item.ledger) }   // members that could not be put back
+            throw error
+        }
+        return Restored(receiptWritten: appendBlock(lines, to: item.ledger), members: members)
+    }
+
+    /// What a Restore action over several items did.
+    public struct RestoreOutcome: Sendable {
+        /// Items put back.
+        public var restored = 0
+        /// Each item that was refused or failed, with the sentence to say.
+        public var failures: [(title: String, message: String)] = []
+        /// Items put back whose log block could not be written.
+        public var unrecorded = 0
+        public init() {}
+    }
+
+    /// One Restore action: each item is checked and moved by `restore`'s rules, and the receipts
+    /// of all of them are written as ONE block per log (an action over items from two cleaners
+    /// writes a block in each cleaner's log). `titles` names an item in a failure message.
+    public static func restore(_ items: [TrashedItem], titles: [String]? = nil,
+                               trash: URL = UndoLedger.trashDir) -> RestoreOutcome {
+        var outcome = RestoreOutcome()
+        var order: [URL] = []
+        var lines: [URL: [String]] = [:]
+        var restoredIn: [URL: Int] = [:]
+        for (index, item) in items.enumerated() {
+            var itemLines: [String] = []
+            do {
+                _ = try perform(item, trash: trash, lines: &itemLines)
+                outcome.restored += 1
+                restoredIn[item.ledger, default: 0] += 1
+            } catch {
+                outcome.failures.append((titles?[index] ?? item.basename, error.localizedDescription))
+            }
+            if !itemLines.isEmpty {
+                if lines[item.ledger] == nil { order.append(item.ledger) }
+                lines[item.ledger, default: []].append(contentsOf: itemLines)
+            }
+        }
+        for ledger in order where !appendBlock(lines[ledger] ?? [], to: ledger) {
+            outcome.unrecorded += restoredIn[ledger] ?? 0
+        }
+        return outcome
+    }
+
+    /// The move itself. `lines` gets the receipt lines of what was done (also when it throws,
+    /// for members a rollback could not put back). Returns how many things moved.
+    private static func perform(_ item: TrashedItem, trash: URL, lines receiptLines: inout [String]) throws -> Int {
         let state = evaluate(original: item.originalPath, trashPath: item.trashPath, identity: item.identity,
                              receiptDate: item.receiptDate, trash: trash)
         guard state == .restorable, let trashPath = item.trashPath else { throw RestoreError.notRestorable(state) }
         let fm = FileManager.default
         var moved: [(from: String, to: String)] = []
-        var receiptLines: [String] = []
         if item.isGroup {
             let parent = (item.originalPath as NSString).deletingLastPathComponent
             let names = try fm.contentsOfDirectory(atPath: trashPath)
@@ -277,7 +329,7 @@ public enum UndoLedger {
                     do { try fm.moveItem(atPath: step.to, toPath: step.from) } catch { leftBehind.append(step.to) }
                 }
                 if !leftBehind.isEmpty {
-                    appendReceipt(leftBehind.map { "\(memberTag)  \($0)" }.joined(separator: "\n"), to: item.ledger)
+                    receiptLines.append(contentsOf: leftBehind.map { "\(memberTag)  \($0)" })
                     throw RestoreError.moveFailed("\(error.localizedDescription). \(leftBehind.count) already-moved "
                         + "item\(leftBehind.count == 1 ? " stayed" : "s stayed") at the original place and could not be put back in the Trash.")
                 }
@@ -285,7 +337,7 @@ public enum UndoLedger {
             }
             try? fm.removeItem(atPath: trashPath)   // now empty
             // one line per member under a tag the pairing ignores, then the family's own line
-            receiptLines = plan.map { "\(memberTag)  \($0.to)" }
+            receiptLines.append(contentsOf: plan.map { "\(memberTag)  \($0.to)" })
         } else {
             do {
                 try fm.moveItem(atPath: trashPath, toPath: item.originalPath)
@@ -294,14 +346,19 @@ public enum UndoLedger {
             }
         }
         // the pairing line: the path the TRASHED receipt names (the token for a family)
-        receiptLines.append("[RESTORED] \(item.sizeText)  \(item.originalPath)")
-        let written = appendReceipt(receiptLines.joined(separator: "\n"), to: item.ledger)
-        return Restored(receiptWritten: written, members: max(moved.count, 1))
+        receiptLines.append("\(RestoreBlock.pairingTag) \(item.sizeText)  \(item.originalPath)")
+        return max(moved.count, 1)
+    }
+
+    /// Appends one restore block (`RestoreBlock.text`) to a log.
+    @discardableResult
+    private static func appendBlock(_ lines: [String], to url: URL) -> Bool {
+        appendReceipt(RestoreBlock.text(lines: lines), to: url)
     }
 
     @discardableResult
     private static func appendReceipt(_ text: String, to url: URL) -> Bool {
-        let data = Data((text + "\n").utf8)
+        let data = Data(text.utf8)
         if let handle = try? FileHandle(forWritingTo: url) {
             defer { try? handle.close() }
             do {

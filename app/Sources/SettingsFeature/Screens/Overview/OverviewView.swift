@@ -6,8 +6,8 @@ import UIComponents
 /// (Needs Attention, only when true), what is running now, how memory and the
 /// disk are, what the guard did, what the schedules do next, what the app did
 /// this week. Each box is a summary; every number in it is a button that opens
-/// the screen that explains it. The boxes sit in an adaptive grid: three across
-/// at 1400, two at 1100, one at 900.
+/// the screen that explains it. The boxes sit in columns (`OverviewColumns`): three across
+/// at 1400, two at 1100, one at 900, each row as tall as its tallest box.
 ///
 /// This file is the screen's state and its composition. One job per file:
 ///   OverviewView+Alerts.swift      Needs Attention and Running Now, across the full width
@@ -47,8 +47,7 @@ struct OverviewView: View {
             VStack(alignment: .leading, spacing: 16) {
                 alerts(model)
                 running
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 340), spacing: 16, alignment: .top)],
-                          alignment: .leading, spacing: 16) {
+                OverviewColumns {
                     memoryBox
                     storageBox(model)
                     guardBox(model)

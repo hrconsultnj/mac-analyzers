@@ -29,7 +29,12 @@ struct TrendsSettingsView: View {
     }
 
     var body: some View {
-        DataScreen(title: Names.Screen.trends, subtitle: period.headlinePrefix) { list }
+        DataScreen(title: Names.Screen.trends, subtitle: period.headlinePrefix) {
+            // a new list per tab, and once the logs have been read: the system list keeps the height it
+            // measured for a row position, so the one-line "Reading the logs…" row would otherwise
+            // leave the tiles and the chart that replace it a few points tall
+            list.id("\(category.rawValue)-\(snapshot != nil)")
+        }
             .scopeTabsToolbar(screen: "trends", items: tabItems, selection: $category)
             .toolbar {
                 // A menu `Picker` in the toolbar draws an empty capsule (it does not show the

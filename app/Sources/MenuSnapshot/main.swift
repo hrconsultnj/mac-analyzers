@@ -78,6 +78,10 @@ final class Host: NSObject, NSApplicationDelegate {
 
 let app = NSApplication.shared
 app.setActivationPolicy(.prohibited)
+// `--appearance light|dark`: render in that appearance whatever the Mac is set to
+if let at = CommandLine.arguments.firstIndex(of: "--appearance"), CommandLine.arguments.indices.contains(at + 1) {
+    app.appearance = NSAppearance(named: CommandLine.arguments[at + 1] == "light" ? .aqua : .darkAqua)
+}
 let host = Host()
 app.delegate = host
 app.run()

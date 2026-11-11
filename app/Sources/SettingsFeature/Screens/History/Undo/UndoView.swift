@@ -75,6 +75,8 @@ struct UndoView: View {
                     .alignment(.trailing)
             }
             .columnHeaders(.hidden)
+            // a history of runs, not a table of values: no stripes behind the rows
+            .alternatingRows(false)
             .sectionHeader { $0.header }
             .contextMenu({ ids in UndoRowMenu(nodes: nodes, ids: ids, view: self) })
             .emptyContent(isLoading: !loaded) { EmptyView() }
@@ -98,7 +100,12 @@ struct UndoView: View {
         return restorable > 0 ? "\(restorable) can still be restored" : "Nothing waiting to be restored"
     }
 
-    @ViewBuilder private var empty: some View {
+    /// Centred in the window (`DataScreen` puts its content at the top left).
+    private var empty: some View {
+        emptyMessage.frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder private var emptyMessage: some View {
         switch scope {
         case .trashed:
             ContentUnavailableView("Nothing in the Trash From Cleanups", systemImage: "trash",

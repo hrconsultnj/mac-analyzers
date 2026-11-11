@@ -38,6 +38,10 @@ without an entry here — see `scripts/cut-release.sh`.
 - Undo is grouped by day and by cleanup. Restore puts an item back only when
   it is still the one that was moved to the Trash, and says why when it
   cannot. A second tab lists the dev servers the guard stopped.
+- Putting items back from Undo now shows up in Activity as its own entry,
+  "Restored 3 Items", started by you, with the list of what came back. It no
+  longer gets mixed into the cleanup it came from, so that cleanup's numbers,
+  and a preview that is waiting for your review, stay exactly as they were.
 - The menu-bar panel uses standard controls, so nothing is cut off. Its
   process list matches Monitor, apps have a Quit, and tools that belong to a
   live coding session show a lock and tell you to stop them in Monitor.

@@ -138,6 +138,17 @@ public enum Names {
         public static let empty = "Nothing to Free"
     }
 
+    // MARK: - putting things back from the Trash (Undo's restore, as Activity lists it)
+
+    public enum Restore {
+        public static let restored = "Restored"
+        public static let item = "Item"
+        public static let items = "Items"
+        public static let nothing = "Nothing Restored"
+        /// The group a restore's screen lists what it put back under.
+        public static let putBack = "Put Back"
+    }
+
     // MARK: - lookups by type
 
     /// What a task is called: the screen that holds it.

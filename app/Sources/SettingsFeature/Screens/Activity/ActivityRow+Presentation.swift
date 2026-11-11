@@ -38,6 +38,7 @@ extension ActivityRow {
             default: return Glyph(symbol: "shield.lefthalf.filled", tone: Tokens.Domain.guardLog, spins: false)
             }
         }
+        if isRestore { return Glyph(symbol: "arrow.uturn.backward", tone: Tokens.Status.safe, spins: false) }
         if needsReview { return Glyph(symbol: "eye.fill", tone: Tokens.Status.caution, spins: false, loud: true) }
         // found something, nothing changed, and nothing the app can apply any more: its own
         // calm glyph, apart from the green check of "done" and from the orange review eye
@@ -107,6 +108,7 @@ extension ActivityRow {
 
     /// Where "Open <Task>" goes: the task's own screen.
     var ownerTarget: String? {
+        if isRestore { return "undo" }
         if let log { return "log:\(log.rawValue)" }
         switch kind {
         case .memoryReport, .storageReport: return "reports"

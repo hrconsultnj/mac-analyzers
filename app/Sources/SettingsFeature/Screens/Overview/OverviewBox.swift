@@ -9,7 +9,8 @@ struct OverviewBox<Content: View>: View {
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 6) { content }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                // fills the height of its row, so boxes side by side end together
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(6)
         } label: {
             Label(title, systemImage: symbol).font(.headline)

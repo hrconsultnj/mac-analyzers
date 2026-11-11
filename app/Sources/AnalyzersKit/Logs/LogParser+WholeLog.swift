@@ -13,17 +13,19 @@ extension LogParser {
 
     /// Newest first, no window, no cap. Day-style logs (the guard) have no
     /// block structure and read as `runs(for:)` does.
-    public static func allRuns(for kind: EngineLog) -> [LogRun] {
+    public static func allRuns(for kind: EngineLog, includingRestores: Bool = false) -> [LogRun] {
         guard let url = kind.url,
               let data = try? Data(contentsOf: url, options: .mappedIfSafe),
               let text = String(data: data, encoding: .utf8) else { return [] }
         guard text.contains("====") else { return runs(for: kind) }
 
+        let all = text.split(separator: "\n", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        // a restore's block is taken out first, so the rest parses exactly as it would without it
+        let (lines, restores) = RestoreBlock.split(all)
         var blocks: [[String]] = []
         var current: [String] = []
-        for raw in text.split(separator: "\n", omittingEmptySubsequences: true) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { continue }
+        for line in lines {
             if line.allSatisfy({ $0 == "=" }) {
                 if !current.isEmpty { blocks.append(current); current = [] }
                 continue
@@ -48,6 +50,7 @@ extension LogParser {
             result.append(LogRun(id: result.count, header: header, lines: body))
             pendingHeader = nil
         }
-        return result.reversed()
+        let newestFirst = Array(result.reversed())
+        return includingRestores ? RestoreBlock.merge(restores: restores, into: newestFirst) : newestFirst
     }
 }
