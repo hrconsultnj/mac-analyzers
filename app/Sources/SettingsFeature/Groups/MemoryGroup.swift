@@ -29,8 +29,9 @@ enum MemoryGroup {
         root: screen,
         aliases: [
             "monitor": .main(Location(monitor)),
-            // "activity" keeps its old meaning: both callers want guard events
-            "activity": .main(Location(memoryGuard)),
+            // what used to be reached as "activity" when it meant guard events (the panel's event
+            // rows, the Overview's guard tile); "activity" itself is the Activity screen
+            "guard": .main(Location(memoryGuard)),
             "log:guardLog": .main(Location(memoryGuard)),
             "log:forensics": guardLink(.crisisReports),
             "log:memoryClean": cleanupLink(.leftovers),

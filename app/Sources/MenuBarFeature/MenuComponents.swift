@@ -42,7 +42,7 @@ struct EventRow: View {
 
     var body: some View {
         Button {
-            SettingsOpener.open(target: "activity")
+            SettingsOpener.open(target: "guard")
         } label: {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: event.symbol)

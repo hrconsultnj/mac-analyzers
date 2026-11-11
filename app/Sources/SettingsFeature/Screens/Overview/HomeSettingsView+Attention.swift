@@ -8,9 +8,7 @@ extension HomeSettingsView {
     // MARK: - needs attention (only renders what is actually true)
 
     @ViewBuilder var attentionSection: some View {
-        let updateReady = latestRelease.map {
-            UpdateChecker.isNewer($0, than: UpdateChecker.installedVersion)
-        } ?? false
+        let updateReady = updates.isAvailable
         let reclaimable = trends?.latestReclaimableBytes ?? 0
         let pressureBad = store.pressure != .normal
 
@@ -40,10 +38,10 @@ extension HomeSettingsView {
                         }
                     }
                 }
-                if updateReady, let latestRelease {
+                if updateReady, let latestRelease = updates.latest {
                     attentionRow(symbol: "arrow.down.circle.fill", color: .green,
                                  title: "\(Names.State.updateAvailable) — v\(latestRelease)",
-                                 subtitle: "You're on v\(UpdateChecker.installedVersion).",
+                                 subtitle: "You're on v\(updates.installed).",
                                  action: "Open \(Names.Screen.updates)", target: "update")
                 }
                 if reclaimable > 1 << 30 {

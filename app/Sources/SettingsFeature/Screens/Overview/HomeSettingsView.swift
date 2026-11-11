@@ -18,7 +18,8 @@ struct HomeSettingsView: View {
     @Environment(GuardLogStore.self) var store
     @Environment(Navigator.self) var navigator
     @State var trends: TrendsSnapshot?
-    @State var latestRelease: String?
+    /// The one source for the installed and the latest version (the sidebar reads it too).
+    @Environment(UpdateState.self) var updates
     @State var runway: ForecastModel.Runway?
 
     var body: some View {
@@ -34,11 +35,6 @@ struct HomeSettingsView: View {
             store.reload()
             await awaitLoad({ TrendsModel.snapshot(period: .day7) }) { trends = $0 }
             await awaitLoad({ ForecastModel.diskRunway() }) { runway = $0 }
-            Task {
-                if let latest = await UpdateChecker.latestVersion() {
-                    latestRelease = latest
-                }
-            }
         }
     }
 

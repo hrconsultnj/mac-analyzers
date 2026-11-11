@@ -16,8 +16,7 @@ extension MenuContentView {
             } label: {
                 Label("Settings…", systemImage: "gearshape")
             }
-            if let latest = latestVersion,
-               UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion) {
+            if updates.isAvailable, let latest = updates.latest {
                 Button("Upgrade to v\(latest)") { updates.requestInstall() }
                     .buttonStyle(.borderedProminent)
                     .help("Update in Terminal, then relaunch; settings are kept")
@@ -37,7 +36,6 @@ extension MenuContentView {
             Button("Quit") { NSApp.terminate(nil) }
         }
         .controlSize(.regular)
-        .task { latestVersion = await UpdateChecker.latestVersion() }
     }
 
     func sectionLabel(_ text: String) -> some View {

@@ -41,7 +41,7 @@ struct RunScreen: View {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .navigationTitle(row?.displayTitle ?? "Run")
+        .navigationTitle(row?.title ?? "Run")
         .task { await model.refreshIfNeeded(store: store) }
     }
 }

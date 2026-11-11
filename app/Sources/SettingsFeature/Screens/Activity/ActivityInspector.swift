@@ -44,7 +44,8 @@ struct ActivityInspector: View {
         let sections = outcome?.sections.filter { !$0.items.isEmpty } ?? []
         let tabs = sections.map { RunTab(section: $0) }
         let current = tabs.contains(tab) ? tab : (tabs.first ?? tab)
-        return DataScreen(title: row.displayTitle, subtitle: statusSentence(row, live: live)) {
+        return DataScreen(title: row.title,
+                          subtitle: [row.kindOfRun, statusSentence(row, live: live)].compactMap { $0 }.joined(separator: " · ")) {
             VStack(alignment: .leading, spacing: 0) {
                 facts(row).padding([.horizontal, .top]).padding(.bottom, Tokens.Space.m)
                 banners(row, live: live)

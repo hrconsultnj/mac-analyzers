@@ -18,7 +18,6 @@ public struct MenuContentView: View {
     @Environment(\.openWindow) var openWindow
     @State private var tab: Tab = .memory
     @AppStorage("monitorRefreshSeconds") var monitorRefresh = 15
-    @State var latestVersion: String?
     @State var pauseError: String?
     @State var runNowPlans: [String: RunNowPlan] = [:]
 

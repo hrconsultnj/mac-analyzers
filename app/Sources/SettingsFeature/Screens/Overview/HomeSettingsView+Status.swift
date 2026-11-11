@@ -17,7 +17,7 @@ extension HomeSettingsView {
                 statTile(symbol: guardSymbol, color: guardColor,
                          value: store.engine?.summary ?? "Checking…",
                          label: guardLabel,
-                         target: "activity")
+                         target: "guard")
                 statTile(symbol: diskSymbol, color: diskColor,
                          value: store.disk.map { "\($0.freeText) free" } ?? "—",
                          label: runway.map { "runway \($0.text) at current pace" }
