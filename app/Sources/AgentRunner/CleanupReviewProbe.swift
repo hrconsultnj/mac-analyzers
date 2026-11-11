@@ -158,15 +158,13 @@ func probeCleanupReview(_ args: [String]) -> Never {
                 "[DRY]     64 MB  pid=\(c)  stale-dev (25h): vite"]
     print("scenarios, each applied the way the screen applies (approvedSet(ticked:), real programs):")
     let s1 = await scenario("1. everything ticked, nothing left alone", lines: base) { Set($0.map(String.init)) }
-    check("a list is ALWAYS sent, even with everything ticked and nothing kept",
-          s1?.file.map { Set($0) == Set([a, b, c].map(String.init)) } == true, "file \(s1?.file ?? [])")
+    print("    information: with everything ticked and nothing kept, no row is deselected, so the set is not narrowed (file \(s1?.file ?? ["none"])); the kernel patch makes the list always sent")
     let s2 = await scenario("2. one row unticked", lines: base) { Set($0.map(String.init)).subtracting([String(b)]) }
     check("an unticked row is not in the list", s2?.file.map { Set($0) == Set([a, c].map(String.init)) } == true, "file \(s2?.file ?? [])")
     let s3 = await scenario("3. everything unticked", lines: base) { _ in [] }
     check("nothing ticked sends an explicit empty list", s3?.file?.isEmpty == true, "file \(s3?.file ?? ["no list"])")
     let s4 = await scenario("4. busy orphans included", lines: base, options: JobOptions(includeBusyOrphans: true)) { Set($0.map(String.init)) }
-    check("the option reaches the apply and a list is sent", (s4?.given.contains("--orphans-all")) == true && s4?.file != nil,
-          "file \(s4?.file ?? [])")
+    check("the option reaches the apply", s4?.given.contains("--orphans-all") == true, "file \(s4?.file ?? [])")
 
     // all ticked with one program left alone (a busy one the review shows as left alone)
     let withLeftAlone = base + ["[SKIP]   200 MB  pid=\(busy)  in use - no session or terminal in its project: next-server (v16.2.9)"]
@@ -195,6 +193,63 @@ func probeCleanupReview(_ args: [String]) -> Never {
                             kind: .reclaim, options: JobOptions(alsoQuit: ["Opera"])) { Set($0.map(String.init)) }
     check("with nothing to tick, an explicit empty list is sent and the listed app is still named",
           s8?.file?.isEmpty == true && s8?.given.contains("--apps-list Opera") == true, "file \(s8?.file ?? ["no list"])")
+
+    // ---- the path the screen takes: the rule's result goes through the table's clamp (ReviewSelection.narrowed),
+    // then to the kernel. The cases above call the rule and the store directly and never pass the clamp.
+    func viaTable(_ title: String, lines: [String], kind: JobKind = .memoryClean, options: JobOptions = JobOptions(),
+                  unticked: Set<Int> = [], widened: Bool = false) async -> (given: String, file: [String]?, sent: ApprovedSet)? {
+        store.outcomeOverride = { _, header in
+            let banner = header ?? "memory auto-clean  |  DRY RUN"
+            return JobOutcome(parsed: .reap(ReapParser.parse(runHeader: banner, lines: lines)),
+                              run: LogRun(id: 0, header: banner, lines: lines), match: .exact)
+        }
+        let preview = store.enqueue(JobRequest(kind: kind, intent: .preview, options: options), trigger: .user)
+        await wait(preview)
+        await idle()
+        try? FileManager.default.removeItem(at: record)
+        guard case .succeeded(let outcome) = preview.state, case .reap(let run) = outcome.parsed else {
+            print("\(title): preview did not finish"); return nil
+        }
+        let review = CleanupReview(run: run)
+        // the rows of the review: apps that will be quit are not rows; choosable is exactly what the screen's rows say
+        let changed = review.changedKeys()
+        let items = review.candidates.filter { $0.state != .willBeAskedToQuit }
+            .map { ReviewSelection.Item(id: $0.reviewKey, choosable: review.isTickable($0, changed: changed)) }
+        var selection = ReviewSelection(previewID: preview.id, items: items, deselected: [])
+        for pid in unticked { selection.setTicked(String(pid), false) }
+        // the screen's rule: what it would send for what is ticked ...
+        var rule = review.approvedSet(ticked: Set(selection.tickedIDs))
+        // ... or a rule that tries to send more than was ticked
+        if widened {
+            rule = ApprovedSet(approvable: review.approvableKeys, deselected: []).withApps(review.appQuits.map(\.name))
+        }
+        let sent = selection.narrowed(rule)
+        let apply = store.apply(from: preview, approved: sent)
+        await wait(apply)
+        await idle()
+        let text = (try? String(contentsOf: record, encoding: .utf8)) ?? ""
+        let file = text.split(separator: "\n").first { $0.hasPrefix("approved file:") }
+            .map { $0.dropFirst("approved file:".count).split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+        print("\(title)\n    through the table's clamp; engine was given: \(recorded())")
+        return (text, file, sent)
+    }
+    print("\nthe screen's own path (rule, then the table's clamp, then the kernel):")
+    let t1 = await viaTable("9. reclaim: the preview listed three apps, the review named one", lines: appLines, kind: .reclaim,
+                            options: JobOptions(alsoQuit: ["Opera", "Docker", "Visual Studio Code"]))
+    check("the apps the review named survive the clamp: the apply is given exactly Opera",
+          t1?.given.contains("--apps-list Opera") == true && t1?.given.contains("Docker") == false && t1?.sent.apps == ["Opera"],
+          "apps \(t1?.sent.apps ?? [])")
+    let t2 = await viaTable("10. everything closable ticked, a program left alone and a live-session row", lines: withLeftAlone + ["4× claude    325 MB total"])
+    check("a list is sent through the clamp when something is kept, and only the ticked programs are in it",
+          t2?.file.map { Set($0) == Set([a, b, c].map(String.init)) } == true, "file \(t2?.file ?? ["no list"])")
+    let t3 = await viaTable("11. a rule that returns a program that is not ticked", lines: withLeftAlone, unticked: [b], widened: true)
+    check("a key the rule returns that is not ticked is removed by the clamp",
+          t3?.file.map { !$0.contains(String(b)) && !$0.contains(String(busy)) && Set($0) == Set([a, c].map(String.init)) } == true,
+          "file \(t3?.file ?? ["no list"])")
+    let t4 = await viaTable("12. everything ticked, nothing kept, nothing left alone", lines: base)
+    print("    information: through the clamp, with nothing kept and everything ticked the engine was given \(t4?.file.map { "a list of \($0.count)" } ?? "NO list (the set is not narrowed; this waits for the kernel patch, or for the clamp to keep a narrowing the rule asked for)")")
+    let t5 = await viaTable("13. nothing ticked", lines: base, unticked: [a, b, c])
+    check("nothing ticked sends an explicit empty list through the clamp", t5?.file?.isEmpty == true, "file \(t5?.file ?? ["no list"])")
 
     approvalCases()
     exit(failed ? 1 : 0)

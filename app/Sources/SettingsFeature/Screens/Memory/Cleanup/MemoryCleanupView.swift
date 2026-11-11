@@ -81,7 +81,9 @@ struct MemoryCleanupView: View {
                         onPreviewAgain: preview,
                         onApplied: { model.applied($0) },
                         only: tabs.hasTabs ? tabs.rowIDs[current] : nil,
-                        approval: { model.approval(for: $0) })
+                        approval: { model.approval(for: $0) },
+                        // the bar says "N selected across K tabs" from the same sent set it counts
+                        tabs: tabs.hasTabs ? tabs.items.map { tabs.rowIDs[$0.value] ?? [] } : [])
                 .modifier(CleanupTabsModifier(tabs: tabs, screen: "cleanup", selection: $tab))
                 .safeAreaInset(edge: .top, spacing: 0) { appQuitNote(review.appQuits) }
         }
@@ -108,19 +110,14 @@ struct MemoryCleanupView: View {
         case .previewing: return "Looking for programs…"
         case .applying: return "Closing programs…"
         case .review:
+            // one short fact; what is selected, and across how many tabs, is the bar's to say
             guard let review = model.review, let session = model.session else { return "" }
-            let selected = session.selectedRows
-            if selected.isEmpty { return "Nothing selected" }
-            // Select All ticks every tab: never let a person approve rows on a tab they have not looked at unknowingly
-            let tabs = CleanupTabs(review, includingAppQuits: false)
-            let current = tabs.items.contains { $0.value == tab } ? tab : (tabs.items.first?.value ?? tab)
-            let inView = tabs.rowIDs[current] ?? []
-            let covers = tabs.hasTabs ? tabs.tabsCovered(by: selected.map(\.id)) : 1
-            let beyond = tabs.hasTabs && selected.contains { !inView.contains($0.id) }
-            let size = ByteSize.format(session.selectedBytes)
+            let closable = session.rows.filter(\.isChoosable)
             let apps = review.appQuits.count
             let quits = apps == 0 ? "" : " · \(apps) \(apps == 1 ? "app" : "apps") will quit"
-            return (beyond ? "\(selected.count) selected across \(covers) tabs · \(size)" : "\(selected.count) selected · \(size)") + quits
+            if closable.isEmpty { return "Nothing to close" + quits }
+            let bytes = closable.compactMap(\.bytes).reduce(0, +)
+            return "\(closable.count) \(closable.count == 1 ? "program" : "programs") can be closed · \(ByteSize.format(bytes))" + quits
         case .done(let summary): return summary
         case .failed: return "Didn't finish"
         }

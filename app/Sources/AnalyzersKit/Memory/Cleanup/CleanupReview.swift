@@ -67,24 +67,18 @@ public struct CleanupReview: Sendable {
         Set(changedSinceReview().compactMap(\.approvalKey))
     }
 
-    /// The one extra key every Apply from this screen deselects, so the set is ALWAYS narrowed and the
-    /// engine is ALWAYS given a list: without a list it closes whatever qualifies when the apply runs,
-    /// including a busy program the review showed as left alone that has gone idle since, and anything
-    /// that appeared after the preview.
-    static let listMarker = "reviewed"
-
     /// What Apply sends: exactly the ticked rows, minus any whose pid is no longer the reviewed program.
-    /// Every other row the review shows (left alone, kept for a live session, folded away as nothing, an
-    /// app that will be asked to quit) counts as deselected, whatever "Select All" did, and the list is
-    /// always sent, even when everything that can be closed is ticked and nothing is left alone. Nothing
-    /// to send is an explicit empty list, so an apply can never close a process nobody reviewed.
+    /// Every other row the review shows (left alone, kept for a live session, folded away as nothing)
+    /// counts as deselected, whatever "Select All" did, so a list is sent whenever the review keeps
+    /// anything. Nothing to send is an explicit empty list, so an apply can never close a process nobody
+    /// reviewed. (With nothing kept and everything ticked there is nothing to narrow, and no list is
+    /// sent until the kernel always sends one.)
     ///
     /// The apps it carries are exactly the ones the review listed as "would quit": an app that was not
     /// running, or hosted a live session, when it was previewed is not quit because it is eligible now.
     public func approvedSet(ticked: Set<String>) -> ApprovedSet {
         let wanted = Set(approvableKeys).intersection(ticked).subtracting(changedKeys())
-        var deselected = Set(candidates.map(\.reviewKey)).subtracting(wanted)
-        deselected.insert(Self.listMarker)
+        let deselected = Set(candidates.map(\.reviewKey)).subtracting(wanted)
         return ApprovedSet(approvable: approvableKeys, deselected: deselected)
             .withApps(appQuits.map(\.name))
     }
