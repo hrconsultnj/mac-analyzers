@@ -73,6 +73,17 @@ final class ActivityModel {
         }?.element
     }
 
+    /// Whether the log's window may have cut this block off: it is the oldest
+    /// block read, and the log is longer than the window.
+    func cutByWindow(_ run: LogRun, of row: ActivityRow) -> Bool {
+        guard case .logged(let log, _, _) = row.source,
+              let runs = logRuns.first(where: { $0.log == log })?.runs,
+              runs.last?.id == run.id, runs.count > 0,
+              let size = log.url.flatMap({ try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? UInt64 })
+        else { return false }
+        return size > 262_144
+    }
+
     func lines(for row: ActivityRow) -> [String] { logRun(for: row)?.lines ?? [] }
 
     // MARK: - the screen's sections

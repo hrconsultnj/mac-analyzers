@@ -40,7 +40,7 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     let matched = OSAllocatedUnfairLock(initialState: true)
     // the fixture stands in for "the log held this job's own block"
     store.outcomeOverride = { _, _ in
-        JobOutcome(parsed: .none, run: nil, match: matched.withLock { $0 } ? .exact : .newestFallback("fixture: block not found"))
+        JobOutcome(parsed: .none, run: nil, match: matched.withLock { $0 } ? .exact : .newestFallback(RunMatcher.Reason.tooLarge))
     }
 
     print("review window: \(Int(JobStore.reviewWindow / 60)) minutes")
@@ -67,7 +67,7 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     matched.withLock { $0 = false }
     let third = store.enqueue(JobRequest(kind: .memoryClean, intent: .preview), trigger: .user)
     await wait(for: third)
-    print("a preview whose own block wasn't found: " + refusal(store.apply(from: third, approved: approved)))
+    print("a preview whose results were too large to review: " + refusal(store.apply(from: third, approved: approved)))
 
     // a scheduled replay reads the installed plist itself; what the caller passes is ignored
     let echo = script(dir, "echo.sh", "echo \"memory auto-clean  |  APPLY  |  $(date '+%Y-%m-%d %H:%M:%S')\"; echo \"args: $*\"")
@@ -87,6 +87,69 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     print("plist names another copy of the script: " + refusal(store.enqueue(JobRequest(kind: .storageClean, intent: .run), trigger: .schedule(label))))
     store.scheduleReader = { _ in nil }
     print("agent not installed:                    " + refusal(store.enqueue(JobRequest(kind: .storageClean, intent: .run), trigger: .schedule(label))))
+
+    // an apply sends exactly the reviewed list, even with nothing unticked
+    matched.withLock { $0 = true }
+    let listing = script(dir, "list.sh", """
+    mode=APPLY; [[ "$*" == *--dry-run* ]] && mode="DRY RUN"
+    echo "stand-in  |  $mode  |  $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "args: $*"
+    while [[ $# -gt 0 ]]; do
+      if [[ "$1" == "--only-paths" || "$1" == "--only-pids" ]]; then echo "list: $(tr '\\n' ',' < "$2")"; fi
+      shift
+    done
+    """)
+    store.scriptOverride = listing
+    print("\nthe reviewed list, nothing unticked (a new item after the review is not in it):")
+    for (kind, keys) in [(JobKind.storageClean, ["/p/a/.next", "/p/b/dist"]), (.janitor, ["/d/one.pdf", "/d/two.pdf"]),
+                         (.tempClean, ["/tmp/x", "/tmp/y"]), (.memoryClean, ["4101", "4102"]), (.reclaim, ["4101"])] {
+        let review = store.enqueue(JobRequest(kind: kind, intent: .preview), trigger: .user)
+        await wait(for: review)
+        let apply = store.apply(from: review, approved: ApprovedSet(approvable: keys, deselected: []))
+        await wait(for: apply)
+        let list = (apply.lines.first { $0.hasPrefix("list:") } ?? "list: (none sent)").dropFirst(6)
+        let appeared = kind == .memoryClean || kind == .reclaim ? "4999" : "/new/after-the-review"
+        print("  \(kind.rawValue): sent \(list)  — \(appeared) in it: \(list.contains(appeared) ? "YES" : "no")")
+        await idle()
+    }
+    print("\nevery kind that can apply, and the list flag it is given:")
+    for kind in JobKind.allCases where kind.isCleaner {
+        print("  \(kind.rawValue.padding(toLength: 12, withPad: " ", startingAt: 0)) \(kind.approvalFlag ?? "none: its script takes no list")")
+    }
+    print("\na key with a line break is never written to the list:")
+    let crafted = "x\n/Users/me/Downloads/other.zip"      // two lines, the second a real item
+    let keys = ["/Users/me/Downloads/a.pdf", crafted, "/Users/me/Downloads/other.zip"]
+    let unticked: Set<String> = ["/Users/me/Downloads/other.zip"]
+    let set = ApprovedSet(approvable: keys, deselected: unticked)
+    if let file = try? set.writeFile(for: .janitor) {
+        let written = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+        try? FileManager.default.removeItem(at: file)
+        let lines = written.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        print("  \(keys.count) keys offered, other.zip unticked → list holds \(lines): other.zip approved: \(lines.contains("/Users/me/Downloads/other.zip") ? "YES (BAD)" : "no")")
+        print("  \(ApprovedSet.unlistableReason)")
+    }
+
+    print("\na preview is applied once:")
+    store.scriptOverride = listing
+    let once = store.enqueue(JobRequest(kind: .janitor, intent: .preview), trigger: .user)
+    await wait(for: once)
+    let firstApply = store.apply(from: once, approved: ApprovedSet(approvable: ["/d/one.pdf"], deselected: []))
+    print("  first apply:                              " + refusal(firstApply))
+    print("  same preview again, first still running:  " + refusal(store.apply(from: once, approved: ApprovedSet(approvable: ["/d/one.pdf"], deselected: []))))
+    await wait(for: firstApply)
+    await idle()
+    print("  same preview again, first finished:       " + refusal(store.apply(from: once, approved: ApprovedSet(approvable: ["/d/one.pdf"], deselected: []))))
+    store.scriptOverride = script(dir, "fails2.sh", "[[ \"$*\" == *--dry-run* ]] && { echo \"stand-in  |  DRY RUN  |  $(date '+%Y-%m-%d %H:%M:%S')\"; exit 0; }; echo \"stand-in  |  APPLY  |  $(date '+%Y-%m-%d %H:%M:%S')\"; exit 5")
+    let failedPreview = store.enqueue(JobRequest(kind: .storageClean, intent: .preview), trigger: .user)
+    await wait(for: failedPreview)
+    let failing = store.apply(from: failedPreview, approved: ApprovedSet(approvable: ["/p/x"], deselected: []))
+    await wait(for: failing)
+    await idle()
+    print("  first apply FAILED (\(failing.state.isFinished ? "exit 5" : "?")), same preview again: " + refusal(store.apply(from: failedPreview, approved: ApprovedSet(approvable: ["/p/x"], deselected: []))))
+    print("an apply for a kind that takes a list, with no list:")
+    let bare = store.enqueue(JobRequest(kind: .storageClean, intent: .preview), trigger: .user)
+    await wait(for: bare)
+    print("  " + refusal(store.apply(from: bare, approved: .everything)))
     exit(0)
 }
 
