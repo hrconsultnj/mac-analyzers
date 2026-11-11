@@ -8,8 +8,12 @@ import UIComponents
 /// total, opening to what it moved. Runs with something to restore come first
 /// and open; runs whose Trash has been emptied are closed and say so once.
 ///
+/// One table for the whole history (`OutlineTable`): days are section-header rows,
+/// runs are groups, items are rows; newest first, so nothing sorts.
+///
 /// This file is the screen's state and its composition. One job per file:
-///   UndoView+Row.swift       a run's parent row and an item's row
+///   UndoNode.swift           the rows of the table, built from the history
+///   UndoView+Row.swift       what a run's row and an item's row show and do
 ///   UndoView+Actions.swift   loading the history, restoring, copying a command
 struct UndoView: View {
 
@@ -21,13 +25,11 @@ struct UndoView: View {
     /// A restore is running: every Restore button is disabled until it finishes.
     @State var restoring = false
     @State var copiedID: String?
-    /// Runs the person opened or closed; the rest follow the default (open when
-    /// something in the run can still be restored).
-    @State var expansion: [String: Bool] = [:]
-    /// `undo:opened` opens every run (also what a link from a notification could ask for).
-    @State var openAll = false
-
-    private var shown: [UndoEntry] { entries.filter { $0.scope == scope } }
+    /// The rows of the table for the chosen kind, built when the history or the kind changes.
+    @State var nodes: [UndoNode] = []
+    @State var selection: Set<String> = []
+    /// Which runs are open, kept across window close and relaunch.
+    @State var open = RememberedExpansion<String>(screen: "undo")
 
     private var tabItems: [ScopeTabItem<UndoEntry.Scope>] {
         UndoEntry.Scope.allCases.map { kind in
@@ -47,35 +49,43 @@ struct UndoView: View {
             }
             .task {
                 // `undo:trashed`, `undo:servers`, `undo:opened`: which kind, and whether every run is open
+                var openAll = false
                 switch navigator.takeIntent(for: HistoryGroup.undo) {
                 case "servers": scope = .stopped
                 case "opened": scope = .trashed; openAll = true
                 default: break
                 }
                 await load()
+                if openAll { open.ids.formUnion(nodes.flatMap { $0.children ?? [] }.map(\.id)) }
             }
+            .onChange(of: scope) { rebuild() }
     }
 
-    private var content: some View {
-        Group {
-            if loaded && shown.isEmpty {
-                empty
-            } else {
-                List {
-                    ForEach(UndoHistory.days(shown)) { day in
-                        Section {
-                            ForEach(day.runs) { run in runGroup(run) }
-                        } header: {
-                            HStack {
-                                Text(day.title(now: Date()))
-                                Spacer()
-                                Text(day.summary).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
+    @ViewBuilder private var content: some View {
+        if loaded && nodes.isEmpty {
+            empty
+        } else {
+            OutlineTable(nodes, children: \.children, selection: $selection,
+                         expanded: open.binding, autosave: "undo") {
+                OutlineColumn("name", Names.Column.name) { UndoRowLabel(node: $0) }
+                    .lines { $0.lineCount }
+                OutlineColumn("action", "") { node in UndoRowAction(node: node, view: self) }
+                    .hideable(false)
+                    .width(min: 110, ideal: 120, max: 160)
+                    .alignment(.trailing)
             }
+            .columnHeaders(.hidden)
+            .sectionHeader { $0.header }
+            .contextMenu({ ids in UndoRowMenu(nodes: nodes, ids: ids, view: self) })
+            .emptyContent(isLoading: !loaded) { EmptyView() }
         }
+    }
+
+    /// Rebuilds the rows for the chosen kind, and keeps every day open as it appears:
+    /// a day is a header, the person closes it only while looking.
+    func rebuild() {
+        nodes = UndoNode.tree(entries.filter { $0.scope == scope })
+        open.ids.formUnion(nodes.map(\.id))
     }
 
     private func title(_ kind: UndoEntry.Scope) -> String {

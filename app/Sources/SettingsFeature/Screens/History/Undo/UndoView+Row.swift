@@ -2,85 +2,101 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// A run as one parent row that opens to what it moved, and each item's row.
-extension UndoView {
+/// What a run's row and an item's row show and do, as the table's cells.
 
+/// The name cell: a run's icon, who did it and when, what it holds and why it cannot
+/// be restored (said once); an item's title and what happened to it.
+struct UndoRowLabel: View {
+    let node: UndoNode
 
-    func runGroup(_ run: UndoRun) -> some View {
-        DisclosureGroup(isExpanded: Binding(
-            get: { expansion[run.id] ?? (run.restorable > 0 || openAll) },
-            set: { expansion[run.id] = $0 })) {
-            ForEach(run.children) { childRow($0) }
-        } label: {
-            runLabel(run)
-        }
-    }
-
-    private func runLabel(_ run: UndoRun) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: run.isGuard ? "hand.raised.fill" : "trash")
-                .foregroundStyle(run.isGuard ? Color.red : Color.secondary)
-                .accessibilityHidden(true)  // decorative — the title names who did it
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 4) {
-                    Text(run.by).fontWeight(.medium)
-                    if let when = run.when {
-                        Text("· \(when.formatted(.dateTime.hour().minute()))").foregroundStyle(.secondary)
+    var body: some View {
+        switch node.kind {
+        case .day:
+            EmptyView()   // a day is a section header, drawn full width by the table
+        case .run(let run):
+            Label {
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        Text(run.by).fontWeight(.medium)
+                        if let when = run.when {
+                            Text("· \(when.formatted(.dateTime.hour().minute()))").foregroundStyle(.secondary)
+                        }
+                    }
+                    Text(run.summary).font(.caption).foregroundStyle(.secondary)
+                    if let note = run.restoreNote {
+                        Text(note).font(.caption).foregroundStyle(.tertiary)
                     }
                 }
-                Text(run.summary).font(.caption).foregroundStyle(.secondary)
-                if let note = run.restoreNote {
-                    Text(note).font(.caption).foregroundStyle(.tertiary)
-                }
+            } icon: {
+                Image(systemName: run.isGuard ? "hand.raised.fill" : "trash")
+                    .foregroundStyle(run.isGuard ? Color.red : Color.secondary)
             }
-            Spacer(minLength: 8)
-            if run.restorable > 0 {
-                Button("Restore All") { restoreAll(run) }
-                    .disabled(restoring)
-                    .help("Put back the \(run.restorable) items that are still in the Trash")
-            }
-        }
-    }
-
-    private func childRow(_ child: UndoRun.Child) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        case .item(let child):
             VStack(alignment: .leading, spacing: 1) {
                 Text(child.title)
                 if !child.outcome.isEmpty {
                     Text(child.outcome).font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Spacer(minLength: 8)
-            if let first = child.entries.first {
-                action(for: child, first: first)
-            }
         }
-        .contextMenu {
+    }
+}
+
+/// The action cell: Restore All on a run, Restore on an item, and for a stopped server
+/// its command. Restore only where there is something to restore; an item that cannot
+/// be brought back has no button (the run says why, once).
+struct UndoRowAction: View {
+    let node: UndoNode
+    let view: UndoView
+
+    var body: some View {
+        switch node.kind {
+        case .day:
+            EmptyView()
+        case .run(let run):
+            if run.restorable > 0 {
+                Button("Restore All") { view.restoreAll(run) }
+                    .controlSize(.small)
+                    .disabled(view.restoring)
+                    .help("Put back the \(run.restorable) items that are still in the Trash")
+            }
+        case .item(let child):
             if let first = child.entries.first {
                 switch first.source {
                 case .trashed:
-                    Button("Restore") { restore(child.restorable) }.disabled(child.restorable.isEmpty || restoring)
+                    if !child.restorable.isEmpty {
+                        Button("Restore") { view.restore(child.restorable) }
+                            .controlSize(.small)
+                            .disabled(view.restoring)
+                    }
                 case .stopped(let event):
-                    Button("Copy Command") { copy(event) }
+                    Button(view.copiedID == event.id ? "Copied" : "Copy Command") { view.copy(event) }
+                        .controlSize(.small)
+                        .help(event.processName.count >= 140
+                              ? "Recorded before the app kept full command lines, so part of it may be missing"
+                              : "The command as the guard recorded it; you still supply the folder and environment")
                 }
             }
         }
     }
+}
 
-    /// Restore only where there is something to restore; an item that cannot be
-    /// brought back has no button (the run says why, once).
-    @ViewBuilder private func action(for child: UndoRun.Child, first: UndoEntry) -> some View {
-        switch first.source {
-        case .trashed:
-            if !child.restorable.isEmpty {
-                Button("Restore") { restore(child.restorable) }
-                    .disabled(restoring)
+/// The right-click menu of an item: the same action as its button.
+struct UndoRowMenu: View {
+    let nodes: [UndoNode]
+    let ids: Set<String>
+    let view: UndoView
+
+    var body: some View {
+        let picked = nodes.flatMap(\.flattened).filter { ids.contains($0.id) }
+        if let node = picked.first, case .item(let child) = node.kind, let first = child.entries.first {
+            switch first.source {
+            case .trashed:
+                Button("Restore") { view.restore(child.restorable) }
+                    .disabled(child.restorable.isEmpty || view.restoring)
+            case .stopped(let event):
+                Button("Copy Command") { view.copy(event) }
             }
-        case .stopped(let event):
-            Button(copiedID == event.id ? "Copied" : "Copy Command") { copy(event) }
-                .help(event.processName.count >= 140
-                      ? "Recorded before the app kept full command lines, so part of it may be missing"
-                      : "The command as the guard recorded it; you still supply the folder and environment")
         }
     }
 }

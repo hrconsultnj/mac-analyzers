@@ -69,17 +69,10 @@ extension TrendsSettingsView {
             Text("Removed by Cleanups adds up everything the cleanups deleted, including folders that were rebuilt and removed again. It is not the net space gained.")
         }
         if !projects.isEmpty {
+            // plain rows, not a second opening list: each opens the table above's detail at that project
             Section("Removed by Project") {
                 ForEach(projects.prefix(12)) { group in
-                    DisclosureGroup {
-                        ForEach(group.items.prefix(25)) { item in
-                            HStack {
-                                Text(item.cacheKind)
-                                Spacer(minLength: 8)
-                                Text(ByteSize.format(item.sizeBytes)).monospacedDigit().foregroundStyle(.secondary)
-                            }
-                        }
-                    } label: {
+                    OverviewRow(action: { navigator.push(.history(.trends(.removedProject(group.project, period)))) }) {
                         HStack {
                             Text(group.project).fontWeight(.medium)
                             Text("\(group.items.count) \(group.items.count == 1 ? "item" : "items")")

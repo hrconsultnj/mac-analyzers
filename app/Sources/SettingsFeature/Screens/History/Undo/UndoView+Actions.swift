@@ -9,6 +9,13 @@ extension UndoView {
         await awaitLoad({ UndoHistory.entries() }) {
             entries = $0
             loaded = true
+            // open what can still be put back, and the guard's days, the first time this screen shows rows
+            let wanted = UndoNode.tree($0).flatMap { $0.children ?? [] }.filter {
+                if case .run(let run) = $0.kind { return run.restorable > 0 || run.isGuard }
+                return false
+            }
+            open.seedIfUntouched(Set(wanted.map(\.id)))
+            rebuild()
         }
     }
 

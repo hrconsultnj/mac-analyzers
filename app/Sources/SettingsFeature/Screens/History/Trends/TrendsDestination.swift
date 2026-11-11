@@ -17,6 +17,8 @@ func trendsDestination(_ route: TrendsRoute) -> some View {
         MemoryFreedDetailView(period: period)
     case .diskReclaimed(let period):
         DiskReclaimedDetailView(period: period)
+    case .removedProject(let project, let period):
+        DiskReclaimedDetailView(period: period, project: project)
     case .reclaimableNow:
         ReclaimableNowDetailView()
     case .offender(let name, let period):

@@ -120,10 +120,14 @@ public enum Names {
         public static let running = "Running"
         public static let items = "Items"
         public static let removed = "Removed"
+        public static let when = "When"
+        public static let whatHappened = "What Happened"
+        public static let project = "Project"
+        public static let memoryFreed = "Memory Freed"
 
         /// Every title above, for the check.
         public static let all = [name, size, memory, cpu, pid, whatItIs, finding, state, kind, belongsTo,
-                                 administrator, total, downloaded, uploaded, share, running, items, removed]
+                                 administrator, total, downloaded, uploaded, share, running, items, removed, when, whatHappened, project, memoryFreed]
     }
 
     // MARK: - the closed row that holds what is empty

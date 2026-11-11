@@ -2,27 +2,40 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// Memory recovered per process over one period, as a table.
+/// Memory recovered per process over one period, as a sortable table.
 struct MemoryFreedDetailView: View {
     let period: TrendsModel.Period
 
-    @State private var entries: [MemoryFreedEntry] = []
+    private struct Row: Identifiable {
+        let id: String
+        let name: String
+        let freedMB: Int
+        /// A flat table: nothing opens.
+        var children: [Row]? { nil }
+    }
+
+    @State private var rows: [Row] = []
     @State private var loaded = false
-    @State private var sortOrder = [KeyPathComparator(\MemoryFreedEntry.freedMB, order: .reverse)]
+    @State private var sortOrder = [KeyPathComparator(\Row.freedMB, order: .reverse)]
+    @State private var selection: Set<String> = []
+    @State private var open: Set<String> = []
 
     var body: some View {
         Group {
-            if loaded && entries.isEmpty {
+            if loaded && rows.isEmpty {
                 ContentUnavailableView("No Memory Freed", systemImage: "memorychip",
                                        description: Text("Nothing was closed in this period."))
             } else {
-                Table(entries.sorted(using: sortOrder), sortOrder: $sortOrder) {
-                    TableColumn("Name", value: \.name)
-                    TableColumn("Memory Freed", value: \.freedMB) { entry in
-                        Text(formatMB(entry.freedMB)).monospacedDigit()
-                    }
-                    .width(min: 100, ideal: 120)
+                OutlineTable(rows.sorted(using: sortOrder), children: \.children, selection: $selection,
+                             sortOrder: $sortOrder, expanded: $open, autosave: "trends.memoryFreed") {
+                    OutlineColumn("name", Names.Column.name, text: \.name,
+                                  sortUsing: KeyPathComparator(\Row.name, comparator: .localizedStandard))
+                    OutlineColumn("freed", Names.Column.memoryFreed, text: { formatMB($0.freedMB) },
+                                  sortUsing: KeyPathComparator(\Row.freedMB))
+                        .alignment(.trailing).monospacedDigits()
+                        .width(min: 100, ideal: 120, max: 180)
                 }
+                .emptyContent(isLoading: !loaded) { EmptyView() }
             }
         }
         .navigationTitle("Memory Freed")
@@ -30,7 +43,7 @@ struct MemoryFreedDetailView: View {
         .task {
             let window = period
             await awaitLoad({ TrendsModel.memoryFreedByProcess(period: window) }) {
-                entries = $0
+                rows = $0.map { Row(id: $0.id, name: $0.name, freedMB: $0.freedMB) }
                 loaded = true
             }
         }
