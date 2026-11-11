@@ -67,8 +67,13 @@ final class Navigator {
     }
 
     /// Pushes a screen on the current section.
+    /// A screen already in the stack is brought to the top instead of stacked again, so a route
+    /// appears once and its screen's depth (see `stackDepth`) is unambiguous.
     func push(_ route: Route) {
-        paths[section, default: []].append(route)
+        var stack = paths[section, default: []]
+        stack.removeAll { $0 == route }
+        stack.append(route)
+        paths[section] = stack
         record()
     }
 
