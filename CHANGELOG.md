@@ -5,6 +5,27 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## Next
+
+Login & Startup Items, Network and Reports have been rebuilt as screens you
+can read at a glance instead of lists of lines.
+
+- Login & Startup Items has a tab for Apps that open when you log in,
+  Background Items that work for them, Leftovers from apps you removed, and
+  Changes (what was added to startup, day by day). Each app or developer is one row that opens to its
+  items, with whether they are running and what the audit found. Select one to
+  see where it lives, what it runs and why it was flagged. A leftover in your
+  own folders can be removed from here; the ones that need an administrator
+  show the exact command to copy. An item whose program is on a drive that is
+  not connected is no longer called a leftover.
+- Network shows the newest snapshot with each app's programs gathered into one
+  row that opens, and keeps every earlier snapshot in a History tab you can
+  open.
+- Reports has a tab for memory reports and one for storage reports, each
+  listing the reports by day. A report opens as a document, divided into
+  sections you can fold, instead of one long block of text. You can write a
+  new report, stop it, export a copy, or see its text exactly as written.
+
 ## v2.69.0 — A new main window, and cleanups you can watch, stop and look back on
 
 Mac Analyzers has a new main window. The sidebar is organised by what you

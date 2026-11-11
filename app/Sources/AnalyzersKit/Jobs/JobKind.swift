@@ -164,14 +164,14 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
     var approvalFlag: String? {
         switch self {
         case .memoryClean, .reclaim: "--only-pids"
-        case .storageClean, .janitor, .tempClean: "--only-paths"
+        case .storageClean, .janitor, .tempClean, .loginItems: "--only-paths"
         default: nil
         }
     }
 
     /// Temp folders change by the minute, so its apply always carries the
     /// list, deselected or not.
-    public var alwaysSendsApprovalList: Bool { self == .tempClean }
+    public var alwaysSendsApprovalList: Bool { self == .tempClean || self == .loginItems }
 
     // MARK: - arguments
 
@@ -208,7 +208,9 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .memoryClean, .reclaim, .storageClean, .janitor, .tempClean:
             return ["--apply"] + modeArgs(options) + approval
-        case .spotlight, .loginItems:
+        case .loginItems:
+            return ["--apply"] + approval
+        case .spotlight:
             return ["--apply"]
         case .tmReclaim:
             // tm-reclaim.sh acts without a flag today (its dry run is

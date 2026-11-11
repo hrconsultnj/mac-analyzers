@@ -97,6 +97,50 @@ public enum Names {
         public static let singleProcesses = "Single Processes"
     }
 
+    // MARK: - System: Login & Startup Items, Network, Reports
+
+    /// What kind of startup item a row is, how it is doing, and what the audit
+    /// found. The audit script writes engine tokens; these are their words.
+    public enum Startup {
+        public static let loginItem = "Login Item"
+        public static let launchAgent = "Launch Agent"
+        public static let launchDaemon = "Launch Daemon"
+        public static let helperTool = "Helper Tool"
+
+        public static let running = "Running"
+        public static let loaded = "Loaded"
+        public static let notLoaded = "Not Loaded"
+        public static let disabled = "Disabled"
+        public static let enabled = "Enabled"
+
+        public static let leftover = "Leftover"
+        public static let possibleLeftover = "Possible Leftover"
+        public static let notChecked = "Not Checked"
+        public static let removed = "Removed"
+
+        /// The categories (tabs) of the Login & Startup Items screen.
+        public static let categoryApps = "Apps"
+        public static let categoryBackground = "Background Items"
+        public static let categoryLeftovers = "Leftovers"
+        public static let categoryChanges = "Changes"
+
+        /// The toolbar filter that narrows any of them.
+        public static let filterAdministrator = "Needs Administrator"
+        public static let filterNotChecked = "Not Checked"
+    }
+
+    /// The two reports the analyzers write.
+    public enum Report {
+        public static let memory = "Memory Report"
+        public static let storage = "Storage Report"
+    }
+
+    /// The scopes of the Network screen.
+    public enum NetworkScope {
+        public static let snapshot = "Snapshot"
+        public static let history = "History"
+    }
+
     // MARK: - lookups by type
 
     /// What a task is called: the screen that holds it.
@@ -148,6 +192,13 @@ public enum Names {
                  Screen.updates, Screen.howItWorks, Screen.support, Screen.turnOff, Screen.actions]
             .map { ("Screen", $0) }
         rows += [crisisReports, crisisReport, memoryReclaim, startupChanges].map { ("Shared", $0) }
+        rows += [Startup.loginItem, Startup.launchAgent, Startup.launchDaemon, Startup.helperTool,
+                 Startup.running, Startup.loaded, Startup.notLoaded, Startup.disabled, Startup.enabled,
+                 Startup.leftover, Startup.possibleLeftover, Startup.notChecked, Startup.removed,
+                 Startup.categoryApps, Startup.categoryBackground, Startup.categoryLeftovers,
+                 Startup.categoryChanges, Startup.filterAdministrator, Startup.filterNotChecked].map { ("Startup", $0) }
+        rows += [Report.memory, Report.storage].map { ("Report", $0) }
+        rows += [NetworkScope.snapshot, NetworkScope.history].map { ("Network", $0) }
         rows += [State.upToDate, State.updateAvailable, State.developmentBuild].map { ("State", $0) }
         rows += [Scope.all, Scope.running, Scope.needsReview, Scope.failed].map { ("Scope", $0) }
         rows += [Category.apps, Category.tools, Category.system, Category.appsAndServices,

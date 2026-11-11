@@ -185,6 +185,15 @@ if args.first == "--probe-quit" {
     await probeQuit()
 }
 
+// System screens: `--probe-startup [--file <login-items.tsv>]` (Login & Startup
+// Items), `--probe-startup-changes [--log <persistence.log>]` (its Changes scope),
+// `--probe-network [--log <top-talkers.log>] [--history]` and `--probe-reports
+// [--read <n>]` print what each screen's rows would say. See SystemProbes.swift.
+if args.first == "--probe-startup" { probeStartup(args) }
+if args.first == "--probe-startup-changes" { probeStartupChanges(args) }
+if args.first == "--probe-network" { probeNetwork(args) }
+if args.first == "--probe-reports" { probeReports(args) }
+
 // `agent-runner --probe-pid-recycle` proves a stop refuses a recycled pid.
 // It starts a `sleep`, remembers its birth, then asks the signal path to act
 // twice: once with a birth one second off, which is what a recycled pid looks
