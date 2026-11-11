@@ -1,0 +1,68 @@
+name: mac
+
+# The part of a pull request only a Mac can judge: the scripts parse under
+# the bash macOS ships (3.2), the engine tests pass, and the app compiles
+# (`swift build`, no signing, no bundle). It verifies; it does not publish.
+#
+# Who this is for: pull requests — see checks.yml. The maintainer's own
+# pushes run these same checks on the maintainer's Mac before they leave it,
+# so a push starts nothing here.
+#
+# It starts only when a pull request touches a script, a test or the app, and
+# then runs only the checks those files call for (scripts/check.sh --changed).
+#
+# Runner: `xcode-27` (macOS 27, Xcode 27.2, macOS 27.2 SDK) because the app
+# is developed against that SDK and no macOS 26 image has it. The label is
+# still a preview image: if runs queue for long, or the label changes, check
+# the runner-images README for the current Xcode 27 label.
+
+on:
+  pull_request:
+    branches: [development]
+    paths:
+      - 'app/**'
+      - '**.sh'
+      - '**.command'
+      - 'tests/**'
+      - 'memory-analyzer/tests/**'
+      - '.github/workflows/mac.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true   # a newer commit on the pull request supersedes the older run
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      # the image's default is Xcode 27.1 (macOS 27.0 SDK); select 27.2 explicitly
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1 — pinned to a commit: a tag can be moved, a commit cannot
+        with:
+          fetch-depth: 0   # a pull request is diffed against its merge base
+
+      - name: Toolchain
+        run: |
+          sw_vers -productVersion
+          /bin/bash --version | head -n 1
+          xcodebuild -version
+          swift --version
+
+      - name: Run the Mac-only checks
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        # Named, so this machine runs only what needs a Mac; the linter, the
+        # secrets sweep and the rest are checks.yml's job on Linux.
+        run: |
+          if [ -n "$PR_BASE" ]; then
+            scripts/check.sh syntax tests app --changed "$PR_BASE...$PR_HEAD"
+          else
+            scripts/check.sh syntax tests app
+          fi

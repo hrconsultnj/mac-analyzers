@@ -1,0 +1,359 @@
+#!/usr/bin/env bash
+# check.sh — the ONE place every repository check lives.
+#
+#   scripts/check.sh                       every check that can run here
+#   scripts/check.sh <name>...             just those checks
+#   scripts/check.sh --changed <a>..<b>    only the checks whose inputs changed
+#                                          in that git range (any range git
+#                                          diff accepts, e.g. origin/x...HEAD)
+#   scripts/check.sh <name>... --changed <a>..<b>
+#                                          of the named checks, only the ones
+#                                          whose inputs changed in that range
+#   scripts/check.sh --list                the checks, one per line, with
+#                                          what each one covers
+#
+# The pre-push hook (scripts/install-git-hooks.sh) is the gate for the
+# maintainer's own pushes: it runs this script on the Mac, the only machine
+# that can judge all of it. The GitHub workflows run the same script for pull
+# requests, whose authors do not have that hook. No check logic lives
+# anywhere else.
+#
+# Output: one line per check — ✓ passed, ✗ failed (its output follows),
+# – not run (with the reason; a check that did not run is never a pass) —
+# then a summary line. Exit 1 when any check failed.
+#
+# This script must run under the bash macOS ships (3.2): no associative
+# arrays, mapfile, ${x,,}, or |& in here.
+set -u
+
+# A git hook may export GIT_DIR and friends; every git call below must find
+# the repository from the working directory instead.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)" || exit 2
+cd "$ROOT" || exit 2
+
+ALL="syntax lint secrets changelog tests workflows strays app"
+
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/ma-check.XXXXXX")" || exit 2
+trap 'rm -rf "$TMP"' EXIT
+OUT="$TMP/out"      # detail text for the check that just ran
+DETAIL=""           # the short text after the check name
+
+usage() {
+  sed -n '2,/^set -u/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
+}
+
+describe() {
+  case "$1" in
+    syntax)    echo "bash -n on every tracked *.sh and *.command; also under /bin/bash when it is older than 4" ;;
+    lint)      echo "shellcheck: error severity fails the check, warnings are printed" ;;
+    secrets)   echo "curated secret-pattern sweep over every tracked file" ;;
+    changelog) echo "CHANGELOG.md has a '## Next' section or an entry for VERSION, and that entry reads as release notes" ;;
+    tests)     echo "every executable under memory-analyzer/tests/ and tests/ (macOS only; skipped, visibly, elsewhere)" ;;
+    workflows) echo "actionlint on .github/workflows (optional: skipped, visibly, when not installed)" ;;
+    strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root" ;;
+    app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
+  esac
+}
+
+# ── checks ──────────────────────────────────────────────────────────────────
+# Each sets DETAIL, may write detail text to $OUT, and returns
+# 0 = passed, 1 = failed, 2 = not run (DETAIL says why).
+
+script_list() { git ls-files -- '*.sh' '*.command'; }
+
+check_syntax() {
+  local f n=0 bad=0 old=""
+  local sys="/bin/bash" major
+  if [ -x "$sys" ] && [ "$sys" != "${BASH:-}" ]; then
+    major="$("$sys" -c 'echo "${BASH_VERSINFO[0]}"' 2>/dev/null || echo 9)"
+    [ "$major" -lt 4 ] && old="$sys"
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    [ -f "$f" ] || continue
+    n=$((n + 1))
+    if ! "${BASH:-bash}" -n "$f" >>"$OUT" 2>&1; then bad=$((bad + 1)); continue; fi
+    if [ -n "$old" ] && ! "$old" -n "$f" >>"$OUT" 2>&1; then
+      echo "  ^ $f does not parse under $old (bash 3.2) — see the bash-3.2 rule in CLAUDE.md" >>"$OUT"
+      bad=$((bad + 1))
+    fi
+  done <<EOF
+$(script_list)
+EOF
+  if [ "$bad" -gt 0 ]; then DETAIL="$bad of $n scripts do not parse"; return 1; fi
+  if [ -n "$old" ]; then DETAIL="$n scripts (also parsed by $old, bash 3.2)"; else DETAIL="$n scripts"; fi
+  return 0
+}
+
+check_lint() {
+  if ! command -v shellcheck >/dev/null 2>&1; then
+    DETAIL="shellcheck is not installed"
+    echo "install it:  brew install shellcheck   (macOS)   |   sudo apt-get install shellcheck   (Debian/Ubuntu)" >"$OUT"
+    return 1
+  fi
+  local n errors warnings rc
+  n="$(script_list | wc -l | tr -d ' ')"
+  # one pass at warning severity (what we print), one at error (what gates)
+  script_list | tr '\n' '\0' | xargs -0 shellcheck -f gcc -S warning >"$TMP/lint.warn" 2>&1
+  script_list | tr '\n' '\0' | xargs -0 shellcheck -f gcc -S error >"$TMP/lint.err" 2>&1
+  rc=$?
+  errors="$(grep -c ': error: ' "$TMP/lint.err")"
+  warnings="$(grep -c ': warning: ' "$TMP/lint.warn")"
+  if [ "$rc" -ne 0 ]; then
+    [ "$errors" -gt 0 ] || errors="?"
+    DETAIL="$errors error(s) in $n scripts"
+    cat "$TMP/lint.err" >"$OUT"
+    return 1
+  fi
+  DETAIL="$n scripts"
+  if [ "$warnings" -gt 0 ]; then
+    DETAIL="$DETAIL, $warnings warning(s) (not blocking)"
+    cat "$TMP/lint.warn" >"$OUT"
+  fi
+  return 0
+}
+
+check_secrets() {
+  # Pattern prefixes are split so this file never contains a contiguous
+  # secret-shaped literal (which trips secret scanners, this sweep included).
+  local S1='sk_' S2='rk_' G1='ghp_' G2='gho_' A1='AKIA' X1='xox'
+  git ls-files -z | xargs -0 grep -nEI \
+    -e "${A1}[0-9A-Z]{16}" \
+    -e "${G1}[A-Za-z0-9]{36}|${G2}[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}" \
+    -e '\-\-\-\-\-BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY' \
+    -e "${S1}live_[A-Za-z0-9]{20,}|${S2}live_[A-Za-z0-9]{20,}" \
+    -e "${X1}[baprs]-[A-Za-z0-9-]{10,}" \
+    -e '(postgres|postgresql|mysql|mongodb(\+srv)?|redis|amqp)://[^ "]*:[^ "]*@' \
+    -e 'AIza[0-9A-Za-z_-]{35}' \
+    -e 'https://hooks\.slack\.com/services/T[A-Za-z0-9_/]+' \
+    2>/dev/null | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' >"$TMP/secrets.hits"
+  if [ -s "$TMP/secrets.hits" ]; then
+    # file:line only — the match itself is the secret, so it is not echoed
+    cut -d: -f1,2 "$TMP/secrets.hits" >"$OUT"
+    DETAIL="possible secret on $(wc -l <"$TMP/secrets.hits" | tr -d ' ') line(s) — inspect the file:line pairs below"
+    return 1
+  fi
+  DETAIL="no secrets detected"
+  return 0
+}
+
+check_changelog() {
+  if [ ! -f CHANGELOG.md ] || [ ! -f VERSION ]; then
+    DETAIL="CHANGELOG.md or VERSION is missing"
+    return 1
+  fi
+  local version entry next
+  version="$(tr -d ' \n' <VERSION)"
+  entry="$(grep -c -E "^## v${version//./\\.}( |\$)" CHANGELOG.md)"
+  next="$(grep -c -E '^## Next[[:space:]]*$' CHANGELOG.md)"
+  if [ "$entry" -gt 0 ]; then
+    if scripts/changelog-check.sh "$version" >"$OUT" 2>&1; then
+      : >"$OUT"
+      DETAIL="entry for v$version passes the release-notes check"
+      return 0
+    fi
+    DETAIL="entry for v$version does not pass scripts/changelog-check.sh"
+    return 1
+  fi
+  if [ "$next" -gt 0 ]; then
+    DETAIL="'## Next' section present (v$version has no entry yet — it is not released)"
+    return 0
+  fi
+  DETAIL="no '## Next' section and no entry for v$version in CHANGELOG.md"
+  return 1
+}
+
+check_tests() {
+  # The engine is macOS-only and its tests assert what macOS `ps` prints for a
+  # process that renamed itself; Linux `ps` answers differently, so a run there
+  # proves nothing about the engine. Not run is reported as not run.
+  if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: the engine tests need macOS"; return 2; fi
+  local f n=0 bad=0 unrun=0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    [ -f "$f" ] && [ -x "$f" ] || continue
+    if ! "$ROOT/$f" >"$TMP/test.out" 2>&1; then
+      n=$((n + 1)); bad=$((bad + 1))
+      { echo "--- $f (exit non-zero)"; cat "$TMP/test.out"; } >>"$OUT"
+    elif head -n 1 "$TMP/test.out" | grep -q '^SKIP'; then
+      # a test that bowed out (a tool it needs is missing) did not pass
+      unrun=$((unrun + 1))
+      { echo "--- $f did not run"; head -n 1 "$TMP/test.out"; } >>"$OUT"
+    else
+      n=$((n + 1))
+    fi
+  done <<EOF
+$(git ls-files -- 'memory-analyzer/tests/*' 'tests/*')
+EOF
+  if [ "$bad" -gt 0 ]; then DETAIL="$bad of $n test scripts failed"; return 1; fi
+  if [ "$n" -eq 0 ] && [ "$unrun" -gt 0 ]; then
+    DETAIL="skipped: $(head -n 2 "$OUT" | tail -n 1 | sed 's/^SKIP[: ]*//')"; return 2
+  fi
+  if [ "$n" -eq 0 ]; then DETAIL="skipped: no executable test scripts found"; return 2; fi
+  DETAIL="$n test script(s)"
+  [ "$unrun" -gt 0 ] && DETAIL="$DETAIL, $unrun did not run"
+  return 0
+}
+
+check_workflows() {
+  if ! command -v actionlint >/dev/null 2>&1; then
+    DETAIL="skipped: actionlint not installed (optional — brew install actionlint)"
+    return 2
+  fi
+  local n
+  n="$(find .github/workflows -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null | wc -l | tr -d ' ')"
+  if [ "$n" -eq 0 ]; then
+    DETAIL="skipped: no workflow files"
+    return 2
+  fi
+  if ! actionlint >"$OUT" 2>&1; then
+    DETAIL="actionlint found problems in the workflows"
+    return 1
+  fi
+  DETAIL="$n workflow file(s)"
+  return 0
+}
+
+check_strays() {
+  local f name bad=0
+  for f in "$ROOT"/* "$ROOT"/.[!.]*; do
+    [ -e "$f" ] || [ -L "$f" ] || continue
+    name="$(basename "$f")"
+    case "$name" in
+      .build*)
+        echo "$name — build output at the repository root (builds belong in app/.build)" >>"$OUT"; bad=$((bad + 1)) ;;
+      Package.swift)
+        if [ -z "$(git ls-files -- "$name")" ]; then
+          echo "$name — untracked Package.swift at the repository root (the package lives in app/)" >>"$OUT"; bad=$((bad + 1))
+        fi ;;
+      *)
+        if [ -f "$f" ] && [ ! -s "$f" ] && [ -z "$(git ls-files -- "$name")" ]; then
+          echo "$name — zero-byte file at the repository root" >>"$OUT"; bad=$((bad + 1))
+        fi ;;
+    esac
+  done
+  if [ "$bad" -gt 0 ]; then DETAIL="$bad stray item(s) at the repository root"; return 1; fi
+  DETAIL="repository root is clean"
+  return 0
+}
+
+check_app() {
+  if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
+  if [ ! -f app/Package.swift ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
+  if ! command -v swift >/dev/null 2>&1; then
+    DETAIL="swift is not installed"
+    echo "install the Xcode command line tools:  xcode-select --install" >"$OUT"
+    return 1
+  fi
+  local started=$SECONDS rc
+  # --disable-keychain + an empty git credential helper: SwiftPM and git must
+  # never ask the macOS keychain for a login (see app/build.sh).
+  ( cd app && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0= \
+      swift build --disable-keychain ) >"$TMP/app.out" 2>&1
+  rc=$?
+  # drop colour and terminal-hyperlink escapes so the output reads as text
+  if command -v perl >/dev/null 2>&1; then
+    perl -pe 's/\e\[[0-9;]*m//g; s/\e\]8;;[^\e]*\e\\//g' "$TMP/app.out" >"$TMP/app.txt"
+  else
+    cp "$TMP/app.out" "$TMP/app.txt"
+  fi
+  if [ "$rc" -ne 0 ]; then
+    # compiler errors only, one per line, cut short (the failed-command dump is huge)
+    grep -a -E '^[^ ].*: error: ' "$TMP/app.txt" | cut -c1-300 | awk '!seen[$0]++' | head -20 >"$OUT"
+    [ -s "$OUT" ] || tail -n 15 "$TMP/app.txt" | cut -c1-300 >"$OUT"
+    DETAIL="swift build failed (exit $rc)"
+    return 1
+  fi
+  DETAIL="swift build ok ($((SECONDS - started))s)"
+  return 0
+}
+
+# ── argument parsing ────────────────────────────────────────────────────────
+names=""
+range=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --list)
+      for n in $ALL; do printf '%-10s %s\n' "$n" "$(describe "$n")"; done
+      exit 0 ;;
+    --changed)
+      [ $# -ge 2 ] || { echo "check.sh: --changed needs a range, e.g. origin/development..HEAD" >&2; exit 2; }
+      range="$2"; shift ;;
+    --changed=*) range="${1#--changed=}" ;;
+    -*) echo "check.sh: unknown option $1 (see --help)" >&2; exit 2 ;;
+    *)
+      case " $ALL " in
+        *" $1 "*) names="$names $1" ;;
+        *) echo "check.sh: unknown check '$1' (see --list)" >&2; exit 2 ;;
+      esac ;;
+  esac
+  shift
+done
+# ── selection ───────────────────────────────────────────────────────────────
+# Names say WHICH checks belong to this run; --changed then keeps, of those,
+# the ones whose inputs changed. A check outside the named set is not part of
+# the run at all; one inside it that --changed left out is printed as not run.
+scope="$ALL"
+[ -n "$names" ] && scope="$names"
+selected="$scope"
+reason_unselected=""
+if [ -n "$range" ]; then
+  if git diff --name-only "$range" >"$TMP/changed" 2>"$TMP/changed.err"; then
+    want_script=0; want_changelog=0; want_app=0
+    while IFS= read -r f; do
+      case "$f" in
+        *.sh|*.command|scripts/*|.github/*|tests/*|*/tests/*) want_script=1 ;;
+      esac
+      case "$f" in CHANGELOG.md|VERSION) want_changelog=1 ;; esac
+      case "$f" in app/*) want_app=1 ;; esac
+    done <"$TMP/changed"
+    selected=""
+    for n in $scope; do
+      case "$n" in
+        syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
+        changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
+        app) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
+        secrets|strays) selected="$selected $n" ;;
+      esac
+    done
+    echo "range $range: $(wc -l <"$TMP/changed" | tr -d ' ') file(s) changed"
+    reason_unselected="nothing it checks changed in this range"
+  else
+    echo "check.sh: cannot read range '$range' ($(tr '\n' ' ' <"$TMP/changed.err")) — running every check instead" >&2
+  fi
+fi
+
+# ── run ─────────────────────────────────────────────────────────────────────
+passed=0; failed=0; skipped=0; failed_names=""
+for n in $ALL; do
+  # a check you did not ask for by name is not part of this run at all
+  case " $scope " in *" $n "*) ;; *) continue ;; esac
+  case " $selected " in
+    *" $n "*) ;;
+    *)
+      printf '– %s — not run: %s\n' "$n" "$reason_unselected"
+      skipped=$((skipped + 1))
+      continue ;;
+  esac
+  : >"$OUT"
+  DETAIL=""
+  "check_$n"
+  rc=$?
+  case "$rc" in
+    0) printf '✓ %s — %s\n' "$n" "$DETAIL"; passed=$((passed + 1)) ;;
+    2) printf '– %s — %s\n' "$n" "$DETAIL"; skipped=$((skipped + 1)) ;;
+    *) printf '✗ %s — %s\n' "$n" "$DETAIL"; failed=$((failed + 1)); failed_names="$failed_names $n" ;;
+  esac
+  if [ "$rc" -ne 2 ] && [ -s "$OUT" ]; then sed 's/^/    /' "$OUT"; fi
+done
+
+echo
+if [ "$failed" -gt 0 ]; then
+  echo "checks: FAILED —$failed_names ($passed passed, $skipped not run)"
+  exit 1
+fi
+echo "checks: $passed passed, $skipped not run, 0 failed"
+exit 0

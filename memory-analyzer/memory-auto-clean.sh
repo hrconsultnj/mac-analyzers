@@ -62,6 +62,25 @@
 
 set -u
 
+# ---------- which bash is running this ----------
+# The developer-tools pass (sections 2 and 7–11) keeps its bookkeeping in
+# associative arrays, which need bash 4 or newer. macOS ships bash 3.2 as
+# /bin/bash, and an app's PATH does not include Homebrew — so `env bash` can
+# land on 3.2 even on a Mac that has a newer one. On 3.2 this script used to
+# crash before section 1. Now: hand over to a newer bash when there is one;
+# when there is not, run every section that does not need it and say plainly
+# which ones were skipped.
+DEV_PASS_OK=1
+if (( BASH_VERSINFO[0] < 4 )); then
+  for newer_bash in ${ANALYZERS_BASH_CANDIDATES:-/opt/homebrew/bin/bash /usr/local/bin/bash}; do
+    if [[ -x "$newer_bash" ]] && "$newer_bash" -c '(( BASH_VERSINFO[0] >= 4 ))' 2>/dev/null; then
+      exec "$newer_bash" "$0" "$@"
+    fi
+  done
+  DEV_PASS_OK=0
+fi
+DEV_PASS_SKIPPED="skipped — the developer-tools checks need bash 4 or newer and this Mac has ${BASH_VERSION%%(*}. Install one with: brew install bash"
+
 HOME_DIR="${HOME}"
 DRY_RUN=1
 ONLY_PIDS=""
@@ -161,6 +180,13 @@ mkdir -p "$LOG_DIR"
 # the guard's pause ("heavy legit build in progress") holds the dev pass too
 if [[ "$DEV_ONLY" -eq 1 && -e "${LOG_DIR}/.guard-paused" ]]; then
   [[ "$QUIET" -eq 1 ]] || echo "memory guard is paused — dev pass skipped (resume: rm ${LOG_DIR}/.guard-paused)."
+  exit 0
+fi
+
+# the dev-only pass has nothing it can do on an old bash — the guard calls it
+# every few minutes with --quiet, so say it once only when someone is watching
+if [[ "$DEV_ONLY" -eq 1 && "$DEV_PASS_OK" -eq 0 ]]; then
+  [[ "$QUIET" -eq 0 ]] && echo "Developer-tools pass ${DEV_PASS_SKIPPED}"
   exit 0
 fi
 
@@ -347,7 +373,7 @@ DEV_SELF_RE='memory-auto-clean|memory-guard|memory-reclaim|agent-runner'
 NOW_TS=$(date +%s)
 DEV_SESSION_ROOTS="$(live_session_roots)"
 declare -a U_CLASS U_ROOT U_MEMBERS U_RSS U_CPU U_PCPU U_OWNER U_CONN U_AGE U_LABEL U_ARGS U_VERDICT U_NOTE
-declare -A DEV_FLAG=() S_START=() S_IDLE=() S_CPU=() S_TS=()
+[[ "$DEV_PASS_OK" -eq 1 ]] && declare -A DEV_FLAG=() S_START=() S_IDLE=() S_CPU=() S_TS=()
 
 # pid \t ppid \t tty \t rss \t pcpu \t cpu_s \t age_s \t args
 DSNAP="$(LC_ALL=C ps axo pid=,ppid=,tt=,rss=,pcpu=,time=,etime=,args= | awk '
@@ -542,7 +568,7 @@ dev_booted_sims() {
 }
 
 # outermost git repo above a directory (a worktree resolves to its main repo)
-declare -A DEV_PKEY=()
+[[ "$DEV_PASS_OK" -eq 1 ]] && declare -A DEV_PKEY=()
 project_key() {
   local d="$1" best=""
   [[ -z "$d" ]] && return 0
@@ -574,7 +600,7 @@ cpu_grew() {
 # session_dir_live <dir> — 1 if the folder belongs to an agent session that is still
 # working: a session UUID in the path (scratchpads live under …/<session-uuid>/…)
 # whose Claude Code transcript was written within ANALYZERS_DEV_SERVER_IDLE_MIN.
-declare -A DEV_SDIR=()
+[[ "$DEV_PASS_OK" -eq 1 ]] && declare -A DEV_SDIR=()
 session_dir_live() {
   local d="$1" u
   [[ -z "$d" ]] && return 1
@@ -774,7 +800,7 @@ dev_section() {
   return 0
 }
 
-dev_evaluate
+[[ "$DEV_PASS_OK" -eq 1 ]] && dev_evaluate
 
 # ---------- header ----------
 log "=================================================================="
@@ -800,7 +826,7 @@ done < <(candidates "$MCP_RE")
 
 # ---------- 2. Orphaned dev tooling (parent gone) ----------
 group "2. Orphaned dev tooling (parent gone) — idle ≥$([[ $DEV_NOW -eq 1 ]] && echo 0 || echo "$DEV_ORPHAN_IDLE_MIN")m reaped, busy ones reported$([[ $ORPHANS_ALL -eq 1 ]] && echo '; --orphans-all: busy ones up >30min too')"
-dev_section orphan
+if [[ "$DEV_PASS_OK" -eq 1 ]]; then dev_section orphan; else log "  ${DEV_PASS_SKIPPED}"; fi
 
 if [[ "$DEV_ONLY" -eq 0 ]]; then
 # ---------- 3. Forgotten dev servers ----------
@@ -846,6 +872,7 @@ echo "$SNAP" | awk -F'\t' '
   END { if (!f) print "  none." }' | tee -a "$LOG_FILE"
 fi   # end of the full-run-only sections 3–6
 
+if [[ "$DEV_PASS_OK" -eq 1 ]]; then
 # ---------- 7. Idle emulators & simulators ----------
 group "7. Emulators & simulators idle ≥${DEV_DEVICE_IDLE_MIN}m (no build, test, driver, Metro activity or window focus) — shut down, data kept"
 dev_section emulator simulator
@@ -873,6 +900,10 @@ dev_section buildleft plumbing
 # ---------- 10. Idle dev servers ----------
 group "10. Dev servers with no client and no activity — ${DEV_SERVER_IDLE_MIN}m while their project is open, ${DEV_ORPHAN_IDLE_MIN}m once not"
 dev_section server
+else
+group "7–10. Idle emulators, build daemons, build leftovers and dev servers"
+log "  ${DEV_PASS_SKIPPED}"
+fi   # end of the sections that need bash 4+
 
 # =================== 11. idle Docker / Supabase stacks (opt-in) ===================
 # ANALYZERS_DEV_STOP_IDLE_STACKS=1: `docker stop` the containers of a stack whose project has had NO live
@@ -1082,7 +1113,7 @@ dev_idle_stacks() {
   return 0
 }
 
-if [[ "$DEV_ONLY" -eq 1 ]]; then
+if [[ "$DEV_ONLY" -eq 1 && "$DEV_PASS_OK" -eq 1 ]]; then
   group "11. Docker / Supabase stacks of projects with no live session for ${STACK_IDLE_MIN}m — containers stopped, never removed, volumes untouched"
   dev_idle_stacks
 fi

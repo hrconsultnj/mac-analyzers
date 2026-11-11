@@ -28,20 +28,36 @@ public enum ActionRunner {
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = pipe
-            process.terminationHandler = { finished in
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                continuation.resume(returning: RunResult(
-                    exitCode: finished.terminationStatus,
-                    output: String(data: data, encoding: .utf8) ?? ""))
-            }
             do {
                 try process.run()
             } catch {
                 continuation.resume(returning: RunResult(
                     exitCode: -1,
                     output: "could not launch \(script.lastPathComponent): \(error.localizedDescription)"))
+                return
+            }
+            // Read WHILE the script runs. A pipe holds about 64 KB: a script
+            // that prints more than that waits on its next line until someone
+            // reads, so reading only after it exits (what this did before)
+            // meant a big audit never exited and the screen waited forever.
+            let running = RunningScript(process: process, output: pipe.fileHandleForReading)
+            DispatchQueue.global(qos: .userInitiated).async {
+                let data = running.output.readDataToEndOfFile()
+                running.process.waitUntilExit()
+                continuation.resume(returning: RunResult(
+                    exitCode: running.process.terminationStatus,
+                    output: String(data: data, encoding: .utf8) ?? ""))
             }
         }
+    }
+
+    /// The started script and the end of the pipe its output arrives on,
+    /// handed to the one background thread that reads it and waits for it.
+    /// Nothing else touches either after the hand-off, which is what makes
+    /// crossing threads safe here.
+    private struct RunningScript: @unchecked Sendable {
+        let process: Process
+        let output: FileHandle
     }
 }
 

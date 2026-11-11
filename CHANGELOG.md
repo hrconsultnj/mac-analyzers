@@ -5,6 +5,21 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## v2.68.1 — Memory cleanup works on every Mac again
+
+This release fixes two problems in version 2.68.0 that stopped cleanups
+from running. Nothing else changes.
+
+- Fixed: Memory Cleanup's "See what would be cleaned" button failed on every
+  Mac, and the scheduled memory cleanup stopped before doing anything on
+  Macs that only have the version of bash that comes with macOS — which is
+  every Mac without Homebrew. Both now run everywhere. The checks for idle
+  developer tools need a newer bash and say so when one is not installed.
+- Fixed: a cleanup or audit started from the app could wait forever when it
+  had a lot to report — most often the Temp & Agents audit and the deep
+  storage preview on a Mac with many projects. They now finish however much
+  they find.
+
 ## v2.68.0 — See where all of your memory goes
 
 The Monitor screen now accounts for every running process instead of only

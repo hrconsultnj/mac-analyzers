@@ -119,3 +119,10 @@
 # project) has a live session.
 #ANALYZERS_STACK_OWNER_MAP="scratch-*=my-project"  # glob=project entries (space or comma separated) for stacks no repo config names, or that another project also uses. A stack is kept while ANY of its owners (the repo found automatically AND every owner-map project) has a live session. A project is a repo folder name or its full path.
 #ANALYZERS_STACK_REPO_ROOTS="$HOME/Projects"        # where to look for repos of stacks with no live session (searched 3 levels down)
+
+# ── which bash the memory cleaner hands over to ─────────────────────────────
+# macOS ships bash 3.2. The developer-tools checks in memory-auto-clean.sh
+# need bash 4 or newer, so when the script finds itself on an older one it
+# re-runs itself with the first of these that exists and is new enough. With
+# none, it runs everything else and logs that those checks were skipped.
+# export ANALYZERS_BASH_CANDIDATES="/opt/homebrew/bin/bash /usr/local/bin/bash"

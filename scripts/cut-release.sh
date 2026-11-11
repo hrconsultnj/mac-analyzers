@@ -7,7 +7,9 @@
 #
 # What it does, in order — and it stops at the first thing that is not right,
 # before anything has been changed:
-#   1. checks you are on `development` with nothing uncommitted
+#   1. checks you are on `development` with nothing uncommitted, and that
+#      every repository check passes on this Mac (scripts/check.sh) — no
+#      machine on GitHub re-checks a release
 #   2. checks CHANGELOG.md has a What's New entry for the new version that is
 #      fit to show users (scripts/changelog-check.sh), shows it, and asks
 #   3. writes VERSION and commits it as "v<version> — <title>"
@@ -63,6 +65,14 @@ main_worktree="$(git worktree list --porcelain | awk '
 if [[ -z "$main_worktree" ]]; then
   echo "cut-release: no worktree has main checked out. Create the release worktree once:" >&2
   echo "  git worktree add .composure/workspaces/main main" >&2
+  exit 1
+fi
+
+# Every check, on this Mac, before anything changes. This is the release's
+# only automated gate besides the push hook: nothing on GitHub re-checks it.
+say "running every check (scripts/check.sh)"
+if ! scripts/check.sh; then
+  echo "cut-release: a check failed — fix it first. Nothing was changed." >&2
   exit 1
 fi
 
