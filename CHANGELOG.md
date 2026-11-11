@@ -5,6 +5,13 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## Next
+
+- When a memory cleanup refuses to run because part of Mac Analyzers is
+  missing, the app now says so and tells you to update or reinstall. It used
+  to tell you to check your protected-apps list, which had nothing to do
+  with it.
+
 ## v2.69.0 — A new main window, and cleanups you can watch, stop and look back on
 
 Mac Analyzers has a new main window. The sidebar is organised by what you
