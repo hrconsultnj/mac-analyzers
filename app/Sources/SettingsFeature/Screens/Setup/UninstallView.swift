@@ -66,7 +66,7 @@ struct UninstallView: View {
             ForEach([Level.pause, .background, .everything]) { level in
                 Section {
                     HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
                             Text(level.title).font(.callout.weight(.medium))
                             Text(level.detail)
                                 .font(.caption)

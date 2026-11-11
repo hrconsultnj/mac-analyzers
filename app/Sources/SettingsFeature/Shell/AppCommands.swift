@@ -7,6 +7,7 @@ import AnalyzersKit
 public struct AppCommands: Commands {
     @FocusedValue(\.navigator) private var navigator
     @FocusedValue(\.screenActions) private var screen
+    @FocusedValue(\.scopeTabs) private var tabs
 
     public init() {}
 
@@ -29,6 +30,14 @@ public struct AppCommands: Commands {
             Button("Find") { screen?.find?() }
                 .keyboardShortcut("f", modifiers: .command)
                 .disabled(screen?.find == nil)
+            // the focused screen's category tabs, Command-1 to Command-6; disabled,
+            // never hidden, on a screen with no tabs
+            Divider()
+            ForEach(0..<6, id: \.self) { index in
+                Button(tabs?.titles[safe: index] ?? "Category \(index + 1)") { tabs?.select(index) }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                    .disabled(tabs?.titles.indices.contains(index) != true)
+            }
         }
 
         CommandMenu("Go") {
@@ -52,9 +61,14 @@ public struct AppCommands: Commands {
         let button = Button(title) { navigator?.select(section) }
             .disabled(navigator == nil)
         if let key {
-            button.keyboardShortcut(key, modifiers: .command)
+            // Control-Command: Command-1 to Command-6 belong to the screen's tabs
+            button.keyboardShortcut(key, modifiers: [.command, .control])
         } else {
             button
         }
     }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }

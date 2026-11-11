@@ -32,7 +32,7 @@ struct StorageSettingsView: View {
             Section {
                 ForEach(ToolCache.allCases) { tool in
                     Toggle(isOn: toolBinding(tool, in: $config.storage.toolCaches)) {
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                             Text(tool.title)
                             Text(tool.detail)
                                 .font(.caption)
@@ -50,7 +50,7 @@ struct StorageSettingsView: View {
 
             Section {
                 Stepper(value: $config.storage.nmAgeDays, in: 1...60) {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text("Remove node_modules after \(config.storage.nmAgeDays) idle \(config.storage.nmAgeDays == 1 ? "day" : "days")")
                         Text("A repo counts as idle when none of its source files changed — build output doesn't count. Reinstall with your package manager.")
                             .font(.caption)
@@ -58,7 +58,7 @@ struct StorageSettingsView: View {
                     }
                 }
                 Toggle(isOn: $config.storage.nmRequireClean) {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text("Only when the git tree is clean")
                         Text("Off: idle repos lose node_modules even with uncommitted changes — your source files are never touched either way.")
                             .font(.caption)
@@ -66,7 +66,7 @@ struct StorageSettingsView: View {
                     }
                 }
                 Stepper(value: $config.storage.turboCacheMaxGB, in: 1...50) {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text("Turborepo cache cap: \(config.storage.turboCacheMaxGB) GB per repo")
                         Text("Each build adds an entry; the oldest beyond the cap are removed on every run, even in active repos. Never while turbo is running.")
                             .font(.caption)
@@ -74,7 +74,7 @@ struct StorageSettingsView: View {
                     }
                 }
                 Stepper(value: $config.storage.worktreeIdleDays, in: 0...60) {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text(config.storage.worktreeIdleDays == 0
                              ? "Idle worktrees: off"
                              : "Remove worktrees idle \(config.storage.worktreeIdleDays) \(config.storage.worktreeIdleDays == 1 ? "day" : "days")")
@@ -93,7 +93,7 @@ struct StorageSettingsView: View {
             // patterns are honoured had no way to be acted on.
             Section {
                 Stepper(value: $config.storage.janitorDownloadsDays, in: 1...365) {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text("Downloads older than \(config.storage.janitorDownloadsDays) days")
                         Text("Counted from when you last opened or changed the file, not when you downloaded it.")
                             .font(.caption)
@@ -101,7 +101,7 @@ struct StorageSettingsView: View {
                     }
                 }
                 Stepper(value: $config.storage.janitorScreenshotsDays, in: 1...365) {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text("Screenshots older than \(config.storage.janitorScreenshotsDays) days")
                         Text("Only files in your Screenshots folder. Folders are never moved.")
                             .font(.caption)
@@ -139,7 +139,7 @@ struct StorageSettingsView: View {
                         }
                     }
                 } else {
-                    HStack(spacing: 8) {
+                    HStack(spacing: Tokens.Space.m) {
                         ProgressView().controlSize(.small)
                         Text("Sizing local device backups…")
                             .foregroundStyle(.secondary)

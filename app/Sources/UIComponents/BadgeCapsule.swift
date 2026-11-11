@@ -14,8 +14,8 @@ public struct BadgeCapsule: View {
     public var body: some View {
         Text(text)
             .font(.caption2.weight(.bold))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
+            .padding(.horizontal, Tokens.Space.s)
+            .padding(.vertical, Tokens.Space.hair)
             .background(color.opacity(Tokens.Surface.tintFill), in: Capsule())
             .foregroundStyle(color)
     }

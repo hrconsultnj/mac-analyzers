@@ -29,11 +29,11 @@ public struct AppListEditor: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s) {
             Text(title).font(.subheadline.weight(.medium))
             List(selection: $selection) {
                 ForEach(items, id: \.self) { item in
-                    HStack(spacing: 6) {
+                    HStack(spacing: Tokens.Space.s) {
                         itemIcon(item)
                             .accessibilityHidden(true)  // decorative — the name text is the identity
                         Text(item)
@@ -101,7 +101,7 @@ private struct AppPickerSheet: View {
     @State private var running: [String] = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Tokens.Space.l) {
             Text(mode == .installedApps ? "Pick an installed app" : "Pick a running process")
                 .font(.headline)
             TextField("Search…", text: $search)
@@ -114,7 +114,7 @@ private struct AppPickerSheet: View {
                             onPick(app.name)
                             dismiss()
                         } label: {
-                            HStack(spacing: 8) {
+                            HStack(spacing: Tokens.Space.m) {
                                 Image(nsImage: icon(app.path))
                                     .resizable()
                                     .frame(width: 20, height: 20)
@@ -135,7 +135,7 @@ private struct AppPickerSheet: View {
                             onPick(name)
                             dismiss()
                         } label: {
-                            HStack(spacing: 8) {
+                            HStack(spacing: Tokens.Space.m) {
                                 IconTile(symbol: "terminal.fill", color: .blue)
                                     .accessibilityHidden(true)  // decorative — the name text is the identity
                                 Text(name)
@@ -164,8 +164,8 @@ private struct AppPickerSheet: View {
                     .keyboardShortcut(.cancelAction)
             }
         }
-        .padding(16)
-        .frame(width: 420, height: 430)
+        .scenePadding()
+        .frame(minWidth: 420, minHeight: 430)
         .onAppear {
             if mode == .installedApps {
                 apps = AppCatalog.installedApps()
