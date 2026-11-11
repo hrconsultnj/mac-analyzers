@@ -18,7 +18,7 @@ import SwiftUI
 /// its icon.
 struct NetworkView: View {
 
-    enum Scope: String, CaseIterable, Identifiable {
+    enum Scope: String, CaseIterable, Identifiable, Sendable {
         case snapshot, history
         var id: String { rawValue }
         var title: String { self == .snapshot ? Names.NetworkScope.snapshot : Names.NetworkScope.history }
@@ -46,10 +46,16 @@ struct NetworkView: View {
     private var selectedRow: NetworkProcessRow? { model.rows().first { $0.id == selection } }
     private var selectedGroup: NetworkGroup? { NetworkGroup.groups(of: model.rows()).first { $0.id == selection } }
 
+    private var tabs: [ScopeTabItem<Scope>] {
+        Scope.allCases.map { scope in
+            ScopeTabItem(value: scope, title: scope.title, symbol: scope.symbol,
+                         count: model.loaded ? (scope == .snapshot ? model.viewing?.processCount : model.snapshots.count) : nil)
+        }
+    }
+
     var body: some View {
-        content
-            .navigationTitle(Names.Screen.network)
-            .navigationSubtitle(subtitle)
+        DataScreen(title: Names.Screen.network, subtitle: subtitle) { content }
+            .scopeTabsToolbar(screen: "network", items: tabs, selection: $scope)
             .searchable(text: $query, prompt: "Search programs")
             .toolbar { toolbar }
             .inspector(isPresented: $showInspector) {
@@ -121,15 +127,6 @@ struct NetworkView: View {
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            ScopeButtons(items: Scope.allCases, selection: $scope, title: \.title, symbol: \.symbol,
-                         count: { $0 == .snapshot ? model.viewing?.processCount : model.snapshots.count })
-        }
-        .rank(.high)
-
-        // the tabs show a selection; the actions are a separate group
-        ToolbarSpacer(.fixed)
-
-        ToolbarItem(placement: .primaryAction) {
             Button { model.take(in: store); scope = .snapshot } label: {
                 Label("Take Snapshot", systemImage: "arrow.clockwise")
             }
@@ -137,7 +134,14 @@ struct NetworkView: View {
             .disabled(model.isTaking)
             .help("Read what every program has sent and received since it started")
         }
-        .rank(.high)
+
+        ToolbarItem(placement: .primaryAction) {
+            Button { navigator.open(target: "activity:find:\(Names.job(.networkSnapshot))") } label: {
+                Label("Past Runs", systemImage: "clock.arrow.circlepath")
+            }
+            .labelStyle(.titleAndIcon)
+            .help("See every earlier snapshot in Activity")
+        }
 
         ToolbarItem(placement: .primaryAction) {
             Button { model.stop() } label: { Label("Stop", systemImage: "stop.circle") }
@@ -145,16 +149,15 @@ struct NetworkView: View {
                 .disabled(!model.isTaking)
                 .help("Stop the snapshot")
         }
-        .rank(.low)
     }
 
+    /// One short fact: what this tab is showing (the counts are on the tabs).
     private var subtitle: String {
         if model.isTaking { return "Taking a snapshot…" }
         guard let viewing = model.viewing else { return "No snapshot yet" }
+        if scope == .history { return "Every saved snapshot" }
         let when = viewing.date.formatted(.relative(presentation: .named))
-        return scope == .history
-            ? "\(model.snapshots.count) saved"
-            : "\(viewing.processCount) programs · \(model.isViewingOlder ? "from" : "taken") \(when)"
+        return model.isViewingOlder ? "From \(when)" : "Taken \(when)"
     }
 
     private func reveal(_ row: NetworkProcessRow) {

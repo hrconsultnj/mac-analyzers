@@ -34,6 +34,7 @@ struct ReportsView: View {
         // inside the main window's detail column it took the sum of its panes'
         // ideal widths as its minimum, so at 900 points the sidebar was squeezed
         // and the window's contents ran past its edges (rendered and checked).
+        DataScreen(title: Names.Screen.reports, subtitle: subtitle) {
         HStack(spacing: 0) {
             ReportList(months: months, selection: $model.selection, opened: $openedMonths,
                        onShowInFinder: reveal)
@@ -42,8 +43,8 @@ struct ReportsView: View {
             reader
                 .frame(minWidth: 280, idealWidth: 480, maxWidth: .infinity)
         }
-        .navigationTitle(Names.Screen.reports)
-        .navigationSubtitle(subtitle)
+        }
+        .scopeTabsToolbar(screen: "reports", items: tabs, selection: $kind)
         .toolbar { toolbar }
         .fileExporter(isPresented: $exporting,
                       document: ReportFile(text: model.selected?.text() ?? ""),
@@ -92,16 +93,14 @@ struct ReportsView: View {
         expanded = Set(model.sections.prefix(2).map(\.id))
     }
 
-    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            ScopeButtons(items: ReportDocument.Kind.allCases, selection: $kind, title: \.tabTitle,
-                         symbol: \.symbol, count: { model.loaded ? model.reports(of: $0).count : nil })
+    private var tabs: [ScopeTabItem<ReportDocument.Kind>] {
+        ReportDocument.Kind.allCases.map {
+            ScopeTabItem(value: $0, title: $0.tabTitle, symbol: $0.symbol,
+                         count: model.loaded ? model.reports(of: $0).count : nil)
         }
-        .rank(.high)
+    }
 
-        // the tabs show a selection; the actions are a separate group
-        ToolbarSpacer(.fixed)
-
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Menu {
                 ForEach(ReportDocument.Kind.allCases, id: \.self) { kind in
@@ -117,7 +116,14 @@ struct ReportsView: View {
             .disabled(model.writing != nil)
             .help("Write a new report. Reports only read; nothing is moved, deleted or stopped.")
         }
-        .rank(.high)
+
+        ToolbarItem(placement: .primaryAction) {
+            Button { navigator.open(target: "activity:find:\(Names.job(kind == .memory ? .memoryReport : .storageReport))") } label: {
+                Label("Past Runs", systemImage: "clock.arrow.circlepath")
+            }
+            .labelStyle(.titleAndIcon)
+            .help("See every earlier report in Activity")
+        }
 
         ToolbarItem(placement: .primaryAction) {
             Button { model.stop() } label: { Label("Stop", systemImage: "stop.circle") }
@@ -125,7 +131,6 @@ struct ReportsView: View {
                 .disabled(model.writing == nil)
                 .help("Stop writing the report")
         }
-        .rank(.low)
 
         ToolbarItem(placement: .primaryAction) {
             Menu {
@@ -142,7 +147,6 @@ struct ReportsView: View {
             .disabled(model.sections.isEmpty)
             .help("Jump to a section of this report")
         }
-        .rank(.low)
 
         ToolbarItem(placement: .primaryAction) {
             Button { exporting = true } label: { Label("Export", systemImage: "square.and.arrow.up") }
@@ -150,7 +154,6 @@ struct ReportsView: View {
                 .disabled(model.selected == nil)
                 .help("Save a copy of this report")
         }
-        .rank(.low)
 
         ToolbarItem(placement: .primaryAction) {
             Button {
@@ -160,7 +163,6 @@ struct ReportsView: View {
                 .disabled(model.selected == nil)
                 .help("See the report's text exactly as written")
         }
-        .rank(.low)
     }
 
     private var subtitle: String {
@@ -170,8 +172,8 @@ struct ReportsView: View {
         if let failure = model.failure { return failure }
         let ofKind = model.reports(of: kind)
         guard let newest = ofKind.first else { return model.loaded ? "No reports yet" : "Looking…" }
-        let size = ByteSize.format(ofKind.reduce(0) { $0 + $1.fileSize })
-        return "\(ofKind.count) reports · \(size) · newest \(newest.date.formatted(.relative(presentation: .named)))"
+        // one short fact; the count is on the tab
+        return "Newest \(newest.date.formatted(.relative(presentation: .named)))"
     }
 
     /// A deep link's request: open the nth report, or push its source.

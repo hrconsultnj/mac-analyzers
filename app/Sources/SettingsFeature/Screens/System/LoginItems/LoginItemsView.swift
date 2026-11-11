@@ -22,7 +22,7 @@ struct LoginItemsView: View {
     /// The tabs: the kinds the audit distinguishes (apps that open at login,
     /// background programs, leftovers from apps that are gone) and the history
     /// of what was added.
-    enum Tab: Hashable, Identifiable, CaseIterable {
+    enum Tab: String, Hashable, Identifiable, CaseIterable, Sendable {
         case apps, background, leftovers, changes
         var id: Self { self }
         var category: StartupItem.Category? {
@@ -73,10 +73,13 @@ struct LoginItemsView: View {
         return model.inventory?.groups(in: category).first { $0.id == selection }
     }
 
+    private var tabItems: [ScopeTabItem<Tab>] {
+        Tab.allCases.map { ScopeTabItem(value: $0, title: $0.title, symbol: $0.symbol, count: count($0)) }
+    }
+
     var body: some View {
-        content
-            .navigationTitle(Names.Screen.loginItems)
-            .navigationSubtitle(subtitle)
+        DataScreen(title: Names.Screen.loginItems, subtitle: subtitle) { content }
+            .scopeTabsToolbar(screen: "loginItems", items: tabItems, selection: $tab)
             .searchable(text: $query, prompt: tab == .changes ? "Search changes" : "Search startup items")
             .toolbar { toolbar }
             .inspector(isPresented: $showInspector) {
@@ -153,6 +156,13 @@ struct LoginItemsView: View {
             } else {
                 StartupItemTable(groups: groups, selection: $selection, opened: $opened,
                                  onShowInFinder: reveal, onRemove: askToRemove)
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        if let sentence = auditSentence {
+                            Text(sentence).font(.caption).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal).padding(.vertical, 6)
+                        }
+                    }
                     .safeAreaInset(edge: .top, spacing: 0) {
                         if let note = model.failure ?? model.permission.sentence {
                             Label(note, systemImage: "exclamationmark.triangle.fill")
@@ -198,23 +208,13 @@ struct LoginItemsView: View {
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            ScopeButtons(items: Tab.allCases, selection: $tab, title: \.title, symbol: \.symbol,
-                         count: count)
-        }
-        .rank(.high)
-
-        // the tabs show a selection; the actions are a separate group
-        ToolbarSpacer(.fixed)
-
-        ToolbarItem(placement: .primaryAction) {
             Button { model.startAudit(in: store) } label: {
                 Label("Audit", systemImage: "checklist")
             }
             .labelStyle(.titleAndIcon)
             .disabled(model.isBusy)
-            .help("Look at everything that starts by itself, changing nothing")
+            .help(auditHelp)
         }
-        .rank(.high)
 
         ToolbarItem(placement: .primaryAction) {
             Menu {
@@ -228,7 +228,6 @@ struct LoginItemsView: View {
             .disabled(tab == .changes)
             .help("Narrow the list")
         }
-        .rank(.low)
 
         ToolbarItem(placement: .primaryAction) {
             Button { model.stop() } label: { Label("Stop", systemImage: "stop.circle") }
@@ -236,7 +235,14 @@ struct LoginItemsView: View {
                 .disabled(!model.isBusy)
                 .help("Stop the audit")
         }
-        .rank(.low)
+
+        ToolbarItem(placement: .primaryAction) {
+            Button { navigator.open(target: "activity:find:\(Names.job(.loginItems))") } label: {
+                Label("Past Runs", systemImage: "clock.arrow.circlepath")
+            }
+            .labelStyle(.titleAndIcon)
+            .help("See every earlier audit in Activity")
+        }
 
         // Remove Leftovers lives on the Leftovers tab, where the leftovers are
         if tab == .leftovers {
@@ -248,21 +254,32 @@ struct LoginItemsView: View {
                 .disabled(model.removable.isEmpty || !model.canRemove(in: store) || model.isBusy)
                 .help(removeHelp)
             }
-            .rank(.high)
         }
     }
 
     // MARK: - words
 
+    /// One short fact: what the tab is (the counts are on the tabs). When the
+    /// audit ran has room for a sentence at the foot of the list and in Audit's tooltip.
     private var subtitle: String {
-        if tab == .changes {
-            return model.changes.isEmpty ? "Nothing added yet" : "\(model.changes.count) recorded"
+        if model.inventory == nil, tab != .changes { return model.isBusy ? "Checking…" : "Not audited yet" }
+        switch tab {
+        case .apps: return "Open when you log in"
+        case .background: return "Working for apps in the background"
+        case .leftovers: return "From apps that are gone"
+        case .changes: return "Added to startup, newest first"
         }
-        guard let inventory = model.inventory else { return model.isBusy ? "Checking…" : "Not audited yet" }
-        let leftovers = inventory.leftovers.count
+    }
+
+    /// "Audited 3 minutes ago, 29 items."
+    private var auditSentence: String? {
+        guard let inventory = model.inventory else { return nil }
         let when = inventory.ranAt.map { $0.formatted(.relative(presentation: .named)) } ?? "earlier"
-        let found = leftovers == 0 ? "no leftovers" : "\(leftovers) \(leftovers == 1 ? "leftover" : "leftovers")"
-        return "\(inventory.items.count) items, \(found) · audited \(when)"
+        return "Audited \(when): \(inventory.items.count) items, \(inventory.leftovers.count) of them leftovers."
+    }
+
+    private var auditHelp: String {
+        "Look at everything that starts by itself, changing nothing." + (auditSentence.map { " " + $0 } ?? "")
     }
 
     private var removeHelp: String {
