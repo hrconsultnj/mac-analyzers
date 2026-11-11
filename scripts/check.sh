@@ -55,7 +55,7 @@ describe() {
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root; no source file hidden by .gitignore" ;;
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
     env)       echo "the app people install reads no environment variable: ProcessInfo's environment and getenv appear only in AgentRunner, SnapshotRunner and the one file that passes the environment on to the engine scripts" ;;
-    probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids (agent-runner; macOS only)" ;;
+    probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids, Undo restore safety (agent-runner; macOS only)" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
     outline)   echo "the shared OutlineTable, headless: open all and re-sort with text and with hosted cells log no AppKit reentrancy warning (scripts/outline-probe.sh; macOS only)" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
@@ -317,7 +317,7 @@ check_env() {
 # folder, reads nothing of the person's, and exits non-zero when a rule breaks.
 # A probe that only prints (review rules, quit, failures) is not here: nothing
 # would fail. Add a probe to PROBES when it has an exit status worth trusting.
-PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids"
+PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-undo-fixture"
 check_probes() {
   local app="$ROOT/app"
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi

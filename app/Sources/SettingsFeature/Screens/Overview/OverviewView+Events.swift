@@ -45,7 +45,7 @@ extension OverviewView {
                                             freedBytes: week.storageFreedBytes,
                                             memoryFreedMB: week.memoryFreedMB, runs: week.cleanRuns)
             OverviewBox(title: "This Week", symbol: "chart.xyaxis.line") {
-                OverviewRow(action: { navigator.open(target: "trends") }) {
+                OverviewRow(action: { navigator.open(target: "trends:storage") }) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(totals.summary)
                         Text("Open \(Names.Screen.trends) for the full story.")

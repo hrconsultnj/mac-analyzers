@@ -27,7 +27,7 @@ extension OverviewView {
                                      caption: "From the latest preview. Nothing is deleted until you review it.")
                 }
                 OverviewValueRow(label: "Removed This Week", value: ByteSize.format(week.storageFreedBytes),
-                                 action: { navigator.open(target: "trends") })
+                                 action: { navigator.open(target: "trends:storage") })
             }
         }
     }
