@@ -66,6 +66,7 @@ struct GuardEntryScreen: View {
                 }
             }
             Section {
+                // one disclosed block, not rows: the raw lines
                 DisclosureGroup(Names.Guard.showRawLines) {
                     Text(row.rawText)
                         .font(.callout.monospaced())
