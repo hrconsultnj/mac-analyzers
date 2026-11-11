@@ -235,6 +235,10 @@ public enum Names {
         public static let closePrograms = "Close Programs"
         public static let options = "Options"
         public static let cleanup = "Cleanup"
+        /// How the review says the apps it will quit without a tick: "2 apps will quit",
+        /// "Close 1 Item now and Quit Opera, Docker?". Words, not names (they are not title style).
+        public static let alsoActs = ReviewAlsoActs(singular: "app", plural: "apps", verb: "will quit",
+                                                    confirmVerb: Names.Stop.quit)
         public static let stateReady = "Ready to Close"
         public static let stateWillQuit = "Will Be Asked to Quit"
         public static let stateKept = "Kept"

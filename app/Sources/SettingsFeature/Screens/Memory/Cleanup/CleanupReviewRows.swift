@@ -6,15 +6,19 @@ import UIComponents
 /// thing it found as tabs. One job: the translation. The screens only draw.
 extension CleanupReview {
 
-    /// One row per finding. A program a person may tick has its pid as its key (that is
-    /// what the engine's list is made of); everything else is shown with the reason it is
-    /// left alone, and can never be ticked.
+    /// One row per finding. A program a person may tick has its pid as its key (that is what the engine's
+    /// list is made of); an app on the "also quit" list is a row the apply acts on without a tick (it says
+    /// "Will Be Asked to Quit", is never counted as kept and never in the list); everything else is shown with
+    /// the reason it is left alone, and can never be ticked.
     /// `changed` are the keys of programs that are no longer the ones reviewed: shown, not tickable.
-    ///
-    /// An app on the "also quit" list is NOT a row of the review: it acts without being ticked, and the shared
-    /// table counts a row it cannot tick as "kept". The screen says in words which apps will be quit instead.
     func reviewRows(changed: Set<String> = []) -> [ReviewRow] {
-        candidates.filter { $0.state != .willBeAskedToQuit }.map { row(for: $0, changed: changed) }
+        candidates.map { row(for: $0, changed: changed) }
+    }
+
+    /// What can be ticked now, for the open session: each program the preview found with the reason it can
+    /// no longer be ticked, or nil when it still can. A pure function of the review and the process table.
+    func choosability(changed: Set<String>) -> [(id: String, keptReason: String?)] {
+        candidates.filter(\.isSelectable).map { ($0.reviewKey, keptReason(for: $0, changed: changed)) }
     }
 
     /// The same findings as a finished run's results: nothing to tick, what became of each as its detail.
@@ -22,6 +26,7 @@ extension CleanupReview {
         candidates.map { candidate in
             var row = row(for: candidate, changed: [])
             row.keptReason = nil
+            row.actsWord = nil
             row.detail = [candidate.stateText, candidate.detail].compactMap { $0 }.joined(separator: " · ")
             return row
         }
@@ -29,19 +34,23 @@ extension CleanupReview {
 
     static func rowID(_ candidate: CleanupCandidate) -> String { candidate.reviewKey }
 
+    private func keptReason(for candidate: CleanupCandidate, changed: Set<String>) -> String? {
+        if candidate.state == .willBeAskedToQuit { return nil }
+        if isTickable(candidate, changed: changed) { return nil }
+        if candidate.isSelectable {
+            return candidate.isEmpty
+                ? "Uses no memory, so closing it would free nothing."
+                : "It ended, or another program took its process number, since the preview."
+        }
+        return candidate.reason.isEmpty ? candidate.stateText : candidate.reason
+    }
+
     private func row(for candidate: CleanupCandidate, changed: Set<String>) -> ReviewRow {
         let name = candidate.count > 1 ? "\(candidate.name) ×\(candidate.count)" : candidate.name
-        let reason: String? = {
-            if isTickable(candidate, changed: changed) { return nil }
-            if candidate.isSelectable {
-                return candidate.isEmpty
-                    ? "Uses no memory, so closing it would free nothing."
-                    : "It ended, or another program took its process number, since the preview."
-            }
-            return candidate.reason.isEmpty ? candidate.stateText : candidate.reason
-        }()
+        let acts = candidate.state == .willBeAskedToQuit
         return ReviewRow(id: candidate.reviewKey, name: name, detail: candidate.detail, group: candidate.groupName,
-                         bytes: candidate.memoryBytes, keptReason: reason)
+                         bytes: candidate.memoryBytes, keptReason: keptReason(for: candidate, changed: changed),
+                         actsWord: acts ? Names.Cleanup.stateWillQuit : nil)
     }
 }
 
@@ -69,10 +78,8 @@ struct CleanupTabs {
         return rowIDs.values.filter { !$0.isDisjoint(with: wanted) }.count
     }
 
-    /// `shown` are the findings the tabs are made of: the review leaves out the apps that will be quit
-    /// (they are not rows), the results show everything.
-    init(_ review: CleanupReview, includingAppQuits: Bool = true) {
-        let rows = review.candidates.filter { includingAppQuits || $0.state != .willBeAskedToQuit }
+    init(_ review: CleanupReview) {
+        let rows = review.candidates
         let totals = CleanupCandidate.Category.allCases.compactMap { category -> (category: CleanupCandidate.Category, count: Int, bytes: Int64)? in
             let mine = rows.filter { $0.category == category }
             guard !mine.isEmpty else { return nil }

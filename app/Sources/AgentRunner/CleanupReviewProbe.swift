@@ -213,8 +213,12 @@ func probeCleanupReview(_ args: [String]) -> Never {
         let review = CleanupReview(run: run)
         // the rows of the review: apps that will be quit are not rows; choosable is exactly what the screen's rows say
         let changed = review.changedKeys()
-        let items = review.candidates.filter { $0.state != .willBeAskedToQuit }
-            .map { ReviewSelection.Item(id: $0.reviewKey, choosable: review.isTickable($0, changed: changed)) }
+        // an app on the list is a row the apply acts on without a tick; everything else is as choosable as the screen says
+        let items = review.candidates.map { c in
+            c.state == .willBeAskedToQuit
+                ? ReviewSelection.Item(id: c.reviewKey, acts: true)
+                : ReviewSelection.Item(id: c.reviewKey, choosable: review.isTickable(c, changed: changed))
+        }
         var selection = ReviewSelection(previewID: preview.id, items: items, deselected: [])
         for pid in unticked { selection.setTicked(String(pid), false) }
         // the screen's rule: what it would send for what is ticked ...
@@ -234,11 +238,39 @@ func probeCleanupReview(_ args: [String]) -> Never {
         return (text, file, sent)
     }
     print("\nthe screen's own path (rule, then the table's clamp, then the kernel):")
+    // a row that BECOMES choosable while the review is open arrives unticked and is not sent; one that stops being
+    // choosable is unticked and not sent (the open session is updated in place, never rebuilt)
+    do {
+        let lines = withLeftAlone
+        let review = CleanupReview(run: ReapParser.parse(runHeader: "memory auto-clean  |  DRY RUN", lines: lines))
+        let items = review.candidates.map { ReviewSelection.Item(id: $0.reviewKey, choosable: review.isTickable($0, changed: [])) }
+        var selection = ReviewSelection(previewID: UUID(), items: items, deselected: [])
+        let leftAloneKey = review.candidates.first { !$0.isSelectable }?.reviewKey ?? ""
+        selection.updateChoosable([leftAloneKey: true, String(a): false])
+        let sentNow = selection.narrowed(review.approvedSet(ticked: Set(selection.tickedIDs)))
+        check("a row that becomes choosable arrives unticked, and a row that ends stops being sent",
+              !selection.isTicked(leftAloneKey) && selection.isChoosable(leftAloneKey) && !selection.isTicked(String(a))
+                  && !sentNow.approved.contains(leftAloneKey) && !sentNow.approved.contains(String(a)),
+              "sent \(sentNow.approved.sorted())")
+    }
     let t1 = await viaTable("9. reclaim: the preview listed three apps, the review named one", lines: appLines, kind: .reclaim,
                             options: JobOptions(alsoQuit: ["Opera", "Docker", "Visual Studio Code"]))
     check("the apps the review named survive the clamp: the apply is given exactly Opera",
           t1?.given.contains("--apps-list Opera") == true && t1?.given.contains("Docker") == false && t1?.sent.apps == ["Opera"],
           "apps \(t1?.sent.apps ?? [])")
+    let actingNames = ["Opera"]
+    let dialog = ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: t1?.sent.approved.count ?? 0, bytes: nil,
+                                                 alsoActs: Names.Cleanup.alsoActs, actingNames: actingNames)
+    check("an acting row is named in the dialog and never in the --only-pids file",
+          dialog == "Close 3 Items now and Quit Opera?" && t1?.file?.contains("Opera") == false, dialog)
+    let bar = ReviewWording.summary(selected: 3, bytes: nil, outside: 0, tabsSpanned: 0, acting: actingNames.count,
+                                    alsoActs: Names.Cleanup.alsoActs, kept: 1)
+    check("the bar counts the app that will quit and does not call it kept", bar == "3 selected · 1 app will quit · 1 kept", bar)
+    let tOnlyApp = await viaTable("9b. nothing ticked, one app acting", lines: appLines, kind: .reclaim,
+                                  options: JobOptions(alsoQuit: ["Opera", "Docker"]), unticked: [a, b, c])
+    check("with nothing ticked and one app acting, Apply sends --apps-list Opera and an empty pid list",
+          tOnlyApp?.given.contains("--apps-list Opera") == true && tOnlyApp?.given.contains("Docker") == false && tOnlyApp?.file?.isEmpty == true,
+          recorded())
     let t2 = await viaTable("10. everything closable ticked, a program left alone and a live-session row", lines: withLeftAlone + ["4× claude    325 MB total"])
     check("a list is sent through the clamp when something is kept, and only the ticked programs are in it",
           t2?.file.map { Set($0) == Set([a, b, c].map(String.init)) } == true, "file \(t2?.file ?? ["no list"])")

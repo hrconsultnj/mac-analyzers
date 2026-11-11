@@ -89,12 +89,14 @@ final class MemoryCleanupModel {
 
     /// While the review is open: a program that ended, or whose pid was given to another program since the
     /// preview, becomes a row that cannot be ticked, so the bar never counts what Apply would leave out.
+    /// The one session is updated IN PLACE (a tick made in that instant is never lost); the table regroups
+    /// only when something really changed.
     func recheck() {
-        guard phase == .review, let review, let preview = previewJob else { return }
+        guard phase == .review, let review, let session else { return }
         let changed = review.changedKeys()
         guard changed != excluded else { return }
         excluded = changed
-        session = ReviewSession(previewID: preview.id, rows: review.reviewRows(changed: changed))
+        session.updateChoosable(review.choosability(changed: changed))
     }
 
     /// Throws the review away; it can no longer be applied.
