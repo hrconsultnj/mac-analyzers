@@ -106,6 +106,9 @@ public struct ReviewSelection: Sendable {
 
     public mutating func selectNone() { deselected = choosable }
 
+    /// Whether any row is ticked, without building the list: the unticked rows are all choosable rows.
+    public var hasTicked: Bool { choosable.count > deselected.count }
+
     public var tickedIDs: [String] { items.map(\.id).filter(isTicked) }
     public var actingIDs: [String] { items.filter(\.acts).map(\.id) }
     public var choosableCount: Int { choosable.count }

@@ -268,6 +268,10 @@ EOF
 # AnalyzersKit (where the hooks are declared) and in the two targets that are
 # never part of the shipped app's behaviour — AgentRunner's probes and
 # SnapshotRunner's fixtures — and nowhere else.
+# One thing outside this check ON PURPOSE: `ReviewFixtureProbe` (SettingsFeature/Screens/Shared/Review) is a
+# `public` type compiled into the shipped module, with no `@_spi`, that only SnapshotRunner reaches. It builds
+# scenarios from the fixture rows only, exposes `report()` and named steps, and cannot apply anything: the same
+# wall as `DeepLinkRouter.installFixtures()`. Do not copy the pattern for anything that can change a real preview.
 # MA_SPI_ROOT points the check at another copy of app/Sources (used to prove it fails).
 check_spi() {
   local root="${MA_SPI_ROOT:-$ROOT/app/Sources}"

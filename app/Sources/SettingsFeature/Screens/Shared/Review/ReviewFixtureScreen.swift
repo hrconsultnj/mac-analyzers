@@ -13,7 +13,8 @@ struct ReviewFixtureScreen: View {
         DataScreen(title: "Review Example", subtitle: session.summary) {
             ReviewTable(session: session, applyTitle: "Move to Trash",
                         confirmation: ReviewConfirmation(verb: "Move", destination: "to the Trash",
-                                                         message: "You can put them back from Undo."))
+                                                         message: "You can put them back from Undo."),
+                        screen: "fixture")
         }
     }
 
