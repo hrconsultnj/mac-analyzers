@@ -128,6 +128,7 @@ enum OutlineProbe {
         case "render": code = ProbeRender.run(Array(arguments.dropFirst()))
         case _ where action.hasPrefix("a2:"): code = ProbeChecks.a2(String(action.dropFirst(3)), options)
         case _ where action.hasPrefix("review:"): code = ProbeReview.run(String(action.dropFirst(7)))
+        case "fit": code = ProbeFit.run()
         case _ where action.hasPrefix("monitor:"): code = ProbeMonitor.run(String(action.dropFirst(8)), options)
         case _ where action.hasPrefix("toolbar:"): code = ProbeToolbar.run(String(action.dropFirst(8)), Array(arguments.dropFirst()))
         case _ where action.hasPrefix("a11:"): code = ProbeFlat.run(String(action.dropFirst(4)))

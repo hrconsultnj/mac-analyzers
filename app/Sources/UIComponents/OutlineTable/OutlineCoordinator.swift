@@ -13,6 +13,7 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
     let outline = OutlineNSView()
     let nodes: OutlineNodes<Row>
     let headerMenu: OutlineHeaderMenu
+    let fitter: OutlineFitter
     private(set) var updater: OutlineUpdater<Row>!
 
     var configuration: OutlineConfiguration<Row>
@@ -51,7 +52,12 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
         self.configuration = configuration
         nodes = OutlineNodes<Row>()
         headerMenu = OutlineHeaderMenu(outline: outline)
+        fitter = OutlineFitter(outline: outline, scrollView: scrollView)
         super.init()
+        // weak, and nil when this table is gone: a fit queued for the next turn can outlive the table
+        // (a screen that replaces its table when a preview arrives), and must then do nothing
+        fitter.mayChangeColumns = { [weak self] in self.map { $0.depth == 0 && !$0.isApplying } }
+        headerMenu.fitter = fitter
         updater = OutlineUpdater(coordinator: self)
         outline.dataSource = self
         outline.delegate = self
@@ -70,9 +76,9 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
         outline.autosaveExpandedItems = false
         outline.doubleAction = #selector(doubleClicked(_:))
         outline.target = self
-        outline.onPrimaryKey = { [unowned self] in self.primaryKey() }
-        outline.onSpaceKey = { [unowned self] in self.spaceKey() }
-        outline.menuProvider = { [unowned self] event in self.contextMenu(for: event) }
+        outline.onPrimaryKey = { [weak self] in self?.primaryKey() ?? false }
+        outline.onSpaceKey = { [weak self] in self?.spaceKey() ?? false }
+        outline.menuProvider = { [weak self] event in self?.contextMenu(for: event) }
         scrollView.documentView = outline
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
@@ -170,6 +176,8 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
         } else if outline.headerView != nil {
             outline.headerView = nil
         }
+        // the header AppKit gives a new outline has no menu of ours: the columns' menu is this one
+        if let header = outline.headerView, header.menu !== headerMenu.menu { header.menu = headerMenu.menu }
     }
 
     // MARK: - columns
@@ -209,6 +217,8 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
         columnsBuilt = true
         outline.autosaveName = "OutlineTable.\(configuration.autosave)"
         outline.autosaveTableColumns = true
+        // after AppKit restored its saved state: what the declaration says about room is applied over it
+        fitter.configure(configuration.columns, autosave: configuration.autosave)
     }
 
     func definition(for column: NSTableColumn) -> OutlineColumn<Row>? {
