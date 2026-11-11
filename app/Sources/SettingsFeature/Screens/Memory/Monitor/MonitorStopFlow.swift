@@ -28,6 +28,8 @@ final class MonitorStopFlow {
     var notice: String?
     /// The plan for the program being confirmed: the reach, worked out when the dialog opened.
     private(set) var planned: MemoryStop.Pending?
+    /// Said in the Quit dialog when what runs inside the app could not be told yet.
+    private(set) var quitCaution: String?
     /// Step two of a stop: what is still running, offered for Force Stop. Each is its own confirmation.
     private(set) var forceOffer: MemoryStop.Pending?
     private var forceQueue: [MemoryStop.Pending] = []
@@ -40,11 +42,8 @@ final class MonitorStopFlow {
         case .quitApp(let name, let identities, let count, let bytes, _):
             // the sessions inside the app are read live when the dialog opens, like a program's reach
             let live = MemoryStop.quitReach(of: identities, name: name)
-            if let refusal = live.refusal {
-                notice = refusal
-            } else {
-                pending = .quitApp(name: name, identities: identities, count: count, bytes: bytes, hosted: live.hosted)
-            }
+            quitCaution = live.caution
+            pending = .quitApp(name: name, identities: identities, count: count, bytes: bytes, hosted: live.hosted)
         case .stopProgram(let program):
             beginProgram(program)
         case .stopProcess(let process, let identity):
@@ -252,6 +251,7 @@ struct MonitorStopDialogs: ViewModifier {
                 : "\(name) will close"
             var text = "\(who), giving back about \(MemorySize.text(bytes)). It will still ask before discarding unsaved work."
             if let note = MemoryStop.hostedNote(hosted, appName: name) { text += " \(note)" }
+            if let caution = flow.quitCaution { text += " \(caution)" }
             return text
         case .stopProgram(let program):
             // the reach was computed when the dialog opened, and says how many processes it is

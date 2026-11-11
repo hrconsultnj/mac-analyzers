@@ -78,11 +78,17 @@ public enum MemoryStop {
     }
 
     /// What quitting this app would end, read from the live process table NOW (not from the census the
-    /// screen last drew): the live coding sessions inside it, and a refusal sentence when something in it
-    /// cannot be told apart yet.
-    public static func quitReach(of identities: [ProcessIdentity], name: String) -> (hosted: [String: Int], refusal: String?) {
+    /// screen last drew): the live coding sessions inside it, and a `caution` sentence when something in it cannot
+    /// be told apart yet.
+    ///
+    /// Quit is the person's own ⌘Q, which still asks before discarding work, so it is never refused because of
+    /// what runs inside; it WARNS, and says so when it could not see what is inside (the same as when the list of
+    /// coding agents is missing). A Stop, which ends a program without that ask, refuses instead.
+    public static func quitReach(of identities: [ProcessIdentity], name: String) -> (hosted: [String: Int], caution: String?) {
         let reach = ProgramReach.quitReach(roots: identities.map { Int32($0.pid) })
-        return (reach.hosted, reach.doubt.map { $0.replacingOccurrences(of: "this app", with: name) })
+        let caution = reach.doubt == nil ? nil
+            : "Mac Analyzers could not yet tell what is running inside it, so a coding session in it would end with it."
+        return (reach.hosted, caution)
     }
 
     /// Plans stopping a whole group: an app is quit (⌘Q semantics); a group of
@@ -96,9 +102,9 @@ public enum MemoryStop {
             // the sessions inside the app are read from the live process table now, not from the census the
             // screen last drew (up to a minute old, or any age while refresh is paused)
             let reach = quitReach(of: identities, name: name)
-            if let refusal = reach.refusal { return .refused(refusal) }
             var detail = "\(name) will close. It will still ask before discarding unsaved work."
             if let note = hostedNote(reach.hosted, appName: name) { detail += " \(note)" }
+            if let caution = reach.caution { detail += " \(caution)" }
             return .confirm(Pending(title: "Quit \(name)?", detail: detail, actionTitle: "Quit \(name)") {
                 Report(GuardControl.quitApp(identities).isEmpty
                     ? "\(name) had already quit or changed, or Mac Analyzers could not tell what it is running, so nothing was sent."

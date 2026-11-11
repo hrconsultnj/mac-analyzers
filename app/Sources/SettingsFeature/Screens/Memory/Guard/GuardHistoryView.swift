@@ -132,8 +132,10 @@ struct GuardHistoryView: View {
                 Divider()
                 Button(Names.Monitor.refresh, systemImage: "arrow.clockwise") { Task { await model.refresh(force: true) } }
             } label: {
-                Label(Names.Guard.period, systemImage: "calendar")
+                // the period in force, with its icon: the same control as Monitor's lens
+                Label(model.window.title, systemImage: "calendar")
             }
+            .labelStyle(.titleAndIcon)
             .help("Choose how far back to look")
         }
     }

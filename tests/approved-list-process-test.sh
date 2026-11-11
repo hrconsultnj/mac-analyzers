@@ -38,10 +38,10 @@ run_with() {
   has "$ONE\t$start\n" "$ONE" && check "$label: the right start time is approved" ok || check "$label: right start" "refused"
   # The script reads the start again (now minus elapsed time), which can land a second either side of the one
   # read above when a second ticks over between them; a difference at the edge of the allowance would be a coin
-  # toss, so these stay a second inside it and a second well outside it.
+  # toss, so these stay a second inside it and three seconds or more outside it.
   has "$ONE\t$((start + 1))\n" "$ONE" && check "$label: a start one second off is still approved" ok || check "$label: +1s" "refused"
   has "$ONE\t$((start - 1))\n" "$ONE" && check "$label: a start one second earlier is still approved" ok || check "$label: -1s" "refused"
-  has "$ONE\t$((start + 6))\n" "$ONE" && check "$label: a start six seconds off is refused" "approved" || check "$label: +6s refused" ok
+  has "$ONE\t$((start + 4))\n" "$ONE" && check "$label: a start four seconds off is refused" "approved" || check "$label: +4s refused" ok
   has "$ONE\t$((start - 100))\n" "$ONE" && check "$label: another start time is refused (a reused pid)" "approved" || check "$label: wrong start refused" ok
   has "$TWO\t$start\n" "$ONE" && check "$label: a line for another pid is not this process" "approved" || check "$label: other pid refused" ok
   has "$ONE\n" "$ONE" && check "$label: a bare pid (an older list) is approved" ok || check "$label: bare pid" "refused"
@@ -49,6 +49,22 @@ run_with() {
   has "${ONE}0\t$start\n" "$ONE" && check "$label: a longer pid with the same prefix is not this pid" "approved" || check "$label: prefix pid refused" ok
   has "$ONE\t$((start - 100))\n$ONE\t$start\n$TWO\t1\n" "$ONE" && check "$label: among several lines for the pid the matching one counts" ok || check "$label: several lines" "refused"
   has "" "$ONE" && check "$label: an empty list approves nothing" "approved" || check "$label: empty list" ok
+  # The true edge of the allowance, with the clock and the process table held still: `ps` says 100 s old and
+  # `date` says 2,000,000,000, so the start is 1,999,999,900 however long this test takes. Two seconds off
+  # either way is approved, three is refused: widening the allowance fails here, deterministically.
+  mkdir -p "$TMP/bin"
+  printf '#!/bin/sh\necho "   01:40"\n' > "$TMP/bin/ps"
+  printf '#!/bin/sh\necho 2000000000\n' > "$TMP/bin/date"
+  chmod +x "$TMP/bin/ps" "$TMP/bin/date"
+  local fixed=1999999900
+  has_still() { # <list text> -> exit status with the stand-in `ps` and `date`
+    printf '%b' "$1" > "$TMP/list"
+    PATH="$TMP/bin:$PATH" "$shell" -c 'source "$1"; approved_list_load "$2"; approved_list_has_process "$3"' _ "$LIB" "$TMP/list" "$ONE"
+  }
+  has_still "$ONE\t$((fixed + 2))\n" && check "$label: two seconds later is approved (the edge)" ok || check "$label: +2s edge" "refused"
+  has_still "$ONE\t$((fixed - 2))\n" && check "$label: two seconds earlier is approved (the edge)" ok || check "$label: -2s edge" "refused"
+  has_still "$ONE\t$((fixed + 3))\n" && check "$label: three seconds later is refused" "approved" || check "$label: +3s refused" ok
+  has_still "$ONE\t$((fixed - 3))\n" && check "$label: three seconds earlier is refused" "approved" || check "$label: -3s refused" ok
   kill "$TWO" 2>/dev/null; wait "$TWO" 2>/dev/null
   has "$TWO\t$start\n" "$TWO" && check "$label: a process that has ended is refused" "approved" || check "$label: ended process refused" ok
 }

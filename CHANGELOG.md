@@ -46,9 +46,8 @@ without an entry here — see `scripts/cut-release.sh`.
   tick what to close. Apps on your list to quit are shown as "will quit"
   before you apply, and a cleanup closes only the programs you saw, as they
   were when you looked: a program that has been replaced since is left alone.
-- Stop now asks a program politely first. If it ignores that, you are offered
-  a separate Force Stop and nothing is forced until you confirm it. Before, a
-  program that ignored Stop was ended after a few seconds without asking.
+- Stop now asks a program politely first. If it does not stop, you are
+  offered a separate Force Stop, and nothing is forced until you confirm it.
 - The Stop button in a notification now checks that it is still the same
   program before it does anything. If the program has changed, or is part of a
   live coding session, Monitor opens on it instead and nothing is stopped.
@@ -57,9 +56,11 @@ without an entry here — see `scripts/cut-release.sh`.
   tells you which sessions would end with it.
 - If the list of coding agents cannot be read, Mac Analyzers offers no Stop at
   all and says why, rather than guessing which programs are sessions.
-- If Mac Analyzers cannot tell what a program really is, because its command
-  line cannot be read or still shows the program that started it, Stop and
-  Quit wait and try again on the next refresh instead of acting on a guess.
+- If Mac Analyzers cannot yet tell what a program really is, because its
+  command line cannot be read or still shows the program that started it, Stop
+  does nothing and says "could not tell, so nothing was stopped"; try again in
+  a moment. Quit says so in its confirmation, and sends nothing if it still
+  cannot tell when you confirm.
 
 ## v2.69.1 — Large Downloads reviews can be applied again
 

@@ -70,9 +70,7 @@ public enum GuardControl {
     /// A polite quit, so it does not depend on the coding-agent list.
     @discardableResult
     public static func quitApp(_ identities: [ProcessIdentity]) -> [ProcessIdentity] {
-        // an app whose processes cannot be told apart yet is not quit: the answer is "could not tell"
-        guard ProgramReach.quitReach(roots: identities.map { Int32($0.pid) }).doubt == nil else { return [] }
-        return identities.filter(quitApp)
+        identities.filter(quitApp)
     }
 
     /// USER-initiated SIGTERM of chosen processes, each only if it is still the
@@ -155,6 +153,11 @@ public enum GuardControl {
         CommandLineTrust.doubt(pid: pid)
     }
 
+    /// Test support: the rule that judges a command line, on what was read.
+    @_spi(TestSupport) public static func commandLineJudgement(command: String?, parent: String?, age: TimeInterval) -> String? {
+        CommandLineTrust.judge(command: command, parent: parent, age: age)
+    }
+
     /// Test support: whether a command line is a terminal session (an interactive shell).
     @_spi(TestSupport) public static func isInteractiveShell(command: String) -> Bool {
         ProgramReach.isInteractiveShell(command: command)
@@ -186,8 +189,10 @@ public enum GuardControl {
         }
         // not a running app (a command-line tool inside an app's folder): the same rule as any process,
         // which includes never ending something that hosts a live coding session
+        // (a ⌘Q to a real app is the person's own and only warned about; this is a SIGTERM, so it refuses what it cannot tell)
         guard CodingAgentHosts.sessionsBelow(pid: identity.pid).isEmpty,
-              CodingAgentHosts.liveSessionAgent(pid: identity.pid) == nil else { return false }
+              CodingAgentHosts.liveSessionAgent(pid: identity.pid) == nil,
+              ProgramReach.quitReach(roots: [Int32(identity.pid)]).doubt == nil else { return false }
         return stop([identity]).count == 1
     }
 

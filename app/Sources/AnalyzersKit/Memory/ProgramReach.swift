@@ -76,14 +76,20 @@ enum ProgramReach {
     /// cannot be told apart yet (a sentence).
     static func quitReach(roots: [Int32]) -> (hosted: [String: Int], doubt: String?) {
         let children = liveChildren()
+        return (CodingAgentHosts.sessionsBelow(roots: roots, children: children),
+                CommandLineTrust.refusal(pids: subtree(of: roots, children: children), name: "this app", action: "quit"))
+    }
+
+    /// Every process at or below these roots, sorted: the whole subtree, through terminals too (the session check
+    /// looks at all of it, so the check that a command line can be believed must as well).
+    static func subtree(of roots: [Int32], children: [Int32: [Int32]]) -> [Int32] {
         var seen = Set<Int32>()
         var stack = roots
         while let pid = stack.popLast() {
             guard seen.insert(pid).inserted else { continue }
             stack.append(contentsOf: children[pid] ?? [])
         }
-        return (CodingAgentHosts.sessionsBelow(roots: roots, children: children),
-                CommandLineTrust.refusal(pids: seen.sorted(), name: "this app", action: "quit"))
+        return seen.sorted()
     }
 
     static func compute(listed: [ProcessIdentity], name: String) -> Outcome {
@@ -116,7 +122,7 @@ enum ProgramReach {
 
         // a process that has not become itself yet (unreadable command line, or still its parent's) could be
         // hiding a session: wait rather than guess
-        if let why = CommandLineTrust.refusal(pids: depth.keys.sorted(), name: name) { return .refused(why) }
+        if let why = CommandLineTrust.refusal(pids: subtree(of: Array(roots), children: children), name: name) { return .refused(why) }
 
         let own = selfChain()
         if depth.keys.contains(where: own.contains) {

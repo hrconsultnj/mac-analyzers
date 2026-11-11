@@ -25,8 +25,10 @@ struct MonitorToolbar: ToolbarContent {
                 }
                 .pickerStyle(.inline)
             } label: {
+                // a control that names a kind of thing shows its icon AND its title
                 Label(model.lens.title, systemImage: model.lens.symbol)
             }
+            .labelStyle(.titleAndIcon)
             .help("Choose what to measure: memory, energy or disk activity")
         }
         ToolbarItem(placement: .primaryAction) {
@@ -50,6 +52,7 @@ struct MonitorToolbar: ToolbarContent {
             } label: {
                 Label(Names.Monitor.refresh, systemImage: "arrow.clockwise")
             }
+            .labelStyle(.titleAndIcon)
             .help("Refresh now, or choose how often")
         }
         ToolbarItem(placement: .primaryAction) {

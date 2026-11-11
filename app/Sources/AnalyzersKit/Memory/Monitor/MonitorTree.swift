@@ -48,7 +48,8 @@ public enum MonitorTree {
     }
 
     private static func partRow(_ part: CensusPart, in group: CensusGroup, cpu: [Int: Double]) -> MonitorRow {
-        let leaves = part.members.map { processRow($0, in: group, cpu: cpu, locked: nil) }
+        // eight renderers of one browser share a name: each is told apart by its process ID
+        let leaves = distinct(part.members.map { processRow($0, in: group, cpu: cpu, locked: nil) })
         return MonitorRow(id: "group:\(group.id)/part:\(part.title)", kind: .part, category: group.category,
                           name: part.title, detail: "", memoryBytes: part.totalBytes,
                           cpu: total(of: part.members, cpu), processCount: part.members.count, pid: nil,
@@ -56,9 +57,9 @@ public enum MonitorTree {
     }
 
     private static func programRow(_ program: StopTarget, in group: CensusGroup, cpu: [Int: Double]) -> MonitorRow {
-        let leaves = program.members.map {
+        let leaves = distinct(program.members.map {
             processRow($0, in: group, cpu: cpu, locked: program.lockedReason)
-        }
+        })
         let stop: MonitorStop = program.lockedReason.map { .unavailable($0) }
             ?? (program.isStoppable
                 ? .stopProgram(program)

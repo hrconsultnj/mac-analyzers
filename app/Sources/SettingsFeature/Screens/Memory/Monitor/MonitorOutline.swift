@@ -75,7 +75,9 @@ struct MonitorOutline<Menu: View>: View {
             Button(verb) { begin(row.stop) }
                 .buttonStyle(.borderless)
                 .help(helpText(for: row))
-        } else if let reason = row.lockedReason {
+        } else if let reason = row.lockedReason, row.category != .system {
+            // a lock says "this one is protected" (a live coding session); on a macOS service it would be on
+            // most of the table and say nothing, so those rows carry no control at all
             Image(systemName: "lock.fill")
                 .foregroundStyle(.tertiary)
                 .help(reason)

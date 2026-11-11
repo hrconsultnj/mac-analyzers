@@ -215,6 +215,9 @@ private func relaunchDetached(_ args: [String]) -> Never {
     await hostedSessionsCase(f, restore: fixtureList, missing: missingList)
     await confirmationCase(f)
     await unsettledCase(f)
+    await judgementCases(f)
+    await zombieCase(f)
+    await titleRewriteCases(f)
     f.cleanup()
     exit(f.failed ? 1 : 0)
 }
@@ -666,43 +669,166 @@ private func relaunchDetached(_ args: [String]) -> Never {
 
 /// A subshell shows its parent's command line for as long as it lives; for the first moments that is also
 /// what a child that is about to exec shows. A Stop looks inside a program for sessions by command line, so
-/// it refuses "for now" while any process in it only repeats its parent's, and works once it is settled.
+/// it refuses "for now" while any process in it only repeats its parent's, and works once it is settled. A
+/// Quit warns instead (it is the person's own ⌘Q) and never signals what it cannot tell.
+///
+/// The young process is made ON DEMAND, by a file this probe creates, so it is looked at within a fraction of
+/// a second of its start whatever the machine is doing; if the rule is switched off, or the process cannot be
+/// found young, this FAILS. There is no "not judged" way out.
 @MainActor private func unsettledCase(_ f: Fixtures) async {
-    let script = ": \(f.marker)-u; ( : \(f.marker)-u2; sleep 11; : ); :"
-    guard let root = await f.detachNamed(nil, script: script, tag: "\(f.marker)-u", settled: false) else {
+    let go = f.scratch.appending(path: "\(f.marker)-u.go").path
+    let script = ": \(f.marker)-u; while [ ! -e \(go) ]; do sleep 0.1; done; ( : \(f.marker)-u2; sleep 11; : ); :"
+    guard let root = await f.detachNamed(nil, script: script, tag: "\(f.marker)-u") else {
         f.check("a process still showing its parent's command line", false, "fixture not found")
         return
     }
-    // the subshell exists a moment after the shell does: look until a process under the fixture is doubted
+    guard let identity = ProcessIdentity.of(pid: Int(root)) else {
+        f.check("a process still showing its parent's command line", false, "the fixture is not running")
+        return
+    }
+    f.check("before the young process exists nothing is doubted", GuardControl.reachRefusal(listed: [identity], name: "Fixture") == nil,
+            "the fixture alone is believed")
+    FileManager.default.createFile(atPath: go, contents: Data())
     var doubted: Int32?
-    for _ in 0..<40 where doubted == nil {
+    for _ in 0..<60 where doubted == nil {
         doubted = ProcessTree.descendants(of: root).first { GuardControl.commandLineDoubt(pid: $0) != nil }
         if doubted == nil { try? await Task.sleep(for: .milliseconds(50)) }
     }
-    let rootAge = ProcessIdentity.of(pid: Int(root)).map { Date().timeIntervalSince1970 - Double($0.birth.seconds) } ?? 99
-    if let doubted {
-        f.check("a subshell that has just started repeats its parent's command line, and that is noticed",
-                true, GuardControl.commandLineDoubt(pid: doubted) ?? "")
-        if let t = await f.program(root, settled: false), f.contained(t, root: root) {
-            let outcome = MemoryStop.plan(target: t)
-            var refused = false
-            if case .refused = outcome { refused = true }
-            f.check("  ... so Stop refuses for now, and says it could not tell", refused && outcome.message.contains("could not tell"), outcome.message)
-            f.check("  ... and signalled nothing", f.alive(root), "the fixture is still running")
-        } else {
-            f.check("  ... so Stop refuses for now", false, "program not found, or not contained")
-        }
-    } else if rootAge >= 2 {
-        print("  not judged: the fixture was already \(Int(rootAge)) s old when looked at (a very slow machine)")
-    } else {
-        f.check("a subshell that has just started repeats its parent's command line, and that is noticed", false, "no process under the fixture was doubted")
-    }
+    f.check("a subshell that has just started repeats its parent's command line, and that is noticed",
+            doubted != nil, doubted.flatMap { GuardControl.commandLineDoubt(pid: $0) } ?? "no process under the fixture was doubted")
+
+    let stop = GuardControl.reachRefusal(listed: [identity], name: "Fixture")
+    f.check("  ... so a Stop refuses for now, and says it could not tell", stop?.contains("could not tell") == true, stop ?? "NOT refused")
+    f.check("  ... and signalled nothing", f.alive(root), "the fixture is still running")
+    let quit = MemoryStop.quitReach(of: [identity], name: "Fixture")
+    f.check("  ... and a Quit's dialog says it could not yet see what is inside", quit.caution?.contains("could not yet tell") == true, quit.caution ?? "NO caution")
+    let sent = GuardControl.quitApp([identity])
+    f.check("  ... and a quit that would be a SIGTERM sends nothing", sent.isEmpty && f.alive(root), "asked \(sent.count), fixture alive: \(f.alive(root))")
+
     let settled = await f.settle(root)
-    f.check("  ... and once it has settled Stop is offered again", settled, settled ? "settled" : "still doubted after 10 s")
+    f.check("  ... and once it has settled it is believed again", settled, settled ? "settled" : "still doubted after 10 s")
+    f.check("  ... a Stop is not refused, and the Quit says nothing", GuardControl.reachRefusal(listed: [identity], name: "Fixture") == nil
+            && MemoryStop.quitReach(of: [identity], name: "Fixture").caution == nil && f.alive(root), "both clear, nothing signalled")
     if settled, let t = await f.program(root), f.contained(t, root: root) {
         var confirms = false
         if case .confirm = MemoryStop.plan(target: t) { confirms = true }
-        f.check("  ... as a confirmation, still without sending anything", confirms && f.alive(root), "plan(target:) confirms")
+        f.check("  ... and the program's Stop is a confirmation, still without sending anything", confirms && f.alive(root), "plan(target:) confirms")
+    }
+    f.end(root)
+}
+
+// MARK: - a program that rewrites its title
+
+/// A program that rewrites its own title (Node's `process.title`, which is how `next-server (v16.3.1)` gets its
+/// name) overwrites its arguments with the title and fills the rest with NULs. Its command line is the title
+/// alone, as `ps` shows. Two things follow, and both are proved here with a real Node process:
+///  - a title-rewriting program that hosts a live session is still seen as hosting it (the session is a child,
+///    found by its own command line), so a Stop on it is refused;
+///  - text that only sits in its ENVIRONMENT (an agent's folder, a `.app/` path) is not part of what it is: it
+///    is not a session and not an app, and a Stop on it is offered.
+/// Needs a `node` on the login shell's path; without one the cases are not judged and say so.
+@MainActor private func titleRewriteCases(_ f: Fixtures) async {
+    let node = f.run("/bin/bash", ["-lc", "command -v node"]).trimmingCharacters(in: .whitespacesAndNewlines)
+    guard node.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: node) else {
+        print("  not judged: no `node` on the login shell's path, so a program that rewrites its title was not tried")
+        return
+    }
+    // 1. a title-rewriting program that hosts a session
+    // the session is started the way every other fixture's is, `exec -a <session name>`, from a shell Node starts
+    let session = "exec -a \(f.sessionExe) \(f.shell) -c \": \(f.marker)-t2; sleep 41; :\""
+    let hostScript = "process.title=\"next-server (v1) \(f.marker)-t\"; "
+        + "require(\"child_process\").spawn(\"/bin/bash\",[\"-c\",process.env.SESS],{stdio:\"ignore\"}); setTimeout(()=>{},41000)"
+    if let root = await f.detach("SESS='\(session)' exec '\(node)' -e '\(hostScript)'", tag: "\(f.marker)-t") {
+        // Node starts, then rewrites its title, then starts the session: wait for the title and the session
+        var line = ""
+        for _ in 0..<40 where !line.hasPrefix("next-server (v1)") {
+            line = f.run("/bin/ps", ["-ww", "-o", "command=", "-p", String(root)]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !line.hasPrefix("next-server (v1)") { try? await Task.sleep(for: .milliseconds(150)) }
+        }
+        _ = await f.find(f.sessionExe, detachedOnly: false, execed: false)
+        await f.settle(root)
+        f.check("a Node program that rewrote its title reads as the title alone", line.hasPrefix("next-server (v1)") && !line.contains("="),
+                "the process table shows a title and no environment")
+        if let t = await f.program(root), f.contained(t, root: root) {
+            let outcome = MemoryStop.plan(target: t)
+            var refused = false
+            if case .refused = outcome { refused = true }
+            f.check("  ... and hosting a session, a Stop on it is refused naming the session",
+                    refused && (t.lockedBy != nil || !t.hostedSessions.isEmpty), outcome.message)
+            f.check("  ... and nothing was signalled", f.alive(root), "the fixture is still running")
+        } else { f.check("  ... and hosting a session, a Stop on it is refused", false, "program not found, or not contained") }
+        f.end(root)
+    } else { f.check("a title-rewriting program that hosts a session", false, "fixture not found") }
+
+    // 2. a title-rewriting program with agent and app text only in its environment
+    let bait = "\(f.sessionExe) /Users/x/.local/share/claude/versions /Applications/Bait\(f.marker.suffix(4)).app/Contents/MacOS/Bait"
+    let plain = "process.title=\"bait-title \(f.marker)-b\"; setTimeout(()=>{},41000)"
+    if let root = await f.detach("FIXTURE_BAIT='\(bait)' exec '\(node)' -e '\(plain)'", tag: "\(f.marker)-b") {
+        var shown = ""
+        for _ in 0..<40 where !shown.hasPrefix("bait-title") {
+            shown = f.run("/bin/ps", ["-ww", "-o", "command=", "-p", String(root)]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !shown.hasPrefix("bait-title") { try? await Task.sleep(for: .milliseconds(150)) }
+        }
+        await f.settle(root)
+        let agent = CodingAgentHosts.liveSessionAgent(pid: Int(root))
+        f.check("an agent's name in the environment alone does not make a program a session", agent == nil, "agent: \(agent ?? "none")")
+        if let t = await f.program(root), f.contained(t, root: root) {
+            let group = MemoryCensus.take().groups.first { $0.members.contains { $0.pid == Int(root) } }
+            f.check("  ... nor does a `.app/` path in the environment make it an app",
+                    group?.category == .tools, "category \(group.map { "\($0.category)" } ?? "none")")
+            var offered = false
+            if case .confirm = MemoryStop.plan(target: t) { offered = true }
+            f.check("  ... and a Stop on it is offered, still without sending anything", offered && f.alive(root), "plan(target:) confirms")
+        } else { f.check("  ... nor an app", false, "program not found, or not contained") }
+        f.end(root)
+    } else { f.check("a title-rewriting program with text only in its environment", false, "fixture not found") }
+}
+
+// MARK: - the rule on its own, and a process that has ended
+
+/// The rule that judges a command line, on what was read: an unreadable one is doubted; one identical to the
+/// parent's is doubted for the first three seconds and not after (a subshell keeps its parent's for life, so
+/// the doubt must end: a start at 3.1 s is not dodging anything, because every signal reads the live table and
+/// the start time again); an empty one that was read is not unreadable.
+@MainActor private func judgementCases(_ f: Fixtures) async {
+    let j = GuardControl.commandLineJudgement
+    f.check("a command line the kernel would not give is doubted", j(nil, "zsh", 99) != nil, "doubted at any age")
+    f.check("one identical to its parent's, a moment after it started, is doubted", j("bash -c x", "bash -c x", 0.2) != nil, "age 0.2 s")
+    f.check("  ... and at 2.9 s", j("bash -c x", "bash -c x", 2.9) != nil, "age 2.9 s")
+    f.check("  ... but not at 3.1 s: the doubt ends", j("bash -c x", "bash -c x", 3.1) == nil, "age 3.1 s")
+    f.check("a different one is believed at once", j("node server.js", "zsh", 0.1) == nil, "different from its parent's")
+    f.check("one that was read and is empty is not unreadable", j("", "zsh", 10) == nil, "empty is readable")
+    f.check("a process with no readable parent is judged on its own line", j("bash -c x", nil, 0.1) == nil, "no parent line to repeat")
+}
+
+/// A same-user process that has ended but not been collected (a zombie) has no readable arguments, ever. A
+/// program that leaks one must still be stoppable: it is not doubted.
+@MainActor private func zombieCase(_ f: Fixtures) async {
+    guard FileManager.default.isExecutableFile(atPath: "/usr/bin/perl") else {
+        print("  not judged: no perl to make a zombie with")
+        return
+    }
+    // the child exits at once; perl never waits for it, so it stays a zombie while its parent lives
+    guard let root = await f.detach("exec /usr/bin/perl -e 'if (!fork) { exit } sleep 41; # \(f.marker)-z'", tag: "\(f.marker)-z") else {
+        f.check("a program that leaks a zombie", false, "fixture not found")
+        return
+    }
+    var zombie: Int32?
+    for _ in 0..<40 where zombie == nil {
+        zombie = ProcessTree.descendants(of: root).first { pid in
+            f.run("/bin/ps", ["-o", "stat=", "-p", String(pid)]).trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("Z")
+        }
+        if zombie == nil { try? await Task.sleep(for: .milliseconds(100)) }
+    }
+    if let zombie {
+        f.check("a zombie under a program is not doubted", GuardControl.commandLineDoubt(pid: zombie) == nil, "an ended process is skipped")
+        // perl lives in a system folder, so the census files it under macOS; the rule is judged on the reach itself
+        if let identity = ProcessIdentity.of(pid: Int(root)) {
+            let why = GuardControl.reachRefusal(listed: [identity], name: "Fixture program")
+            f.check("  ... so a Stop on the program that leaked it is not refused for it", why == nil && f.alive(root), why ?? "the reach is computed, nothing signalled")
+        }
+    } else {
+        print("  not judged: perl left no zombie to look at")
     }
     f.end(root)
 }
