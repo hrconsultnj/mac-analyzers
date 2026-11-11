@@ -138,6 +138,13 @@ struct StorageCleanView: View {
                             rawBlock(run.packageManagerRaw)
                         }
                     }
+                    if !run.prunes.isEmpty {
+                        Section("Package and Tool Cleanups") {
+                            ForEach(run.prunes) { prune in
+                                Label(prune.summary, systemImage: "wrench.and.screwdriver")
+                            }
+                        }
+                    }
                     if !run.dockerRaw.isEmpty {
                         Section("Docker Prune") {
                             rawBlock(run.dockerRaw)

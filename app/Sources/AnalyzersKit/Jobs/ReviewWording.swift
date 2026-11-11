@@ -25,17 +25,39 @@ public enum ReviewWording {
         return bytes.map { "\(items) (\(ByteSize.format($0)))" } ?? items
     }
 
+    /// Names as the system writes a list: "Opera", "Opera and Docker", "Opera, Docker, and Slack";
+    /// above three, "Opera, Docker, and 10 more apps" ("… and 10 more" without a noun). Every form
+    /// goes through `ListFormatter`, so the short and the full list are punctuated the same way.
+    /// The full list is in `fullNames`.
+    public static func nameList(_ names: [String], noun plural: String? = nil) -> String {
+        guard names.count > 3 else { return ListFormatter.localizedString(byJoining: names) }
+        let rest = "\(names.count - 2) more" + (plural.map { " \($0)" } ?? "")
+        return ListFormatter.localizedString(byJoining: [names[0], names[1], rest])
+    }
+
+    /// Every name, for the dialog's message, where a long list stays readable.
+    public static func fullNames(_ names: [String]) -> String { ListFormatter.localizedString(byJoining: names) }
+
+    /// The dialog's message line naming EVERY row the apply acts on anyway, "Apps to quit: Opera,
+    /// Docker, Slack, and Zoom.", only when the title had to shorten the list (more than three);
+    /// with three or fewer the title already names them all, so nil.
+    public static func fullActingLine(alsoActs: ReviewAlsoActs, names: [String]) -> String? {
+        guard names.count > 3 else { return nil }
+        let noun = alsoActs.plural.prefix(1).uppercased() + alsoActs.plural.dropFirst()
+        return "\(noun) to \(alsoActs.confirmVerb.lowercased()): \(fullNames(names))."
+    }
+
     /// "Move 9 Items (8.5 GB) to the Trash?", and with rows that act anyway,
     /// "Close 1 Item (2 GB) now and Quit Opera, Docker?".
     public static func confirmationTitle(verb: String, destination: String, count: Int, bytes: Int64?,
                                          alsoActs: ReviewAlsoActs?, actingNames: [String]) -> String {
         // only apps to quit, nothing ticked: "Quit Opera, Docker?"
         if count == 0, let alsoActs, !actingNames.isEmpty {
-            return "\(alsoActs.confirmVerb) \(actingNames.joined(separator: ", "))?"
+            return "\(alsoActs.confirmVerb) \(nameList(actingNames, noun: alsoActs.plural))?"
         }
         var title = "\(verb) \(countText(count: count, bytes: bytes)) \(destination)"
         if let alsoActs, !actingNames.isEmpty {
-            title += " and \(alsoActs.confirmVerb) \(actingNames.joined(separator: ", "))"
+            title += " and \(alsoActs.confirmVerb) \(nameList(actingNames, noun: alsoActs.plural))"
         }
         return title + "?"
     }
@@ -62,10 +84,13 @@ public struct ReviewFrozen: Sendable {
     public let title: String
     /// "9 Items (8.5 GB)": the count the second question of a permanent delete repeats.
     public let countText: String
-    public init(sent: ApprovedSet, title: String, countText: String = "") {
+    /// Every acting row by name, when the title shortened them (`ReviewWording.fullActingLine`).
+    public let actingLine: String?
+    public init(sent: ApprovedSet, title: String, countText: String = "", actingLine: String? = nil) {
         self.sent = sent
         self.title = title
         self.countText = countText
+        self.actingLine = actingLine
     }
     public func holds(for live: ApprovedSet) -> Bool { live == sent }
 }

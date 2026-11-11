@@ -54,8 +54,18 @@ fi
 
 approved() {
   [[ -z "${ONLY_PATHS}" ]] && return 0
-  grep -qxF -- "$1" "${ONLY_PATHS}"
+  approved_list_has "$1"
 }
+
+# The reviewed list is read once (lib/approved-list.sh): a `grep` per item made a
+# 6,000-item apply take minutes. A list that cannot be checked stops the run.
+if [[ -n "${ONLY_PATHS}" ]]; then
+  if ! source "${SUITE_DIR}/lib/approved-list.sh" 2>/dev/null; then
+    echo "FATAL: lib/approved-list.sh is missing — refusing to run with a reviewed list it cannot check." >&2
+    exit 78
+  fi
+  approved_list_load "${ONLY_PATHS}"
+fi
 
 DL_AGE="${JANITOR_DOWNLOADS_AGE_DAYS:-30}"
 SS_AGE="${JANITOR_SCREENSHOTS_AGE_DAYS:-14}"
@@ -100,6 +110,22 @@ keep_match() {
 TOTAL_KB=0
 COUNT=0
 
+# A name in the Trash that nothing else has: the plain name, else
+# <epoch>-<name>, else <epoch>-<n>-<name>, counting until it is free
+# (the same rule temp-clean.sh uses).
+trash_dest() {
+  local name="$1" dest="${TRASH_DIR}/$1" stamp n=1
+  if [[ -e "${dest}" || -L "${dest}" ]]; then
+    stamp="$(date +%s)"
+    dest="${TRASH_DIR}/${stamp}-${name}"
+    while [[ -e "${dest}" || -L "${dest}" ]]; do
+      n=$((n + 1))
+      dest="${TRASH_DIR}/${stamp}-${n}-${name}"
+    done
+  fi
+  printf '%s' "${dest}"
+}
+
 sweep() {
   local dir="$1" age="$2" title="$3" files_only="$4"
   [[ -d "${dir}" ]] || return 0
@@ -110,8 +136,13 @@ sweep() {
   else
     find_args+=(-maxdepth 1)
   fi
-  local item name kb size dest
+  local item name kb size dest moved _try
   while IFS= read -r -d '' item; do
+    # A name with a line break cannot be written on one log line or named safely in a
+    # reviewed list, so it is left alone and said so (it used to stop the whole run).
+    case "${item}" in
+      *$'\n'*) log "[SKIP] name contains a line break  ${item//$'\n'/ }"; continue ;;
+    esac
     name="$(basename "${item}")"
     if keep_match "${name}"; then
       log "[SKIP] kept by pattern  ${item}"
@@ -130,9 +161,24 @@ sweep() {
     if [[ "${DRY_RUN}" -eq 1 ]]; then
       log "[DRY] ${size}  ${item}"
     else
-      dest="${TRASH_DIR}/${name}"
-      [[ -e "${dest}" ]] && dest="${TRASH_DIR}/$(date +%s)-${name}"
-      mv "${item}" "${dest}"
+      # Never onto something already in the Trash: `trash_dest` finds a free
+      # name and `mv -n` refuses to replace anything, so two same-named items
+      # moved in one second both stay. `mv -n` exits 0 even when it declined,
+      # so the move is believed only when the source is gone and the
+      # destination exists; otherwise the next free name is tried.
+      moved=0
+      for _try in 1 2 3 4 5; do
+        dest="$(trash_dest "${name}")"
+        # a name that has appeared since trash_dest looked (even as a folder, which
+        # `mv` would move the item INTO) is not ours to use: next name
+        [[ -e "${dest}" || -L "${dest}" ]] && continue
+        mv -n -- "${item}" "${dest}" 2>/dev/null || true
+        if [[ ! -e "${item}" && ! -L "${item}" && ( -e "${dest}" || -L "${dest}" ) ]]; then moved=1; break; fi
+      done
+      if [[ "${moved}" -ne 1 ]]; then
+        log "[FAILED] ${size}  ${item}"
+        continue
+      fi
       # Record WHERE it went, not just where it came from: on a name
       # collision the Trash copy is renamed, so reconstructing the path
       # from the basename can point at a different file the user trashed

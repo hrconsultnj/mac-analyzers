@@ -159,19 +159,33 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
 
     // MARK: - approval
 
-    /// The engine flag that narrows an apply to a reviewed list, for the kinds
-    /// whose review is a list of rows.
-    var approvalFlag: String? {
+    /// The engine flag that limits an apply to the reviewed list: every cleaner
+    /// whose script understands one is named here, and ONLY those, because a
+    /// script that does not know the flag stops with "unknown option".
+    ///
+    /// The cleaners that take NO list, each with the reason (turn one on by moving
+    /// it into the switch below once its script accepts the flag, and add a case
+    /// to `--probe-review-rules`):
+    ///  - `spotlight`: `spotlight-audit.sh` fences every unfenced folder under its
+    ///    roots; one folder at a time is done by the app writing the marker file.
+    ///  - `tmReclaim`: `tm-reclaim.sh` thins snapshots; there are no rows to list.
+    ///  - `unusedApps`, `recordings`: `cleanup.sh` has no list flag.
+    public var approvalFlag: String? {
         switch self {
         case .memoryClean, .reclaim: "--only-pids"
         case .storageClean, .janitor, .tempClean, .loginItems: "--only-paths"
-        default: nil
+        case .spotlight, .tmReclaim, .unusedApps, .recordings: nil
+        case .networkSnapshot, .memoryReport, .storageReport, .installAgents, .uninstallAgents,
+             .sudoersInstall, .eject: nil     // not cleaners: no apply
         }
     }
 
-    /// Temp folders change by the minute, so its apply always carries the
-    /// list, deselected or not.
-    public var alwaysSendsApprovalList: Bool { self == .tempClean || self == .loginItems }
+    /// Whether the kind's script takes the reviewed list (`--only-pids` or
+    /// `--only-paths`). Those apply only what is in it. The others cannot:
+    /// Spotlight's audit fences every unfenced folder under its roots, and
+    /// `tm-reclaim.sh` and `cleanup.sh` (unused apps, recordings) have no list
+    /// flag, so for them the reviewed preview is the only gate.
+    public var takesReviewedList: Bool { approvalFlag != nil }
 
     // MARK: - arguments
 

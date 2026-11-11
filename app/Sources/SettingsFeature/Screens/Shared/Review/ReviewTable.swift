@@ -71,6 +71,9 @@ struct ReviewTable: View {
     /// The words for rows the apply acts on without a tick here ("2 apps will quit", "and Quit
     /// Opera, Docker"); nil when the review has none.
     var alsoActs: ReviewAlsoActs?
+    /// The names the confirmation gives for the rows the apply acts on, when the screen knows them
+    /// from what is SENT (the Memory track's list of apps); without it the session's acting rows.
+    var actingNames: ((ReviewSession) -> [String])?
     /// Names the screen for what the table remembers of it (which groups are open, column widths).
     /// Without it the key is the preview's kind, or "readonly" for a review that is only read.
     var screen: String?
@@ -129,14 +132,18 @@ struct ReviewTable: View {
             .confirmationDialog(frozen?.title ?? applyTitle, isPresented: $asking, titleVisibility: .visible) {
                 Button(applyTitle, role: .destructive) { chosen() }
             } message: {
-                Text(confirmation?.message ?? "")
+                // the full list of what else will happen stays readable here, however long
+                Text([confirmation?.message, frozen?.actingLine].compactMap { $0 }.joined(separator: " "))
             }
             .confirmationDialog("Delete Permanently?", isPresented: $askingPermanent, titleVisibility: .visible) {
                 Button("Delete Permanently", role: .destructive) { apply() }
             } message: {
                 Text("\(frozen?.countText ?? countText). \(confirmation?.permanent ?? "")")
             }
-            // the list changed while the dialog was open: close it and say why
+            // The list changed while the dialog was open: close it and say why. Limit: this runs when the
+            // view's body is evaluated, i.e. when observed state or the parent changes; a rule that
+            // reads state nothing observes is noticed at the next redraw (and Apply itself always
+            // sends the frozen set, so the dialog can never send something other than it showed).
             .onChange(of: sent) { _, live in
                 guard let frozen, asking || askingPermanent, !frozen.holds(for: live) else { return }
                 asking = false
@@ -219,13 +226,15 @@ struct ReviewTable: View {
         notice = nil
         guard let confirmation else { return }
         let rows = sentRows
+        // the names are read once, here: the title and the message line are frozen with the set
+        let names = actingNames?(session) ?? session.actingRows.map(\.name)
         frozen = ReviewFrozen(
             sent: sent,
             title: ReviewWording.confirmationTitle(
                 verb: confirmation.verb, destination: confirmation.destination, count: rows.count,
-                bytes: session.hasSizes ? sentBytes : nil, alsoActs: alsoActs,
-                actingNames: session.actingRows.map(\.name)),
-            countText: countText)
+                bytes: session.hasSizes ? sentBytes : nil, alsoActs: alsoActs, actingNames: names),
+            countText: countText,
+            actingLine: alsoActs.flatMap { ReviewWording.fullActingLine(alsoActs: $0, names: names) })
         asking = true
     }
 

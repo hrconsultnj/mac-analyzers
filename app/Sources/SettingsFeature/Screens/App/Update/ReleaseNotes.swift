@@ -1,3 +1,4 @@
+import os
 import SwiftUI
 import UIComponents
 
@@ -30,12 +31,16 @@ struct ReleaseNote: Identifiable {
     /// A build ahead of the last release (`includeNext`) starts with what is in
     /// it and not yet released: the changelog's "## Next" section.
     static func bundled(includeNext: Bool = false) -> [ReleaseNote] {
-        // MA_CHANGELOG: a development run with no bundle (SnapshotRunner) names the file.
-        let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md")
-            ?? ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fileURLWithPath: $0) }
+        let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md") ?? developmentFile.withLock { $0 }
         guard let url, let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         return parse(text, includeNext: includeNext)
     }
+
+    /// The changelog for a run that has no bundle (SnapshotRunner), named through
+    /// `DeepLinkRouter.installFixtures(changelog:)`. The app people install always has the
+    /// bundled file and nothing in it sets this: it reads no environment variable.
+    private static let developmentFile = OSAllocatedUnfairLock<URL?>(initialState: nil)
+    static func useDevelopmentFile(_ url: URL?) { developmentFile.withLock { $0 = url } }
 
     /// What the unreleased section is called on screen.
     static let unreleasedTitle = "In This Build — Not Yet Released"
