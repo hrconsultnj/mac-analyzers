@@ -59,8 +59,8 @@ without an entry here — see `scripts/cut-release.sh`.
 - If Mac Analyzers cannot yet tell what a program really is, because its
   command line cannot be read or still shows the program that started it, Stop
   does nothing and says "could not tell, so nothing was stopped"; try again in
-  a moment. Quit says so in its confirmation, and sends nothing if it still
-  cannot tell when you confirm.
+  a moment. Quit says so in its confirmation; if you confirm, the app is
+  asked to quit as usual.
 
 ## v2.69.2 — Process rows no longer show a program's environment
 
