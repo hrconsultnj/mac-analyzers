@@ -15,41 +15,46 @@ struct MonitorToolbar: ToolbarContent {
 
     var body: some ToolbarContent {
         @Bindable var model = model
-        ToolbarItem(placement: .principal) {
-            Picker("Lens", selection: $model.lens) {
-                ForEach(MonitorModel.Lens.allCases) { lens in
-                    Label(lens.rawValue, systemImage: lens.symbol).labelStyle(.titleAndIcon).tag(lens)
+        // the lens changes what the table measures: a filter-like choice, so a menu, not tabs
+        ToolbarItem(placement: .secondaryAction) {
+            Menu {
+                Picker(Names.Monitor.lens, selection: $model.lens) {
+                    ForEach(MonitorModel.Lens.allCases) { lens in
+                        Label(lens.title, systemImage: lens.symbol).tag(lens)
+                    }
                 }
+                .pickerStyle(.inline)
+            } label: {
+                Label(model.lens.title, systemImage: model.lens.symbol)
             }
-            .pickerStyle(.segmented)
-            .help("Choose what to look at")
+            .help("Choose what to measure: memory, energy or disk activity")
         }
         ToolbarItem(placement: .primaryAction) {
             if let selected, let verb = selected.stopVerb {
                 Button { begin(selected.stop) } label: {
-                    Label(verb == "Quit" ? "Quit" : "Stop", systemImage: verb == "Quit" ? "xmark.circle" : "stop.circle")
+                    Label(verb, systemImage: verb == Names.Stop.quit ? "xmark.circle" : "stop.circle")
                 }
                 .help("\(verb) \(selected.name)")
             }
         }
         ToolbarItem(placement: .secondaryAction) {
             Menu {
-                Button("Refresh Now", systemImage: "arrow.clockwise", action: refreshNow)
+                Button(Names.Monitor.refreshNow, systemImage: "arrow.clockwise", action: refreshNow)
                 Divider()
-                Picker("Refresh", selection: $refreshSeconds) {
-                    Text("Every 5 Seconds").tag(5)
-                    Text("Every 15 Seconds").tag(15)
-                    Text("Every 60 Seconds").tag(60)
-                    Text("Paused").tag(0)
+                Picker(Names.Monitor.refresh, selection: $refreshSeconds) {
+                    Text(Names.Monitor.every5).tag(5)
+                    Text(Names.Monitor.every15).tag(15)
+                    Text(Names.Monitor.every60).tag(60)
+                    Text(Names.Monitor.paused).tag(0)
                 }
             } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
+                Label(Names.Monitor.refresh, systemImage: "arrow.clockwise")
             }
             .help("Refresh now, or choose how often")
         }
         ToolbarItem(placement: .primaryAction) {
             Button { inspectorShown.toggle() } label: {
-                Label("Inspector", systemImage: "sidebar.trailing")
+                Label(Names.Monitor.inspector, systemImage: "sidebar.trailing")
             }
             .help("Show or hide the details panel")
         }

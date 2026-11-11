@@ -66,12 +66,12 @@ private struct RowDetail: View {
             }
             Section {
                 if let verb = row.stopVerb {
-                    Button(verb == "Quit" ? "Quit \(row.name)…" : "Stop \(row.name)…") { begin(row.stop) }
+                    Button("\(verb) \(row.name)…") { begin(row.stop) }
                 } else if let reason = row.lockedReason {
                     Label(reason, systemImage: "lock.fill").foregroundStyle(.secondary)
                 }
                 if row.pid != nil || row.iconPID != nil {
-                    Button("Show Details") { showDetails(row) }
+                    Button(Names.Monitor.showDetails) { showDetails(row) }
                 }
             }
         }
@@ -87,7 +87,7 @@ private struct MemoryExplained: View {
     var body: some View {
         Form {
             if let memory = model.breakdown {
-                Section("Where Your Memory Is") {
+                Section(Names.Monitor.whereYourMemoryIs) {
                     legend(.blue, "App Memory", memory.appBytes,
                            "Held right now by the apps and processes in the table.")
                     legend(.indigo, "Wired Memory", memory.wiredBytes,

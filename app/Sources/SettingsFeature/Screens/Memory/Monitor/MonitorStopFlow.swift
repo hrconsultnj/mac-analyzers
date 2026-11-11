@@ -171,7 +171,7 @@ struct MonitorStopDialogs: ViewModifier {
                                      onStop: { chosen in go(pending, chosen: chosen) })
                 }
             }
-            .alert("Some Programs Were Left Alone", isPresented: noticeShown) {
+            .alert(Names.Stop.leftAlone, isPresented: noticeShown) {
                 Button("OK") { flow.noticeDismissed() }
             } message: {
                 Text(flow.notice ?? "")
@@ -179,7 +179,7 @@ struct MonitorStopDialogs: ViewModifier {
             .confirmationDialog(flow.forceOffer?.title ?? "", isPresented: forceShown, titleVisibility: .visible) {
                 if let offer = flow.forceOffer {
                     Button(offer.actionTitle, role: .destructive) { flow.confirmForce() }
-                    Button("Leave Running", role: .cancel) { flow.declineForce() }
+                    Button(Names.Stop.leaveRunning, role: .cancel) { flow.declineForce() }
                 }
             } message: {
                 Text(flow.forceOffer?.detail ?? "")
@@ -245,7 +245,7 @@ struct MonitorStopDialogs: ViewModifier {
                 ? "\(name) and its \(helpers) helper process\(helpers == 1 ? "" : "es") will close"
                 : "\(name) will close"
             var text = "\(who), giving back about \(MemorySize.text(bytes)). It will still ask before discarding unsaved work."
-            if let note = MemoryStop.hostedNote(hosted) { text += " \(note)" }
+            if let note = MemoryStop.hostedNote(hosted, appName: name) { text += " \(note)" }
             return text
         case .stopProgram(let program):
             // the reach was computed when the dialog opened, and says how many processes it is

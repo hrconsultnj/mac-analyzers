@@ -98,7 +98,11 @@ func probeAgents(_ args: [String]) -> Never {
         let line: String
         switch row[1] {
         case "exe": line = "/opt/tools/bin/\(row[2]) --session abc"
-        case "fragment": line = "/opt/\(row[2])/run \(row.count >= 4 ? row[3] : "") --x"
+        case "fragment":
+            // the program's own path holds the fragment; a fragment with a space is an app's path
+            line = row[2].contains(" ")
+                ? "/opt/\(row[2])zz.app/Contents/MacOS/zz --x"
+                : "/opt/\(row[2])run \(row.count >= 4 ? row[3] : "") --x"
         case "ignore": line = "\(row[2]) claude --x"
         default: continue
         }
@@ -110,6 +114,14 @@ func probeAgents(_ args: [String]) -> Never {
                "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT", "/usr/bin/ssh host", "vim notes.txt",
                "/Applications/Claude.app/Contents/MacOS/Claude",
                "node /Users/x/Projects/app/node_modules/.bin/vite"]
+    // Commands that only MENTION a session's folder are not sessions; an interpreter launch of a script there is.
+    let notSessions = ["tail -f /Users/x/.kimi-code/log", "find /Users/x/.kimi-code -name x",
+                       "vim /Users/x/.grok/bin/notes.txt", "cat /Users/x/.codex/packages/readme",
+                       "python3 /Users/x/tools/report.py --dir /Users/x/.opencode/"]
+    let sessions = ["node /Users/x/.kimi-code/bin/server.js --port 1", "bash /Users/x/.opencode/run.sh",
+                    "/Users/x/Library/Application Support/Claude/claude-code/2.1.0/zz.app/Contents/MacOS/zz --x"]
+    let mentionStart = corpus.count
+    corpus += notSessions + sessions
     let numbered = corpus.enumerated().map { "\($0.offset + 100) \($0.element)" }
 
     /// What the engine's filter recognises in the corpus, with this copy of the lib and its list.
@@ -144,6 +156,16 @@ func probeAgents(_ args: [String]) -> Never {
         print("    FAIL the \(line.kind) line for \(line.agent) does not behave as written: \(corpus[index])")
     }
     if silent.isEmpty { print("every list line recognises its own corpus line (ignore lines do not)") }
+    var mentions = true
+    for (offset, line) in (notSessions + sessions).enumerated() {
+        let isSession = offset >= notSessions.count
+        if swiftSide.contains(mentionStart + offset) != isSession {
+            mentions = false
+            ok = false
+            print("    FAIL the app \(isSession ? "misses a session" : "counts a mention as a session"): \(line)")
+        }
+    }
+    if mentions { print("commands that only mention a session's folder are not sessions (\(notSessions.count) cases); interpreter launches and an app path with spaces are (\(sessions.count))") }
 
     // the same list saved with Windows line endings must behave identically on both sides
     let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-probe-agents-\(UUID().uuidString.prefix(8))")

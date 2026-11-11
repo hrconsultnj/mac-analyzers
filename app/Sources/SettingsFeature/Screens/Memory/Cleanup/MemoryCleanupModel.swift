@@ -6,14 +6,18 @@ import AnalyzersKit
 /// Everything the engine runs goes through the job store: a preview is a
 /// job, an apply is built from the finished preview with exactly what is
 /// ticked, and a screen that closes and opens again finds its job again.
+///
+/// The ticks live in the shared review session (`ReviewSession`), which keeps them
+/// per preview; this model only builds one session per preview.
 @MainActor @Observable
 final class MemoryCleanupModel {
 
-    /// The two cleanups: the leftovers sweep, and everything now.
+    /// The two cleanups: the leftovers sweep, and everything now. The raw values are the keys a
+    /// deep link carries; the names are `Names`.
     enum Scope: String, CaseIterable, Identifiable {
-        case leftovers = "Leftovers"
-        case everythingNow = "Everything Now"
+        case leftovers, everythingNow
         var id: String { rawValue }
+        var title: String { self == .leftovers ? Names.Cleanup.leftovers : Names.Cleanup.everythingNow }
         var kind: JobKind { self == .leftovers ? .memoryClean : .reclaim }
         var symbol: String { self == .leftovers ? "sparkles" : "bolt.fill" }
     }
@@ -29,15 +33,7 @@ final class MemoryCleanupModel {
     var includeBusyOrphans = false
     /// Everything Now: also ask the apps on your list to quit.
     var alsoQuit = false
-    /// Rows the person unticked, kept per preview: leaving the screen and
-    /// coming back inside the review window shows the same ticks, not everything
-    /// ticked again. (Held here until the shared review store lands; then this
-    /// is one call to it.)
-    var deselected: Set<String> {
-        get { previewJob.flatMap { Self.ticks[$0.id] } ?? [] }
-        set { if let id = previewJob?.id { Self.ticks[id] = newValue } }
-    }
-    private static var ticks: [UUID: Set<String>] = [:]
+
     /// The review as it was read when its job finished, per job: its identities
     /// (who each pid was) are captured ONCE, then, never again on a rebuild — a
     /// pid reused since would otherwise be read as the program that was reviewed.
@@ -48,7 +44,10 @@ final class MemoryCleanupModel {
     private(set) var applyJob: Job?
     /// What the review (or, after an apply, the result) shows.
     private(set) var review: CleanupReview?
-    private(set) var rawOutput = ""
+    /// The shared review's session for the current preview (one per preview).
+    private(set) var session: ReviewSession?
+    /// The keys whose rows were last made untickable because their program changed.
+    private var excluded: Set<String> = []
 
     // MARK: - what the options mean right now
 
@@ -62,23 +61,6 @@ final class MemoryCleanupModel {
     /// Both jobs' stages, for `onChange`.
     var stamps: [JobStamp] { [JobStamp(previewJob), JobStamp(applyJob)] }
 
-    func reviewExpired(_ date: Date = Date()) -> Bool {
-        guard let expiry = previewJob?.reviewExpiry else { return false }
-        return date >= expiry
-    }
-
-    // MARK: - ticks
-
-    var selectedCount: Int { review?.selectedCount(deselected: deselected) ?? 0 }
-    var selectedBytes: Int64 { review?.selectedBytes(deselected: deselected) ?? 0 }
-    var canApply: Bool {
-        guard phase == .review, !reviewExpired(), let review else { return false }
-        return review.hasAction(deselected: deselected)
-    }
-
-    func selectAll() { deselected = [] }
-    func selectNone() { deselected = Set(review?.approvableKeys ?? []) }
-
     // MARK: - starting jobs
 
     func preview(store: JobStore, reclaimApps: [String]) {
@@ -91,19 +73,28 @@ final class MemoryCleanupModel {
         sync()
     }
 
-    /// Built from the finished preview with exactly what is ticked. The store
-    /// refuses anything else, and says why.
-    func apply(store: JobStore) {
-        guard let preview = previewJob, let review else {
-            phase = .failed("There is no finished preview to apply. Preview again, then apply.")
-            return
-        }
-        guard !reviewExpired() else {
-            phase = .failed("This review is more than \(Int(JobStore.reviewWindow / 60)) minutes old, so it can no longer be applied. Preview again to see what would be cleaned now.")
-            return
-        }
-        applyJob = store.apply(from: preview, approved: review.approvedSet(deselected: deselected))
+    /// The shared review table started an apply (it is built from the finished preview
+    /// with exactly what is ticked, by the store, which refuses anything else).
+    func applied(_ job: Job) {
+        applyJob = job
         sync()
+    }
+
+    /// What Apply sends: exactly the ticked programs, minus any whose pid is no longer the program that
+    /// was reviewed (it ended, or the system gave the pid to another program). A row that cannot be
+    /// ticked is never in it, so the bar's count and what is sent are the same programs.
+    func approval(for session: ReviewSession) -> ApprovedSet {
+        review?.approvedSet(ticked: Set(session.selection.tickedIDs)) ?? session.approved
+    }
+
+    /// While the review is open: a program that ended, or whose pid was given to another program since the
+    /// preview, becomes a row that cannot be ticked, so the bar never counts what Apply would leave out.
+    func recheck() {
+        guard phase == .review, let review, let preview = previewJob else { return }
+        let changed = review.changedKeys()
+        guard changed != excluded else { return }
+        excluded = changed
+        session = ReviewSession(previewID: preview.id, rows: review.reviewRows(changed: changed))
     }
 
     /// Throws the review away; it can no longer be applied.
@@ -149,7 +140,6 @@ final class MemoryCleanupModel {
     /// Puts the screen in the state its job is in, and the run on screen.
     func sync() {
         guard let job = shownJob else { return }
-        rawOutput = job.lines.joined(separator: "\n")
         switch job.state {
         case .queued, .running:
             phase = job.intent == .apply ? .applying : .previewing
@@ -161,18 +151,18 @@ final class MemoryCleanupModel {
                 return
             }
             if case .reap(let run) = outcome.parsed {
-                if let known = Self.reviews[job.id] {
-                    review = known
-                } else {
-                    let read = CleanupReview(run: run)
-                    Self.reviews[job.id] = read
-                    review = read
-                }
+                let read = Self.reviews[job.id] ?? CleanupReview(run: run)
+                Self.reviews[job.id] = read
+                review = read
             }
             if job.intent == .apply {
                 phase = .done(Self.summary(of: review))
             } else {
                 phase = .review
+                if let preview = previewJob, let review, session?.previewID != preview.id {
+                    excluded = review.changedKeys()
+                    session = ReviewSession(previewID: preview.id, rows: review.reviewRows(changed: excluded))
+                }
             }
         case .failed(let failure):
             phase = .failed(failure.message)
@@ -191,7 +181,8 @@ final class MemoryCleanupModel {
         previewJob = nil
         applyJob = nil
         review = nil
-        rawOutput = ""
+        session = nil
+        excluded = []
     }
 
     // MARK: - words

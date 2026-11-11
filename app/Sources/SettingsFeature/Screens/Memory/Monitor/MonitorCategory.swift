@@ -19,7 +19,7 @@ struct MonitorCategory: Identifiable, Hashable {
 
     static func categories(of rows: [MonitorRow]) -> [MonitorCategory] {
         let totals = MonitorTree.categoryTotals(rows)
-        let everything = MonitorCategory(category: nil, title: "Everything", symbol: "square.stack.3d.up",
+        let everything = MonitorCategory(category: nil, title: Names.Monitor.everything, symbol: "square.stack.3d.up",
                                          groups: rows.count, processes: totals.reduce(0) { $0 + $1.processes },
                                          bytes: totals.reduce(Int64(0)) { $0 + $1.bytes })
         return [everything] + totals.map { total in
@@ -34,9 +34,9 @@ extension CensusGroup.Category {
     /// The tab's name: short, where the screen's own name for the category is long.
     var shortTitle: String {
         switch self {
-        case .apps: "Apps"
-        case .tools: "Tools"
-        case .system: "macOS"
+        case .apps: Names.Category.apps
+        case .tools: Names.Monitor.tools
+        case .system: Names.Category.system
         }
     }
 

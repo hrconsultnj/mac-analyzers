@@ -19,7 +19,7 @@ struct GuardEntryScreen: View {
             if let row {
                 content(for: row)
             } else if loaded {
-                ContentUnavailableView("This Event Is Gone", systemImage: "clock.arrow.circlepath",
+                ContentUnavailableView(Names.Guard.eventGone, systemImage: "clock.arrow.circlepath",
                                        description: Text("It has aged out of the log, so there is nothing more to show."))
             } else {
                 ProgressView()
@@ -32,7 +32,7 @@ struct GuardEntryScreen: View {
     private func content(for row: GuardHistory.Row) -> some View {
         let lead = row.lead
         return Form {
-            Section("What Happened") {
+            Section(Names.Guard.whatHappened) {
                 LabeledContent("Event", value: row.title)
                 LabeledContent("When", value: whenText(row))
                 if row.isGroup {
@@ -41,7 +41,7 @@ struct GuardEntryScreen: View {
                 Text(row.outcome).foregroundStyle(.secondary)
             }
             if lead.kind != .pressure, lead.kind != .crisisReport {
-                Section("The Program") {
+                Section(Names.Guard.theProgram) {
                     LabeledContent("Name", value: lead.subject)
                     if let project = lead.project { LabeledContent("Project", value: project) }
                     if let memory = lead.memoryText { LabeledContent("Memory at the time", value: memory) }
@@ -54,11 +54,11 @@ struct GuardEntryScreen: View {
             if let report {
                 reportSections(report)
             }
-            Section("Why the Guard Does This") {
+            Section(Names.Guard.whyTheGuardDoesThis) {
                 Text(lead.why).foregroundStyle(.secondary)
             }
             if row.isGroup {
-                Section("Each Time") {
+                Section(Names.Guard.eachTime) {
                     ForEach(row.entries.reversed()) { entry in
                         LabeledContent(entry.date.formatted(date: .abbreviated, time: .standard),
                                        value: entry.memoryText ?? entry.cpuPercent.map { "above \($0)%" } ?? "")
@@ -66,7 +66,7 @@ struct GuardEntryScreen: View {
                 }
             }
             Section {
-                DisclosureGroup("Raw Output") {
+                DisclosureGroup(Names.Guard.showRawLines) {
                     Text(row.rawText)
                         .font(.callout.monospaced())
                         .textSelection(.enabled)
@@ -77,7 +77,7 @@ struct GuardEntryScreen: View {
     }
 
     @ViewBuilder private func reportSections(_ report: CrisisReportSummary) -> some View {
-        Section("What Was Using Memory") {
+        Section(Names.Guard.whatWasUsingMemory) {
             Text(report.headline)
             ForEach(report.apps.prefix(10)) { app in
                 LabeledContent {
@@ -96,7 +96,7 @@ struct GuardEntryScreen: View {
                 Text("and \(report.apps.count - 10) more").foregroundStyle(.secondary)
             }
         }
-        Section("The Mac at That Moment") {
+        Section(Names.Guard.macAtThatMoment) {
             if let pressure = report.pressure { LabeledContent("Memory pressure", value: pressure) }
             if let memory = report.physicalMemory { LabeledContent("Physical memory", value: memory) }
             if let swap = report.swap { LabeledContent("Swap", value: swap) }

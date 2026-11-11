@@ -29,25 +29,25 @@ struct MonitorOutline<Menu: View>: View {
 
     var body: some View {
         Table(of: MonitorRow.self, selection: $selection, sortOrder: $sortOrder) {
-            TableColumn("Name", value: \.name) { row in
+            TableColumn(Names.Monitor.name, value: \.name) { row in
                 MonitorNameCell(row: row, icon: icons[row.id])
             }
             .width(min: 150, ideal: 210)
-            TableColumn("What It Is") { row in
+            TableColumn(Names.Monitor.whatItIs) { row in
                 Text(row.detailText).foregroundStyle(row.pendingNew + row.pendingEnded > 0 ? Color.orange : Color.secondary)
             }
             .width(min: 130, ideal: 260)
-            TableColumn("Memory", value: \.memoryBytes) { row in
+            TableColumn(Names.Monitor.memory, value: \.memoryBytes) { row in
                 Text(row.memoryText)
                     .monospacedDigit()
                     .foregroundStyle(row.memoryBytes > 4 * 1_073_741_824 ? Color.orange : Color.secondary)
             }
             .width(min: 76, ideal: 84)
-            TableColumn("CPU", value: \.cpuSort) { row in
+            TableColumn(Names.Monitor.cpu, value: \.cpuSort) { row in
                 Text(row.cpuText).monospacedDigit().foregroundStyle(.secondary)
             }
             .width(min: 60, ideal: 70)
-            TableColumn("PID", value: \.pidSort) { row in
+            TableColumn(Names.Monitor.pid, value: \.pidSort) { row in
                 // a pid is an identifier: a String, so it never gains a thousands separator
                 Text(row.pid.map { String($0) } ?? "").monospacedDigit().foregroundStyle(.secondary)
             }
@@ -91,7 +91,7 @@ struct MonitorOutline<Menu: View>: View {
 
     @ViewBuilder private func stopControl(_ row: MonitorRow) -> some View {
         if row.isEnded {
-            Text("Ended").font(.caption).foregroundStyle(.tertiary)
+            Text(Names.Monitor.ended).font(.caption).foregroundStyle(.tertiary)
         } else if let verb = row.stopVerb {
             Button(verb) { begin(row.stop) }
                 .buttonStyle(.borderless)

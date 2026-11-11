@@ -14,6 +14,9 @@ struct MonitorStopSheet: View {
     /// Nothing is ticked to begin with: ending several programs at once is a
     /// choice, not the default.
     @State private var ticked: Set<String> = []
+    /// What stopping each program would reach (and, if it would be refused, why), worked out when
+    /// the sheet opens: the rows say it before anything is chosen.
+    @State private var reach: [String: String] = [:]
 
     private var stoppable: [StopTarget] { programs.filter(\.isStoppable) }
     private var chosen: [StopTarget] { stoppable.filter { ticked.contains($0.id) } }
@@ -37,9 +40,9 @@ struct MonitorStopSheet: View {
             }
 
             HStack {
-                Button("Select All") { ticked = Set(stoppable.map(\.id)) }
+                Button(Names.Review.selectAll) { ticked = Set(stoppable.map(\.id)) }
                     .disabled(stoppable.isEmpty || ticked.count == stoppable.count)
-                Button("Select None") { ticked = [] }
+                Button(Names.Review.selectNone) { ticked = [] }
                     .disabled(ticked.isEmpty)
                 Spacer()
                 Button("Cancel", role: .cancel, action: onCancel)
@@ -51,6 +54,11 @@ struct MonitorStopSheet: View {
             .padding()
         }
         .frame(minWidth: 480, minHeight: 360)
+        .task {
+            for program in programs where program.isStoppable {
+                if let text = MemoryStop.reachText(of: program) { reach[program.id] = text }
+            }
+        }
     }
 
     private var stopTitle: String {
@@ -83,9 +91,11 @@ struct MonitorStopSheet: View {
     private func label(_ program: StopTarget) -> some View {
         VStack(alignment: .leading) {
             Text(MonitorTree.rowName(program.name))
-            Text([program.whereItRuns.map { "in \($0)" },
-                  "\(program.members.count) \(program.members.count == 1 ? "process" : "processes")"]
-                .compactMap { $0 }.joined(separator: " · "))
+            Text([[program.whereItRuns.map { "in \($0)" },
+                   "\(program.members.count) \(program.members.count == 1 ? "process" : "processes")"]
+                    .compactMap { $0 }.joined(separator: " · "),
+                  reach[program.id]]
+                .compactMap { $0 }.joined(separator: ", "))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -177,6 +177,10 @@ public enum GuardControl {
         if let app = NSRunningApplication(processIdentifier: pid_t(identity.pid)) {
             return app.terminate()
         }
+        // not a running app (a command-line tool inside an app's folder): the same rule as any process,
+        // which includes never ending something that hosts a live coding session
+        guard CodingAgentHosts.sessionsBelow(pid: identity.pid).isEmpty,
+              CodingAgentHosts.liveSessionAgent(pid: identity.pid) == nil else { return false }
         return stop([identity]).count == 1
     }
 

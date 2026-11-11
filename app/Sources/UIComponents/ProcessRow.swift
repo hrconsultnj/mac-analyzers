@@ -49,7 +49,7 @@ public struct ProcessRow: View {
                     Text(proc.isDev
                          ? "It will be asked to stop. Anything it is doing is interrupted."
                          : ["It will be asked to quit. It will still ask before discarding unsaved work.",
-                            MemoryStop.hostedNote(CodingAgentHosts.sessionsBelow(pid: proc.pid))]
+                            MemoryStop.hostedNote(CodingAgentHosts.sessionsBelow(pid: proc.pid), appName: proc.friendlyName)]
                             .compactMap { $0 }.joined(separator: " "))
                 }
                 .alert("Left Alone", isPresented: Binding(get: { refusal != nil },

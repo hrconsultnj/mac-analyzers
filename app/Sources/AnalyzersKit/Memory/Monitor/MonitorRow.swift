@@ -83,8 +83,8 @@ public struct MonitorRow: Identifiable, Sendable {
     public var stopVerb: String? {
         switch stop {
         case .none, .unavailable: nil
-        case .quitApp: "Quit"
-        case .choosePrograms, .stopProgram, .stopProcess: "Stop"
+        case .quitApp: Names.Stop.quit
+        case .choosePrograms, .stopProgram, .stopProcess: Names.Stop.stop
         }
     }
 

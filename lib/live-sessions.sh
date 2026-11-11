@@ -32,16 +32,37 @@ _live_session_filter() {
         n = split(line, f, "\t")
         if (f[2] == "exe") exe[f[3]] = 1
         else if (f[2] == "ignore") ign[f[3]] = 1
+        else if (f[2] == "interpreter") interp[f[3]] = 1
         else if (f[2] == "fragment") { nf++; frag[nf] = f[3]; also[nf] = (n >= 4 ? f[4] : "") }
       }
       close(list)
     }
     {
       pid = $1; args = $0; sub(/^[ \t]*[0-9]+[ \t]+/, "", args)
-      split(args, part, " "); m = split(part[1], seg, "/"); name = seg[m]
+      nw = split(args, w, " "); first = w[1]; m = split(first, seg, "/"); name = seg[m]
       if (name in ign) next
       hit = (name in exe)
-      for (i = 1; !hit && i <= nf; i++) if (index(args, frag[i]) > 0 && (also[i] == "" || index(args, also[i]) > 0)) hit = 1
+      # a fragment is matched against the programs OWN path, not against everything its arguments say
+      split("", cand); nc = 1; cand[1] = first
+      if (substr(first, 1, 1) == "/") {
+        i = index(args, ".app/Contents/")        # an app path can hold spaces
+        if (i > 0) {
+          rest = substr(args, i + 14); j = index(rest, "/")
+          if (j > 0) {
+            after = substr(rest, j + 1); k = index(after, " ")
+            head = substr(args, 1, i + 13 + j + (k > 0 ? k - 1 : length(after)))
+            nc++; cand[nc] = head
+            h = split(head, hs, "/"); if (hs[h] in exe) hit = 1
+          }
+        }
+      }
+      if (name in interp) {                      # node script.js: the script is the program
+        for (q = 2; q <= nw; q++) if (substr(w[q], 1, 1) != "-") { nc++; cand[nc] = w[q]; break }
+      }
+      for (i = 1; !hit && i <= nf; i++) {
+        if (also[i] != "" && index(args, also[i]) == 0) continue
+        for (c = 1; c <= nc; c++) if (index(cand[c], frag[i]) > 0) { hit = 1; break }
+      }
       if (hit) print pid
     }'
 }
@@ -53,7 +74,7 @@ if [[ ! -r "$_LIVE_SESSION_LIST" ]]; then
   echo "lib/coding-agents.tsv is missing or unreadable" >&2
   return 1
 fi
-if ! awk -F'\t' '{ sub(/\r$/, "") } /^#/ || NF < 3 { next } $2 != "ignore" { found = 1 } END { exit !found }' "$_LIVE_SESSION_LIST" 2>/dev/null; then
+if ! awk -F'\t' '{ sub(/\r$/, "") } /^#/ || NF < 3 { next } $2 == "exe" || $2 == "fragment" { found = 1 } END { exit !found }' "$_LIVE_SESSION_LIST" 2>/dev/null; then
   echo "lib/coding-agents.tsv names no coding agent" >&2
   return 1
 fi

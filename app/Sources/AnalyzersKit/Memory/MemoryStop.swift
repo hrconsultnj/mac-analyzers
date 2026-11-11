@@ -52,12 +52,21 @@ public enum MemoryStop {
 
     /// The sentence for a dialog that quits an app: which live coding sessions run
     /// inside it and end with it, or, when the list is unavailable, that it could not check.
-    public static func hostedNote(_ hosted: [String: Int]) -> String? {
+    ///
+    /// An app that runs containers or virtual machines (`appName` is on the list's `container` lines) adds
+    /// that what runs inside will stop: the process table cannot see inside it, so a session there is not counted.
+    public static func hostedNote(_ hosted: [String: Int], appName: String? = nil) -> String? {
         guard CodingAgentHosts.isAvailable else {
             return "Mac Analyzers could not check whether coding sessions run inside it, so any that do will end with it."
         }
-        guard let text = hostedText(hosted) else { return nil }
-        return "\(text) run\(hosted.values.reduce(0, +) == 1 ? "s" : "") inside it and will end with it."
+        var parts: [String] = []
+        if let text = hostedText(hosted) {
+            parts.append("\(text) run\(hosted.values.reduce(0, +) == 1 ? "s" : "") inside it and will end with it.")
+        }
+        if let appName, CodingAgentHosts.isContainerRuntime(appName: appName) {
+            parts.append("Containers running in it will stop.")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
     }
 
     /// "2 live Claude Code sessions".
@@ -77,7 +86,7 @@ public enum MemoryStop {
             return .refused("\(name) is part of macOS, or belongs to another account, so it cannot be stopped from here.")
         case .app(let identities):
             var detail = "\(name) will close. It will still ask before discarding unsaved work."
-            if let note = hostedNote(group.hostedSessions) { detail += " \(note)" }
+            if let note = hostedNote(group.hostedSessions, appName: name) { detail += " \(note)" }
             return .confirm(Pending(title: "Quit \(name)?", detail: detail, actionTitle: "Quit \(name)") {
                 Report(GuardControl.quitApp(identities).isEmpty
                     ? "\(name) had already quit or changed, so nothing was sent."
@@ -133,6 +142,18 @@ public enum MemoryStop {
                 let result = await GuardControl.askProgramToStop(listed, name: label)
                 return programReport(label, result)
             })
+    }
+
+    /// What stopping this program would reach, worked out now from the live process table: "and 6 processes
+    /// it started" (nothing when it started none), or the reason a stop would be refused. Shown wherever a program is
+    /// offered for a stop before the person confirms.
+    public static func reachText(of target: StopTarget) -> String? {
+        switch ProgramReach.compute(listed: target.memberIdentities, name: target.label) {
+        case .refused(let why): return why
+        case .reach(let found):
+            let started = found.count - 1
+            return started <= 0 ? nil : "and \(started) \(started == 1 ? "process" : "processes") it started"
+        }
     }
 
     /// The sentence after a program stop, and the Force Stop offer when something is left.

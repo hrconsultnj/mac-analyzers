@@ -10,7 +10,7 @@ final class GuardHistoryModel {
         case week = 7
         case quarter = 90
         var id: Int { rawValue }
-        var title: String { self == .week ? "Last 7 Days" : "Last 90 Days" }
+        var title: String { self == .week ? Names.Guard.last7 : Names.Guard.last90 }
     }
 
     private(set) var history = GuardHistory.empty {

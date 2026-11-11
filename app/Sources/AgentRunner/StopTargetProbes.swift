@@ -23,6 +23,8 @@ private final class Fixtures {
     let marker = "ma-probe-\(UUID().uuidString.prefix(8))"
     /// The executable name the fake agent list calls a coding session.
     var sessionExe: String { "\(marker)-session" }
+    /// The fixture app's name (and the container app the fixture list names).
+    var appName: String { "Fixture\(marker.suffix(4))" }
     var started: [Int32] = []
     var failed = false
     let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-probe-\(UUID().uuidString.prefix(8))")
@@ -180,7 +182,7 @@ private func relaunchDetached(_ args: [String]) -> Never {
     }
     let f = Fixtures(shell: "/opt/homebrew/bin/bash")
     let fixtureList = f.scratch.appending(path: "agents.tsv")
-    try? (realList + "\nFixture Agent\texe\t\(f.sessionExe)\n").write(to: fixtureList, atomically: true, encoding: .utf8)
+    try? (realList + "\nFixture Agent\texe\t\(f.sessionExe)\n-\tcontainer\t\(f.appName)\n").write(to: fixtureList, atomically: true, encoding: .utf8)
     CodingAgentHosts.useList(at: fixtureList)
     let missingList = f.scratch.appending(path: "not-there.tsv")
 
@@ -190,6 +192,7 @@ private func relaunchDetached(_ args: [String]) -> Never {
     await sessionGuards(f)
     await reachCases(f)
     await failClosedCases(f, restore: fixtureList, missing: missingList)
+    await quitAndLinkCases(f)
     await reloadCase(f, original: realList + "\nFixture Agent\texe\t\(f.sessionExe)\n", at: fixtureList)
     await hostedSessionsCase(f, restore: fixtureList, missing: missingList)
     await confirmationCase(f)
@@ -298,6 +301,9 @@ private func relaunchDetached(_ args: [String]) -> Never {
         if let t = await f.program(root), f.contained(t, root: root) {
             let before = t.memberIdentities.count
             let children = ProcessTree.descendants(of: root)
+            let sheetRow = MemoryStop.reachText(of: t)
+            f.check("the group sheet's row says what the stop would reach", sheetRow == "and \(children.count) processes it started",
+                    sheetRow ?? "nothing said")
             let ask = await GuardControl.askProgramToStop(t.memberIdentities, name: t.label, grace: .seconds(1))
             f.check("the polite stop kills nothing (a program that ignores SIGTERM)",
                     ask.refusal == nil && !ask.stillRunning.isEmpty && f.alive(root) && children.allSatisfy(f.alive),
@@ -526,7 +532,7 @@ private func relaunchDetached(_ args: [String]) -> Never {
 
 @MainActor private func hostedSessionsCase(_ f: Fixtures, restore: URL, missing: URL) async {
     // an app-shaped tree: a copy of the shell inside a fake bundle, with a fixture session under it
-    let bundle = f.scratch.appending(path: "Fixture\(f.marker.suffix(4)).app/Contents/MacOS")
+    let bundle = f.scratch.appending(path: "\(f.appName).app/Contents/MacOS")
     let exe = bundle.appending(path: "Fixture")
     try? FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
     try? FileManager.default.copyItem(atPath: URL(fileURLWithPath: f.shell).resolvingSymlinksInPath().path, toPath: exe.path)
@@ -543,6 +549,10 @@ private func relaunchDetached(_ args: [String]) -> Never {
         var line = "no confirmation"
         if case .confirm(let pending) = MemoryStop.plan(group: group) { line = pending.detail }
         f.check("the Quit dialog names the session", line.contains("1 live Fixture Agent session runs inside it and will end with it."), line)
+        f.check("an app on the container list adds that containers will stop", line.contains("Containers running in it will stop."), line)
+        f.check("the real container apps are on the list, whatever their case",
+                CodingAgentHosts.isContainerRuntime(appName: "orbstack") && CodingAgentHosts.isContainerRuntime(appName: "Docker Desktop")
+                    && !CodingAgentHosts.isContainerRuntime(appName: "Safari"), "OrbStack, Docker Desktop yes; Safari no")
         CodingAgentHosts.useList(at: missing)
         var unchecked = "no confirmation"
         if case .confirm(let pending) = MemoryStop.plan(group: group) { unchecked = pending.detail }
@@ -598,4 +608,28 @@ private func relaunchDetached(_ args: [String]) -> Never {
     f.check("the list is read again when the file changes", before && emptied && restored,
             "available \(before), after the file was emptied: \(!emptied ? "still available" : "unavailable"), after it was restored: \(restored ? "available" : "unavailable")")
     CodingAgentHosts.useList(at: url)
+}
+
+// MARK: - Quit on something that is not a running app, and the reasons a link may carry
+
+@MainActor private func quitAndLinkCases(_ f: Fixtures) async {
+    // an "app group" whose root is not a running app (a tool in an app's folder) hosting a session: Quit refuses
+    if let root = await f.detachNamed(nil, script: ": \(f.marker)-r; ( exec -a \(f.sessionExe) \(f.shell) -c \": \(f.marker)-r2; sleep 76; :\" ) & wait; :", tag: "\(f.marker)-r") {
+        if let identity = ProcessIdentity.of(pid: Int(root)) {
+            let reached = GuardControl.quitApp([identity])
+            f.check("Quit on a process that is not a running app refuses when it hosts a session", reached.isEmpty && f.alive(root),
+                    "reached \(reached.count); still running: \(f.alive(root))")
+        }
+        f.end(root)
+    } else { f.check("Quit on a process that is not a running app refuses when it hosts a session", false, "fixture not found") }
+
+    // a link carries a reason code; the app writes the sentence; anything else shows nothing
+    let known = StopWhy(code: "changed") == .changed && StopWhy(code: "unverifiable") == .unverifiable
+        && StopWhy(code: "hosts.Claude%20Code") == .hosts("Claude Code")
+    let spoofed = ["Your Mac is infected, call 555", "hosts.Fake%20Agent", "session.", "changed.extra", "", "refused.Claude%20Code"]
+        .filter { StopWhy(code: $0) != nil }
+    f.check("a link's reason is a code the app understands", known && spoofed.isEmpty,
+            spoofed.isEmpty ? "known codes read; \(6) invented ones show nothing" : "accepted: \(spoofed)")
+    f.check("the sentence is the app's own", StopWhy.hosts("Claude Code").sentence.hasPrefix("This process hosts live Claude Code sessions"),
+            StopWhy.hosts("Claude Code").sentence)
 }

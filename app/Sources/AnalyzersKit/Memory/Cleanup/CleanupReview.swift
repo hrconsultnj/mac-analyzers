@@ -71,6 +71,34 @@ public struct CleanupReview: Sendable {
         return ApprovedSet(approvable: approvableKeys, deselected: deselected.union(changed))
     }
 
+    /// What may be ticked in the review: a program the preview found that is still the program it
+    /// found, and that is worth closing. A program using no memory is shown folded away and is never
+    /// chosen (closing it frees nothing); one whose pid is no longer the reviewed program, or that is
+    /// left alone, cannot be ticked either. The review table, its count and what Apply sends all use this.
+    public func isTickable(_ candidate: CleanupCandidate, changed: Set<String>) -> Bool {
+        guard candidate.isSelectable, !candidate.isEmpty else { return false }
+        return !changed.contains(candidate.approvalKey ?? "")
+    }
+
+    /// The keys of tickable rows that are no longer the program that was reviewed.
+    public func changedKeys() -> Set<String> {
+        Set(changedSinceReview().compactMap(\.approvalKey))
+    }
+
+    /// What Apply sends: exactly the ticked rows, minus any whose pid is no longer the reviewed program.
+    /// Rows that cannot be ticked (left alone, kept, folded away as nothing) are never in it, whatever
+    /// "Select All" did. Nothing to send at all is an explicit empty list, so an apply can never close a
+    /// process nobody reviewed.
+    public func approvedSet(ticked: Set<String>) -> ApprovedSet {
+        guard !approvableKeys.isEmpty else {
+            return ApprovedSet(approvable: ["none"], deselected: ["none"])
+        }
+        let changed = changedKeys()
+        let wanted = Set(approvableKeys).intersection(ticked).subtracting(changed)
+        if wanted.isEmpty { return ApprovedSet(approvable: ["none"], deselected: ["none"]) }
+        return ApprovedSet(approvable: approvableKeys, deselected: Set(approvableKeys).subtracting(wanted))
+    }
+
     /// Tickable rows whose pid is not the program that was reviewed any more.
     public func changedSinceReview() -> [CleanupCandidate] {
         // a row with no identity is one whose process was already gone when the

@@ -13,10 +13,15 @@ import AnalyzersKit
 final class MonitorModel {
 
     enum Lens: String, CaseIterable, Identifiable {
-        case memory = "Memory"
-        case energy = "Energy"
-        case diskIO = "Disk I/O"
+        case memory, energy, diskIO
         var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .memory: Names.Monitor.lensMemory
+            case .energy: Names.Monitor.lensEnergy
+            case .diskIO: Names.Monitor.lensDisk
+            }
+        }
         var symbol: String {
             switch self {
             case .memory: "memorychip"

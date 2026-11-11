@@ -9,11 +9,11 @@ extension MonitorView {
         let rows = search.isEmpty ? model.energy
             : model.energy.filter { $0.name.localizedCaseInsensitiveContains(search) }
         return Table(rows.sorted(using: energySort), sortOrder: $energySort) {
-            TableColumn("Name") { entry in LensNameCell(name: entry.name, pid: entry.pid) }
-            TableColumn("Energy", value: \.energyNJ) { entry in
+            TableColumn(Names.Monitor.name) { entry in LensNameCell(name: entry.name, pid: entry.pid) }
+            TableColumn(Names.Monitor.energy, value: \.energyNJ) { entry in
                 Text(entry.energyText).monospacedDigit()
             }
-            TableColumn("PID") { entry in
+            TableColumn(Names.Monitor.pid) { entry in
                 Text(String(entry.pid)).monospacedDigit().foregroundStyle(.secondary)
             }
         }
@@ -24,14 +24,14 @@ extension MonitorView {
         let rows = search.isEmpty ? model.diskIO
             : model.diskIO.filter { $0.name.localizedCaseInsensitiveContains(search) }
         return Table(rows.sorted(using: diskSort), sortOrder: $diskSort) {
-            TableColumn("Name") { entry in LensNameCell(name: entry.name, pid: entry.pid) }
-            TableColumn("Written", value: \.bytesWritten) { entry in
+            TableColumn(Names.Monitor.name) { entry in LensNameCell(name: entry.name, pid: entry.pid) }
+            TableColumn(Names.Monitor.written, value: \.bytesWritten) { entry in
                 Text(entry.writtenText).monospacedDigit()
             }
-            TableColumn("Read", value: \.bytesRead) { entry in
+            TableColumn(Names.Monitor.read, value: \.bytesRead) { entry in
                 Text(entry.readText).monospacedDigit().foregroundStyle(.secondary)
             }
-            TableColumn("PID") { entry in
+            TableColumn(Names.Monitor.pid) { entry in
                 Text(String(entry.pid)).monospacedDigit().foregroundStyle(.secondary)
             }
         }

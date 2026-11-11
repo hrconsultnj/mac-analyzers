@@ -58,7 +58,7 @@ func probeGuardHistory(_ args: [String]) -> Never {
     steps("all events, 90 days", days)
     let sevenCut = cal.date(byAdding: .day, value: -7, to: cal.startOfDay(for: Date())) ?? Date()
     steps("all events, 7 days", days.filter { $0.day >= sevenCut })
-    for scope in [GuardHistory.Scope.stopped, .alerts] { steps("\(scope.rawValue), 90 days", history.days(scope: scope)) }
+    for scope in [GuardHistory.Scope.stopped, .alerts] { steps("\(scope.title), 90 days", history.days(scope: scope)) }
     for term in ["node", "next"] { steps("search \"\(term)\" over the whole 90 days", history.days(scope: .all, search: term)) }
     let biggest = days.map { $0.rows.count }.max() ?? 0
     print("largest update: \(maxStep(days)) rows (a day is never split; busiest single day \(biggest))")

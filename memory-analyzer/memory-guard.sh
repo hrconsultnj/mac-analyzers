@@ -170,15 +170,6 @@ else
   }
 fi
 
-# When a process started (epoch seconds). A notification carries it with the pid, so a
-# click can tell the process it was about from a later one that reused the pid.
-start_of() {
-  local when
-  when="$(LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null)" || return 0
-  [[ -n "$when" ]] || return 0
-  LC_ALL=C date -j -f '%a %b %e %T %Y' "$when" '+%s' 2>/dev/null || true
-}
-
 # short human label for a ps args string
 short_name() {
   echo "$1" | awk '{ n=split($1, p, "/"); printf "%s", p[n]; if (NF>1) printf " %s", $2 }' | cut -c1-60
@@ -272,7 +263,7 @@ tick() {
         # pid attached → the notification carries a "Stop Process" button
         notify "Memory Guard — over the cap" \
           "Using $(awk -v kb="$brss" 'BEGIN{printf "%.1f", kb/1048576}') GB — cap kills are off, so nothing was stopped." \
-          "Glass" "" "$(short_name "$bargs")" "$bpid" "$(start_of "$bpid")"
+          "Glass" "" "$(short_name "$bargs")" "$bpid"
       fi
     fi
   fi
@@ -298,7 +289,7 @@ tick() {
         sp_body="$(echo "$sp_line" | awk '{ grew=$2; total=$4; sub(/^\+/,"",grew); sub(/MB$/,"",grew); sub(/MB$/,"",total);
           printf "Grew to %.1f GB (+%.1f GB in the last 15s). Watching — nothing killed yet.", total/1024, grew/1024 }')"
         # pid attached → the notification carries a "Stop Process" button
-        notify "Memory Guard — process climbing" "$sp_body" "Glass" "" "$sp_name" "$sp_pid" "$(start_of "$sp_pid")"
+        notify "Memory Guard — process climbing" "$sp_body" "Glass" "" "$sp_name" "$sp_pid"
       fi
     fi
   fi

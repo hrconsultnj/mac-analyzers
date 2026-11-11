@@ -48,7 +48,7 @@ public enum CodingAgentHosts {
             current.modified = modified(of: url)
             current.checked = now
             current.entries = loaded
-            let agents = Set(loaded.filter { $0.kind != "ignore" }.map(\.agent)).count
+            let agents = Set(loaded.filter { $0.kind == "exe" || $0.kind == "fragment" }.map(\.agent)).count
             log.info("coding-agents.tsv in use: \(url.path, privacy: .public) (\(agents) agents)")
             return loaded
         }
@@ -75,7 +75,7 @@ public enum CodingAgentHosts {
 
     /// The list was found, read and names at least one agent. When it is not,
     /// the app cannot tell which programs belong to a coding session, so it stops none.
-    public static var isAvailable: Bool { entries.contains { $0.kind != "ignore" } }
+    public static var isAvailable: Bool { entries.contains { $0.kind == "exe" || $0.kind == "fragment" } }
 
     public static let unavailableSentence =
         "Mac Analyzers can't tell which programs belong to a coding session right now, so it won't stop any."
@@ -101,15 +101,42 @@ public enum CodingAgentHosts {
         agent(forCommand: command, in: entries)
     }
 
+    /// The words of a command line that name the PROGRAM, not what it was asked to do: its
+    /// executable, an app's whole path (which can hold spaces) and, for an interpreter launch
+    /// (`node script.js`), the script. A fragment is matched against these only, so a command
+    /// that merely mentions a folder (`tail -f ~/.kimi-code/log`) is not mistaken for a session.
+    /// `lib/live-sessions.sh` applies the same rule.
+    static func programNames(of command: String, interpreters: Set<String>) -> [String] {
+        let words = command.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard let first = words.first else { return [] }
+        var names = [first]
+        if first.hasPrefix("/"), let marker = command.range(of: ".app/Contents/") {
+            let rest = command[marker.upperBound...]
+            if let slash = rest.firstIndex(of: "/") {
+                let after = rest[rest.index(after: slash)...]
+                names.append(String(command[..<(after.firstIndex(of: " ") ?? after.endIndex)]))
+            }
+        }
+        let executable = first.split(separator: "/").last.map(String.init) ?? first
+        if interpreters.contains(executable), let script = words.dropFirst().first(where: { !$0.hasPrefix("-") }) {
+            names.append(script)
+        }
+        return names
+    }
+
     static func agent(forCommand command: String, in list: [Entry]) -> String? {
-        let first = command.split(separator: " ", maxSplits: 1).first.map(String.init) ?? command
+        let interpreters = Set(list.filter { $0.kind == "interpreter" }.map(\.text))
+        let names = programNames(of: command, interpreters: interpreters)
+        guard let first = names.first else { return nil }
         let executable = first.split(separator: "/").last.map(String.init) ?? first
         if list.contains(where: { $0.kind == "ignore" && $0.text == executable }) { return nil }
+        // an app's executable, read from its whole path
+        let appExecutable = names.count > 1 ? names[1].split(separator: "/").last.map(String.init) : nil
         for entry in list {
             switch entry.kind {
-            case "exe" where entry.text == executable:
+            case "exe" where entry.text == executable || entry.text == appExecutable:
                 return entry.agent
-            case "fragment" where command.contains(entry.text):
+            case "fragment" where names.contains { $0.contains(entry.text) }:
                 if let also = entry.also, !command.contains(also) { continue }
                 return entry.agent
             default:
@@ -119,17 +146,23 @@ public enum CodingAgentHosts {
         return nil
     }
 
+    /// Whether this app runs containers or virtual machines, whose processes the process table cannot
+    /// see: quitting it ends whatever runs inside. The names are the `container` lines of the list.
+    public static func isContainerRuntime(appName: String) -> Bool {
+        entries.contains { $0.kind == "container" && $0.text.caseInsensitiveCompare(appName) == .orderedSame }
+    }
+
     /// The probe's way in: the same matching, against a list file it names (a
     /// checkout other than the one the app resolves), and the agents in it.
     @_spi(TestSupport) public static func probe(listAt url: URL) -> (agentNames: [String], classify: (String) -> String?) {
         let list = load(url)
-        return (Array(Set(list.filter { $0.kind != "ignore" }.map(\.agent))).sorted(),
+        return (Array(Set(list.filter { $0.kind == "exe" || $0.kind == "fragment" }.map(\.agent))).sorted(),
                 { agent(forCommand: $0, in: list) })
     }
 
     /// Every agent named in the list, for the probe.
     public static var agentNames: [String] {
-        Array(Set(entries.filter { $0.kind != "ignore" }.map(\.agent))).sorted()
+        Array(Set(entries.filter { $0.kind == "exe" || $0.kind == "fragment" }.map(\.agent))).sorted()
     }
 
     /// For each process, the agent whose session it belongs to — the process

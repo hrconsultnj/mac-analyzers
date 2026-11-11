@@ -46,15 +46,23 @@ public struct CleanupCandidate: Identifiable, Hashable, Sendable {
 
     /// The kinds of thing the cleaner finds, from what its sections classify.
     public enum Category: String, Sendable, CaseIterable {
-        case devServers = "Dev Servers"
-        case orphanedTools = "Orphaned Tools"
-        case emulators = "Emulators & Browsers"
-        case buildHelpers = "Build Helpers"
-        case containers = "Containers"
-        case editorHelpers = "Editor Helpers"
-        case apps = "Apps on Your List"
+        case devServers, orphanedTools, emulators, buildHelpers, containers, editorHelpers, apps
         /// What the cleaner counts but never closes: live sessions' helpers.
-        case liveSessions = "Live Sessions"
+        case liveSessions
+
+        /// The raw values are keys (the remembered tab, a deep link); the names are `Names`.
+        public var title: String {
+            switch self {
+            case .devServers: Names.Cleanup.devServers
+            case .orphanedTools: Names.Cleanup.orphanedTools
+            case .emulators: Names.Cleanup.emulators
+            case .buildHelpers: Names.Cleanup.buildHelpers
+            case .containers: Names.Cleanup.containers
+            case .editorHelpers: Names.Cleanup.editorHelpers
+            case .apps: Names.Cleanup.apps
+            case .liveSessions: Names.Cleanup.liveSessions
+            }
+        }
 
         public var symbol: String {
             switch self {
@@ -88,16 +96,20 @@ public struct CleanupCandidate: Identifiable, Hashable, Sendable {
     /// What the engine is given for this row on an apply.
     public var approvalKey: String? { isSelectable ? pid.map(String.init) : nil }
 
+    /// The key of this row in the shared review: the pid for a program a person may tick,
+    /// and a key that can never be an engine key for everything else.
+    public var reviewKey: String { isSelectable ? (approvalKey ?? id) : "row-\(id)" }
+
     public var stateText: String {
         switch state {
-        case .readyToClose: "Ready to Close"
-        case .willBeAskedToQuit: "Will Be Asked to Quit"
-        case .leftAlone: "Left Alone"
-        case .kept: "Kept"
-        case .closed: "Closed"
-        case .quit: "Quit"
-        case .alreadyGone: "Already Gone"
-        case .notApproved: "Not Approved"
+        case .readyToClose: Names.Cleanup.stateReady
+        case .willBeAskedToQuit: Names.Cleanup.stateWillQuit
+        case .leftAlone: Names.Stop.leftAloneOne
+        case .kept: Names.Cleanup.stateKept
+        case .closed: Names.Cleanup.stateClosed
+        case .quit: Names.Stop.quit
+        case .alreadyGone: Names.Cleanup.stateGone
+        case .notApproved: Names.Cleanup.stateNotApproved
         }
     }
 

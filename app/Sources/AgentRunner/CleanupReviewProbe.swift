@@ -36,12 +36,12 @@ func probeCleanupReview(_ args: [String]) -> Never {
     var failures: [String] = []
     let tabs = review.categories()
     for tab in tabs {
-        print("  \(tab.category.rawValue)  (\(tab.count) items, \(MemorySize.text(tab.bytes)))")
+        print("  \(tab.category.title)  (\(tab.count) items, \(MemorySize.text(tab.bytes)))")
         for group in tab.groups.prefix(6) {
             print("      \(group.name)  (\(group.count) items, \(MemorySize.text(group.bytes)))")
             for row in group.rows.prefix(3) { print("          \(row.name) — \(row.memoryMB.map { "\($0) MB" } ?? "") — \(row.stateText)") }
             let titles = group.rows.map(\.name)
-            if Set(titles).count != titles.count { failures.append("a title repeats inside \(tab.category.rawValue) › \(group.name)") }
+            if Set(titles).count != titles.count { failures.append("a title repeats inside \(tab.category.title) › \(group.name)") }
         }
         if !tab.empty.isEmpty { print("      \(tab.empty.count) empty items") }
     }
@@ -134,5 +134,57 @@ func probeCleanupReview(_ args: [String]) -> Never {
     await scenario("3. everything unticked", deselect: ["4242", "4243", "4244"])
     await scenario("4. busy orphans included", options: JobOptions(includeBusyOrphans: true))
     await scenario("5. reclaim, also quit Opera and Docker", kind: .reclaim, options: JobOptions(alsoQuit: ["Opera", "Docker"]))
+    approvalCases()
     exit(0)
+}
+
+/// What Apply sends must be the very set the review counts: a row that is left alone, folded away as
+/// using no memory, or whose program changed since the preview is never in it, whatever Select All did.
+/// Real throwaway `sleep` processes stand in for the programs, so identities are real.
+@MainActor private func approvalCases() {
+    func sleeper() -> Process {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        p.arguments = ["120"]
+        try? p.run()
+        return p
+    }
+    let ok = sleeper(), vanishing = sleeper(), nothing = sleeper(), leftAlone = sleeper()
+    defer { for p in [ok, vanishing, nothing, leftAlone] where p.isRunning { p.terminate() } }
+    Thread.sleep(forTimeInterval: 0.4)
+    func pid(_ p: Process) -> Int { Int(p.processIdentifier) }
+    let lines = ["### 3. Dev servers older than 24h",
+                 "[DRY]    310 MB  pid=\(pid(ok))  stale-dev (30h): next-server (v16.2.7)",
+                 "[DRY]    120 MB  pid=\(pid(vanishing))  stale-dev (26h): next-server (v16.3.1)",
+                 "[DRY]      0 MB  pid=\(pid(nothing))  stale-dev (25h): vite",
+                 "[SKIP]   200 MB  pid=\(pid(leftAlone))  in use - no session or terminal in its project: next-server (v16.2.9)"]
+    let review = CleanupReview(run: ReapParser.parse(runHeader: "memory auto-clean  |  DRY RUN", lines: lines))
+    print("\napproval cases (what Apply sends against what the review counts):")
+    for c in review.candidates { print("    row \(c.reviewKey): \(c.stateText), \(c.memoryMB ?? 0) MB, selectable \(c.isSelectable)") }
+
+    // the program ends after the preview: its pid is no longer the program that was reviewed
+    vanishing.terminate()
+    vanishing.waitUntilExit()
+    let changed = review.changedKeys()
+
+    // what the table counts: one item per row that can be ticked, and Select All ticks exactly those
+    let items = review.candidates.map { ReviewSelection.Item(id: $0.reviewKey, choosable: review.isTickable($0, changed: changed)) }
+    var selection = ReviewSelection(previewID: UUID(), items: items, deselected: [])
+    selection.selectAll()
+    let counted = Set(selection.tickedIDs)
+    let sent = review.approvedSet(ticked: counted)
+    let sentKeys = Set(sent.approved)
+
+    func report(_ name: String, _ ok: Bool, _ detail: String) { print("  \(ok ? "ok  " : "FAIL") \(name): \(detail)") }
+    report("Select All, a left-alone row is never sent", !sentKeys.contains(String(pid(leftAlone))), "sent \(sent.approved)")
+    report("Select All, a row whose program changed is never sent", !sentKeys.contains(String(pid(vanishing))),
+           "changed \(changed.sorted())")
+    report("Select All, a row folded away as nothing is never sent", !sentKeys.contains(String(pid(nothing))), "sent \(sent.approved)")
+    report("the count and what is sent are the same programs", counted == sentKeys,
+           "counted \(counted.sorted()), sent \(sentKeys.sorted())")
+    report("the one program that qualifies is sent, narrowed to a list", sentKeys == [String(pid(ok))] && sent.isNarrowed,
+           "narrowed \(sent.isNarrowed)")
+    // nothing tickable at all: an explicit empty list, never "everything"
+    let none = review.approvedSet(ticked: [])
+    report("nothing ticked sends an explicit empty list", none.isNarrowed && none.approved.isEmpty, "\(none.approved)")
 }

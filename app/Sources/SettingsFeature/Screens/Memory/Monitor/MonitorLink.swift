@@ -1,3 +1,4 @@
+import AnalyzersKit
 import Foundation
 
 /// What a deep link asks Monitor to show, carried as the one-shot request a
@@ -20,9 +21,9 @@ struct MonitorLink: Hashable, Codable {
     var preview: String?
     var inspector = false
     var expandAll = false
-    /// Selects the row for this process, wherever it sits, and says why a stop did not happen.
+    /// Selects the row for this process, wherever it sits; `why` says (in the app's own words) why a stop did not happen.
     var pid: Int?
-    var notice: String?
+    var why: StopWhy?
 
     var payload: String {
         (try? JSONEncoder().encode(self)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
@@ -45,12 +46,6 @@ struct MonitorLink: Hashable, Codable {
         self.expandAll = expandAll
     }
 
-    /// The link that opens Monitor on a process and says `why` (a notification's Stop that the rules refused).
-    static func openProcess(_ pid: Int, why: String?) -> String {
-        let encoded = why.flatMap { $0.addingPercentEncoding(withAllowedCharacters: .alphanumerics) }
-        return "monitor:pid:\(pid)" + (encoded.map { ":why:\($0)" } ?? "")
-    }
-
     /// The link a `monitor:…` target means, or nil when it names nothing.
     static func parse(_ rest: String) -> MonitorLink? {
         switch rest {
@@ -65,13 +60,13 @@ struct MonitorLink: Hashable, Codable {
         if rest.hasPrefix("open:") { return MonitorLink(open: String(rest.dropFirst(5))) }
         if rest.hasPrefix("stop:") { return MonitorLink(stop: String(rest.dropFirst(5))) }
         if rest.hasPrefix("pid:") {
-            // monitor:pid:<N> or monitor:pid:<N>:why:<percent-encoded sentence>
+            // monitor:pid:<N> or monitor:pid:<N>:why:<code>. A code the app does not know shows nothing.
             let tail = rest.dropFirst(4)
             let parts = tail.components(separatedBy: ":why:")
             guard let pid = Int(parts[0]) else { return nil }
             var link = MonitorLink(inspector: true)
             link.pid = pid
-            link.notice = parts.count > 1 ? parts[1].removingPercentEncoding : nil
+            link.why = parts.count > 1 ? StopWhy(code: parts[1]) : nil
             return link
         }
         if rest.hasPrefix("find:") { return MonitorLink(query: String(rest.dropFirst(5))) }

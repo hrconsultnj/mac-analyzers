@@ -14,12 +14,28 @@ import Synchronization
 public struct GuardHistory: Sendable {
 
     public enum Scope: String, CaseIterable, Identifiable, Sendable {
-        case all = "All"
-        case stopped = "Stopped"
-        case alerts = "Alerts"
-        case crisisReports = "Crisis Reports"
+        /// The raw values are keys (a deep link, the remembered tab); the names are `Names`.
+        case all, stopped, alerts, crisisReports
 
         public var id: String { rawValue }
+
+        public var title: String {
+            switch self {
+            case .all: Names.Scope.all
+            case .stopped: Names.Guard.stopped
+            case .alerts: Names.Guard.alerts
+            case .crisisReports: Names.crisisReports
+            }
+        }
+
+        public var symbol: String {
+            switch self {
+            case .all: "list.bullet"
+            case .stopped: "stop.circle"
+            case .alerts: "exclamationmark.triangle"
+            case .crisisReports: "stethoscope"
+            }
+        }
 
         func includes(_ kind: GuardEntry.Kind) -> Bool {
             switch self {

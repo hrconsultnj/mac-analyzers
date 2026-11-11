@@ -27,6 +27,37 @@ struct GuardHistoryView: View {
     var body: some View {
         let days = model.days(scope: scope, search: appliedSearch)
         let page = model.page(of: days)
+        DataScreen(title: Names.Screen.memoryGuard, subtitle: subtitle(page)) { list(days: days, page: page) }
+            .searchable(text: $search, prompt: "Search by name or process ID")
+            .scopeTabsToolbar(screen: "guard", items: scopeItems, selection: $scope)
+            .toolbar { toolbar }
+            .onKeyPress(.return) {
+                guard let id = selection, let row = model.history.row(id: id) else { return .ignored }
+                open(row)
+                return .handled
+            }
+            .task(id: search) {
+                if search.isEmpty { appliedSearch = ""; return }
+                try? await Task.sleep(for: .milliseconds(250))
+                if !Task.isCancelled { appliedSearch = search }
+            }
+            .task(id: model.window) {
+                await model.refresh()
+                applyPendingLink()
+            }
+            .onChange(of: navigator.pendingIntent) { applyPendingLink() }
+            .screenActions(refresh: { Task { await model.refresh(force: true) } }, isActive: navigator.path.isEmpty)
+    }
+
+    /// The tabs, each with its symbol and how many events it holds in the chosen period.
+    private var scopeItems: [ScopeTabItem<GuardHistory.Scope>] {
+        GuardHistory.Scope.allCases.map { item in
+            ScopeTabItem(value: item, title: item.title, symbol: item.symbol,
+                         count: model.hasLoaded ? model.history.count(item) : nil)
+        }
+    }
+
+    private func list(days: [GuardHistory.Day], page: GuardHistoryModel.Page) -> some View {
         List(selection: $selection) {
             ForEach(page.shown) { day in
                 Section {
@@ -43,7 +74,7 @@ struct GuardHistoryView: View {
             }
             if !page.isComplete {
                 Button { model.showOlder(in: days) } label: {
-                    Label("Show Older", systemImage: "clock.arrow.circlepath")
+                    Label(Names.Raw.showOlder, systemImage: "clock.arrow.circlepath")
                     Text("\(page.olderRows) earlier \(page.olderRows == 1 ? "row" : "rows")")
                         .foregroundStyle(.secondary)
                 }
@@ -52,26 +83,6 @@ struct GuardHistoryView: View {
         }
         .listStyle(.inset)
         .overlay { emptyState(days) }
-        .navigationTitle(Names.Screen.memoryGuard)
-        .navigationSubtitle(subtitle(page))
-        .searchable(text: $search, prompt: "Search by name or process ID")
-        .toolbar { toolbar }
-        .onKeyPress(.return) {
-            guard let id = selection, let row = model.history.row(id: id) else { return .ignored }
-            open(row)
-            return .handled
-        }
-        .task(id: search) {
-            if search.isEmpty { appliedSearch = ""; return }
-            try? await Task.sleep(for: .milliseconds(250))
-            if !Task.isCancelled { appliedSearch = search }
-        }
-        .task(id: model.window) {
-            await model.refresh()
-            applyPendingLink()
-        }
-        .onChange(of: navigator.pendingIntent) { applyPendingLink() }
-        .screenActions(refresh: { Task { await model.refresh(force: true) } }, isActive: navigator.path.isEmpty)
     }
 
     private func open(_ row: GuardHistory.Row) {
@@ -113,24 +124,15 @@ struct GuardHistoryView: View {
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            Picker("Show", selection: $scope) {
-                ForEach(GuardHistory.Scope.allCases) { item in
-                    Text("\(item.rawValue) \(model.history.count(item))").tag(item)
-                }
-            }
-            .pickerStyle(.segmented)
-            .help("Choose which events to show. The counts cover the whole \(model.window.title.lowercased()), including days not loaded yet.")
-        }
         ToolbarItem(placement: .secondaryAction) {
             Menu {
-                Picker("Show", selection: $model.window) {
+                Picker(Names.Guard.show, selection: $model.window) {
                     ForEach(GuardHistoryModel.Window.allCases) { Text($0.title).tag($0) }
                 }
                 Divider()
-                Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.refresh(force: true) } }
+                Button(Names.Monitor.refresh, systemImage: "arrow.clockwise") { Task { await model.refresh(force: true) } }
             } label: {
-                Label("Period", systemImage: "calendar")
+                Label(Names.Guard.period, systemImage: "calendar")
             }
             .help("Choose how far back to look")
         }
@@ -141,10 +143,10 @@ struct GuardHistoryView: View {
             if !appliedSearch.isEmpty {
                 ContentUnavailableView.search(text: appliedSearch)
             } else if model.history.entries.isEmpty {
-                ContentUnavailableView("Nothing to Report", systemImage: "shield.lefthalf.filled",
+                ContentUnavailableView(Names.Guard.nothingToReport, systemImage: "shield.lefthalf.filled",
                                        description: Text("The guard has not stopped or flagged anything in the \(model.window.title.lowercased()). Quiet is good."))
             } else {
-                ContentUnavailableView("Nothing Here", systemImage: scope == .crisisReports ? "stethoscope" : "line.3.horizontal.decrease",
+                ContentUnavailableView(Names.Guard.nothingHere, systemImage: scope == .crisisReports ? "stethoscope" : "line.3.horizontal.decrease",
                                        description: Text("Nothing in this view in the \(model.window.title.lowercased()). Try another."))
             }
         }

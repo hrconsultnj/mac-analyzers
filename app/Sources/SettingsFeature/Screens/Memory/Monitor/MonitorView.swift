@@ -20,11 +20,9 @@ import UIComponents
 ///   AnalyzersKit/Memory/Monitor/  the rows, built and merged so the probe can print them
 struct MonitorView: View {
 
+    /// The category tabs. The raw values are the keys a deep link and the remembered tab use.
     enum Scope: String, CaseIterable, Identifiable {
-        case everything = "Everything"
-        case apps = "Apps"
-        case tools = "Tools"
-        case system = "macOS"
+        case everything, apps, tools, system
         var id: String { rawValue }
         var category: CensusGroup.Category? {
             switch self {
@@ -53,24 +51,32 @@ struct MonitorView: View {
     /// Shared with the menu-bar panel; 0 is Paused.
     @AppStorage("monitorRefreshSeconds") var refreshSeconds = 15
 
+    /// The tabs: each with its symbol, name and how many groups are in it.
+    var scopeItems: [ScopeTabItem<Scope>] {
+        let categories = MonitorCategory.categories(of: model.rows)
+        func item(_ scope: Scope) -> ScopeTabItem<Scope> {
+            let match = categories.first { $0.category == scope.category }
+            return ScopeTabItem(value: scope, title: match?.title ?? Names.Monitor.everything,
+                                symbol: match?.symbol ?? "square.stack.3d.up",
+                                count: model.hasLoaded ? match?.groups : nil)
+        }
+        return Scope.allCases.map(item)
+    }
+
     var visibleRows: [MonitorRow] {
         MonitorTree.filtered(model.rows, category: scope.category, search: search)
     }
 
     var body: some View {
-        content
+        DataScreen(title: Names.Screen.monitor, subtitle: subtitle) { content }
             .safeAreaInset(edge: .top, spacing: 0) { strip }
             .inspector(isPresented: $inspectorShown) {
                 MonitorInspector(model: model, row: model.row(selection),
                                  begin: stopFlow.begin, showDetails: showDetails)
                     .inspectorColumnWidth(min: 240, ideal: 280, max: 420)
             }
-            .navigationTitle(Names.Screen.monitor)
-            .navigationSubtitle(subtitle)
             .searchable(text: $search, prompt: "Search processes")
-            .searchScopes($scope) {
-                ForEach(Scope.allCases) { Text($0.rawValue).tag($0) }
-            }
+            .scopeTabsToolbar(screen: "monitor", items: scopeItems, selection: $scope)
             .searchFocused($searchFocused)
             .toolbar { MonitorToolbar(model: model, refreshSeconds: $refreshSeconds,
                                       selected: model.row(selection), begin: stopFlow.begin,
@@ -139,7 +145,7 @@ struct MonitorView: View {
         default: break
         }
         if let name = link.scope {
-            scope = Scope.allCases.first { $0.rawValue.lowercased().hasPrefix(name) } ?? .everything
+            scope = name == "macos" ? .system : (Scope(rawValue: name) ?? .everything)
         }
         if let query = link.query { search = query }
         if link.inspector { inspectorShown = true }
@@ -165,7 +171,7 @@ struct MonitorView: View {
                 selection = path.last
             }
             // the reason is shown whether or not the row is still there
-            if let why = link.notice { stopFlow.notice = why }
+            if let why = link.why { stopFlow.notice = why.sentence }
         }
         // A link only ever SELECTS a row, and only by its exact name: a stop is
         // something a person confirms in the dialog, never something a link starts.
@@ -206,12 +212,12 @@ struct MonitorView: View {
 
     @ViewBuilder private func rowMenu(_ row: MonitorRow) -> some View {
         if row.pid != nil || row.iconPID != nil {
-            Button("Show Details") { showDetails(row) }
+            Button(Names.Monitor.showDetails) { showDetails(row) }
         }
         if row.isEnded {
             Button("This process has ended") {}.disabled(true)
         } else if let verb = row.stopVerb {
-            Button(verb == "Quit" ? "Quit \(row.name)…" : "Stop \(row.name)…") { stopFlow.begin(row.stop) }
+            Button("\(verb) \(row.name)…") { stopFlow.begin(row.stop) }
         } else if let reason = row.lockedReason {
             Button(reason) {}.disabled(true)
         }
@@ -220,7 +226,7 @@ struct MonitorView: View {
     @ViewBuilder private var emptyState: some View {
         if model.hasLoaded, visibleRows.isEmpty {
             if search.isEmpty {
-                ContentUnavailableView("Nothing in This Scope", systemImage: "memorychip",
+                ContentUnavailableView(Names.Monitor.nothingInScope, systemImage: "memorychip",
                                        description: Text("Choose another scope to see more of what is running."))
             } else {
                 ContentUnavailableView.search(text: search)

@@ -6,24 +6,18 @@ enum MemoryRoute: Hashable, Codable, Sendable {
     case dossier(DossierRoute)
     /// One row of Memory Guard's history, by its id.
     case guardEntry(String)
-    case reclaimLog
-    /// The review-then-apply screen with one cleaner chosen (its raw value).
-    case review(String)
 }
 
 /// Monitor, Memory Guard and Memory Cleanup.
 ///
-/// Interim: Memory Guard hosts the guard log (forensics pushed from it),
-/// Memory Cleanup hosts the leftovers log with a way to the review screen.
+/// Memory Guard shows the guard's history (an entry pushed from it); Memory Cleanup previews, reviews
+/// and applies the two cleanups, and lists their past runs.
 @MainActor
 enum MemoryGroup {
 
     static let monitor = SectionID("monitor")
     static let memoryGuard = SectionID("memoryGuard")
     static let memoryCleanup = SectionID("memoryCleanup")
-
-    private static let memoryClean = ActionsSettingsView.Cleaner.memoryClean.rawValue
-    private static let reclaim = ActionsSettingsView.Cleaner.reclaim.rawValue
 
     static let group = SidebarGroup(
         title: Names.Group.memory,
@@ -39,20 +33,22 @@ enum MemoryGroup {
             "activity": .main(Location(memoryGuard)),
             "log:guardLog": .main(Location(memoryGuard)),
             "log:forensics": guardLink(.crisisReports),
-            "log:memoryClean": .main(Location(memoryCleanup)),
-            "log:reclaim": .main(Location(memoryCleanup, path: [.memory(.reclaimLog)])),
+            "log:memoryClean": cleanupLink(.leftovers),
+            "log:reclaim": cleanupLink(.everythingNow),
             // bare "actions" is the old default cleaner
-            "actions": review(memoryClean),
-            "actions:memoryClean": review(memoryClean),
-            "actions:reclaim": review(reclaim),
+            "actions": cleanupLink(.leftovers),
+            "actions:memoryClean": cleanupLink(.leftovers),
+            "actions:reclaim": cleanupLink(.everythingNow),
         ],
-        resolveDynamic: resolveDynamic)
+        resolveDynamic: resolveDynamic,
+        runResults: [.memoryClean: { row in AnyView(CleanupRunResults(row: row)) },
+                     .reclaim: { row in AnyView(CleanupRunResults(row: row)) }])
 
     @ViewBuilder private static func screen(_ section: SectionID) -> some View {
         switch section {
         case monitor: MonitorView()
         case memoryGuard: GuardHistoryView()
-        case memoryCleanup: CleanupRoot()
+        case memoryCleanup: MemoryCleanupView()
         default: EmptyView()
         }
     }
@@ -61,8 +57,6 @@ enum MemoryGroup {
         switch route {
         case .dossier(let route): DossierView(route: route)
         case .guardEntry(let id): GuardEntryScreen(id: id)
-        case .reclaimLog: ReapLogView(kind: .reclaim)
-        case .review(let cleaner): ActionsSettingsView(preselect: .constant(cleaner))
         }
     }
 
@@ -71,8 +65,9 @@ enum MemoryGroup {
                         SectionIntent(section: memoryGuard, payload: GuardLink(scope: scope).payload))
     }
 
-    private static func review(_ cleaner: String) -> Resolution {
-        .main(Location(memoryCleanup, path: [.memory(.review(cleaner))]))
+    private static func cleanupLink(_ scope: MemoryCleanupModel.Scope) -> Resolution {
+        .mainWithIntent(Location(memoryCleanup),
+                        SectionIntent(section: memoryCleanup, payload: CleanupLink(scope: scope).payload))
     }
 
     /// An `actions:` target naming no cleaner we know lands on the old
@@ -85,23 +80,6 @@ enum MemoryGroup {
         if target.hasPrefix("monitor:"), let link = MonitorLink.parse(String(target.dropFirst("monitor:".count))) {
             return .mainWithIntent(Location(monitor), SectionIntent(section: monitor, payload: link.payload))
         }
-        return target.hasPrefix("actions:") ? review(memoryClean) : nil
-    }
-}
-
-private struct CleanupRoot: View {
-    @Environment(Navigator.self) private var navigator
-
-    var body: some View {
-        ReapLogView(kind: .memoryClean)
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button("Reclaim Log") { navigator.push(.memory(.reclaimLog)) }
-                    Button("Review…") {
-                        navigator.push(.memory(.review(ActionsSettingsView.Cleaner.memoryClean.rawValue)))
-                    }
-                    .help("Preview what a cleanup would do, then apply it")
-                }
-            }
+        return target.hasPrefix("actions:") ? cleanupLink(.leftovers) : nil
     }
 }

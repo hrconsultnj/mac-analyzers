@@ -56,6 +56,12 @@ struct ReviewTable: View {
     /// Shown beside a disabled Apply when the review is old or from another preview.
     var onPreviewAgain: (() -> Void)?
     var onApplied: (Job) -> Void = { _ in }
+    /// Shows only these rows (a category's tab); the bar, Select All and Apply still cover the
+    /// whole review. nil shows every row.
+    var only: Set<String>?
+    /// What Apply sends, when the screen has a stricter rule than the ticks: a cleanup that
+    /// leaves out a process whose pid is no longer the program that was reviewed. nil sends the ticks.
+    var approval: ((ReviewSession) -> ApprovedSet)?
 
     @Environment(JobStore.self) private var store
     @State private var sortOrder = [KeyPathComparator(\ReviewNode.sortBytes, order: .reverse)]
@@ -96,7 +102,7 @@ struct ReviewTable: View {
     }
 
     var body: some View {
-        ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder), sortOrder: $sortOrder,
+        ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder, only: only), sortOrder: $sortOrder,
                         session: readOnly ? nil : session)
             .safeAreaInset(edge: .bottom, spacing: 0) { bar }
             .confirmationDialog(confirmTitle, isPresented: $asking, titleVisibility: .visible) {
@@ -161,7 +167,7 @@ struct ReviewTable: View {
 
     private func apply() {
         guard gate == .ready, let preview else { return }
-        let job = store.apply(from: preview, approved: session.approved)
+        let job = store.apply(from: preview, approved: approval?(session) ?? session.approved)
         appliedFor.set(job, for: preview.id)
         onApplied(job)
     }
@@ -187,9 +193,16 @@ struct ReviewTable: View {
 /// changes, never on a tick: a tick must not regroup thousands of rows.
 @MainActor
 final class ReviewTreeCache {
-    private let memo = IdentityMemo<ReviewSession, [KeyPathComparator<ReviewNode>], [ReviewNode]>()
+    private let memo = IdentityMemo<ReviewSession, Key, [ReviewNode]>()
 
-    func nodes(for session: ReviewSession, order: [KeyPathComparator<ReviewNode>]) -> [ReviewNode] {
-        memo.value(for: session, key: order) { ReviewNode.tree(session.rows, order: order) }
+    func nodes(for session: ReviewSession, order: [KeyPathComparator<ReviewNode>], only: Set<String>? = nil) -> [ReviewNode] {
+        memo.value(for: session, key: Key(order: order, only: only)) {
+            ReviewNode.tree(only.map { keep in session.rows.filter { keep.contains($0.id) } } ?? session.rows, order: order)
+        }
+    }
+
+    private struct Key: Equatable {
+        let order: [KeyPathComparator<ReviewNode>]
+        let only: Set<String>?
     }
 }
