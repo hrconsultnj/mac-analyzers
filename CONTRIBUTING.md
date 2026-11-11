@@ -39,6 +39,9 @@ welcome either way.
 - `bash -n` passes on every changed script — and so does `/bin/bash -n`.
   macOS ships bash 3.2: run the dry-run under `/bin/bash` too. Anything that
   needs bash 4+ goes behind a version check that falls back gracefully.
+- No compiler or shellcheck warnings in what you change. A warning is a
+  defect: fix its cause from the current documentation rather than
+  suppressing it, and say why if a suppression really is the right design.
 - `scripts/check.sh` passes (syntax, shellcheck, secrets sweep, release-notes
   format, tests; `scripts/install-git-hooks.sh` runs it before every push).
   Pull requests run the same script on GitHub: a Linux machine runs the

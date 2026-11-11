@@ -30,6 +30,11 @@ heading becomes its version and title.
   version number.
 - Fixed: web-page processes belonging to Safari and other apps were listed
   under the name "com" in the menu-bar process list.
+- Fixed: updating Mac Analyzers could fail to restart the memory guard and
+  show "Bootstrap failed: 5: Input/output error". The guard could be left
+  switched off, or running its previous settings, until you next logged in.
+  Updating and Setup now wait for the old copy to stop before starting the
+  new one, and say plainly if a background job could not be started.
 - Fixed: when a cleanup moved several items with the same name to the Trash
   in the same second, a later one could take the place of an earlier one.
   Each now gets its own name.
