@@ -74,8 +74,16 @@ through `config.local.sh` (never hardcoded).
   needs a comment saying why it is the right design at that spot. New code
   adds none — check with a CLEAN build (`swift build --build-path
   <scratch>`), because an incremental build does not repeat warnings for
-  files it did not recompile. The existing ones are being taken to zero,
-  after which the build and `scripts/check.sh` refuse any.
+  files it did not recompile. **This is enforced:** every Swift target
+  treats warnings as errors (`treatAllWarnings` in `app/Package.swift`), so
+  `swift build`, `scripts/check.sh`, the pre-push gate, `scripts/package.sh`
+  and GitHub's Mac run all fail on one; `scripts/check.sh lint` fails on any
+  shellcheck warning, one file at a time. The single exception is
+  `app/build.sh` installing on a person's own Mac (`MA_RELAX_WARNINGS=1`):
+  people build with whatever Xcode they have, so a newer compiler's new
+  warning must not block their install or update — it is printed, and
+  `upgrade.command` reports the count. Never set that variable to get your
+  own change through.
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
   output. The one automated suite is `memory-analyzer/tests/`; otherwise the
   dry-run IS the test. For the app:

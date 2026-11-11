@@ -11,6 +11,17 @@ cd "$(dirname "$0")"
 if [[ "${1:-}" == "--pro" ]]; then
   export MA_PRO_PATH="${MA_PRO_PATH:-$HOME/mac-analyzers-pro}"
 fi
+# This script installs on the Mac it runs on, with whatever Xcode that Mac has.
+# The package refuses warnings by default (see Package.swift); a newer compiler
+# with a new warning must not stop someone's install or update, so warnings are
+# not fatal HERE — they are still printed. Everything that checks or ships the
+# code builds strict: scripts/check.sh, the pre-push gate, GitHub's Mac run, and
+# scripts/package.sh, which sets MA_STRICT_WARNINGS=1 for the download.
+if [[ "${MA_STRICT_WARNINGS:-0}" == "1" ]]; then
+  unset MA_RELAX_WARNINGS
+else
+  export MA_RELAX_WARNINGS=1
+fi
 # Mode switches (overlay <-> plain) poison SPM incremental state: object
 # files keep references to the overlay module. Detect and force recompiles.
 MODE="$([[ -n "${MA_PRO_PATH:-}" ]] && echo pro || echo public)"

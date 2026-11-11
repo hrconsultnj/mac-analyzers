@@ -80,8 +80,9 @@ enum AppGroup {
         }
     }
 
-    /// No pushed screens yet.
-    @ViewBuilder static func destination(for route: AppRoute) -> some View {
-        EmptyView()
-    }
+    /// `AppRoute` has no cases yet, so no value of it exists and this can never
+    /// run. The empty builder body is the screen for "nothing": it keeps the
+    /// route's shape in place for the first pushed screen without code the
+    /// compiler would rightly call unreachable.
+    @ViewBuilder static func destination(for route: AppRoute) -> some View {}
 }

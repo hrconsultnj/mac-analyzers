@@ -7,7 +7,7 @@ import AnalyzersKit
 /// logs; nothing leaves the machine unless the user saves and sends it.
 enum HealthReport {
 
-    static func save() {
+    @MainActor static func save() {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "Mac-Health-Report-\(dayStamp()).html"
         panel.allowedContentTypes = [.html]

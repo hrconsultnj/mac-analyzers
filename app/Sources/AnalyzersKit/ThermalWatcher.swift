@@ -29,7 +29,7 @@ public final class ThermalWatcher {
         self.onElevation = onElevation
         observer = NotificationCenter.default.addObserver(
             forName: ProcessInfo.thermalStateDidChangeNotification,
-            object: nil, queue: .main) { _ in
+            object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in self?.stateChanged() }
         }
     }

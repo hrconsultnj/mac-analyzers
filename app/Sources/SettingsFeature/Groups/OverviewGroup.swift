@@ -46,7 +46,7 @@ enum OverviewGroup {
             SidebarRow(setup, "Setup", symbol: "checklist.checked",
                        badge: { SetupBadge.shared.needsAttention ? "!" : nil }),
         ],
-        root: { section in AnyView(screen(section)) },
+        root: screen,
         aliases: [
             "home": .main(Location(overview)),
             "overview": .main(Location(overview)),

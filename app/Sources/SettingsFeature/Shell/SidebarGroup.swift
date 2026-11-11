@@ -55,7 +55,12 @@ struct SidebarGroup {
     /// Work the sidebar starts when it appears (feeding a badge, say).
     let load: (@MainActor () async -> Void)?
 
-    init<Root: View>(title: String?,
+    /// `nonisolated` because the initializer touches no main-actor state: it
+    /// reads `section` from the plain `SidebarRow` structs and stores values,
+    /// and the generic `Root` is only ever used inside the stored `@MainActor`
+    /// closure, never here. Without it the compiler cannot prove the opaque
+    /// `some View` a group passes has a main-actor-independent conformance.
+    nonisolated init<Root: View>(title: String?,
                      rows: [SidebarRow],
                      hidden: [SectionID] = [],
                      @ViewBuilder root: @escaping @MainActor (SectionID) -> Root,

@@ -52,6 +52,10 @@ heading becomes its version and title.
   switched off, or running its previous settings, until you next logged in.
   Updating and Setup now wait for the old copy to stop before starting the
   new one, and say plainly if a background job could not be started.
+- Fixed: changing a schedule could fail to take effect until you next logged
+  in. Apply Schedule now waits for the old schedule to stop before starting
+  the new one, no longer freezes the window while it works, and says exactly
+  which background job could not be changed, and why.
 - Fixed: when a cleanup moved several items with the same name to the Trash
   in the same second, a later one could take the place of an earlier one.
   Each now gets its own name.

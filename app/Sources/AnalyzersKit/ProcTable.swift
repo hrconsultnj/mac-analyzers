@@ -162,9 +162,11 @@ public enum ProcTable {
     }
 
     static func executablePath(of pid: Int32) -> String {
-        var buffer = [CChar](repeating: 0, count: 4096)
+        // proc_pidpath takes an untyped pointer, so the buffer is bytes and
+        // only the returned length (no terminating NUL) is decoded
+        var buffer = [UInt8](repeating: 0, count: 4096)
         let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
         guard length > 0 else { return "pid \(pid)" }
-        return String(cString: buffer)
+        return String(decoding: buffer.prefix(Int(length)), as: UTF8.self)
     }
 }

@@ -11,6 +11,7 @@ struct ScheduleSettingsView: View {
     @State private var storageDailyTime = Self.date(hour: 8, minute: 0)
     @State private var deepDays = 3
     @State private var status: String?
+    @State private var applying = false
 
     private static let memoryLabel = "com.mac-analyzers.memory-autoclean.daily"
     private static let storageLabel = "com.mac-analyzers.storage-autoclean.daily"
@@ -71,9 +72,10 @@ struct ScheduleSettingsView: View {
                             .font(.callout)
                     }
                     Spacer()
-                    Button("Apply Schedule") { apply() }
+                    Button(applying ? "Applying…" : "Apply Schedule") { apply() }
                         .buttonStyle(.glassProminent)
                         .controlSize(.large)
+                        .disabled(applying)
                 }
                 Text("Writes the times into macOS's scheduler and reloads it. The repo's defaults are untouched; reinstalls keep your times.")
                     .font(.caption)
@@ -105,13 +107,25 @@ struct ScheduleSettingsView: View {
         let cal = Calendar.current
         let m = cal.dateComponents([.hour, .minute], from: memoryCleanTime)
         let s = cal.dateComponents([.hour, .minute], from: storageDailyTime)
-        let results = [
-            ScheduleKit.apply(.daily(hour: m.hour ?? 8, minute: m.minute ?? 30), to: Self.memoryLabel),
-            ScheduleKit.apply(.daily(hour: s.hour ?? 8, minute: s.minute ?? 0), to: Self.storageLabel),
-            ScheduleKit.apply(.interval(days: deepDays), to: Self.deepLabel),
+        let changes: [(ScheduleKit.Schedule, String)] = [
+            (.daily(hour: m.hour ?? 8, minute: m.minute ?? 30), Self.memoryLabel),
+            (.daily(hour: s.hour ?? 8, minute: s.minute ?? 0), Self.storageLabel),
+            (.interval(days: deepDays), Self.deepLabel),
         ]
-        status = results.allSatisfy { $0 }
-            ? "Applied — agents reloaded with the new times."
-            : "Some agents could not be reloaded — are they installed?"
+        applying = true
+        status = nil
+        Task {
+            // reloading an agent can take a few seconds; never on the main thread
+            let outcomes = await Task.detached(priority: .userInitiated) {
+                changes.map { ScheduleKit.apply($0.0, to: $0.1) }
+            }.value
+            let failures: [String] = outcomes.compactMap {
+                if case .failed(let why) = $0 { why } else { nil }
+            }
+            status = failures.isEmpty
+                ? "Applied — agents reloaded with the new times."
+                : failures.joined(separator: "\n")
+            applying = false
+        }
     }
 }
