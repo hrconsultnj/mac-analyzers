@@ -101,13 +101,3 @@ enum ActivityScope: String, CaseIterable, Identifiable, Codable {
         }
     }
 }
-
-/// "Show raw output" from a row's menu opens the run screen with the output
-/// already showing. A route carries no flags, so the request waits here for
-/// the screen to claim it.
-@MainActor
-enum RawOutputRequest {
-    private static var pending: Set<String> = []
-    static func ask(for rowID: String) { pending.insert(rowID) }
-    static func claim(for rowID: String) -> Bool { pending.remove(rowID) != nil }
-}

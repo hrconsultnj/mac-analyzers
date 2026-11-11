@@ -1,3 +1,4 @@
+import AnalyzersKit
 import SwiftUI
 
 /// What a deep-link target means: a place in the main window, or a tab of the
@@ -54,6 +55,10 @@ struct SidebarGroup {
     let resolveDynamic: (@MainActor (String) -> Resolution?)?
     /// Work the sidebar starts when it appears (feeding a badge, say).
     let load: (@MainActor () async -> Void)?
+    /// The run screen's results slot: for each kind of task this group owns, the view
+    /// that shows a finished run's results in the same categories and groups as the
+    /// task's own screen. A kind with no entry gets the default (`RunResultsDefault`).
+    let runResults: [JobKind: @MainActor (ActivityRow) -> AnyView]
 
     /// `nonisolated` because the initializer touches no main-actor state: it
     /// reads `section` from the plain `SidebarRow` structs and stores values,
@@ -66,7 +71,8 @@ struct SidebarGroup {
                      @ViewBuilder root: @escaping @MainActor (SectionID) -> Root,
                      aliases: [String: Resolution],
                      resolveDynamic: (@MainActor (String) -> Resolution?)? = nil,
-                     load: (@MainActor () async -> Void)? = nil) {
+                     load: (@MainActor () async -> Void)? = nil,
+                     runResults: [JobKind: @MainActor (ActivityRow) -> AnyView] = [:]) {
         self.title = title
         self.rows = rows
         self.sections = Set(rows.map(\.section) + hidden)
@@ -74,5 +80,6 @@ struct SidebarGroup {
         self.aliases = aliases
         self.resolveDynamic = resolveDynamic
         self.load = load
+        self.runResults = runResults
     }
 }
