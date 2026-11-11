@@ -207,8 +207,27 @@ group() { log ""; log "### $1"; }
 # preview and the apply is therefore safe by construction.
 approved() {
   [[ -z "${ONLY_PATHS}" ]] && return 0
-  grep -qxF -- "$1" "${ONLY_PATHS}"
+  approved_list_has "$1"
 }
+
+# Commands that are not paths (a prune, a cleanup) are reviewed as rows too,
+# keyed `prune:<id>` — a form that can never be mistaken for a path. With a
+# reviewed list such a command runs only when its own key is in it; with no list
+# (the schedule, a Terminal run) it runs as it always has.
+command_approved() {
+  [[ -z "${ONLY_PATHS}" ]] && return 0
+  approved_list_has "$1"
+}
+
+# The reviewed list is read once (lib/approved-list.sh): a `grep` per item made a
+# 6,000-item apply take minutes. A list that cannot be checked stops the run.
+if [[ -n "${ONLY_PATHS}" ]]; then
+  if ! source "${ANALYZERS_ROOT}/lib/approved-list.sh" 2>/dev/null; then
+    echo "FATAL: lib/approved-list.sh is missing — refusing to run with a reviewed list it cannot check." >&2
+    exit 78
+  fi
+  approved_list_load "${ONLY_PATHS}"
+fi
 
 # reclaim <path>  — size-aware, dry-run-aware, accumulates TOTAL_KB
 reclaim() {
@@ -330,14 +349,15 @@ docker_maint() {
     [[ "$DOCKER_IMAGES" -eq 1 ]]  && extra="${extra} ; image prune -a -f"
     [[ "$DOCKER_VOLUMES" -eq 1 ]] && extra="${extra} ; volume prune -f (⚠ DATA)"
     if docker info >/dev/null 2>&1; then
-      log "  [DRY] Docker running → would: docker system prune -f${extra}"
+      log "  [DRY] prune:docker  Docker is running: unused containers, networks and images are removed${extra} (size not known until it runs)"
     elif [[ "$DOCKER_NO_START" -eq 1 ]]; then
       log "  [DRY] Docker stopped → would SKIP (running-only mode)"
     else
-      log "  [DRY] Docker stopped → would: start it → docker system prune -f${extra} → shut it back down"
+      log "  [DRY] prune:docker  Docker is stopped: it is started, pruned${extra} and shut down again (size not known until it runs)"
     fi
     return 0
   fi
+  command_approved prune:docker || { log "  [SKIP]    prune:docker  not in the reviewed list"; return 0; }
   local started=0 i=0
   if ! docker info >/dev/null 2>&1; then
     if [[ "$DOCKER_NO_START" -eq 1 ]]; then
@@ -758,13 +778,13 @@ if [[ "$MODE" == "deep" ]]; then
   if command -v pnpm >/dev/null 2>&1; then
     # launchd starts us with cwd=/ (read-only system volume); pnpm writes a temp
     # file into the cwd and dies with EROFS, so prune from $HOME.
-    if [[ "$DRY_RUN" -eq 1 ]]; then log "  [DRY]     pnpm store prune"
-    elif [[ -n "$ONLY_PATHS" ]]; then log "  [SKIP]    pnpm store prune — not part of a reviewed selection"
+    if [[ "$DRY_RUN" -eq 1 ]]; then log "  [DRY]     prune:pnpm  Unused packages in the pnpm store (size not known until it runs)"
+    elif ! command_approved prune:pnpm; then log "  [SKIP]    prune:pnpm  not in the reviewed list"
     else log "  running: pnpm store prune"; (cd "$HOME" && pnpm store prune) >>"$LOG_FILE" 2>&1 || true; fi
   fi
   if command -v npm >/dev/null 2>&1; then
-    if [[ "$DRY_RUN" -eq 1 ]]; then log "  [DRY]     npm cache clean --force"
-    elif [[ -n "$ONLY_PATHS" ]]; then log "  [SKIP]    npm cache clean — not part of a reviewed selection"
+    if [[ "$DRY_RUN" -eq 1 ]]; then log "  [DRY]     prune:npm  The whole npm cache, which downloads again when needed (size not known until it runs)"
+    elif ! command_approved prune:npm; then log "  [SKIP]    prune:npm  not in the reviewed list"
     else log "  running: npm cache clean --force"; npm cache clean --force >>"$LOG_FILE" 2>&1 || true; fi
   fi
 fi
@@ -809,9 +829,9 @@ if [[ -n "$TOOL_CACHES" ]]; then
   if enabled brew && command -v brew >/dev/null 2>&1; then
     if [[ "$DRY_RUN" -eq 1 ]]; then
       est="$(HOMEBREW_NO_AUTO_UPDATE=1 brew cleanup -n --prune=all -s 2>/dev/null | grep -i 'would free' | tail -1)"
-      log "  [DRY]     brew cleanup --prune=all -s — ${est:-nothing to remove}"
-    elif [[ -n "$ONLY_PATHS" ]]; then
-      log "  [SKIP]    brew cleanup — not part of a reviewed selection"
+      log "  [DRY]     prune:brew  Old Homebrew versions and downloads — ${est:-nothing to remove}"
+    elif ! command_approved prune:brew; then
+      log "  [SKIP]    prune:brew  not in the reviewed list"
     else
       log "  running: brew cleanup --prune=all -s"
       HOMEBREW_NO_AUTO_UPDATE=1 brew cleanup --prune=all -s >>"$LOG_FILE" 2>&1 || true
@@ -870,9 +890,9 @@ if [[ -n "$TOOL_CACHES" ]]; then
       n_unavail="$(xcrun simctl list devices unavailable 2>/dev/null | grep -c '(unavailable' || true)"
       if [[ "${n_unavail:-0}" -gt 0 ]]; then
         if [[ "$DRY_RUN" -eq 1 ]]; then
-          log "  [DRY]     xcrun simctl delete unavailable — ${n_unavail} simulator(s) whose runtime is gone"
-        elif [[ -n "$ONLY_PATHS" ]]; then
-          log "  [SKIP]    xcrun simctl delete unavailable — not part of a reviewed selection"
+          log "  [DRY]     prune:simulators  ${n_unavail} simulator(s) whose runtime is gone (size not known until it runs)"
+        elif ! command_approved prune:simulators; then
+          log "  [SKIP]    prune:simulators  not in the reviewed list"
         else
           log "  running: xcrun simctl delete unavailable"
           xcrun simctl delete unavailable >>"$LOG_FILE" 2>&1 || true

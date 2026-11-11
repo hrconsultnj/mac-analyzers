@@ -64,11 +64,11 @@ import Foundation
     let caches = ["/p/site/.next", "/p/site/node_modules", "/p/api/dist", "/p/api/.turbo", "/p/web/.vite"]
 
     print("Caches & Builds (storageClean)")
-    await scenario("nothing unticked", kind: .storageClean, keys: caches, deselect: [], expectFlag: false)
+    await scenario("nothing unticked (the list is still sent)", kind: .storageClean, keys: caches, deselect: [], expectFlag: true)
     await scenario("two unticked", kind: .storageClean, keys: caches, deselect: [caches[1], caches[3]], expectFlag: true)
     print("Downloads (janitor), \(downloads.count) real items from the latest preview")
     if downloads.count > 3 {
-        await scenario("nothing unticked", kind: .janitor, keys: downloads, deselect: [], expectFlag: false)
+        await scenario("nothing unticked (the list is still sent)", kind: .janitor, keys: downloads, deselect: [], expectFlag: true)
         await scenario("three unticked", kind: .janitor, keys: downloads, deselect: Set(downloads.prefix(3)), expectFlag: true)
         await scenario("one group unticked (every 2nd item)", kind: .janitor, keys: downloads,
                        deselect: Set(downloads.enumerated().filter { $0.offset % 2 == 0 }.map(\.element)), expectFlag: true)

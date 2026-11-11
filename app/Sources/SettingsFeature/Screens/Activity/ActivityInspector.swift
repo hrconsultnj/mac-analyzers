@@ -98,7 +98,7 @@ struct ActivityInspector: View {
         } else if row.needsReview || (row.intent == .preview && row.findings > 0) {
             review(row).padding(.horizontal).padding(.bottom, Tokens.Space.m)
         } else if lostItsResults(live) {
-            lostResults(row).padding(.horizontal).padding(.bottom, Tokens.Space.m)
+            lostResults(row, reason: live?.note).padding(.horizontal).padding(.bottom, Tokens.Space.m)
         }
     }
 
@@ -129,11 +129,11 @@ struct ActivityInspector: View {
         return true
     }
 
-    private func lostResults(_ row: ActivityRow) -> some View {
+    private func lostResults(_ row: ActivityRow, reason: String?) -> some View {
         GroupBox {
             HStack(spacing: Tokens.Space.xl) {
                 Image(systemName: "questionmark.circle").foregroundStyle(.secondary)
-                Text("This run finished, but its own results couldn't be found in the log, so there is nothing reliable to show or to apply. Preview again to see what would be cleaned now.")
+                Text("This run finished, but \(Self.lostSentence(reason)) Nothing from it is shown or can be applied. Preview again to see what would be cleaned now.")
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: Tokens.Space.xl)
                 if let target = row.reviewTarget {
@@ -141,6 +141,14 @@ struct ActivityInspector: View {
                         .buttonStyle(.glassProminent)
                 }
             }
+        }
+    }
+
+    /// The kernel's reason a run's results are not shown, as the tail of a sentence.
+    private static func lostSentence(_ reason: String?) -> String {
+        switch reason {
+        case RunMatcher.Reason.tooLarge: "its results are too large to review (more than 32 MB of log)."
+        default: "its own results couldn't be found in the log."
         }
     }
 
@@ -215,7 +223,8 @@ struct ActivityInspector: View {
             chosenRun = finished.run
         } else if let logged = model.logRun(for: row) {
             known = nil
-            chosenRun = logged
+            // the oldest block in the log's window may be cut off by it: read that one whole
+            chosenRun = model.cutByWindow(logged, of: row) ? await Self.wholeRun(of: logged, in: log) : logged
         } else {
             outcome = ActivityOutcome(sections: [])
             return
@@ -228,6 +237,15 @@ struct ActivityInspector: View {
             }
             return ActivityOutcome.make(JobOutcome.Parsed.none, run: chosenRun, log: log)
         }.value
+    }
+
+    /// The run read from its own banner back, when the window cut it off; the
+    /// windowed run when that finds nothing better.
+    private static func wholeRun(of run: LogRun, in log: EngineLog?) async -> LogRun {
+        guard let url = log?.url, let banner = run.header.components(separatedBy: " · ").first else { return run }
+        let found = await Task.detached(priority: .userInitiated) { WholeRun.find(banner: banner, in: url) }.value
+        if case .block(let block) = found { return LogRun(id: run.id, header: run.header, lines: block.lines) }
+        return run
     }
 }
 

@@ -188,6 +188,15 @@ if args.first == "--probe-storage" {
 if args.first == "--probe-storage-apply" {
     await probeStorageApply()
 }
+// `--probe-run-matcher` proves how a job's own block is found in a log (very large
+// runs, identical banners, a growing log) against stand-in logs. See RunMatcherProbes.swift.
+if args.first == "--probe-run-matcher" {
+    probeRunMatcher()
+}
+// `--probe-activity-log <file>` prints Activity's summary of the newest runs in a storage log file.
+if args.first == "--probe-activity-log", args.count > 1 {
+    probeActivityLog(args[1])
+}
 // `--probe-review-rules` shows what `apply(from:)` itself refuses; `--probe-quit`
 // shows what each choice of the quit dialog does to the store. See ReviewProbes.swift.
 if args.first == "--probe-review-session" {
@@ -309,9 +318,11 @@ if args.first == "--probe-job" {
         if case .succeeded(let outcome) = job.state {
             print("matched header: \(outcome.run?.header ?? "(no log for this kind)")")
             print("match: \(outcome.run == nil ? "none (this kind writes no run log)" : outcome.note == nil ? "exact" : "FALLBACK to newest — \(outcome.note ?? "")")")
-            if let log = kind.log, let newest = LogParser.runs(for: log).first {
-                print("newest in log: \(newest.header)")
-                print("same run: \(newest.header == outcome.run?.header ? "yes" : "NO")")
+            // the newest preview banner in the whole log, read back from the end by banner
+            if kind.isCleaner, job.intent == .preview, let url = kind.log?.url,
+               case .block(let newest) = WholeRun.newestPreview(in: url) {
+                print("newest preview in log: \(newest.banner) (\(newest.lines.count) lines)")
+                print("same run: \(newest.banner == job.runHeader ? "yes" : "NO")")
             }
         }
         fflush(stdout)

@@ -1,19 +1,5 @@
 import Foundation
 
-/// When a run happened, read from its banner. Banners carry the date in
-/// different places and with or without seconds; this finds it.
-public enum RunDate {
-    public static func parse(banner: String) -> Date? {
-        guard let range = banner.range(of: #"\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?"#, options: .regularExpression)
-        else { return nil }
-        let text = String(banner[range])
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = text.count > 16 ? "yyyy-MM-dd HH:mm:ss" : "yyyy-MM-dd HH:mm"
-        return formatter.date(from: text)
-    }
-}
-
 /// One storage task on the Disk screen: what it could free, from which look,
 /// and where it lives.
 public struct StorageTask: Identifiable, Sendable {
@@ -46,7 +32,7 @@ public enum StorageTasks {
         let review = CacheReview.build(from: parsed, roots: CacheReview.roots(in: run.lines), modified: { _ in nil })
         let count = review.candidates.count
         return StorageTask(kind: .storageClean, reclaimableBytes: review.totalBytes,
-                           measuredAt: RunDate.parse(banner: run.header),
+                           measuredAt: RunDate.date(of: run.header),
                            detail: count == 0 ? "Nothing to clean."
                                               : "\(count) folder\(count == 1 ? "" : "s") in \(review.projects.count) project\(review.projects.count == 1 ? "" : "s").")
     }
@@ -59,7 +45,7 @@ public enum StorageTasks {
         let review = DownloadReview.build(lines: run.lines, info: { _ in (nil, false) })
         let count = review.candidates.count
         return StorageTask(kind: .janitor, reclaimableBytes: review.totalBytes,
-                           measuredAt: RunDate.parse(banner: run.header),
+                           measuredAt: RunDate.date(of: run.header),
                            detail: count == 0 ? "Nothing old enough to move."
                                               : "\(count) old item\(count == 1 ? "" : "s"), moved to the Trash.")
     }
@@ -72,7 +58,7 @@ public enum StorageTasks {
         let review = TempReview.build(from: TempCleanParser.parse(runHeader: run.header, lines: run.lines))
         let count = review.ready.count
         return StorageTask(kind: .tempClean, reclaimableBytes: review.readyBytes,
-                           measuredAt: RunDate.parse(banner: run.header),
+                           measuredAt: RunDate.date(of: run.header),
                            detail: count == 0 ? "Nothing is ready to clear."
                                               : "\(count) item\(count == 1 ? "" : "s") ready to clear.")
     }
@@ -85,7 +71,7 @@ public enum StorageTasks {
         let review = SpotlightReview.build(from: SpotlightAuditParser.parse(runHeader: run.header, lines: run.lines),
                                            current: { _ in nil })
         let count = review.unfenced.count
-        return StorageTask(kind: .spotlight, reclaimableBytes: nil, measuredAt: RunDate.parse(banner: run.header),
+        return StorageTask(kind: .spotlight, reclaimableBytes: nil, measuredAt: RunDate.date(of: run.header),
                            detail: count == 0 ? "Every developer folder is fenced."
                                               : "\(count) developer folder\(count == 1 ? "" : "s") still indexed.")
     }
