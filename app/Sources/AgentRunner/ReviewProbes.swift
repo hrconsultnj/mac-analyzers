@@ -194,3 +194,87 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     leftover.waitUntilExit()
     exit(0)
 }
+
+// `--probe-review-session` proves the review table's rules without a screen:
+// a review is tied to its preview, ticks survive leaving and returning, an expired
+// review is refused, and a row that cannot be chosen never reaches the approved list.
+@MainActor func probeReviewSession() -> Never {
+    final class Tally { var failed = 0 }
+    let tally = Tally()
+    func check(_ name: String, _ ok: Bool, _ detail: String = "") {
+        print("\(ok ? "ok  " : "FAIL") \(name)\(detail.isEmpty ? "" : " — \(detail)")")
+        if !ok { tally.failed += 1 }
+    }
+    let first = UUID(), second = UUID()
+    let items: [ReviewSelection.Item] = [
+        .init(id: "/a"), .init(id: "/b"), .init(id: "/c"),
+        .init(id: "/kept", choosable: false),
+    ]
+    var session = ReviewSelection(previewID: first, items: items)
+
+    // 1. a session against a newer preview is refused
+    check("same preview: ready",
+          session.gate(previewID: first, finishedAt: Date()) == .ready)
+    check("newer preview: refused",
+          session.gate(previewID: second, finishedAt: Date()) == .differentPreview,
+          session.gate(previewID: second, finishedAt: Date()).sentence ?? "")
+    check("no preview: no apply", session.gate(previewID: nil, finishedAt: nil) == .noPreview)
+
+    // 2. expired: disabled, with the sentence
+    let late = Date().addingTimeInterval(JobStore.reviewWindow + 60)
+    check("expired: refused", session.gate(previewID: first, finishedAt: Date(), now: late) == .expired,
+          session.gate(previewID: first, finishedAt: Date(), now: late).sentence ?? "")
+
+    // 3. a row that cannot be chosen never reaches the approved list
+    session.selectAll()
+    check("kept row: not ticked after Select All", !session.isTicked("/kept"))
+    session.setTicked("/kept", true)
+    check("kept row: cannot be ticked by hand", !session.isTicked("/kept"))
+    check("kept row: not in the approved list", !session.approved.approved.contains("/kept"),
+          "approved: \(session.approved.approved)")
+    check("all choosable ticked: list is sent (narrowed by the kept row), without it",
+          session.approved.approved == ["/a", "/b", "/c"] && session.approved.isNarrowed)
+    let plain = ReviewSelection(previewID: first, items: [.init(id: "/a"), .init(id: "/b")])
+    check("no kept rows and nothing unticked: not narrowed", !plain.approved.isNarrowed)
+    session.selectNone()
+    check("Select None: nothing approved", session.approved.approved.isEmpty)
+
+    // 4. ticks survive leaving and returning (the store outlives the screen)
+    let store = ReviewTickStore()
+    session.selectAll()
+    session.setTicked("/b", false)
+    store.save(session.deselected, for: first)
+    let returned = ReviewSelection(previewID: first, items: items, deselected: store.deselected(for: first))
+    check("ticks survive leaving and returning",
+          !returned.isTicked("/b") && returned.isTicked("/a") && returned.approved.approved == ["/a", "/c"],
+          "approved: \(returned.approved.approved)")
+    check("another preview starts fully ticked", ReviewTickStore().deselected(for: second).isEmpty)
+    store.drop(first)
+    check("dropped once applied or discarded", store.deselected(for: first).isEmpty)
+    store.save(["/x"], for: second)
+    store.keepOnly([first])
+    check("an expired preview's ticks are forgotten", store.deselected(for: second).isEmpty)
+
+    // 6. a new review with the SAME number of rows shows its own rows, not the old tree
+    final class Owner {}
+    let memo = IdentityMemo<Owner, Int, [String]>()
+    let reviewOne = Owner(), reviewTwo = Owner()
+    let treeOne = memo.value(for: reviewOne, key: 0) { ["/a", "/b"] }
+    let again = memo.value(for: reviewOne, key: 0) { ["never built"] }
+    check("same review and sort: tree reused (not rebuilt on a tick)", treeOne == again && memo.builds == 1)
+    let treeTwo = memo.value(for: reviewTwo, key: 0) { ["/c", "/d"] }
+    check("same row count, different review: the tree shows the new rows", treeTwo == ["/c", "/d"],
+          "tree: \(treeTwo)")
+    _ = memo.value(for: reviewTwo, key: 1) { ["/d", "/c"] }
+    check("sort changed: tree rebuilt", memo.builds == 3)
+
+    // 7. after Apply, a new preview enables Apply again; an old message never shows against it
+    var applied = PerPreview<String>()
+    applied.set("applied: refused (old)", for: first)
+    check("apply recorded against its own preview", applied.value(for: first) != nil)
+    check("new preview: Apply is enabled again and the old message is gone", applied.value(for: second) == nil)
+    check("no preview: nothing recorded", applied.value(for: nil) == nil)
+    let broken = tally.failed
+    if broken == 0 { print("all review-session rules hold") } else { print("\(broken) rule(s) broken") }
+    exit(broken == 0 ? 0 : 1)
+}

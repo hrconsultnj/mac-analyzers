@@ -7,9 +7,29 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
-Login & Startup Items, Network and Reports have been rebuilt as screens you
-can read at a glance instead of lists of lines.
-
+- When a memory cleanup refuses to run because part of Mac Analyzers is
+  missing, the app now says so and tells you to update or reinstall. It used
+  to tell you to check your protected-apps list, which had nothing to do
+  with it.
+- Buttons, filters and the search field on the screens that were not already
+  being rebuilt now have the standard Mac size and spacing.
+- The version at the bottom of the sidebar looks the same whether you are up
+  to date, on a development build or have an update waiting.
+- Activity's tabs (All, Running, Needs Review, Failed) show an icon beside
+  each name and a count, and you can choose them with Command-1 to Command-4.
+  The Go menu's jumps to Overview, Activity, Monitor and Disk are now
+  Control-Command-1 to Control-Command-4.
+- On Activity, the search field shrinks to its icon when the window gets
+  narrow instead of being cut off, and clicking a run or a tab lets go of it.
+  While another screen is showing, a job that has just finished appears in the
+  toolbar as the task's name with a tick or a warning; hover over it for the
+  full sentence.
+- A run's raw output now opens inside the app, starting at the newest line,
+  with search and Copy. A finished run's screen groups its results under tabs
+  (what was freed, what was found) and, inside each, under the project they
+  belong to, instead of one long list.
+- Login & Startup Items, Network and Reports have been rebuilt as screens you
+  can read at a glance instead of lists of lines.
 - Login & Startup Items has a tab for Apps that open when you log in,
   Background Items that work for them, Leftovers from apps you removed, and
   Changes (what was added to startup, day by day). Each app or developer is one row that opens to its

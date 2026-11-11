@@ -178,6 +178,9 @@ if args.first == "--probe-failures" {
 }
 // `--probe-review-rules` shows what `apply(from:)` itself refuses; `--probe-quit`
 // shows what each choice of the quit dialog does to the store. See ReviewProbes.swift.
+if args.first == "--probe-review-session" {
+    probeReviewSession()
+}
 if args.first == "--probe-review-rules" {
     await probeReviewRules()
 }

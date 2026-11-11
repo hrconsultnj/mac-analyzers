@@ -126,10 +126,9 @@ struct SetupSettingsView: View {
         HStack(alignment: .top, spacing: Tokens.Space.m) {
             Image(systemName: symbol(check.verdict))
                 .foregroundStyle(tone(check.verdict).tint)
-                .font(.system(size: Tokens.Icon.row))
-                .frame(width: 22)
-                .padding(.top, 1)
-            VStack(alignment: .leading, spacing: 3) {
+                .imageScale(.large)
+                .padding(.top, Tokens.Space.hair)
+            VStack(alignment: .leading, spacing: Tokens.Space.xs) {
                 Text(check.title).font(.callout.weight(.medium))
                 Text(check.why)
                     .font(.caption)
@@ -151,7 +150,7 @@ struct SetupSettingsView: View {
                 .buttonStyle(.glassProminent)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, Tokens.Space.xxs)
     }
 
     private func symbol(_ verdict: SetupCheck.Verdict) -> String {

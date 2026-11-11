@@ -36,7 +36,7 @@ struct AboutSettingsView: View {
             #endif
             Section {
                 HStack {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text(Names.Screen.turnOff)
                         Text("Pause it, switch off background protection, or remove it from this Mac — with proof that it worked.")
                             .font(.caption)
@@ -50,7 +50,7 @@ struct AboutSettingsView: View {
             }
             Section("Share") {
                 HStack {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text("Mac Health Report")
                         Text("A one-page HTML summary of the last 30 days — for IT, family, or a buyer. Generated locally.")
                             .font(.caption)

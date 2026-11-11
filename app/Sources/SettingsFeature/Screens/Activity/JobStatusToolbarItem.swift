@@ -2,7 +2,7 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// The shell's status item, present on every screen: while a job runs a
+/// The shell's status item, present on every screen but Activity: while a job runs a
 /// spinner, "<task>… 0:42" and a stop button; for 30 seconds after one ends
 /// its outcome; nothing otherwise. Clicking it opens that job in Activity.
 ///
@@ -12,9 +12,17 @@ struct JobStatusToolbarItem: ToolbarContent {
     let store: JobStore
     let navigator: Navigator
 
+    /// Priority: the screen's own controls come first, and this item is secondary.
+    /// On Activity it is not shown at all: that screen lists the running job at its
+    /// top and its scope buttons are what the person uses there, so the item would
+    /// only compete with them for the toolbar's width (the system moved the whole
+    /// group into the overflow menu at 900 points when both were present). It is
+    /// on every other screen.
     var body: some ToolbarContent {
-        ToolbarItem(placement: .status) {
-            JobStatusItemView(store: store, navigator: navigator)
+        if navigator.section != OverviewGroup.activity {
+            ToolbarItem(placement: .status) {
+                JobStatusItemView(store: store, navigator: navigator)
+            }
         }
     }
 }
@@ -47,22 +55,24 @@ private struct JobStatusItemView: View {
         }
     }
 
+    /// Standard buttons only: a toolbar item that sets its own size or style
+    /// (`.plain`, `.controlSize`, a hand-drawn shape) leaves the toolbar's glass
+    /// surface and its 36-point grid. A `ControlGroup` draws the two buttons as
+    /// one grouped control, the way the system groups related toolbar buttons.
     private func running(_ job: Job) -> some View {
-        HStack(spacing: Tokens.Space.s) {
+        ControlGroup {
             Button { open(job) } label: {
-                HStack(spacing: Tokens.Space.s) {
+                HStack {
                     ProgressView().controlSize(.small)
                     elapsed(job)
                 }
             }
-            .buttonStyle(.plain)
             .help("Open \(job.kind.title) in Activity")
             Button { job.cancel() } label: {
-                Image(systemName: "stop.circle.fill")
+                Label("Stop \(job.kind.title)", systemImage: "stop.fill")
+                    .labelStyle(.iconOnly)
             }
-            .buttonStyle(.plain)
             .help("Stop \(job.kind.title) — quitting asks whether to stop it or let it finish")
-            .accessibilityLabel("Stop \(job.kind.title)")
         }
     }
 
@@ -74,30 +84,25 @@ private struct JobStatusItemView: View {
         if let started = job.startedAt {
             Text("\(label)\(started, style: .timer)")
                 .monospacedDigit()
-                .lineLimit(1)
         } else {
-            Text(label).lineLimit(1)
+            Text(label)
         }
     }
 
+    /// The task's name beside a tick or a warning: short, so it fits whatever
+    /// else the toolbar holds. What happened, in full ("Found 3 processes to
+    /// close (~494 MB) — nothing was closed"), is the tooltip and the run's own
+    /// screen, one click away.
     private func finished(_ job: Job) -> some View {
         let snapshot = job.activitySnapshot
         let ok = snapshot.status == .done
         let sentence = ok ? snapshot.summary.text
                           : "\(job.kind.title) \(snapshot.status == .failed ? "failed" : "stopped")"
         return Button { open(job) } label: {
-            // One line, and never wider than this: a long outcome ("Found 3 processes to
-            // close (~494 MB) — nothing was closed") pushed the screen's own scope control
-            // into the toolbar's overflow menu for the thirty seconds it stood. The whole
-            // sentence is the tooltip.
-            Label(sentence, systemImage: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+            Label(job.kind.title, systemImage: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .labelStyle(.titleAndIcon)
                 .foregroundStyle(ok ? Tokens.Status.safe.tint : Tokens.Status.caution.tint)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: 150)
         }
-        .buttonStyle(.plain)
         .help("\(sentence). Open \(job.kind.title) in Activity.")
     }
 

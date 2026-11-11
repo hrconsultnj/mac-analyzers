@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--startup-inventory <file>] [--appearance light|dark]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available] [--startup-inventory <file>] [--appearance light|dark]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -18,7 +18,9 @@
 // test script fails, for the failed states. A target written `job:@job` is
 // rewritten to the first of these jobs' ids. `--scroll-end` scrolls the
 // screen's longest scroll view to its end before capturing, to look at the
-// bottom of a list that does not fit the window.
+// bottom of a list that does not fit the window. `--update-state` picks the
+// state of the sidebar's version item (up to date, development build, update
+// available) without asking the network.
 //
 // Why it exists: a screen can compile, pass every check and still be a list
 // of file names nobody would use. The people and agents building screens
@@ -31,8 +33,10 @@ import SwiftUI
 import SettingsFeature
 
 let arguments = Array(CommandLine.arguments.dropFirst())
+// the example screens (`review:fixture`) can be linked only in this process
+await MainActor.run { DeepLinkRouter.installFixtures() }
 guard arguments.count >= 2 else {
-    FileHandle.standardError.write(Data("usage: snapshot-runner <target> <out.png> [--size WxH] [--wait seconds] [--fake-running|--fake-failed|--fake-review] [--scroll-end]\n".utf8))
+    FileHandle.standardError.write(Data("usage: snapshot-runner <target> <out.png> [--size WxH] [--wait seconds] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available]\n".utf8))
     exit(2)
 }
 var target = arguments[0]
@@ -49,6 +53,9 @@ let fakeRunning = arguments.contains("--fake-running")
 let fakeFailed = arguments.contains("--fake-failed")
 let fakeReview = arguments.contains("--fake-review")
 let scrollToEnd = arguments.contains("--scroll-end")
+/// `--update-state uptodate|dev|available`: which state the sidebar's version item shows
+/// (the network is not asked), to render every state of it.
+let updateStateOption = option("--update-state")
 
 @MainActor
 final class Snapshot: NSObject, NSApplicationDelegate {
@@ -74,6 +81,17 @@ final class Snapshot: NSObject, NSApplicationDelegate {
             let out = pipe.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
             return String(decoding: out, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        if let state = updateStateOption {
+            let preset: (commits: Int, latest: String) = switch state {
+            case "dev": (3, version)
+            case "available": (0, "999.0.0")
+            default: (0, version)
+            }
+            let forced = UpdateState(installed: version,
+                                     build: BuildInfo(release: version, commitsAfter: preset.commits, localChanges: false))
+            forced.preset(latest: preset.latest)
+            return forced
+        }
         let parts = git(["describe", "--tags", "--long", "--match", "v[0-9]*"]).split(separator: "-")
         let ahead = parts.count >= 3 ? Int(parts[parts.count - 2]) : nil
         return UpdateState(installed: version,
@@ -94,7 +112,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         // `--startup-inventory <file>` shows Login & Startup Items from a fixture
         if let fixture = option("--startup-inventory") { StartupInventory.useFile(URL(fileURLWithPath: fixture)) }
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
-        Task { await updates.check() }
+        if updateStateOption == nil { Task { await updates.check() } }
         let root = MainWindowView()
             .environment(store)
             .environment(config)
