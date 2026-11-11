@@ -19,6 +19,8 @@
 #      runs scripts/release.sh to push main and publish the GitHub release
 #      with the changelog entry as its notes
 #   6. confirms the release is live
+#   7. fast-forwards development to the release, so the next build from it
+#      is that release and not a development build
 #
 # Releases are never cut by merging by hand: that is how three versions were
 # bumped on development and never reached anyone.
@@ -142,6 +144,7 @@ say "merging into main in $main_worktree"
 if (( dry_run )); then
   echo "  [dry-run] git -C $main_worktree merge --no-ff development -m \"$subject\""
   echo "  [dry-run] the hook on main then runs scripts/release.sh: push main, publish $tag"
+  echo "  [dry-run] then: fetch tags, fast-forward development to main, push development"
   echo "cut-release [dry-run]: every check passed; nothing was changed."
   exit 0
 fi
@@ -158,4 +161,21 @@ else
   echo "cut-release: main was merged but $tag is not on GitHub yet." >&2
   echo "Run scripts/release.sh from $main_worktree to finish — it is safe to re-run." >&2
   exit 1
+fi
+
+# ── 7. development continues from the release ──────────────────────────────
+# The release on main is a merge commit that development does not have yet,
+# and the tag was created on GitHub. Fetch the tag and fast-forward
+# development to it (main is development plus that one merge). A build made
+# from development right after a release is then the release itself — its
+# version line reads v<version>, not "Dev Build".
+git fetch --quiet --tags origin || true
+if git merge --ff-only main >/dev/null 2>&1; then
+  if git push --quiet origin development; then
+    say "development now continues from $tag"
+  else
+    echo "cut-release: note — development was fast-forwarded here but not pushed. Run: git push origin development" >&2
+  fi
+else
+  echo "cut-release: note — development could not be fast-forwarded to main. Merge main into development by hand." >&2
 fi

@@ -5,6 +5,68 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## v2.69.0 — A new main window, and cleanups you can watch, stop and look back on
+
+Mac Analyzers has a new main window. The sidebar is organised by what you
+want to look at — Memory, Storage, System, History — and can be hidden. Back
+and Forward remember everywhere you have been, across sections (Command-[ and
+Command-]), a Go menu jumps straight to Overview, Activity, Monitor and Disk,
+and the window reopens where you left it. Each cleanup now lives with the
+thing it cleans: Caches & Builds, Downloads, Temp & Agents and Memory Cleanup
+each have their own review.
+
+Cleanups and checks now run in the background with live progress. You can
+close the window, watch them from the menu bar and stop them at any time.
+The new Activity screen lists everything that ran, day by day, whether you or
+the schedule started it, with what each run freed or found; click a run to
+open a page that says what it did. A preview you can still apply is marked as
+waiting for your review, and older previews stay in the list as what they
+found, with a button to preview again.
+
+- When a cleanup or check finishes while the window is closed or not in
+  front, a notification tells you how it went and opens that run.
+- A cleanup that cannot record which items you approved now stops instead of
+  acting on everything. A review you left open for more than fifteen minutes,
+  or discarded, can no longer be applied; you are asked to preview again.
+- If you quit Mac Analyzers while a cleanup or check is running, it asks
+  whether to stop it or let it finish in the background. Restarting or
+  logging out with something running simply stops it, and installing an
+  update waits until it is done.
+- Names and capitalization are consistent everywhere: the sidebar, Activity,
+  the menu-bar panel, buttons, headings and notifications call each thing by
+  the same Mac-style name, and the version you are running is back at the
+  foot of the sidebar, with whether an update is waiting.
+- What's New is easier to read, and older releases can be opened as well as
+  the newest. A copy built between releases says so — it is marked as a Dev
+  Build, and What's New opens with what is in it and not yet released.
+- Mac Analyzers keeps all of its records in your mac-analyzers folder, so
+  nothing is lost when the app updates. Cleanups started from the app now
+  find the same developer tools your scheduled cleanups use.
+- Building the app from source no longer asks for access to your keychain,
+  and an update no longer fills the Terminal window with build output.
+
+Fixed: updating Mac Analyzers could fail to restart the memory guard and show
+"Bootstrap failed: 5: Input/output error", leaving the guard switched off, or
+running its previous settings, until you next logged in. Updating and Setup
+now wait for the old copy to stop before starting the new one, and say
+plainly if a background job could not be started.
+
+Fixed: changing a schedule could fail to take effect until you next logged
+in. Apply Schedule now waits for the old schedule to stop, no longer freezes
+the window while it works, and says which background job could not be
+changed, and why.
+
+Fixed: reinstalling or upgrading the app left behind files that newer
+versions no longer include, which could stop macOS from verifying the
+installed copy. Installing now replaces the app cleanly.
+
+Fixed: when a cleanup moved several items with the same name to the Trash in
+the same second, a later one could take the place of an earlier one. Each now
+gets its own name.
+
+Fixed: web-page processes belonging to Safari and other apps were listed
+under the name "com" in the menu-bar process list.
+
 ## v2.68.1 — Memory cleanup works on every Mac again
 
 This release fixes two problems in version 2.68.0 that stopped cleanups

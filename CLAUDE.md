@@ -46,8 +46,47 @@ through `config.local.sh` (never hardcoded).
   `memory-auto-clean.sh` is the model (`DEV_PASS_OK`). Verify every touched
   script's dry-run under BOTH `bash` and `/bin/bash`; force the old-bash path
   with `ANALYZERS_BASH_CANDIDATES=/nonexistent /bin/bash <script>`.
+- **Checks and CI.** Every check lives in `scripts/check.sh` (`--list` names
+  them; `--changed <a>..<b>` runs only what a range touched; names plus
+  `--changed` narrows to those names). **The gate for our own pushes is this
+  Mac, not GitHub:** the pre-push hook (`scripts/install-git-hooks.sh`) runs
+  the script and refuses a push that fails, and `scripts/cut-release.sh`
+  runs all of it before a release. A push starts NO workflow — the project
+  is macOS-only, so the Mac is the one machine that can judge all of it, and
+  a cloud run after the push could only repeat it. So: never
+  `git push --no-verify`, and on a fresh clone run
+  `scripts/install-git-hooks.sh` before the first push (without it nothing
+  checks a push). The workflows (`.github/workflows/`) exist for PULL
+  REQUESTS, whose authors lack the hook: `checks.yml` on Linux runs what
+  Linux can judge (syntax, shellcheck, secrets, release-notes format,
+  actionlint) and reports the engine tests and the app build as "not run";
+  `mac.yml` runs those on a Mac runner (bash 3.2 syntax, engine tests,
+  `swift build`) only when a pull request touches a script, a test or the
+  app. Both only call `scripts/check.sh` and only verify. After changing a
+  workflow, prove it on a pull request (or start it by hand once it is on
+  `main`) and watch it to the end: `gh run watch <id> --exit-status`.
+- **Warnings are defects, not noise.** A compiler or shellcheck warning says
+  the code uses something in a way its documentation does not intend —
+  usually because it was written from memory. Never hide, defer or
+  suppress one to get a build through: look up the current documentation
+  and fix the cause. A suppression (`@preconcurrency import`,
+  `nonisolated(unsafe)`, `@unchecked Sendable`, `# shellcheck disable=`)
+  needs a comment saying why it is the right design at that spot. New code
+  adds none — check with a CLEAN build (`swift build --build-path
+  <scratch>`), because an incremental build does not repeat warnings for
+  files it did not recompile. **This is enforced:** every Swift target
+  treats warnings as errors (`treatAllWarnings` in `app/Package.swift`), so
+  `swift build`, `scripts/check.sh`, the pre-push gate, `scripts/package.sh`
+  and GitHub's Mac run all fail on one; `scripts/check.sh lint` fails on any
+  shellcheck warning, one file at a time. The single exception is
+  `app/build.sh` installing on a person's own Mac (`MA_RELAX_WARNINGS=1`):
+  people build with whatever Xcode they have, so a newer compiler's new
+  warning must not block their install or update — it is printed, and
+  `upgrade.command` reports the count. Never set that variable to get your
+  own change through.
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
-  output. There is no test suite; the dry-run IS the test. For the app:
+  output. The one automated suite is `memory-analyzer/tests/`; otherwise the
+  dry-run IS the test. For the app:
   `cd app && swift build` (bundle assembly is `./app/build.sh` — no Xcode; it
   signs with an Apple Development identity when present, ad-hoc fallback, and
   installs to `/Applications/MacAnalyzers.app` — the canonical run location;
@@ -63,10 +102,20 @@ through `config.local.sh` (never hardcoded).
   tiles/pane headers) · `MacAnalyzersApp` (thin shell) · `NotifierCLI` (the
   bundled `notify` shim) · `AgentRunner` (the compiled launchd entry point —
   `execv`s the engine script for BTM attribution).
-- Every settings pane renders inside `PaneScaffold`
-  (`SettingsFeature/PaneScaffold.swift`); the sidebar is a brand card +
-  START HERE (Setup) / SETTINGS / AUTOMATIC / WHAT'S HAPPENING /
-  HISTORY & CLEANUP sections + Support/About/Update; every log gets a
+- Every form screen renders inside `PaneScaffold`
+  (`SettingsFeature/Shared/PaneScaffold.swift`). The main window is
+  `SettingsFeature/Shell/`: `MainWindowView` over one `Navigator` (selection,
+  a path per section, ONE back/forward history recorded only in its four
+  mutators `select` / `push` / `setPath` / `open`); the sidebar is a plain
+  `List` built from `SettingsFeature/Groups/<Group>Group.swift` — each group
+  file owns its `SectionID`s, rows, screens, route payloads and deep-link
+  aliases, and `Shell/SectionRegistry.swift` only fixes the group order, so
+  parallel work edits one group file each. Screens navigate through the
+  `Navigator` in the environment (`push(.memory(.dossier(…)))`,
+  `open(target: "log:guardLog")`), never by posting a notification.
+  `Shell/DeepLinkRouter.swift` resolves every target string (the URL scheme,
+  `--pane` and the in-process `com.mac-analyzers.open-pane` notification all
+  land there). Every log gets a
   STRUCTURED pane (chips/cards/tables — see `GuardLogView`, `LoginItemsView`,
   `StorageCleanView`, `ReapLogView`, `ForensicsDetailView`) with
   "Open in TextEdit" as the raw escape hatch; menu rows/components live in
@@ -77,9 +126,65 @@ through `config.local.sh` (never hardcoded).
   `open -g "macanalyzers://pane/<target>"` — the URL scheme reaches a RUNNING
   app, unlike `--args --pane`, which macOS only delivers at launch. Nav cost is
   measured from `log show --predicate 'category == "nav"'`.
+  **Look at a screen without taking over the Mac:**
+  `app/.build/debug/SnapshotRunner <target> <out.png> [--size 1100x720] [--wait 3]`
+  renders the REAL main window (real stores, real data) for any deep-link
+  target into a PNG, in a window placed outside every display — it never
+  activates, never shows in the Dock, never moves focus. Built by `swift
+  build`, never bundled into the app. Use it while building a screen and
+  before calling it done (the blueprint's screen acceptance bar requires
+  it); the owner's screen is not a test fixture. It cannot click: anything
+  interactive (a running job, a confirmation, the menu-bar panel) still
+  needs an on-screen check, and those are asked for first.
   `agent-runner --probe-setup` prints the Setup checklist as text.
   `agent-runner --probe-memory [--all]` prints the Monitor pane's memory
   census as text (where memory is + every process group with its total).
+  `agent-runner --probe-job <kind> [--cancel-after <s>]` runs one tracked job
+  headless through the same kernel the app uses (`AnalyzersKit/Jobs/`) and
+  prints its lines, the log block it was matched to and how it ended.
+  Cleaners run as a PREVIEW (dry run) only: `--apply` is refused against the
+  real engine and exists solely for `--probe-job-script <test script>`.
+- Jobs kernel rules (`AnalyzersKit/Jobs/`): one engine lane (jobs queue);
+  `JobStore.enqueue` refuses `.apply` for cleaners — `apply(from: preview,
+  approved:)` is the only constructor, so an unreviewed apply cannot be
+  built; cancel terminates the whole descendant tree; engine scripts are
+  executed directly (their own `#!/usr/bin/env bash`) with the launchd
+  plists' PATH — never forced through `/bin/bash`, which is 3.2.
+- Jobs on screen: `MacAnalyzersApp` owns the ONE `JobStore` and ONE
+  `UpdateState` and injects both into the main window and the menu-bar panel;
+  a screen never creates a store. Every button that starts an engine script
+  enqueues a job (`ActionRunner` is no longer called from a screen) and a
+  converted screen finds its job again by kind on appear (`Shared/JobAdoption`).
+  A cleaner apply goes only through `JobStore.apply(from:approved:)` with an
+  `ApprovedSet` — a list that cannot be written stops the apply. A finished
+  preview is adopted again by a screen only while it is recent (15 minutes) and
+  not dismissed (`JobStore.dismiss`), and Apply is never enabled past that.
+  Activity (`Screens/Activity/`) is a day-grouped `List` ("Running now", one
+  collapsible section per day, "Hasn't run yet") of every job plus every run in
+  the engine logs, joined with the job index in
+  `AnalyzersKit/Activity/ActivityJoin` so a run is listed once, with a row id
+  built from log + banner + ordinal (never a file position). A row pushes the
+  run's own screen (`Route.job(uuid)` for tracked runs, `Route.run(RunReference)`
+  for logged ones); who started an untracked run is inferred from the run's
+  own flags or its timing and is "Unknown" otherwise. "Needs review" means a
+  store preview finished within `JobStore.reviewWindow` and not dismissed — the
+  kernel's `apply(from:)` refuses anything older. Quitting with a job running
+  asks (Stop and Quit / Quit and Let It Finish / Cancel) in
+  `NotifierKit/AppDelegate+Quit.swift` (a quit macOS starts — logout, restart,
+  shutdown — never asks; in-app Install refuses while a job runs). The job
+  store's test hooks (`scriptOverride`, `outcomeOverride`, the clock, the schedule
+  reader) are `@_spi(TestSupport)`: only `AgentRunner` and `SnapshotRunner`
+  import that interface, `scripts/check.sh spi` fails if anything else does, and
+  it is a compile-time wall between our own targets, not a runtime one. For a
+  scheduled replay the store reads the installed plist's arguments itself. The shell's `.status`
+  toolbar item (`JobStatusToolbarItem`, attached to the split view, never to a
+  stack) and the menu panel's `MenuJobsStrip` show the running job, and
+  `job:<uuid>` opens it. Look at it headless with `SnapshotRunner jobs|activity:failed|
+  activity:review|activity:collapsed|activity:run:<log>|job:<uuid> out.png`
+  (`--fake-running`/`--fake-failed` start a throwaway test job). `agent-runner
+  --probe-activity [--real]` prints the sections, `--probe-activity-ids` proves
+  ids survive a log growing, `--probe-failures` prints the failure sentences, and
+  `--probe-pid-recycle` proves a stop refuses a recycled pid.
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;
@@ -103,6 +208,15 @@ Both are protected (code-owner review required for PRs; owner pushes directly).
   main worktree** (`.composure/workspaces/main`) — never by switching the
   root checkout. Never bump `VERSION` by hand without releasing: 2.65–2.67
   were bumped on development and never reached anyone.
+- `scripts/package.sh` builds the download for other people:
+  `dist/MacAnalyzers-<V>.dmg` (app + Applications shortcut) and the matching
+  `.zip` (what an installed copy downloads to update), from a re-signed
+  COPY — it never installs and never changes the repo bundle's signature.
+  Signing level is automatic: a keychain "Developer ID Application" identity
+  (+ `MA_NOTARY_PROFILE` to notarize) when there is one, ad-hoc otherwise —
+  NEVER the personal Apple Development identity, which carries the
+  developer's email. Not attached to releases yet: a downloaded copy still
+  needs the in-app first-run/update path (see the app blueprint).
 - `CHANGELOG.md` is the single source for release notes: the GitHub release
   body AND the app's What's New (bundled by `build.sh`). Entries are written
   for someone who uses the app and has never seen the code — full sentences,

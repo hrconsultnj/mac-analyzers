@@ -195,7 +195,8 @@ kill_proc() {
 
 # forensic snapshot for post-mortems ("what actually spiked?")
 dump_forensics() {
-  local f="${LOG_DIR}/$(date +%Y-%m-%d)/guard-critical-$(date +%H%M%S).log"
+  local f
+  f="${LOG_DIR}/$(date +%Y-%m-%d)/guard-critical-$(date +%H%M%S).log"
   mkdir -p "$(dirname "$f")"
   {
     echo "=== memory guard forensic snapshot: $(date '+%Y-%m-%d %H:%M:%S') ==="
@@ -230,7 +231,10 @@ tick() {
   if [[ "$DEV_SWEEP_SECS" -gt 0 && $((now - LAST_DEV_SWEEP_TS)) -ge "$DEV_SWEEP_SECS" \
         && -x "${SELF_DIR}/memory-auto-clean.sh" ]]; then
     LAST_DEV_SWEEP_TS=$now
-    "${SELF_DIR}/memory-auto-clean.sh" --apply --dev --quiet </dev/null >/dev/null 2>&1 &
+    # Its errors go to a file that holds the LAST pass only (each pass starts
+    # it again), so a pass that cannot run leaves a trace without growing a
+    # log every two minutes. Empty file = the last pass had nothing to say.
+    "${SELF_DIR}/memory-auto-clean.sh" --apply --dev --quiet </dev/null >/dev/null 2>"${LOG_DIR}/guard-dev-pass.err" &
   fi
 
   # snapshot of KILLABLE-and-not-PROTECTED candidates: pid \t rss_kb \t args

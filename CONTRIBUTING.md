@@ -39,6 +39,16 @@ welcome either way.
 - `bash -n` passes on every changed script — and so does `/bin/bash -n`.
   macOS ships bash 3.2: run the dry-run under `/bin/bash` too. Anything that
   needs bash 4+ goes behind a version check that falls back gracefully.
+- No compiler or shellcheck warnings in what you change — the build and
+  `scripts/check.sh` fail on one. A warning is a defect: fix its cause from
+  the current documentation rather than suppressing it, and say why if a
+  suppression really is the right design.
+- `scripts/check.sh` passes (syntax, shellcheck, secrets sweep, release-notes
+  format, tests; `scripts/install-git-hooks.sh` runs it before every push).
+  Pull requests run the same script on GitHub: a Linux machine runs the
+  checks that do not need a Mac, and a Mac runs the engine tests and the app
+  build when your change touches a script, a test or the app. Running
+  `scripts/check.sh` on your own Mac first tells you the same thing sooner.
 - Run the changed script's dry-run and paste the (redacted) output in the PR.
 - Interactive menu still works (`FORCE_INTERACTIVE=1 printf 'q\n' | ./script`).
 - No usernames, hostnames, project names, or personal app lists in tracked
@@ -54,7 +64,7 @@ lands on it ships a release (a git hook builds the tarball and publishes it),
 so nothing goes there except release merges, and those are made by
 `scripts/cut-release.sh`, which will not ship a version that has no What's New
 entry in `CHANGELOG.md`. If your change is something a user would notice, add
-a line to the top entry there — in plain sentences, for someone who has never
+a line under `## Next` at the top of that file — in plain sentences, for someone who has never
 seen the code. Both branches are protected;
 code-owner review is required before merge.
 

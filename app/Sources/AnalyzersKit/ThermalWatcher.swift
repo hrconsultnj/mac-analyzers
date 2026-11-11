@@ -18,8 +18,7 @@ public final class ThermalWatcher {
     private var lastNotified: ProcessInfo.ThermalState = .nominal
     private var observer: NSObjectProtocol?
 
-    public nonisolated static let logURL = AnalyzersPaths.suiteRoot
-        .appending(path: "reports/thermal.log")
+    public nonisolated static let logURL = AnalyzersPaths.userRecord("thermal.log")
 
     /// One watcher, many surfaces — started once by the app delegate.
     public static let shared = ThermalWatcher()
@@ -30,7 +29,7 @@ public final class ThermalWatcher {
         self.onElevation = onElevation
         observer = NotificationCenter.default.addObserver(
             forName: ProcessInfo.thermalStateDidChangeNotification,
-            object: nil, queue: .main) { _ in
+            object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in self?.stateChanged() }
         }
     }
@@ -50,7 +49,7 @@ public final class ThermalWatcher {
             if new.rawValue > lastNotified.rawValue {
                 lastNotified = new
                 onElevation?(
-                    "Your Mac is throttling (\(label.lowercased()))",
+                    "Your Mac Is Throttling (\(label.capitalized))",
                     "macOS is slowing the CPU to cool down. Busiest right now: \(hogs).")
             }
         case .fair:

@@ -91,6 +91,20 @@ NM_REQUIRE_CLEAN="${ANALYZERS_NM_REQUIRE_CLEAN:-1}"
 TURBO_MAX_GB="${ANALYZERS_TURBO_CACHE_MAX_GB:-2}"
 
 BUILD_CACHE_NAMES=( .next .turbo dist build .vite .svelte-kit .nuxt .parcel-cache )
+# The same names as find operands (-name a -o -name b …), so the find
+# expressions below cannot drift from this one list.
+BUILD_CACHE_FIND=()
+for cache_name in "${BUILD_CACHE_NAMES[@]}"; do
+  [[ ${#BUILD_CACHE_FIND[@]} -gt 0 ]] && BUILD_CACHE_FIND+=( -o )
+  BUILD_CACHE_FIND+=( -name "$cache_name" )
+done
+unset cache_name
+# An empty list would make the find expressions below invalid, and a find that
+# fails reads as "nothing recent here" — every project would look idle. Stop.
+if [[ ${#BUILD_CACHE_FIND[@]} -eq 0 ]]; then
+  echo "storage-auto-clean: the list of build-cache folder names is empty — refusing to run." >&2
+  exit 78
+fi
 
 # ---------- args ----------
 ORIG_ARGS="$*"
@@ -234,9 +248,7 @@ repo_root() {
 is_idle() {
   local dir="$1" days="$2" hit
   hit=$(find "$dir" \
-        \( -name node_modules -o -name .git -o -name .next -o -name .turbo \
-           -o -name dist -o -name build -o -name .vite -o -name .cache \
-           -o -name .svelte-kit -o -name .nuxt -o -name .parcel-cache \) -prune \
+        \( -name node_modules -o -name .git -o -name .cache -o "${BUILD_CACHE_FIND[@]}" \) -prune \
         -o -type f -mtime "-${days}" -print -quit 2>/dev/null)
   [[ -z "$hit" ]]
 }
@@ -377,10 +389,7 @@ for root in $ROOTS; do
     if [[ -z "$(find "$d" -prune -mtime "-${CACHE_AGE_DAYS}" -print 2>/dev/null)" ]]; then
       reclaim "$d"
     fi
-  done < <(find "$root" -type d \( \
-      -name .next -o -name .turbo -o -name dist -o -name build -o -name .vite \
-      -o -name .svelte-kit -o -name .nuxt -o -name .parcel-cache \
-    \) -prune 2>/dev/null)
+  done < <(find "$root" -type d \( "${BUILD_CACHE_FIND[@]}" \) -prune 2>/dev/null)
 done
 
 # ---------- 1.2 Turborepo cache cap (both modes) ----------
@@ -910,6 +919,7 @@ if [[ "$MODE" == "deep" ]]; then
       log "  No local snapshots present. Nothing to do."
     elif [[ "$PRUNE_SNAPSHOTS" -eq 1 && "$DRY_RUN" -eq 0 ]]; then
       # ONLY the exact whitelisted command runs here — cannot delete real backups.
+      # shellcheck disable=SC2024  # the log is the user's own file; only tmutil needs root
       if sudo -n /usr/bin/tmutil thinlocalsnapshots / 999999999999 4 >>"$LOG_FILE" 2>&1; then
         log "  thinned ${snap_count} local snapshot(s) — freed space now realized in df."
       else

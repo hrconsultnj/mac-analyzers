@@ -16,9 +16,7 @@ public struct ForensicsProcessRow: Identifiable, Hashable, Sendable {
         ProcessGlossary.friendlyName(for: args) ?? shortName
     }
     public var shortName: String {
-        if let range = args.range(of: #"([^/]+)\.app"#, options: .regularExpression) {
-            return String(args[range].dropLast(4))
-        }
+        if let app = AppBundleName.first(in: args) { return app }
         return String(args.split(separator: " ").first.map {
             $0.split(separator: "/").last.map(String.init) ?? String($0)
         } ?? args)
@@ -37,6 +35,11 @@ public enum ForensicsParser {
 
     public static func parse(fileAt path: String) -> ForensicsSnapshot? {
         guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+        return parse(text: text)
+    }
+
+    /// The same parse over text already read (Activity holds a snapshot's lines).
+    public static func parse(text: String) -> ForensicsSnapshot {
         var header = ""
         var pressure: Int?
         var swap: String?

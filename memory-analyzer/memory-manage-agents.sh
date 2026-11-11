@@ -20,11 +20,25 @@ AGENTS=( com.mac-analyzers.memory-guard com.mac-analyzers.memory-autoclean.daily
 DOMAIN="gui/$(id -u)"
 PAUSE_FLAG="${HOME}/mac-analyzers/reports/memory/.guard-paused"
 
+# reload_agent: unload, wait until launchd has really let go, load, retry.
+# The inline version is only for a copy of this script without lib/ beside it.
+if [[ -f "${HERE}/../lib/launchd-reload.sh" ]]; then
+  # shellcheck source=../lib/launchd-reload.sh
+  source "${HERE}/../lib/launchd-reload.sh"
+else
+  reload_agent() {
+    launchctl bootout "$1/$2" >/dev/null 2>&1 || true
+    sleep 2
+    launchctl bootstrap "$1" "$3" && echo "   loaded"
+  }
+fi
+
 cmd="${1:-status}"
 
 case "$cmd" in
   install)
     mkdir -p "$DEST"
+    not_loaded=0
     for a in "${AGENTS[@]}"; do
       echo "==> ${a}"
       plutil -lint "${SRC}/${a}.plist" || { echo "   invalid plist, aborting"; exit 1; }
@@ -61,9 +75,12 @@ case "$cmd" in
                                 "${DEST}/${a}.plist" 2>/dev/null \
           && echo "   kept custom interval (${old_i}s)"
       fi
-      launchctl bootout "${DOMAIN}/${a}" 2>/dev/null || true
-      launchctl bootstrap "${DOMAIN}" "${DEST}/${a}.plist" && echo "   loaded"
+      reload_agent "${DOMAIN}" "${a}" "${DEST}/${a}.plist" || not_loaded=$((not_loaded + 1))
     done
+    if [[ "$not_loaded" -gt 0 ]]; then
+      echo "${not_loaded} background job(s) could not be loaded — see above."
+      exit 1
+    fi
     echo "Done. View with: $0 status"
     ;;
   uninstall)

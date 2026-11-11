@@ -11,6 +11,9 @@ import UserNotifications
 /// where the actionable buttons live). Buttons: "Open Log" for the receipt,
 /// and — when the sender attached a live pid — "Stop Process" right from the
 /// notification.
+///
+/// This file is the posting side. Clicks are handled next to it:
+///   NotificationPoster+Delegate.swift   Open Log, Stop Process, body click
 @MainActor
 public final class NotificationPoster: NSObject {
 
@@ -20,8 +23,8 @@ public final class NotificationPoster: NSObject {
     private static let eventCategory = "MA_EVENT"
     private static let actionableCategory = "MA_ACTIONABLE"
     private static let openAppAction = "OPEN_APP"
-    private static let openLogAction = "OPEN_LOG"
-    private static let stopProcessAction = "STOP_PROC"
+    static let openLogAction = "OPEN_LOG"
+    static let stopProcessAction = "STOP_PROC"
 
     /// Call once at app launch: delegate, categories, authorization.
     public func setup() {
@@ -50,23 +53,21 @@ public final class NotificationPoster: NSObject {
     /// System Settings pane so the user can flip it themselves (apps cannot
     /// reset their own grant — that lever is deliberately the user's).
     public func reRequestPermission(completion: @escaping @MainActor (String) -> Void) {
-        center.getNotificationSettings { settings in
-            let status = settings.authorizationStatus
-            Task { @MainActor in
-                switch status {
-                case .notDetermined:
-                    self.center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
-                        Task { @MainActor in
-                            completion(granted ? "Permission granted." : "Permission declined — enable it in System Settings.")
-                        }
-                    }
-                case .denied:
-                    completion("Currently denied — opening System Settings so you can re-enable it.")
-                    GuardControl.openNotificationSettings()
-                default:
-                    completion("Already allowed — opening System Settings for style/preview options.")
-                    GuardControl.openNotificationSettings()
-                }
+        // The async forms of the UserNotifications calls, awaited from the
+        // main actor: the center and the request never cross into a
+        // @Sendable completion handler.
+        Task {
+            let settings = await center.notificationSettings()
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+                completion(granted ? "Permission granted." : "Permission declined — enable it in System Settings.")
+            case .denied:
+                completion("Currently denied — opening System Settings so you can re-enable it.")
+                GuardControl.openNotificationSettings()
+            default:
+                completion("Already allowed — opening System Settings for style/preview options.")
+                GuardControl.openNotificationSettings()
             }
         }
     }
@@ -98,27 +99,45 @@ public final class NotificationPoster: NSObject {
                                             content: content, trigger: nil)
         // Safety net for anyone who never opens Setup: the first thing worth
         // announcing is also a fine moment to ask.
-        center.getNotificationSettings { [center] settings in
+        // Declining the prompt still falls through to `add`, as before; for a
+        // user who declined, macOS simply does not show it.
+        Task {
+            let settings = await center.notificationSettings()
             if settings.authorizationStatus == .notDetermined {
-                center.requestAuthorization(options: [.alert, .sound]) { _, _ in
-                    center.add(request)
-                }
-            } else {
-                center.add(request)
+                _ = try? await center.requestAuthorization(options: [.alert, .sound])
             }
+            try? await center.add(request)
         }
+    }
+
+    /// A job ended. Posted only when the main window is not the key window —
+    /// someone looking at it already sees the result in the status item. A click
+    /// opens `job:<uuid>` in Activity (the same pane-target path every
+    /// notification uses).
+    public func postJobFinished(id: UUID, task: String, result: String, failed: Bool) {
+        guard !Self.mainWindowIsKey else { return }
+        post(title: "Mac Analyzers",
+             subtitle: failed ? "\(task) didn't finish" : "\(task) finished",
+             message: result, sound: nil, logPath: nil,
+             paneTarget: "job:\(id.uuidString)")
+    }
+
+    /// The main window is on screen, in front, and the app is active.
+    private static var mainWindowIsKey: Bool {
+        guard NSApp.isActive, let key = NSApp.keyWindow else { return false }
+        return key.identifier?.rawValue.lowercased().contains("main") ?? false
     }
 
     // MARK: - click handling helpers
 
-    fileprivate func openApp() {
+    func openApp() {
         SettingsOpener.open()
     }
 
     /// Verified stop: the pid must still exist AND its command line must
     /// still contain the token from notification time — a recycled pid never
     /// gets a stray signal.
-    fileprivate func stopProcess(pid: Int, token: String) {
+    func stopProcess(pid: Int, token: String) {
         let ps = Process()
         ps.executableURL = URL(fileURLWithPath: "/bin/ps")
         ps.arguments = ["-p", String(pid), "-o", "args="]
@@ -143,47 +162,5 @@ public final class NotificationPoster: NSObject {
         post(title: "Mac Analyzers", subtitle: token,
              message: "Stop signal sent (pid \(pid)).",
              sound: nil, logPath: nil)
-    }
-}
-
-extension NotificationPoster: UNUserNotificationCenterDelegate {
-
-    public nonisolated func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse,
-        withCompletionHandler done: @escaping () -> Void
-    ) {
-        let info = response.notification.request.content.userInfo
-        let logPath = info["log"] as? String
-        let pid = info["pid"] as? Int
-        let token = info["token"] as? String ?? ""
-        let paneTarget = info["pane"] as? String
-        let action = response.actionIdentifier
-        Task { @MainActor in
-            let poster = NotificationPoster.shared
-            switch action {
-            case Self.openLogAction:
-                if let logPath { GuardControl.openLog(URL(fileURLWithPath: logPath)) }
-            case Self.stopProcessAction:
-                if let pid { poster.stopProcess(pid: pid, token: token) }
-            default:
-                // body click or "Open Mac Analyzers" → the app; a pane
-                // target (e.g. update notifications) deep-links to its screen
-                if let paneTarget {
-                    SettingsOpener.open(target: paneTarget)
-                } else {
-                    poster.openApp()
-                }
-            }
-        }
-        done()
-    }
-
-    public nonisolated func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification,
-        withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void
-    ) {
-        done([.banner, .sound])
     }
 }

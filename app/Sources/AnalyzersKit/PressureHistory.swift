@@ -18,7 +18,7 @@ public final class PressureHistory {
 
     public init() {
         record()
-        let t = Timer(timeInterval: 30, repeats: true) { _ in
+        let t = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.record() }
         }
         t.tolerance = 5
@@ -40,8 +40,7 @@ public final class PressureHistory {
     /// reports/baselines.json: one running mean of memory-in-use per day.
     /// Collection starts now so future "this isn't normal for your Mac"
     /// features have history on day one.
-    private static let baselinesFile = AnalyzersPaths.suiteRoot
-        .appending(path: "reports/baselines.json")
+    private static let baselinesFile = AnalyzersPaths.userRecord("baselines.json")
 
     private struct DayBaseline: Codable {
         var date: String

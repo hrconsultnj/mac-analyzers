@@ -4,8 +4,20 @@ import NotifierKit
 import MenuBarFeature
 import SettingsFeature
 
-/// Invisible view that turns the internal open-settings signal into an
-/// actual openSettings() call (with the activation dance already done by
+/// Opens the window a link belongs in. The router is asked first, before any
+/// window exists, so a link never has to bring up the main window just to
+/// find out it belongs elsewhere. Today every link belongs in the main window;
+/// when preferences get a window of their own, its case opens here.
+@MainActor
+private func openLinkWindow(for note: Notification, using openWindow: OpenWindowAction) {
+    switch DeepLinkRouter.window(for: note.userInfo?["target"] as? String) {
+    case .main, .preferences:
+        openWindow(id: "main")
+    }
+}
+
+/// Invisible view that turns the internal open-window signal into an
+/// actual openWindow() call (with the activation dance already done by
 /// the poster of the signal).
 struct SettingsAnchorView: View {
     @Environment(\.openWindow) private var openWindow
@@ -14,14 +26,14 @@ struct SettingsAnchorView: View {
         Color.clear
             .frame(width: 1, height: 1)
             .onReceive(NotificationCenter.default.publisher(
-                for: NotifyChannel.openSettingsInternal)) { _ in
+                for: NotifyChannel.openSettingsInternal)) { note in
                 SettingsOpener.markHandled(by: "anchor-window")
-                openWindow(id: "settings")
+                openLinkWindow(for: note, using: openWindow)
             }
     }
 }
 
-/// The status-bar chip. It ALSO hosts the open-settings receiver: os_log
+/// The status-bar chip. It ALSO hosts the open-window receiver: os_log
 /// diagnosis (2026-08-01) showed the hidden 1×1 anchor window's publisher
 /// gets suspended with the window occluded, so Dock-click reopens died
 /// silently. The label is the one render tree that is alive and visible
@@ -29,6 +41,8 @@ struct SettingsAnchorView: View {
 struct MenuBarLabelView: View {
     let killsToday: Int
     let history: PressureHistory
+    let updates: UpdateState
+    let jobs: JobStore
     @AppStorage("menuSparklineEnabled") private var sparklineEnabled = true
     @Environment(\.openWindow) private var openWindow
 
@@ -48,25 +62,18 @@ struct MenuBarLabelView: View {
                 Text("\(killsToday)")
             }
         }
-        .onReceive(NotificationCenter.default.publisher(
-            for: NotifyChannel.openSettingsInternal)) { _ in
-            SettingsOpener.markHandled(by: "menu-bar-label")
-            openWindow(id: "settings")
+        // The label is alive for the app's whole life, so it starts the
+        // release checks that every reader of `UpdateState` shares.
+        .task {
+            updates.startChecking()
+            QuitGuard.jobs = jobs      // so quitting while a job runs can ask first
+            updates.jobs = jobs        // and installing an update cannot start under one
         }
-    }
-}
-
-/// Cmd-, and the app-menu "Settings…" item — a regular Window scene doesn't
-/// get these for free the way the Settings scene did.
-struct SettingsCommands: Commands {
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some Commands {
-        CommandGroup(replacing: .appSettings) {
-            Button("Settings…") {
-                SettingsOpener.open()
-            }
-            .keyboardShortcut(",", modifiers: .command)
+        .notifyWhenJobsFinish(jobs)
+        .onReceive(NotificationCenter.default.publisher(
+            for: NotifyChannel.openSettingsInternal)) { note in
+            SettingsOpener.markHandled(by: "menu-bar-label")
+            openLinkWindow(for: note, using: openWindow)
         }
     }
 }
@@ -77,6 +84,10 @@ struct MacAnalyzersApp: App {
     @State private var store = GuardLogStore()
     @State private var config = ConfigStore()
     @State private var pressureHistory = PressureHistory()
+    /// The ONE job store and the ONE update state, owned here so a job outlives
+    /// every window and both scenes read the same ones. Screens never create their own.
+    @State private var jobs = JobStore()
+    @State private var updates = UpdateState()
 
     /// Brand chip glyph from Contents/Resources (hand-copied by build.sh —
     /// deliberately Bundle.main, not Bundle.module; see research on SPM
@@ -94,12 +105,15 @@ struct MacAnalyzersApp: App {
             MenuContentView()
                 .environment(store)
                 .environment(config)
+                .environment(jobs)
+                .environment(updates)
                 .frame(width: 420)
         } label: {
             // brand chip glyph as a TEMPLATE image (black+alpha, macOS tints
             // it for light/dark/translucency); SF-symbol fallback if missing.
             // The badge is the count of today's kills.
-            MenuBarLabelView(killsToday: store.killsToday, history: pressureHistory)
+            MenuBarLabelView(killsToday: store.killsToday, history: pressureHistory,
+                             updates: updates, jobs: jobs)
         }
         .menuBarExtraStyle(.window)
 
@@ -114,17 +128,20 @@ struct MacAnalyzersApp: App {
         .defaultPosition(.center)
         .windowResizability(.contentSize)
 
-        // A REGULAR Window scene, not Settings: the Settings scene ignores
-        // windowToolbarStyle and stacks a centered title over the nav
-        // buttons. System Settings itself is a plain window — only a plain
-        // window gives the single-row strip: [back][forward] Title.
-        Window("Mac Analyzers", id: "settings") {
-            SettingsTabsView()
+        // The main window: one instance, so openWindow fronts it. A regular
+        // Window scene (not Settings), so it takes the unified toolbar with
+        // [back][forward] leading and the title. Never opens at launch — the
+        // app is a menu-bar app until something asks for the window.
+        Window("Mac Analyzers", id: "main") {
+            MainWindowView()
                 .environment(store)
                 .environment(config)
+                .environment(jobs)
+                .environment(updates)
         }
         .windowToolbarStyle(.unified(showsTitle: true))
-        .defaultSize(width: 900, height: 710)
-        .commands { SettingsCommands() }
+        .defaultSize(width: 1100, height: 720)
+        .defaultLaunchBehavior(.suppressed)
+        .commands { AppCommands() }
     }
 }

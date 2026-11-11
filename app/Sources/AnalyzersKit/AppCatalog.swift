@@ -49,9 +49,7 @@ public enum AppCatalog {
         return LiveStats.snapshot(limit: 60, minimumMB: 64)
             .map { proc in
                 let raw = proc.rawName
-                if let range = raw.range(of: #"([^/]+)\.app"#, options: .regularExpression) {
-                    return String(raw[range].dropLast(4))
-                }
+                if let app = AppBundleName.first(in: raw) { return app }
                 return String(raw.split(separator: " ").first.map {
                     $0.split(separator: "/").last.map(String.init) ?? String($0)
                 } ?? raw)

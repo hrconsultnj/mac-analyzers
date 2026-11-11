@@ -1,14 +1,51 @@
-import AppKit
 import Foundation
-import os
 
 /// Canonical file locations shared by every module. Mirrors the bash suite's
 /// layout (~/mac-analyzers/reports/{memory,storage}, ~/scripts/config.local.sh).
+///
+/// This file is the paths only. Next to it:
+///   Navigation/NotifyChannel.swift   the notification names the app and CLI share
+///   Navigation/SettingsOpener.swift  opening the Settings window from anywhere
 public enum AnalyzersPaths {
     public static let home = FileManager.default.homeDirectoryForCurrentUser
 
     public static let memoryReports = home.appending(path: "mac-analyzers/reports/memory")
     public static let storageReports = home.appending(path: "mac-analyzers/reports/storage")
+
+    /// Where the APP WRITES its own records — never the bundle. Always the
+    /// user's folder, whichever copy of the engine is being read from.
+    public static let userRoot = home.appending(path: "mac-analyzers")
+    public static let userReports = userRoot.appending(path: "reports")
+
+    /// Where the engine scripts are read from (the clone, or the bundle).
+    /// Earlier builds wrote some records under here.
+    static var legacyReports: URL { suiteRoot.appending(path: "reports") }
+
+    /// The app-written record `name` under `userReports`, created on demand.
+    /// First use carries an older copy across from the engine's own `reports`
+    /// folder (see `carryOver`).
+    static func userRecord(_ name: String) -> URL {
+        let new = userReports.appending(path: name)
+        carryOver(from: legacyReports.appending(path: name), to: new)
+        return new
+    }
+
+    /// Copies `old` to `new` when they are different files, `old` exists and
+    /// `new` does not. Never deletes `old` (it may sit in a signed bundle) and
+    /// never overwrites `new`. Does nothing when both resolve to one path.
+    @discardableResult
+    static func carryOver(from old: URL, to new: URL) -> Bool {
+        let fm = FileManager.default
+        let oldPath = old.standardizedFileURL.resolvingSymlinksInPath().path
+        let newPath = new.standardizedFileURL.resolvingSymlinksInPath().path
+        guard oldPath != newPath,
+              fm.fileExists(atPath: old.path),
+              !fm.fileExists(atPath: new.path)
+        else { return false }
+        try? fm.createDirectory(at: new.deletingLastPathComponent(),
+                                withIntermediateDirectories: true)
+        return (try? fm.copyItem(at: old, to: new)) != nil
+    }
 
     public static let guardLog = memoryReports.appending(path: "guard.log")
     public static let memoryAutoCleanLog = memoryReports.appending(path: "auto-clean.log")
@@ -90,55 +127,5 @@ public enum AnalyzersPaths {
 
     public static func modificationDate(of url: URL) -> Date? {
         try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
-    }
-}
-
-/// Name of the distributed notification the CLI shim posts and the app observes.
-public enum NotifyChannel {
-    public static let name = "com.mac-analyzers.notify"
-    public static let appBundleID = "com.mac-analyzers.app"
-    /// In-process signal: "open the Settings window" (Dock click, notification
-    /// default action). Posted by AppKit code, observed by the SwiftUI anchor
-    /// window, which holds the openSettings environment action.
-    public static let openSettingsInternal = Notification.Name("com.mac-analyzers.open-settings")
-    /// In-process signal: "navigate Settings to this pane" — userInfo["target"]
-    /// carries a route string ("activity", "logs", "log:<kind>", "monitor").
-    public static let openPaneInternal = Notification.Name("com.mac-analyzers.open-pane")
-}
-
-/// Opens the Settings window from ANY entry point, optionally deep-linking
-/// to a pane. Belt and braces: SwiftUI route via the anchor window, plus a
-/// delayed AppKit fallback when no settings window materialized.
-@MainActor
-public enum SettingsOpener {
-    private static let log = Logger(subsystem: "com.mac-analyzers.app",
-                                    category: "settings-opener")
-
-    /// Receivers of the open-settings signal report in here — the log tells
-    /// us which render tree was actually awake to handle a reopen.
-    public static func markHandled(by receiver: String) {
-        log.notice("open-settings signal handled by \(receiver, privacy: .public)")
-    }
-
-    public static func open(target: String? = nil) {
-        log.notice("open(target: \(target ?? "nil", privacy: .public)) — windows before: \(NSApp.windows.count)")
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        // The signal is answered by the menu-bar LABEL's receiver (always
-        // alive/visible — os_log diagnosis 2026-08-01; the hidden anchor
-        // window's publisher suspends while occluded), which openWindow()s
-        // the settings Window scene.
-        NotificationCenter.default.post(name: NotifyChannel.openSettingsInternal, object: nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            let settingsUp = NSApp.windows.contains {
-                $0.isVisible && ($0.identifier?.rawValue.lowercased().contains("settings") ?? false)
-            }
-            log.notice("post-open check — settings visible: \(settingsUp, privacy: .public), windows: \(NSApp.windows.count)")
-            NSApp.activate(ignoringOtherApps: true)
-            if let target {
-                NotificationCenter.default.post(name: NotifyChannel.openPaneInternal,
-                                                object: nil, userInfo: ["target": target])
-            }
-        }
     }
 }

@@ -45,15 +45,15 @@ struct EventRow: View {
             SettingsOpener.open(target: "activity")
         } label: {
             HStack(alignment: .top, spacing: 6) {
-                Image(systemName: symbol)
-                    .foregroundStyle(color)
+                Image(systemName: event.symbol)
+                    .foregroundStyle(event.tint)
                     .font(.caption)
                     .padding(.top, 2)
                     .accessibilityHidden(true)  // decorative — the title text already says what happened
                 VStack(alignment: .leading, spacing: 0) {
                     Text(event.title)
                         .font(.callout)
-                        .foregroundStyle(color)
+                        .foregroundStyle(event.tint)
                         .lineLimit(1)
                     Text(subtitleWithTime)
                         .font(.caption2)
@@ -76,26 +76,5 @@ struct EventRow: View {
     private var subtitleWithTime: String {
         let time = event.date.formatted(.dateTime.hour().minute())
         return event.subtitle.isEmpty ? time : "\(event.subtitle) · \(time)"
-    }
-
-    private var symbol: String {
-        switch event.kind {
-        case .killed: "xmark.octagon.fill"
-        case .spike: "arrow.up.right"
-        case .capExceeded: "gauge.with.needle"
-        case .pressureWarning, .pressureCritical: "exclamationmark.triangle.fill"
-        case .cpuHog: "cpu"
-        case .forensics: "stethoscope"
-        case .warning: "exclamationmark.triangle"
-        }
-    }
-
-    private var color: Color {
-        switch event.kind {
-        case .killed, .pressureCritical: .red
-        case .spike, .capExceeded, .pressureWarning, .warning: .orange
-        case .cpuHog: .purple
-        case .forensics: .purple
-        }
     }
 }

@@ -33,7 +33,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 ROOT="$(cd "$(dirname "$0")/.." && pwd)" || exit 2
 cd "$ROOT" || exit 2
 
-ALL="syntax lint secrets changelog tests workflows strays app"
+ALL="syntax lint secrets changelog tests workflows strays spi names app"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ma-check.XXXXXX")" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -47,12 +47,14 @@ usage() {
 describe() {
   case "$1" in
     syntax)    echo "bash -n on every tracked *.sh and *.command; also under /bin/bash when it is older than 4" ;;
-    lint)      echo "shellcheck: error severity fails the check, warnings are printed" ;;
+    lint)      echo "shellcheck on every tracked *.sh and *.command: any warning or error fails the check" ;;
     secrets)   echo "curated secret-pattern sweep over every tracked file" ;;
     changelog) echo "CHANGELOG.md has a '## Next' section or an entry for VERSION, and that entry reads as release notes" ;;
     tests)     echo "every executable under memory-analyzer/tests/ and tests/ (macOS only; skipped, visibly, elsewhere)" ;;
     workflows) echo "actionlint on .github/workflows (optional: skipped, visibly, when not installed)" ;;
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root" ;;
+    spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
+    names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
   esac
 }
@@ -93,25 +95,24 @@ check_lint() {
     echo "install it:  brew install shellcheck   (macOS)   |   sudo apt-get install shellcheck   (Debian/Ubuntu)" >"$OUT"
     return 1
   fi
-  local n errors warnings rc
+  local n findings rc
   n="$(script_list | wc -l | tr -d ' ')"
-  # one pass at warning severity (what we print), one at error (what gates)
-  script_list | tr '\n' '\0' | xargs -0 shellcheck -f gcc -S warning >"$TMP/lint.warn" 2>&1
-  script_list | tr '\n' '\0' | xargs -0 shellcheck -f gcc -S error >"$TMP/lint.err" 2>&1
+  # Warnings are defects: shellcheck is telling us the code is not written the
+  # way its documentation intends. Fix the code; where a warning is a false
+  # positive, say why with a `# shellcheck disable=SCxxxx  # reason` line.
+  # One file per shellcheck run: given every script at once, shellcheck can
+  # stay silent about a finding it reports when the file is checked alone (an
+  # unused local did exactly that), and an editor checks one file at a time.
+  script_list | tr '\n' '\0' | xargs -0 -n1 shellcheck -f gcc -S warning >"$TMP/lint.out" 2>&1
   rc=$?
-  errors="$(grep -c ': error: ' "$TMP/lint.err")"
-  warnings="$(grep -c ': warning: ' "$TMP/lint.warn")"
   if [ "$rc" -ne 0 ]; then
-    [ "$errors" -gt 0 ] || errors="?"
-    DETAIL="$errors error(s) in $n scripts"
-    cat "$TMP/lint.err" >"$OUT"
+    findings="$(grep -c -E ': (warning|error): ' "$TMP/lint.out")"
+    [ "$findings" -gt 0 ] || findings="?"
+    DETAIL="$findings finding(s) in $n scripts (a warning fails the check)"
+    cat "$TMP/lint.out" >"$OUT"
     return 1
   fi
   DETAIL="$n scripts"
-  if [ "$warnings" -gt 0 ]; then
-    DETAIL="$DETAIL, $warnings warning(s) (not blocking)"
-    cat "$TMP/lint.warn" >"$OUT"
-  fi
   return 0
 }
 
@@ -239,6 +240,62 @@ check_strays() {
   return 0
 }
 
+# The job store's test hooks (`scriptOverride`, `outcomeOverride`, the clock and
+# schedule readers, `JobOutcome.init`) are `@_spi(TestSupport)`: only code that
+# writes `@_spi(TestSupport) import AnalyzersKit` can see them. That is a compile-time
+# wall between our own targets, not a runtime one (the symbols are still in the
+# binary). This check keeps the wall where it is: the attribute may appear in
+# AnalyzersKit (where the hooks are declared) and in the two targets that are
+# never part of the shipped app's behaviour — AgentRunner's probes and
+# SnapshotRunner's fixtures — and nowhere else.
+# MA_SPI_ROOT points the check at another copy of app/Sources (used to prove it fails).
+check_spi() {
+  local root="${MA_SPI_ROOT:-$ROOT/app/Sources}"
+  if [ ! -d "$root" ]; then DETAIL="skipped: no app/Sources"; return 2; fi
+  local hits
+  hits="$(cd "$root" && grep -rnE '@_spi[[:space:]]*\([[:space:]]*TestSupport[[:space:]]*\)' --include='*.swift' . 2>/dev/null \
+    | grep -v '^\./AnalyzersKit/' | grep -v '^\./AgentRunner/' | grep -v '^\./SnapshotRunner/' || true)"
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" >"$OUT"
+    echo "the test-only interface is used outside AnalyzersKit, AgentRunner and SnapshotRunner" >>"$OUT"
+    DETAIL="$(printf '%s\n' "$hits" | wc -l | tr -d ' ') use(s) of @_spi(TestSupport) in the app's own code"
+    return 1
+  fi
+  DETAIL="@_spi(TestSupport) stays in AnalyzersKit, AgentRunner and SnapshotRunner"
+  return 0
+}
+
+# The names of screens, tasks, scopes and states are written once, in
+# `AnalyzersKit/Naming/Names.swift`, and are all title-style names. The probe
+# lives in `agent-runner` so the check never parses Swift with grep: it builds
+# the runner, asks it to print every name and exits 1 on one that
+# `TitleStyle` rejects. MA_NAMES_APP points the check at another copy of app/
+# (used to prove it fails on a lowercased name).
+check_names() {
+  local app="${MA_NAMES_APP:-$ROOT/app}"
+  if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
+  if [ ! -f "$app/Package.swift" ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
+  if ! command -v swift >/dev/null 2>&1; then DETAIL="skipped: swift is not installed"; return 2; fi
+  local bin
+  if ! ( cd "$app" && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0= \
+          swift build --disable-keychain --product AgentRunner ) >"$TMP/names-build.out" 2>&1; then
+    grep -a -E ': error: ' "$TMP/names-build.out" | cut -c1-300 | awk '!seen[$0]++' | head -10 >"$OUT"
+    [ -s "$OUT" ] || tail -n 10 "$TMP/names-build.out" | cut -c1-300 >"$OUT"
+    DETAIL="could not build agent-runner"
+    return 1
+  fi
+  bin="$(cd "$app" && swift build --disable-keychain --show-bin-path 2>/dev/null)/AgentRunner"
+  if [ ! -x "$bin" ]; then DETAIL="agent-runner was not built"; return 1; fi
+  if "$bin" --probe-names >"$TMP/names.out" 2>&1; then
+    DETAIL="$(tail -n 1 "$TMP/names.out")"
+    return 0
+  fi
+  grep -a '^FAIL' "$TMP/names.out" >"$OUT"
+  tail -n 1 "$TMP/names.out" >>"$OUT"
+  DETAIL="a name is not in title style"
+  return 1
+}
+
 check_app() {
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
   if [ ! -f app/Package.swift ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
@@ -315,7 +372,7 @@ if [ -n "$range" ]; then
       case "$n" in
         syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
         changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
-        app) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
+        app|spi|names) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
         secrets|strays) selected="$selected $n" ;;
       esac
     done

@@ -61,13 +61,31 @@ public enum GuardControl {
 
     /// Relaunch just this app — the light alternative to a Mac restart: the
     /// detached child survives our exit and opens a fresh instance.
+    /// Set by `restartApp`, cleared when the quit is cancelled, acted on when
+    /// the app is really terminating (`startRelauncherIfRequested`).
+    public static var relaunchAfterQuit = false
+
     public static func restartApp() {
-        let bundlePath = Bundle.main.bundleURL.path
+        // With a job running, quitting asks first. So Restart only RECORDS that a
+        // relaunch is wanted; the relauncher starts once termination is certain
+        // (the app delegate's applicationWillTerminate). Started here, it would
+        // outlive a cancelled quit and relaunch the app on some later, unrelated quit.
+        relaunchAfterQuit = true
+        NSApp.terminate(nil)
+    }
+
+    /// Start a small shell that waits for THIS process to be gone, then opens
+    /// the app again. Waiting on the pid — not a fixed pause — because stopping
+    /// a running job can take a few seconds. Bounded to one minute.
+    public static func startRelauncherIfRequested() {
+        guard relaunchAfterQuit else { return }
+        relaunchAfterQuit = false
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sh")
-        p.arguments = ["-c", "sleep 0.7; /usr/bin/open -g \"\(bundlePath)\""]
+        p.arguments = ["-c",
+                       "n=0; while kill -0 \"$1\" 2>/dev/null && [ $n -lt 300 ]; do sleep 0.2; n=$((n+1)); done; /usr/bin/open -g \"$2\"",
+                       "sh", String(ProcessInfo.processInfo.processIdentifier), Bundle.main.bundleURL.path]
         try? p.run()
-        NSApp.terminate(nil)
     }
 
     /// Run the repo's upgrade.command in Terminal — visible progress: pull,

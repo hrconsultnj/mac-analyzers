@@ -10,9 +10,9 @@ public struct CensusGroup: Identifiable, Sendable {
 
         public var title: String {
             switch self {
-            case .apps: "Apps"
-            case .tools: "Command-line & developer tools"
-            case .system: "macOS"
+            case .apps: Names.Category.apps
+            case .tools: Names.Category.tools
+            case .system: Names.Category.system
             }
         }
     }

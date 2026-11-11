@@ -11,6 +11,17 @@ cd "$(dirname "$0")"
 if [[ "${1:-}" == "--pro" ]]; then
   export MA_PRO_PATH="${MA_PRO_PATH:-$HOME/mac-analyzers-pro}"
 fi
+# This script installs on the Mac it runs on, with whatever Xcode that Mac has.
+# The package refuses warnings by default (see Package.swift); a newer compiler
+# with a new warning must not stop someone's install or update, so warnings are
+# not fatal HERE — they are still printed. Everything that checks or ships the
+# code builds strict: scripts/check.sh, the pre-push gate, GitHub's Mac run, and
+# scripts/package.sh, which sets MA_STRICT_WARNINGS=1 for the download.
+if [[ "${MA_STRICT_WARNINGS:-0}" == "1" ]]; then
+  unset MA_RELAX_WARNINGS
+else
+  export MA_RELAX_WARNINGS=1
+fi
 # Mode switches (overlay <-> plain) poison SPM incremental state: object
 # files keep references to the overlay module. Detect and force recompiles.
 MODE="$([[ -n "${MA_PRO_PATH:-}" ]] && echo pro || echo public)"
@@ -28,8 +39,14 @@ fi
 
 APP="MacAnalyzers.app"
 
-swift build -c release
-BIN="$(swift build --show-bin-path -c release)"
+# --disable-keychain + no git credential helper: SwiftPM's default is to look
+# in the macOS keychain for a saved login whenever it downloads from a host,
+# and git asks its keychain helper the same question — which puts a "wants to
+# use your confidential information" prompt in front of whoever is building.
+# Everything this build downloads is public, so it never needs a credential.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0=
+swift build -c release --disable-keychain
+BIN="$(swift build --show-bin-path -c release --disable-keychain)"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -38,6 +55,47 @@ cp Info.plist "$APP/Contents/Info.plist"
 # app can compare itself against the latest GitHub release
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(tr -d ' \n' < ../VERSION)" \
   "$APP/Contents/Info.plist" 2>/dev/null || true
+# Build stamp: the version only changes at a release, so two builds made an
+# hour apart look identical on screen. The Update screen shows this instead:
+# which commit this copy was built from (marked when the working tree had
+# uncommitted changes) and when.
+REVISION="$(git -C .. rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+[[ -n "$(git -C .. status --porcelain 2>/dev/null)" ]] && REVISION="$REVISION, with local changes"
+/usr/libexec/PlistBuddy -c "Add :MABuildRevision string $REVISION" \
+  -c "Add :MABuildDate string $(date '+%b %-d at %H:%M')" "$APP/Contents/Info.plist" 2>/dev/null || true
+# How far this build is from the release it is named after, so a development
+# build can say so on screen: that release's tag, the commits made since it,
+# and whether the tree had local changes. A copy with no git history gets no
+# stamp and reads as a release.
+#
+# Counted from the tag of the version in VERSION (`v2.69.0..HEAD`), not from
+# `git describe`: describe only finds a tag on this branch's own history, and
+# a release is tagged on main's merge commit, which development does not
+# contain — so right after a release it would name the release BEFORE and call
+# an identical tree a development build. Counting from the version's own tag
+# gives 0 for that tree whatever the branch layout. Only when that tag is not
+# known here (not fetched yet) does it fall back to the nearest tag in history.
+BUILD_AHEAD=""
+BUILD_DIRTY=0
+BUILD_TAG="v$(tr -d ' \n' < ../VERSION)"
+if git -C .. rev-parse -q --verify "refs/tags/$BUILD_TAG" >/dev/null 2>&1; then
+  BUILD_AHEAD="$(git -C .. rev-list --count "$BUILD_TAG..HEAD" 2>/dev/null || true)"
+else
+  BUILD_DESCRIBE="$(git -C .. describe --tags --long --match 'v[0-9]*' 2>/dev/null || true)"
+  if [[ "$BUILD_DESCRIBE" =~ ^(v[0-9][^-]*)-([0-9]+)-g[0-9a-f]+$ ]]; then
+    BUILD_TAG="${BASH_REMATCH[1]}"
+    BUILD_AHEAD="${BASH_REMATCH[2]}"
+  fi
+fi
+if [[ "$BUILD_AHEAD" =~ ^[0-9]+$ ]]; then
+  [[ -n "$(git -C .. status --porcelain 2>/dev/null)" ]] && BUILD_DIRTY=1
+  /usr/libexec/PlistBuddy -c "Add :MABuildReleaseTag string $BUILD_TAG" \
+    -c "Add :MABuildCommitsAfter integer $BUILD_AHEAD" \
+    -c "Add :MABuildLocalChanges bool $([[ "$BUILD_DIRTY" == 1 ]] && echo true || echo false)" \
+    "$APP/Contents/Info.plist" 2>/dev/null || true
+else
+  BUILD_AHEAD=""
+fi
 cp "$BIN/MacAnalyzersApp" "$APP/Contents/MacOS/MacAnalyzersApp"
 cp "$BIN/NotifierCLI" "$APP/Contents/MacOS/notify"
 cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"
@@ -48,7 +106,15 @@ cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Bundled changelog: the newest 20 entries of the repo's CHANGELOG.md — the
 # same file each GitHub release publishes, so the app's What's New and the
 # release page can never say different things.
-awk '/^## v[0-9]/{count++} count>20{exit} count>0{print}' ../CHANGELOG.md \
+# A build ahead of the last release also carries the "## Next" section: what is
+# in this build and not yet released. A release build starts at the first "## v".
+WANT_NEXT=0
+if [[ "$BUILD_AHEAD" =~ ^[0-9]+$ ]] && { [[ "$BUILD_AHEAD" -gt 0 ]] || [[ "${BUILD_DIRTY:-0}" == 1 ]]; }; then WANT_NEXT=1; fi
+awk -v next_wanted="$WANT_NEXT" '
+  /^## Next/ { in_next = 1 }
+  /^## v[0-9]/ { in_next = 0; count++ }
+  count > 20 { exit }
+  count > 0 || (in_next && next_wanted == 1) { print }' ../CHANGELOG.md \
   > "$APP/Contents/Resources/CHANGELOG.md" 2>/dev/null || true
 
 # Bundled engine: the bash suite ships INSIDE the app, so a downloaded copy
@@ -56,8 +122,24 @@ awk '/^## v[0-9]/{count++} count>20{exit} count>0{print}' ../CHANGELOG.md \
 # __SUITE_DIR__ from their own location, so they run unchanged from in here.
 ENGINE="$APP/Contents/Resources/engine"
 mkdir -p "$ENGINE"
+# Only files that belong to the project go in: tracked files plus new ones
+# git would accept. A plain recursive copy also swept up whatever happened to
+# sit in those folders on the build machine — editor and assistant session
+# state, local planning notes, .DS_Store — and shipped it inside the app.
 for dir in memory-analyzer storage-analyzer network-analyzer lib; do
-  [[ -d "../$dir" ]] && cp -R "../$dir" "$ENGINE/"
+  [[ -d "../$dir" ]] || continue
+  if git -C .. rev-parse --git-dir >/dev/null 2>&1; then
+    (cd .. && git ls-files -z --cached --others --exclude-standard -- "$dir") \
+      | while IFS= read -r -d '' file; do
+          [[ -f "../$file" && "$file" != */tests/* ]] || continue
+          mkdir -p "$ENGINE/$(dirname "$file")"
+          cp -p "../$file" "$ENGINE/$file"
+        done
+  else
+    # a source download with no git history: copy, minus the usual strays
+    rsync -a --exclude 'tasks-plans' --exclude '.composure' --exclude '.claude' \
+      --exclude '.DS_Store' --exclude 'tests' "../$dir" "$ENGINE/"
+  fi
 done
 cp ../config.example.sh "$ENGINE/" 2>/dev/null || true
 cp ../VERSION "$ENGINE/" 2>/dev/null || true
@@ -78,11 +160,48 @@ else
   echo "built + signed: $(pwd)/$APP  [ad-hoc — add an Apple Development cert for BTM attribution]"
 fi
 
+# replace_install <built bundle> <installed path> — swap the installed app for
+# the new build without ever leaving that path empty:
+#   1. an earlier attempt that died after moving the old app aside is undone
+#      first (the old copy goes back), and its half-made copy is removed —
+#      copying INTO a leftover would merge two builds;
+#   2. the new build is copied next to the installed one;
+#   3. the installed one is moved aside, the new one moved in;
+#   4. if that last move fails, the old one is moved back.
+# The agents' entry point lives inside the installed app, so "no app there"
+# would stop every scheduled job.
+replace_install() {
+  local src="$1" dst="$2"
+  if [[ ! -e "$dst" && -e "$dst.old" ]]; then mv "$dst.old" "$dst" 2>/dev/null || return 1; fi
+  rm -rf "$dst.new" "$dst.old" 2>/dev/null
+  [[ -e "$dst.new" || -e "$dst.old" ]] && return 1
+  ditto "$src" "$dst.new" 2>/dev/null || { rm -rf "$dst.new" 2>/dev/null; return 1; }
+  if [[ -e "$dst" ]]; then
+    mv "$dst" "$dst.old" 2>/dev/null || { rm -rf "$dst.new" 2>/dev/null; return 1; }
+  fi
+  if mv "$dst.new" "$dst" 2>/dev/null; then
+    rm -rf "$dst.old" 2>/dev/null
+    return 0
+  fi
+  [[ -e "$dst.old" ]] && mv "$dst.old" "$dst" 2>/dev/null
+  rm -rf "$dst.new" 2>/dev/null
+  return 1
+}
+
 # install to /Applications — the canonical location for the running app; the
 # repo copy is the build artifact / script-only fallback. A locally built app
 # carries no quarantine, so no DMG/notarization is involved.
 INSTALL="/Applications/MacAnalyzers.app"
-if ditto "$APP" "$INSTALL" 2>/dev/null; then
+# MA_NO_INSTALL=1: build the bundle and stop — scripts/package.sh uses this so
+# making a download for other people never touches the copy you are running.
+if [[ "${MA_NO_INSTALL:-0}" == "1" ]]; then
+  echo "not installed (MA_NO_INSTALL=1)"
+elif replace_install "$APP" "$INSTALL"; then
+  # REPLACED, not copied over: copying a bundle onto the installed one keeps
+  # every file the new build no longer contains, so removed files lived on in
+  # /Applications forever and the installed copy's signature stopped
+  # verifying (files present that the seal does not list). A running app is
+  # unaffected — it keeps the files it already has open until it relaunches.
   echo "installed: $INSTALL"
 else
   echo "note: could not install to /Applications (permissions?) — running from the repo copy still works"
