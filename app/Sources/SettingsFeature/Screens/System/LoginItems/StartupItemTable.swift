@@ -44,7 +44,7 @@ struct StartupItemTable: View {
             OutlineColumn("state", Names.Column.state, text: \.stateText,
                           sortUsing: KeyPathComparator(\StartupNode.stateText))
                 .textStyle { $0.isGroup ? .secondary : .primary }
-                .width(min: 90, ideal: 130)
+                .width(min: 110, ideal: 170)
             OutlineColumn("kind", Names.Column.kind, text: \.kindText,
                           sortUsing: KeyPathComparator(\StartupNode.kindText))
                 .width(min: 95, ideal: 110)

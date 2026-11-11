@@ -60,6 +60,24 @@ enum CodeSignature {
            name[name.index(after: open)...].dropLast().allSatisfy({ $0.isLetter || $0.isNumber }) {
             name = String(name[..<open]).trimmingCharacters(in: .whitespaces)
         }
-        return name.isEmpty ? nil : name
+        return name.isEmpty ? nil : plain(name)
+    }
+
+    /// "Google LLC" is "Google", "Zoom Video Communications, Inc." is "Zoom Video
+    /// Communications": the company, without its legal form, the way System Settings
+    /// reads. A name that is nothing but a legal form is kept whole.
+    static func plain(_ name: String) -> String {
+        var result = name
+        let forms = [" (U.S.)", ", Inc.", " Inc.", ", Inc", " Inc", ", LLC", " LLC", ", Ltd.", " Ltd.", " Ltd",
+                     ", Corp.", " Corp.", " Corporation", " GmbH", " PBC", ", PBC", " Co., Ltd.", " B.V.", " S.A."]
+        var changed = true
+        while changed {
+            changed = false
+            for form in forms where result.hasSuffix(form) && result.count > form.count {
+                result.removeLast(form.count)
+                changed = true
+            }
+        }
+        return result.trimmingCharacters(in: CharacterSet(charactersIn: " ,"))
     }
 }

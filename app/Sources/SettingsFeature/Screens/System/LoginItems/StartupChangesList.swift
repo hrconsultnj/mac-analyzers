@@ -46,7 +46,7 @@ struct StartupChangesList: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if changes.count > limit {
                 Button("Show Older (\(changes.count - limit) more)") { limit += 200 }
-                    .padding(6)
+                    .padding()
             }
         }
         .contextMenu(forSelectionType: StartupChange.ID.self) { ids in

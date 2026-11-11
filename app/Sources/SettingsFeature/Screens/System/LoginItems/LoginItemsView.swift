@@ -51,7 +51,9 @@ struct LoginItemsView: View {
     @State private var changeSelection: StartupChange.ID?
     @State private var showInspector = false
     @State private var confirmRemoval = false
-    @State private var removalScope: [StartupItem] = []
+    /// What the open confirmation names and what Remove sends, fixed when it opened: a later
+    /// audit changes the table, never the dialog (the dialog closes instead, and says why).
+    @State private var frozen: FrozenRemoval?
     @State private var auditFirst = false
 
     private var groups: [StartupGroup] {
@@ -98,8 +100,8 @@ struct LoginItemsView: View {
             }
             .confirmationDialog(removalTitle, isPresented: $confirmRemoval, titleVisibility: .visible) {
                 Button("Remove", role: .destructive) {
-                    // the list can have changed under an open confirmation
-                    if !model.remove(removalScope, in: store) { auditFirst = true }
+                    guard let frozen else { return }
+                    if !model.remove(frozen.scope, approved: frozen.approval, in: store) { auditFirst = true }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -109,7 +111,14 @@ struct LoginItemsView: View {
                 Button("Audit") { model.startAudit(in: store) }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("The list on screen is not from the audit that a removal would be built from, so nothing was removed. Audit again, then remove.")
+                Text("The list changed, or is not from the audit a removal would be built from, so nothing was removed. Audit again, then remove.")
+            }
+            // an audit that finishes under an open confirmation: close it and say why
+            .onChange(of: model.inventory?.stamp) {
+                guard confirmRemoval else { return }
+                confirmRemoval = false
+                frozen = nil
+                auditFirst = true
             }
             .task {
                 model.adopt(from: store)
@@ -164,11 +173,16 @@ struct LoginItemsView: View {
                                  expansion: expansion,
                                  onShowInFinder: reveal, onRemove: askToRemove)
                     .safeAreaInset(edge: .bottom, spacing: 0) {
-                        if let sentence = auditSentence {
-                            Text(sentence).font(.caption).foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal).padding(.vertical, 6)
+                        // what the tab holds, and when it was last audited: a sentence of its own
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(tabNote)
+                                if let sentence = auditSentence { Text(sentence) }
+                            }
+                            .font(.caption).foregroundStyle(.secondary)
+                            Spacer()
                         }
+                        .padding()
                     }
                     .safeAreaInset(edge: .top, spacing: 0) {
                         if let note = model.failure ?? model.permission.sentence {
@@ -301,14 +315,27 @@ struct LoginItemsView: View {
     }
 
     private var removalTitle: String {
-        removalScope.count == 1 ? "Remove this leftover?" : "Remove \(removalScope.count) leftovers?"
+        let count = frozen?.scope.count ?? 0
+        return count == 1 ? "Remove this leftover?" : "Remove \(count) leftovers?"
+    }
+
+    /// What each tab holds, in a sentence (the table can be two rows in a tall window).
+    private var tabNote: String {
+        switch tab {
+        case .apps: "Apps set to open when you log in: the same list as System Settings › Login Items."
+        case .background: "Programs that start by themselves in the background, under the app or developer they belong to."
+        case .leftovers: "Items whose app is gone. The ones in your own folders can be removed here; for the others a command is shown to copy."
+        case .changes: "What was added to startup."
+        }
     }
 
     private var removalMessage: String {
-        let names = removalScope.map(\.name).joined(separator: ", ")
-        return removalScope.count == 1
-            ? "\(names). The program it starts is gone, so nothing depends on it. This cannot be undone."
-            : "\(names). The program each one starts is gone, so nothing depends on them. This cannot be undone."
+        let names = frozen?.scope.map(\.name) ?? []
+        let sentence = names.count == 1
+            ? "The program it starts is gone, so nothing depends on it. This cannot be undone."
+            : "The program each one starts is gone, so nothing depends on them. This cannot be undone."
+        let full = names.count > 3 ? " " + ReviewWording.fullNames(names) + "." : ""
+        return "\(ReviewWording.nameList(names)). \(sentence)\(full)"
     }
 
     // MARK: - actions
@@ -321,20 +348,21 @@ struct LoginItemsView: View {
     /// Remove from a row or the inspector: just that leftover when the script
     /// can narrow to it (it can), otherwise every leftover.
     private func askToRemove(_ item: StartupItem) {
-        removalScope = StartupRemoval.scope(chosen: [item], removable: model.removable)
-        presentRemoval()
+        present(StartupRemoval.scope(chosen: [item], removable: model.removable))
     }
 
     private func askToRemoveAll() {
-        removalScope = model.removable
-        presentRemoval()
+        present(StartupRemoval.scopeAll(removable: model.removable))
     }
 
-    /// Ask to confirm, or say why not: a removal without an audit behind this
-    /// very list would act on something else than the dialog shows.
-    private func presentRemoval() {
-        guard !removalScope.isEmpty else { return }
-        if model.canRemove(in: store) { confirmRemoval = true } else { auditFirst = true }
+    /// Ask to confirm, with what is sent frozen now, or say why not: a removal without
+    /// an audit behind this very list would act on something else than the dialog shows.
+    private func present(_ scope: [StartupItem]) {
+        guard !scope.isEmpty else { return }
+        guard model.canRemove(in: store) else { auditFirst = true; return }
+        frozen = FrozenRemoval(scope: scope,
+                               approval: StartupRemoval.approval(for: scope, removable: model.removable))
+        confirmRemoval = true
     }
 
     private func showInItems(_ item: StartupItem) {
@@ -375,4 +403,10 @@ struct LoginItemsView: View {
             }
         }
     }
+}
+
+/// A removal as the confirmation shows it: the items named and the approval that will be sent.
+private struct FrozenRemoval {
+    let scope: [StartupItem]
+    let approval: ApprovedSet
 }

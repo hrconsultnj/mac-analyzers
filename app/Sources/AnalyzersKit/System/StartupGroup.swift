@@ -36,6 +36,8 @@ public struct StartupGroup: Identifiable, Hashable, Sendable {
     /// What a member is called when it stands alone as a row: its own name,
     /// with the app or developer in front unless the name already says it.
     public func standaloneTitle(for item: StartupItem) -> String {
-        item.name.localizedCaseInsensitiveContains(name) ? item.name : "\(name) \(item.name)"
+        // the app or developer in front, unless the name already says it ("Zoom Daemon" under "Zoom Video Communications")
+        let first = name.split(separator: " ").first.map(String.init) ?? name
+        return item.name.localizedCaseInsensitiveContains(first) ? item.name : "\(name) \(item.name)"
     }
 }

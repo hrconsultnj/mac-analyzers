@@ -16,6 +16,12 @@ enum StartupNaming {
     /// "GoogleUpdater" -> "Google Updater"; "mac-analyzers" -> "Mac Analyzers".
     /// `splitCamel: false` keeps a brand written as one word ("OrbStack").
     static func humanize(_ word: String, splitCamel: Bool = true) -> String {
+        // A name already written with capitals ("iTerm", "macOS", "GoogleUpdater") or
+        // with characters a label does not normally have is shown exactly as written:
+        // forcing capitals mangles real names.
+        if word.contains(where: \.isUppercase) || !word.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) {
+            return word
+        }
         var spaced = ""
         var previous: Character?
         for ch in word {
@@ -61,6 +67,10 @@ enum StartupNaming {
         while let last = parts.last, plumbing.contains(last.lowercased()), parts.count > 1 {
             parts.removeLast()
         }
+        // a label with characters a label should not have is shown whole, as written
+        if parts.contains(where: { !$0.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" } }) {
+            return parts.joined(separator: ".")
+        }
         let words = parts.map { humanize($0) }.joined(separator: " ")
         return words.isEmpty ? owner : words
     }
@@ -92,14 +102,16 @@ enum StartupNaming {
         let owner: String
         let source: StartupItem.OwnerSource
         var note: String?
-        let signature = target.map(CodeSignature.check(ofProgram:)) ?? .none
+        // the signature of the app the program sits in, else of the program itself
+        let signature = (app ?? target).map(CodeSignature.check(ofProgram:)) ?? .none
         if case .unverified(let claimed) = signature {
             note = "its code signature names \"\(claimed)\" but does not validate"
         }
-        if let app {
-            (owner, source) = (appName(at: app), .app)
-        } else if case .verified(let signer) = signature {
+        if kind != .loginItem, case .verified(let signer) = signature {
+            // one developer is one group: its helpers, daemons and agents all name it the same way
             (owner, source) = (signer, .signature)
+        } else if let app {
+            (owner, source) = (appName(at: app), .app)
         } else if let target, let folder = vendor(inPath: target) {
             (owner, source) = (folder, .installFolder)
         } else {

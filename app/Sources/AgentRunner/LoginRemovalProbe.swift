@@ -107,7 +107,7 @@ import os
     let rowApply = store.apply(from: await audit(), approved: rowApproval)
     await finished(rowApply)
     check("the list sent to the script is the confirmed row", list(rowApply) == "/L/a.plist", list(rowApply) ?? "no list")
-    let allScope = [a, b]   // the toolbar's Remove Leftovers: every removable item, as the screen sets it
+    let allScope = StartupRemoval.scopeAll(removable: [a, b])   // the toolbar's Remove Leftovers, the screen's own call
     let allApproval = StartupRemoval.approval(for: allScope, removable: [a, b])
     check("Remove Leftovers sends every removable item and nothing else",
           allScope.map(\.name) == ["a", "b"] && allApproval.approved == ["/L/a.plist", "/L/b.plist"])

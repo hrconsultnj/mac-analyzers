@@ -9,7 +9,7 @@ import UIComponents
 ///
 /// One job per file next to it:
 ///   ReportsModel.swift      the reports on disk, the open one, the jobs that write new ones
-///   ReportList.swift        the left side (and the Memory / Storage filter)
+///   ReportList.swift        the left side (the months and their reports)
 ///   ReportBlocksView.swift  the right side: headings, tables, lists, code
 ///   (the Markdown as written is the shared RawOutputScreen, opened from the top)
 ///   ReportFile.swift        what Export hands to the save panel
@@ -23,7 +23,8 @@ struct ReportsView: View {
     @State private var model = ReportsModel()
     @State private var kind: ReportDocument.Kind = .memory
     @State private var expanded: Set<String> = []
-    @State private var openedMonths: [ReportMonth.ID: Bool] = [:]
+    /// The months that are open, kept across window close and relaunch.
+    @State private var monthsOpen = RememberedExpansion<String>(screen: "reports")
     /// The section a "Sections" menu entry asked to scroll to.
     @State private var jumpTo: String?
     @State private var exporting = false
@@ -37,7 +38,7 @@ struct ReportsView: View {
         // and the window's contents ran past its edges (rendered and checked).
         DataScreen(title: Names.Screen.reports, subtitle: subtitle) {
         HStack(spacing: 0) {
-            ReportList(months: months, selection: $model.selection, opened: $openedMonths,
+            ReportList(months: months, selection: $model.selection, expansion: monthsOpen,
                        onShowInFinder: reveal)
                 .frame(minWidth: 240, idealWidth: 280, maxWidth: 380)
             Divider()
@@ -61,6 +62,10 @@ struct ReportsView: View {
             if model.selected?.kind != kind { model.selection = months.first?.reports.first?.id }
         }
         .onChange(of: model.selection) { openFirstSections() }
+        // the newest month starts open; never once a person opened or closed one
+        .onChange(of: months.first?.id, initial: true) {
+            monthsOpen.seedIfUntouched(months.first.map { [ReportList.key($0)] } ?? [])
+        }
         .onChange(of: model.sections) { openFirstSections() }
         // a link opened while Reports is already showing
         .onChange(of: navigator.pendingIntent) { applyPendingLink() }
@@ -192,7 +197,8 @@ struct ReportsView: View {
         }
         // month:<n> opens the nth month; section:<n> jumps to the nth section
         if payload.hasPrefix("month:"), let n = Int(payload.dropFirst("month:".count)), months.indices.contains(n) {
-            openedMonths[months[n].id] = true
+            let open = monthsOpen.binding
+            open.wrappedValue.insert(ReportList.key(months[n]))
         }
         if payload.hasPrefix("section:"), let n = Int(payload.dropFirst("section:".count)), model.sections.indices.contains(n) {
             expanded.insert(model.sections[n].id)

@@ -17,7 +17,8 @@ public struct StartupInventory: Sendable {
     public let wasDryRun: Bool
 
     public var leftovers: [StartupItem] { items.filter { $0.finding == .leftover || $0.finding == .possibleLeftover } }
-    /// What `login-items-audit.sh --apply` would remove: user-level leftovers.
+    /// What the app can offer to remove: user-level leftovers (the script
+    /// re-checks each one against what it finds when the removal runs).
     public var removable: [StartupItem] { items.filter(\.canRemove) }
 
     /// True when this inventory was written by the audit run that printed

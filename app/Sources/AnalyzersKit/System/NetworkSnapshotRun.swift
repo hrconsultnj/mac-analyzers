@@ -22,6 +22,12 @@ public struct NetworkProcessRow: Identifiable, Hashable, Sendable {
     public let group: String
 
     public var total: Int64 { downloaded + uploaded }
+
+    /// The same row under another name.
+    func renamed(_ name: String) -> NetworkProcessRow {
+        NetworkProcessRow(id: id, name: name, pid: pid, downloaded: downloaded, uploaded: uploaded, share: share,
+                          isRunning: isRunning, isApp: isApp, path: path, group: group)
+    }
     public var kindTitle: String { isApp ? "App" : "Background" }
 }
 
@@ -155,8 +161,15 @@ public struct NetworkGroup: Identifiable, Hashable, Sendable {
     /// The groups of a snapshot's rows, busiest first.
     public static func groups(of rows: [NetworkProcessRow]) -> [NetworkGroup] {
         Dictionary(grouping: rows, by: \.group)
-            .map { NetworkGroup(name: $0.key, rows: $0.value.sorted { $0.total > $1.total }) }
+            .map { NetworkGroup(name: $0.key, rows: told(apart: $0.value.sorted { $0.total > $1.total })) }
             .sorted { $0.total > $1.total }
+    }
+
+    /// Rows of one app that share a name (four sessions of "claude") are told apart by their
+    /// process id, in the words Activity Monitor uses: "claude (process 41324)".
+    static func told(apart rows: [NetworkProcessRow]) -> [NetworkProcessRow] {
+        let counts = Dictionary(rows.map { ($0.name, 1) }, uniquingKeysWith: +)
+        return rows.map { counts[$0.name, default: 0] > 1 ? $0.renamed("\($0.name) (process \($0.pid))") : $0 }
     }
 
     /// Problems with the shape: a name that repeats inside a group.

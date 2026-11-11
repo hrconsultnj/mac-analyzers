@@ -58,7 +58,7 @@ public struct ApprovedSet: Sendable, Hashable {
         return copy
     }
 
-    /// For jobs with no per-row approval: Spotlight, login items, Time Machine,
+    /// For jobs with no per-row approval: Spotlight, Time Machine,
     /// unused apps and recordings, whose scripts take no list. Never valid for a
     /// kind that takes one (`JobKind.takesReviewedList`): `apply(from:)` refuses it.
     public static let everything = ApprovedSet()

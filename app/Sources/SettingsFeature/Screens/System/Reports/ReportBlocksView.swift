@@ -103,8 +103,8 @@ struct ReportBlocksView: View {
     }
 }
 
-/// A Markdown table as a lazy grid: only the rows on screen are drawn and have
-/// their cells parsed. A bold header row; numbers aligned to the right.
+/// A Markdown table as a grid of its first 200 rows (more on request): a bold header row, rules
+/// between, numbers aligned to the right. Cells are parsed as they are drawn.
 private struct ReportTableView: View {
     let header: [String]
     let rows: [[String]]
@@ -124,19 +124,32 @@ private struct ReportTableView: View {
         }
     }
 
+    /// The first rows are drawn at once; a long table adds more on request. (A lazy grid drew only
+    /// the header here, in a lazy stack inside a folding section: seen in a render.)
+    @State private var shown = 200
+
     var body: some View {
         GroupBox {
-            LazyVGrid(columns: header.indices.map { GridItem(.flexible(minimum: 60), spacing: 16,
-                                                            alignment: numeric[$0] ? .trailing : .leading) },
-                      alignment: .leading, spacing: 6) {
-                ForEach(header.indices, id: \.self) { column in
-                    Text(ReportBlocksView.styled(header[column])).font(.headline)
-                }
-                ForEach(rows.indices, id: \.self) { row in
-                    ForEach(header.indices, id: \.self) { column in
-                        Text(ReportBlocksView.styled(rows[row].indices.contains(column) ? rows[row][column] : ""))
-                            .monospacedDigit(numeric[column])
+            VStack(alignment: .leading) {
+                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+                    GridRow {
+                        ForEach(header.indices, id: \.self) { column in
+                            Text(ReportBlocksView.styled(header[column])).font(.headline)
+                                .gridColumnAlignment(numeric[column] ? .trailing : .leading)
+                        }
                     }
+                    Divider().gridCellUnsizedAxes(.horizontal)
+                    ForEach(rows.prefix(shown).indices, id: \.self) { row in
+                        GridRow {
+                            ForEach(header.indices, id: \.self) { column in
+                                Text(ReportBlocksView.styled(rows[row].indices.contains(column) ? rows[row][column] : ""))
+                                    .monospacedDigit(numeric[column])
+                            }
+                        }
+                    }
+                }
+                if rows.count > shown {
+                    Button("Show \(min(200, rows.count - shown)) More Rows (\(rows.count - shown) left)") { shown += 200 }
                 }
             }
         }

@@ -1,5 +1,6 @@
 import AnalyzersKit
 import SwiftUI
+import UIComponents
 
 /// The reports of one kind, a section per month with what the month adds up
 /// to. The newest month starts open; clicking a month's header folds it.
@@ -9,15 +10,17 @@ import SwiftUI
 struct ReportList: View {
     let months: [ReportMonth]
     @Binding var selection: ReportDocument.ID?
-    /// Months the person opened or closed; a month nobody touched is open only
-    /// when it is the newest.
-    @Binding var opened: [ReportMonth.ID: Bool]
+    /// The months that are open, kept across window close and relaunch (the newest starts open).
+    let expansion: RememberedExpansion<String>
     let onShowInFinder: (ReportDocument) -> Void
+
+    /// A month's id in the remembered set: "2026-10".
+    static func key(_ month: ReportMonth) -> String { month.date.formatted(.iso8601.year().month()) }
 
     var body: some View {
         List(selection: $selection) {
-            ForEach(Array(months.enumerated()), id: \.element.id) { index, month in
-                let isOpen = opened[month.id] ?? (index == 0)
+            ForEach(months) { month in
+                let isOpen = expansion.ids.contains(ReportList.key(month))
                 Section {
                     if isOpen {
                         ForEach(month.reports) { report in
@@ -35,7 +38,11 @@ struct ReportList: View {
                         }
                     }
                 } header: {
-                    Button { opened[month.id] = !isOpen } label: {
+                    Button {
+                        let open = expansion.binding
+                        if isOpen { open.wrappedValue.remove(ReportList.key(month)) }
+                        else { open.wrappedValue.insert(ReportList.key(month)) }
+                    } label: {
                         HStack {
                             Image(systemName: isOpen ? "chevron.down" : "chevron.right")
                                 .foregroundStyle(.secondary)

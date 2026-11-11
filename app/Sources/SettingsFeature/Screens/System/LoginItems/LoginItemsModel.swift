@@ -81,10 +81,9 @@ final class LoginItemsModel {
     /// Removes `scope` through the kernel, from the audit that is on screen.
     /// Returns false when there is no recent audit to build it from.
     @discardableResult
-    func remove(_ scope: [StartupItem], in store: JobStore) -> Bool {
+    func remove(_ scope: [StartupItem], approved: ApprovedSet, in store: JobStore) -> Bool {
         guard canRemove(in: store), let preview = reviewedAudit(in: store), !scope.isEmpty else { return false }
-        removal = store.apply(from: preview,
-                              approved: StartupRemoval.approval(for: scope, removable: removable))
+        removal = store.apply(from: preview, approved: approved)
         return true
     }
 
