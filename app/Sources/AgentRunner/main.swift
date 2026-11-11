@@ -229,6 +229,10 @@ if args.first == "--probe-stop-targets" {
     await probeStopTargets(args)
 }
 
+// `agent-runner --probe-procargs` proves a process's arguments are read without its
+// environment and shown without a credential's value. See ProcessArgumentsProbe.swift.
+if args.first == "--probe-procargs" { probeProcessArguments() }
+
 // `agent-runner --probe-pid-recycle` proves a stop refuses a recycled pid.
 // It starts a `sleep`, remembers its birth, then asks the signal path to act
 // twice: once with a birth one second off, which is what a recycled pid looks

@@ -62,6 +62,27 @@ without an entry here — see `scripts/cut-release.sh`.
   a moment. Quit says so in its confirmation, and sends nothing if it still
   cannot tell when you confirm.
 
+## v2.69.2 — Process rows no longer show a program's environment
+
+- A process row could show part of a program's environment after its name,
+  and an environment can hold a password or an API key. It happened for
+  programs that rename themselves while they run, such as a Next.js
+  development server, on Overview's "Biggest Processes Right Now", in Monitor
+  and in the menu-bar panel. Rows now read a program's arguments the way
+  Terminal's `ps` does. This was text on your own screen: the app did not
+  save it to a log or send it anywhere. If a key of yours was on screen while
+  someone else could see it, or in a screenshot you shared, replace that key.
+- Anything on a row written as `NAME=value` now shows its name only, never
+  its value. That also covers the one case where macOS itself hands back
+  environment entries as arguments (a program that gives itself a very long
+  name), where the names can still appear.
+- A row also hides the value of an argument that is plainly a credential,
+  such as `--token abc` or a password inside a web address. It cannot
+  recognise every way a secret may be passed to a program, so a command line
+  is still not a safe place for one.
+- Programs that rename themselves are now named and grouped by that name
+  alone.
+
 ## v2.69.1 — Large Downloads reviews can be applied again
 
 - Reviews of very large cleanups can be applied again. If your Downloads

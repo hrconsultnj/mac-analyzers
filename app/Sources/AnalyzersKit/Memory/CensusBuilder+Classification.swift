@@ -39,7 +39,7 @@ extension CensusBuilder {
         let isDev = command.map(LiveStats.isDevKillable) ?? false
         return LiveProcess(
             pid: entry.pid, residentMB: entry.residentMB,
-            rawName: String((command ?? entry.path).prefix(100)),
+            rawName: CommandLineDisplay.shown(command ?? entry.path),
             kind: isDev ? .devTool : .app, ppid: entry.ppid,
             footprintBytes: entry.bytes,
             label: isDev ? nil : (label ?? leafName(entry)),

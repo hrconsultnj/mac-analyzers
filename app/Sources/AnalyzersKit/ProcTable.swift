@@ -149,23 +149,9 @@ public enum ProcTable {
               bufferSize > MemoryLayout<Int32>.stride
         else { return nil }
 
-        // layout: [argc: Int32][exec path\0][padding \0s][argv0\0][argv1\0]…
-        let argc = buffer.load(as: Int32.self)
-        let bytes = UnsafeRawBufferPointer(start: buffer, count: bufferSize)
-        var cursor = MemoryLayout<Int32>.stride
-        func nextString() -> String? {
-            while cursor < bytes.count, bytes[cursor] == 0 { cursor += 1 }
-            guard cursor < bytes.count else { return nil }
-            let start = cursor
-            while cursor < bytes.count, bytes[cursor] != 0 { cursor += 1 }
-            return String(decoding: bytes[start..<cursor], as: UTF8.self)
-        }
-        guard nextString() != nil else { return nil }  // exec path
-        var args: [String] = []
-        for _ in 0..<max(argc, 1) {
-            guard let arg = nextString() else { break }
-            args.append(arg)
-        }
+        // the arguments and nothing after them: the environment follows in the same buffer
+        // (see `ProcessArguments`)
+        let args = ProcessArguments.parse(UnsafeRawBufferPointer(start: buffer, count: bufferSize))
         let joined = args.joined(separator: " ")
         return joined
     }
