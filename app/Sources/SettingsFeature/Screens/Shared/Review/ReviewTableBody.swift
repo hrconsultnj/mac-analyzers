@@ -20,6 +20,10 @@ struct ReviewTableBody: View {
     let expansion: RememberedExpansion<String>
     /// The screen's key: column widths, order and hidden columns are kept per screen too.
     let screen: String
+    /// A screen's items for a row; nil leaves the table without a menu.
+    var rowMenu: ReviewRowMenu?
+    /// The review's own rows for a set of line ids (a group's or the fold's id matches none).
+    var rowsFor: @MainActor (Set<String>) -> [ReviewRow] = { _ in [] }
 
     @State private var selection: Set<String> = []
 
@@ -31,7 +35,7 @@ struct ReviewTableBody: View {
     private static let openRowLimit = 200
 
     var body: some View {
-        let table = OutlineTable(nodes, children: \.children, selection: $selection, sortOrder: $sortOrder,
+        var table = OutlineTable(nodes, children: \.children, selection: $selection, sortOrder: $sortOrder,
                                  expanded: expansion.binding, autosave: screen) {
             OutlineColumn("name", Names.Column.name, sortUsing: KeyPathComparator(\ReviewNode.sortName)) { node in
                 ReviewNameCell(node: node)
@@ -49,7 +53,10 @@ struct ReviewTableBody: View {
         }
         // rows the cleanup leaves alone keep a readable name and reason; only their tick and icon are dimmed
         // (the tick is unavailable on its own, the icon in `ReviewNameCell`), so the reason can be read
-        Group {
+        if let rowMenu {
+            table = table.contextMenu { ids in rowMenu.items(rowsFor(ids)) }
+        }
+        return Group {
             if let session {
                 table.ticks(OutlineTicks(
                     state: { Self.tickState($0, session: session) },

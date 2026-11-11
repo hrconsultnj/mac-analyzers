@@ -309,6 +309,8 @@ public enum Names {
         public static let copyDiagnostics = "Copy Diagnostics"
         public static let discard = "Discard"
         public static let showInFinder = "Show in Finder"
+        public static let copyPath = "Copy Path"
+        public static let copyPaths = "Copy Paths"
     }
 
     public enum Raw {
@@ -365,7 +367,7 @@ public enum Names {
         rows += JobKind.allCases.map { ("Task \($0.rawValue)", job($0)) }
         rows += EngineLog.allCases.map { ("Log \($0.rawValue)", log($0)) }
         rows += [Review.selectAll, Review.selectNone, Review.previewAgain, Review.preview, Review.stop, Review.history,
-                 Review.showRawOutput].map { ("Review", $0) }
+                 Review.showRawOutput, Review.showInFinder, Review.copyPath, Review.copyPaths].map { ("Review", $0) }
         rows += [Raw.screen, Raw.searchPrompt, Raw.copy, Raw.noOutput, Raw.showAll, Raw.showOlder].map { ("Raw", $0) }
         rows += TokenWords.all.map { ("Token \($0.token)", $0.label) }
         return rows.map { (table: $0.0, name: $0.1) }

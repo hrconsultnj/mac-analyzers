@@ -39,7 +39,8 @@ public struct ReviewSelection: Sendable {
         public let acts: Bool
         public init(id: String, choosable: Bool = true, acts: Bool = false) {
             self.id = id
-            self.choosable = choosable && !acts
+            // a key the approved list cannot carry (a line break) is never choosable, whoever built the item
+            self.choosable = choosable && !acts && ApprovedSet.isListable(id)
             self.acts = acts
         }
     }

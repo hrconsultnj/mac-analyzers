@@ -18,7 +18,8 @@ struct OutlineConfiguration<Row: Identifiable> {
     var rowEnabled: (@MainActor (Row) -> Bool)?
     var sectionHeader: (@MainActor (Row) -> OutlineSectionHeader?)?
     var showsColumnHeaders = true
-    var alternatingRows = true
+    /// Off by default: stripes below the last row of a short table read as "still loading".
+    var alternatingRows = false
 }
 
 /// A selection binding, single or multiple, as the one thing the coordinator reads.

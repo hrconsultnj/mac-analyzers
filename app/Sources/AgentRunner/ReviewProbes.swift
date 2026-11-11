@@ -410,6 +410,23 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     check("apply recorded against its own preview", applied.value(for: first) != nil)
     check("new preview: Apply is enabled again and the old message is gone", applied.value(for: second) == nil)
     check("no preview: nothing recorded", applied.value(for: nil) == nil)
+    // a key the list cannot carry: every kind of line break, including the pair Swift reads as one character
+    for (name, key) in [("a line feed", "x\n/d/other.zip"), ("a carriage return", "x\r/d/other.zip"),
+                        ("a carriage return and line feed", "x\r\n/d/other.zip"), ("a NUL", "x\u{0}y")] {
+        check("a key with \(name) is not listable", !ApprovedSet.isListable(key))
+    }
+    let crlf = ApprovedSet(approvable: ["/d/a.pdf", "x\r\n/d/other.zip", "/d/other.zip"], deselected: ["/d/other.zip"])
+    check("…and the unticked item it names never reaches the list", crlf.approved == ["/d/a.pdf"], "\(crlf.approved.count) key(s)")
+
+    // a key with a line break is never choosable: not through a screen's item, not through updateChoosable
+    var odd = ReviewSelection(previewID: UUID(), items: [.init(id: "/ok"), .init(id: "/odd\nkey")])
+    check("a key with a line break is not choosable", !odd.isChoosable("/odd\nkey") && odd.isChoosable("/ok"))
+    _ = odd.updateChoosable(["/odd\nkey": true])
+    odd.selectAll()
+    check("and stays so when a screen calls it choosable; Select All leaves it out",
+          !odd.isChoosable("/odd\nkey") && odd.approved.approved == ["/ok"] && odd.choosableCount == 1)
+    let pair = ReviewSelection(previewID: UUID(), items: [.init(id: "/ok"), .init(id: "/odd\r\nkey")])
+    check("a key with a carriage return and line feed is not choosable either", !pair.isChoosable("/odd\r\nkey") && pair.approved.approved == ["/ok"])
     let broken = tally.failed
     if broken == 0 { print("all review-session rules hold") } else { print("\(broken) rule(s) broken") }
     exit(broken == 0 ? 0 : 1)
