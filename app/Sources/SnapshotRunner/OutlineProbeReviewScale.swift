@@ -14,8 +14,7 @@ extension ProbeReview {
         var loads = [Double](repeating: 0, count: 3)
         getloadavg(&loads, 3)
         let probe = ReviewFixtureProbe(downloads: count)
-        let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-review-scale-\(getpid())", directoryHint: .isDirectory)
-        try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        let scratch = SnapshotScratch.folder("ma-review-scale")
         let jobs = JobStore(ledger: JobLedger(url: scratch.appending(path: "jobs.jsonl")))
 
         let wall0 = now(), cpu0 = cpuMilliseconds()

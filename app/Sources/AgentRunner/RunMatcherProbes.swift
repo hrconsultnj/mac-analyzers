@@ -68,10 +68,12 @@ func probeRunMatcher() -> Never {
         try? handle.close()
     }
     let giantSize = (try? FileManager.default.attributesOfItem(atPath: giant.path)[.size] as? Int) ?? 0
+    let giantStarted = ContinuousClock.now
     let huge = RunMatcher.outcome(kind: .janitor, in: giant, header: banner, startedAt: began)
+    let giantTook = giantStarted.duration(to: .now)
     var tooLarge = false
     if case .newestFallback(let reason) = huge.match { tooLarge = reason == RunMatcher.Reason.tooLarge }
-    check("run beyond the reach (\(giantSize / 1_048_576) MB log)", tooLarge, "\(describe(huge))")
+    check("run beyond the reach (\(giantSize / 1_048_576) MB log)", tooLarge, "\(describe(huge)) in \(giantTook)")
 
     print("\nthe ordinary case (a small run at the end of a 3 MB log):")
     func ordinary(_ banner: String, items: Int) -> String {
@@ -170,6 +172,40 @@ func probeRunMatcher() -> Never {
     stop.set()
     check("100 reads while a writer appends: every one found the whole run, none mis-matched",
           wrong == 0 && seen == 100, "\(seen) found, \(wrong) wrong")
+
+    // a banner split by a chunk edge: the log is read backwards in chunks of 4096, 8192, 16384 bytes; the banner of
+    // the run being looked for is placed so that each of the first three edges falls at every position in it, from
+    // one byte before it to one byte after it, and it must still be found whole, with its own lines
+    print("\na banner that a chunk edge splits:")
+    let marked = "2026-11-10 22:07 | downloads janitor | DRY RUN | straddle"
+    let markedLength = marked.utf8.count
+    let older = String(repeating: "padding line of an older run\n", count: 3_000)
+    var straddleFailures: [String] = []
+    var straddleCases = 0
+    for edge in [4096, 4096 + 8192, 4096 + 8192 + 16384] {
+        for position in -1...(markedLength + 1) {
+            // `edge` bytes from the end, the chunk edge falls `position` bytes into the banner
+            let tailBytes = edge + position
+            guard tailBytes >= markedLength + 1 else { continue }
+            let body = tailBytes - markedLength - 1            // bytes after the banner line, whole lines of padding
+            let bodyText = body == 0 ? "" : String(repeating: "a", count: body - 1) + "\n"
+            let log = older + marked + "\n" + bodyText
+            let url = write("straddle-\(edge)-\(position).log", log)
+            straddleCases += 1
+            switch WholeRun.find(banner: marked, in: url, firstChunk: 4096) {
+            case .block(let found):
+                let expectLines = body == 0 ? 0 : 1
+                if found.banner != marked || found.lines.count != expectLines || found.offset != UInt64(older.utf8.count) {
+                    straddleFailures.append("edge \(edge) position \(position): banner \(found.banner.prefix(20)), lines \(found.lines.count), offset \(found.offset)")
+                }
+            default:
+                straddleFailures.append("edge \(edge) position \(position): not found")
+            }
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+    check("the banner is found whole when a chunk edge falls anywhere in it (\(straddleCases) cases, 3 edges)",
+          straddleFailures.isEmpty && straddleCases > 150, straddleFailures.prefix(3).joined(separator: "; "))
 
     print(failures == 0 ? "\nall hold" : "\n\(failures) FAILED")
     exit(failures == 0 ? 0 : 1)

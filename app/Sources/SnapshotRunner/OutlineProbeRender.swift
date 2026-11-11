@@ -55,8 +55,7 @@ enum ProbeRender {
             content = AnyView(ProbeScreen(model: model, hosted: false, headers: true))
         case "review", "review-acting":
             // the real ReviewTable (without the screen around it) on the probe's rows
-            let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-review-render-\(getpid())", directoryHint: .isDirectory)
-            try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+            let scratch = SnapshotScratch.folder("ma-review-render")
             let jobs = JobStore(ledger: JobLedger(url: scratch.appending(path: "jobs.jsonl")))
             let probe = ReviewFixtureProbe(acting: fixture == "review-acting")
             probe.ended("/p/web-app/.next")

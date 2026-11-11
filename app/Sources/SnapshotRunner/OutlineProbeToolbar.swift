@@ -71,8 +71,7 @@ enum ProbeToolbar {
 
     /// The real review table (the fixture) under the same split view and toolbar.
     private static func reviewWindow(size: NSSize = NSSize(width: 1100, height: 720)) -> (ProbeWindow, ReviewFixtureProbe) {
-        let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-toolbar-probe-\(getpid())", directoryHint: .isDirectory)
-        try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        let scratch = SnapshotScratch.folder("ma-toolbar-probe")
         let jobs = JobStore(ledger: JobLedger(url: scratch.appending(path: "jobs.jsonl")))
         let probe = ReviewFixtureProbe()
         let content = NavigationSplitView {
