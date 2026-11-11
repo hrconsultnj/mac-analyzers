@@ -14,8 +14,9 @@ import UIComponents
 ///   (the Markdown as written is the shared RawOutputScreen, opened from the top)
 ///   ReportFile.swift        what Export hands to the save panel
 ///
-/// Toolbar, in the order it gives up space: Write Report stays; Stop, Export
-/// and Show Source move into the system's overflow first.
+/// The Memory / Storage tabs are the shared bar under the toolbar (`scopeTabsToolbar`). Toolbar:
+/// Write Report stays; Past Runs, Stop, Sections, Export and Show Source are
+/// `.toolbarRank(.secondary)` and move into the system's overflow first.
 struct ReportsView: View {
 
     @Environment(JobStore.self) private var store
@@ -55,7 +56,10 @@ struct ReportsView: View {
         .task {
             model.adopt(from: store)
             await model.reload()
-            if let newest = model.reports.first { kind = newest.kind }
+            // the remembered tab wins; with nothing of that kind (a first launch) show the kind there is
+            if months.isEmpty, let newest = model.reports.first { kind = newest.kind }
+            // the open report follows the tab: the newest of that kind
+            if model.selected?.kind != kind { model.selection = months.first?.reports.first?.id }
             applyPendingLink()
         }
         .onChange(of: kind) {
@@ -91,6 +95,7 @@ struct ReportsView: View {
             } description: {
                 Text(model.loaded ? "Pick a report on the left, or write a new one." : "Looking for reports…")
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)   // centred in the window, as the running state is
         }
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Whether what the process table says a process IS can be believed yet.
 ///
@@ -12,6 +13,20 @@ import Foundation
 /// readable, and it cannot be signalled anyway).
 enum CommandLineTrust {
 
+    /// Test support: the kernel read for chosen pids answered by a stand-in (nil is "would not say"), so the probe can
+    /// exercise the whole path (reach, refusal, Quit's caution) for a live process it started, which no same-user
+    /// process will otherwise make unreadable on demand. Everything else is read from the kernel as usual.
+    private static let overrides = Mutex<[Int32: String?]>([:])
+
+    @_spi(TestSupport) public static func standIn(for pid: Int32, command: String??) {
+        overrides.withLock { if let command { $0[pid] = command } else { $0[pid] = nil } }
+    }
+
+    private static func read(_ pid: Int32) -> String? {
+        if let fake = overrides.withLock({ $0[pid] }) { return fake }
+        return ProcTable.rawCommandLine(of: pid)
+    }
+
     /// How long after it started a process may still show its parent's command line.
     static let settleWindow: TimeInterval = 3
 
@@ -22,8 +37,8 @@ enum CommandLineTrust {
         // a session. Judging it would refuse every program that leaks one, forever.
         guard !isZombie(pid), let birth = ProcessTree.Birth.of(pid) else { return nil }
         let age = now.timeIntervalSince1970 - (TimeInterval(birth.seconds) + TimeInterval(birth.microseconds) / 1_000_000)
-        let parent = who.ppid > 1 ? ProcTable.rawCommandLine(of: Int32(who.ppid)) : nil
-        return judge(command: ProcTable.rawCommandLine(of: pid), parent: parent, age: age)
+        let parent = who.ppid > 1 ? read(Int32(who.ppid)) : nil
+        return judge(command: read(pid), parent: parent, age: age)
     }
 
     /// The rule itself, on what was read. `command` nil is "the kernel would not say"; "" is "readable, all empty".

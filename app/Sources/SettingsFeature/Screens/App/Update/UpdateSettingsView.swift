@@ -8,16 +8,16 @@ struct UpdateSettingsView: View {
 
     @Environment(UpdateState.self) private var updates
 
-    @State private var latest: String?
-    @State private var checking = false
     @State private var notes: [ReleaseNote] = []
     /// Which entries the reader opened or closed, by entry id.
     @State private var expanded: [String: Bool] = [:]
 
+    // The latest release, whether one is newer and whether a check is running all come from the app's one
+    // update state, so a check made here also reaches the sidebar, Overview and the menu-bar panel.
     private var installed: String { updates.installed }
-    private var updateAvailable: Bool {
-        latest.map { UpdateChecker.isNewer($0, than: installed) } ?? false
-    }
+    private var latest: String? { updates.latest }
+    private var checking: Bool { updates.phase == .checking }
+    private var updateAvailable: Bool { updates.isAvailable }
 
     var body: some View {
         DataScreen(title: Names.Screen.updates, subtitle: updates.build.versionText) {
@@ -50,11 +50,7 @@ struct UpdateSettingsView: View {
             Section {
                 HStack {
                     Button(checking ? "Checking…" : "Check Now") {
-                        Task {
-                            checking = true
-                            latest = await UpdateChecker.latestVersion(force: true)
-                            checking = false
-                        }
+                        Task { await updates.check(force: true) }
                     }
                     .disabled(checking)
                     Spacer()
@@ -89,9 +85,7 @@ struct UpdateSettingsView: View {
         .task {
             // always fresh when the pane opens — the cache is for background
             // polling, not for the screen whose job is showing the truth
-            checking = true
-            latest = await UpdateChecker.latestVersion(force: true)
-            checking = false
+            await updates.check(force: true)
         }
     }
 

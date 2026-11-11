@@ -18,7 +18,7 @@ private func pad(_ text: String, _ width: Int) -> String {
 }
 
 @MainActor
-private final class Fixtures {
+final class Fixtures {
     let shell: String
     let marker = "ma-probe-\(UUID().uuidString.prefix(8))"
     /// The executable name the fake agent list calls a coding session.
@@ -27,11 +27,10 @@ private final class Fixtures {
     var appName: String { "Fixture\(marker.suffix(4))" }
     var started: [Int32] = []
     var failed = false
-    let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-probe-\(UUID().uuidString.prefix(8))")
+    let scratch = ProbeScratch.folder("ma-probe")
 
     init(shell: String) {
         self.shell = shell
-        try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
     }
 
     func check(_ name: String, _ ok: Bool, _ detail: String) {
@@ -155,9 +154,8 @@ private final class Fixtures {
 
 /// Runs this probe again with its parent set to launchd, so no case that signals runs from a
 /// shell that is a child of a coding session, and prints what it prints. Never returns.
-private func relaunchDetached(_ args: [String]) -> Never {
-    let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-probe-run-\(UUID().uuidString.prefix(8))")
-    try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+func relaunchDetached(_ args: [String]) -> Never {
+    let scratch = ProbeScratch.folder("ma-probe-run")
     let out = scratch.appending(path: "out.txt").path
     let status = scratch.appending(path: "status.txt").path
     FileManager.default.createFile(atPath: out, contents: Data())
@@ -216,6 +214,7 @@ private func relaunchDetached(_ args: [String]) -> Never {
     await confirmationCase(f)
     await unsettledCase(f)
     await judgementCases(f)
+    await unreadableCase(f)
     await zombieCase(f)
     await titleRewriteCases(f)
     f.cleanup()
@@ -830,5 +829,32 @@ private func relaunchDetached(_ args: [String]) -> Never {
     } else {
         print("  not judged: perl left no zombie to look at")
     }
+    f.end(root)
+}
+
+// MARK: - a command line the kernel would not give
+
+/// No same-user process can be made unreadable on demand (a zombie is skipped, an exec in progress is a race), so the
+/// kernel's answer for ONE live process this probe started is replaced by "would not say", and the whole path is
+/// run over the real process table: Stop refuses saying it could not read it, Quit's dialog says it could not see
+/// inside, a quit that would be a SIGTERM sends nothing, and clearing the stand-in clears all three.
+@MainActor private func unreadableCase(_ f: Fixtures) async {
+    guard let root = await f.detachNamed(nil, script: ": \(f.marker)-r; sleep 41; :", tag: "\(f.marker)-r"),
+          let identity = ProcessIdentity.of(pid: Int(root)) else {
+        f.check("a process whose command line cannot be read", false, "fixture not found")
+        return
+    }
+    GuardControl.standInCommandLine(pid: Int32(root), .some(nil))
+    let stop = GuardControl.reachRefusal(listed: [identity], name: "Fixture")
+    f.check("a command line the kernel will not give: a Stop refuses, saying it could not read it",
+            stop?.contains("could not be read") == true, stop ?? "NOT refused")
+    let quit = MemoryStop.quitReach(of: [identity], name: "Fixture")
+    f.check("  ... Quit's dialog says it could not yet see inside", quit.caution != nil, quit.caution ?? "NO caution")
+    let sent = GuardControl.quitApp([identity])
+    f.check("  ... a quit that would be a SIGTERM sends nothing", sent.isEmpty && f.alive(root), "asked \(sent.count), alive: \(f.alive(root))")
+    GuardControl.standInCommandLine(pid: Int32(root), nil)
+    f.check("  ... and once it can be read again, nothing is refused",
+            GuardControl.reachRefusal(listed: [identity], name: "Fixture") == nil && MemoryStop.quitReach(of: [identity], name: "Fixture").caution == nil,
+            "both clear")
     f.end(root)
 }

@@ -14,9 +14,9 @@ import UIComponents
 ///   NetworkInspector.swift     the selected program in full
 ///   NetworkHistoryList.swift   the History scope: a day-grouped list
 ///
-/// Toolbar, in the order it gives up space: the scope control and Take
-/// Snapshot stay; Stop moves into the system's overflow first; search folds to
-/// its icon.
+/// The Snapshot / History tabs are the shared bar under the toolbar (`scopeTabsToolbar`).
+/// Toolbar: Take Snapshot stays; Past Runs and Stop are `.toolbarRank(.secondary)` and move
+/// into the system's overflow first; search folds to its icon.
 struct NetworkView: View {
 
     enum Scope: String, CaseIterable, Identifiable, Sendable {
@@ -101,6 +101,7 @@ struct NetworkView: View {
                     Text(model.isTaking ? "Reading what each program has sent and received."
                                         : "Take a snapshot to see which programs have been using the network.")
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)   // centred in the window, as the running state is
             } else {
                 NetworkTable(groups: groups, selection: $selection, expansion: expansion, onShowInFinder: reveal)
                     .safeAreaInset(edge: .top, spacing: 0) { totalsBar }

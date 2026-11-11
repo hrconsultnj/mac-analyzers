@@ -10,6 +10,6 @@ public enum NotifyChannel {
     /// SwiftUI anchor window, which hold the openWindow environment action.
     public static let openSettingsInternal = Notification.Name("com.mac-analyzers.open-settings")
     /// In-process signal: "navigate the main window to this target" — userInfo["target"]
-    /// carries a deep-link target string ("activity", "logs", "log:<kind>", "monitor").
+    /// carries a deep-link target string ("activity", "guard", "log:<kind>", "monitor").
     public static let openPaneInternal = Notification.Name("com.mac-analyzers.open-pane")
 }

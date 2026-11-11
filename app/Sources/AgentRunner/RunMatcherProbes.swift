@@ -29,9 +29,7 @@ private func describe(_ outcome: JobOutcome) -> String {
 }
 
 func probeRunMatcher() -> Never {
-    let dir = FileManager.default.temporaryDirectory.appending(path: "ma-probe-run-matcher-\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: dir) }
+    let dir = ProbeScratch.folder("ma-probe-run-matcher")
     var failures = 0
     func check(_ name: String, _ ok: Bool, _ detail: String) {
         if !ok { failures += 1 }

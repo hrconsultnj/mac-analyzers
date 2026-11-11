@@ -82,6 +82,10 @@ public struct ActivityRow: Identifiable, Sendable, Hashable {
     /// or its kind where it writes none.
     var taskKey: String { log?.rawValue ?? kind?.rawValue ?? id }
 
+    /// A restore from Undo, listed from its own block in a cleaner's log. It is not a run of
+    /// that cleaner: it never replaces a waiting preview, and it has nothing to apply.
+    public var isRestore: Bool { header.map(RestoreBlock.isRestore(header:)) ?? false }
+
     public var isRunning: Bool { status == .running || status == .queued }
     public var isFailed: Bool { status == .failed }
 
@@ -91,10 +95,10 @@ public struct ActivityRow: Identifiable, Sendable, Hashable {
         return max(0, finished.timeIntervalSince(started))
     }
 
-    /// The product's name for the task with its mode where it matters:
-    /// "Caches & Builds — deep cleanup preview", "Reports — memory report".
-    /// Never a script name, banner or flag; `title` comes from the one name table.
-    public var displayTitle: String {
+    /// The kind of run, where it matters, as its own short words: "Deep cleanup preview",
+    /// "Memory report", "Audit". nil for a task with no flavours. The list shows it beside the task's
+    /// name as secondary text; it is never glued into the title.
+    public var kindOfRun: String? {
         var mode: [String] = []
         switch kind {
         case .reclaim: mode.append("reclaim")
@@ -114,7 +118,15 @@ public struct ActivityRow: Identifiable, Sendable, Hashable {
             default: break
             }
         }
-        return mode.isEmpty ? title : "\(title) — \(mode.joined(separator: " "))"
+        guard !mode.isEmpty else { return nil }
+        let words = mode.joined(separator: " ")
+        return words.prefix(1).uppercased() + words.dropFirst()
+    }
+
+    /// The task and its kind of run as ONE plain string, for places that need text rather than
+    /// two fields (search, copy, the probe): "Caches & Builds — deep cleanup preview".
+    public var displayTitle: String {
+        kindOfRun.map { "\(title) — \($0.prefix(1).lowercased() + $0.dropFirst())" } ?? title
     }
 
     /// The line a person reads: the waiting-preview wording when a decision is due.

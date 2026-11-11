@@ -17,17 +17,13 @@ enum AppRoute: Hashable, Codable, Sendable {
     func encode(to encoder: Encoder) throws {}
 }
 
-/// Whether a newer release exists, for the Updates row's badge.
+/// Whether a newer release exists, for the Updates row's badge: read from the app's one
+/// `UpdateState` (the main window hands it over), never fetched or compared here.
 @MainActor @Observable
 final class UpdateBadge {
     static let shared = UpdateBadge()
-    private(set) var updateAvailable = false
-
-    func refresh() async {
-        if let latest = await UpdateChecker.latestVersion() {
-            updateAvailable = UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion)
-        }
-    }
+    weak var state: UpdateState?
+    var updateAvailable: Bool { state?.isAvailable ?? false }
 }
 
 /// Updates, How It Works and Support.
@@ -52,7 +48,7 @@ enum AppGroup {
             "about": .main(Location(howItWorks)),
             "support": .main(Location(support)),
         ],
-        load: { await UpdateBadge.shared.refresh() })
+        load: nil)
 
     private static var rows: [SidebarRow] {
         var rows = [

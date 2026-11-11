@@ -121,7 +121,7 @@ public enum StorageCleanParser {
                 if let sizeRange = rest.range(of: #"^~?[\d.]+ [KMGT]B\s+"#,
                                               options: .regularExpression),
                    let bytes = ByteSize.parse(String(rest[sizeRange]).trimmingCharacters(in: .whitespaces)) {
-                    let path = String(rest[sizeRange.upperBound...])
+                    let path = ReceiptIdentity.split(String(rest[sizeRange.upperBound...])).text
                     items.append(StoragePathItem(
                         status: status, sizeBytes: bytes, path: path,
                         section: zone == .nodeModules ? .nodeModules : .buildCaches))
