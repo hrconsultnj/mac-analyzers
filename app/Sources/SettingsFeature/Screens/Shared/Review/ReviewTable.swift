@@ -129,7 +129,7 @@ struct ReviewTable: View {
                     Button(Names.Review.previewAgain, action: onPreviewAgain)
                 }
                 Button(Names.Review.selectAll) { session.selectAll() }
-                    .disabled(session.selectedRows.count == session.choosableCount)
+                    .disabled(session.isAllSelected)
                 Button(Names.Review.selectNone) { session.selectNone() }
                     .disabled(session.selectedRows.isEmpty)
                 Button(applyTitle) { confirmation == nil ? apply() : (asking = true) }
@@ -169,6 +169,9 @@ struct ReviewTable: View {
     /// Apply turns itself off, saying "Preview Again", the moment the review window passes.
     private func watchExpiry() async {
         expired = false
+        // ticks of previews that can no longer be applied are of no use
+        let live = store.jobs.filter { $0.intent == .preview && !store.dismissed.contains($0.id) }.map(\.id)
+        ReviewTickStore.shared.keepOnly(Set(live))
         guard let finished = preview?.finishedAt else { return }
         let wait = finished.addingTimeInterval(JobStore.reviewWindow).timeIntervalSinceNow
         if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }

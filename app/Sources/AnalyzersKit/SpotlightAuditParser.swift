@@ -8,7 +8,7 @@ import Foundation
 /// block instead of being dropped, the same "degrade honestly" approach
 /// StorageCleanParser uses for third-party passthrough output.
 public struct SpotlightExposureItem: Identifiable, Hashable, Sendable {
-    public enum Status: String, Sendable {
+    public enum Status: String, Sendable, CaseIterable {
         case dry = "DRY"
         case fenced = "FENCED"
     }
@@ -35,7 +35,7 @@ public struct SpotlightExposureItem: Identifiable, Hashable, Sendable {
 }
 
 public struct SpotlightAuditRun: Sendable {
-    public enum Verdict: String, Sendable {
+    public enum Verdict: String, Sendable, CaseIterable {
         case progressing = "PROGRESSING"
         case idleOrComplete = "IDLE OR COMPLETE"
         case notRunning = "NOT RUNNING"

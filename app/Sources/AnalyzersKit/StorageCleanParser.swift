@@ -4,7 +4,7 @@ import Foundation
 /// the numbers — 26.7 GB entries buried between 4 KB ones), third-party
 /// passthrough kept raw, Time Machine note, and the freed summary.
 public struct StoragePathItem: Identifiable, Hashable, Sendable {
-    public enum Status: String, Sendable {
+    public enum Status: String, Sendable, CaseIterable {
         case dry = "DRY"
         case deleted = "DELETED"
         case trashed = "TRASHED"     // janitor: moved to Trash, recoverable

@@ -28,18 +28,27 @@ final class ActivityModel {
     @ObservationIgnored private var refreshedAt: Date = .distantPast
     /// The refresh running now: a screen that appears meanwhile awaits it instead of starting its own.
     @ObservationIgnored private var inFlight: Task<Void, Never>?
+    /// A job changed stage while a refresh was running: it must read once more.
+    @ObservationIgnored private var dirty = false
 
     /// Refreshes unless the rows were read a moment ago. For screens that merely
     /// show runs when they appear; a job changing stage calls `refresh` itself.
+    /// `maxAge: 0` is for a job changing stage: it always reads, and one that arrives
+    /// while a read is running makes that read go round once more instead of starting a
+    /// second one beside it.
     func refreshIfNeeded(store: JobStore, maxAge: TimeInterval = 5) async {
+        if maxAge == 0 { dirty = true }
         if let inFlight { await inFlight.value; return }
-        guard hasLoaded, Date().timeIntervalSince(refreshedAt) < maxAge else {
-            let task = Task { await refresh(store: store) }
-            inFlight = task
-            await task.value
-            if inFlight == task { inFlight = nil }
-            return
+        guard !hasLoaded || Date().timeIntervalSince(refreshedAt) >= maxAge else { return }
+        let task = Task {
+            repeat {
+                dirty = false
+                await refresh(store: store)
+            } while dirty
         }
+        inFlight = task
+        await task.value
+        if inFlight == task { inFlight = nil }
     }
 
     /// Reads the logs and the index again, then joins them with the store's
