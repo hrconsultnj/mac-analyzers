@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -136,6 +136,8 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         try? "#!/bin/bash\nexit 0\n".write(to: nothing, atomically: true, encoding: .utf8)
         chmod(nothing.path, 0o755)
         jobs.scriptOverride = nothing
+        // `--startup-inventory <file>` shows Login & Startup Items from a fixture
+        if let fixture = option("--startup-inventory") { StartupInventory.useFile(URL(fileURLWithPath: fixture)) }
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
         if updateStateOption == nil { Task { await updates.check() } }
         let root = MainWindowView(restoresLocation: false)
@@ -149,6 +151,10 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
+        // `--appearance light|dark` pins the window's appearance, whatever the system is set to
+        if let look = option("--appearance") {
+            window.appearance = NSAppearance(named: look == "light" ? .aqua : .darkAqua)
+        }
         window.contentViewController = controller
         if let a = appearanceOption { window.appearance = NSAppearance(named: a == "light" ? .aqua : .darkAqua) }
         window.toolbarStyle = .unified

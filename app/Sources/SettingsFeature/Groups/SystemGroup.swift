@@ -1,11 +1,10 @@
 import SwiftUI
 import AnalyzersKit
 
-/// What can be pushed in the System group.
-enum SystemRoute: Hashable, Codable, Sendable {
-    /// The persistence-change log (what was added to or removed from startup).
-    case changes
-}
+/// What can be pushed in the System group: nothing of its own yet (a report's
+/// source is the shared raw-output screen), so this carries nothing. A case goes
+/// here when a System screen pushes one.
+struct SystemRoute: Hashable, Codable, Sendable {}
 
 /// Network, Login & Startup Items and Reports.
 @MainActor
@@ -28,35 +27,39 @@ enum SystemGroup {
             "reports": .main(Location(reports)),
             "loginitems": .main(Location(loginItems)),
             "log:loginItems": .main(Location(loginItems)),
-            "log:persistence": .main(Location(loginItems, path: [.system(.changes)])),
-        ])
+            // the startup-changes history is the Changes scope of Login & Startup Items
+            "log:persistence": .mainWithIntent(Location(loginItems),
+                                               SectionIntent(section: loginItems, payload: "changes")),
+        ],
+        resolveDynamic: resolveDynamic)
+
+    /// Targets that carry a request for the screen to apply when it appears:
+    ///  - `startup:changes|leftovers|select:<name>` — Login & Startup Items on the Changes scope,
+    ///    filtered to leftovers, or with that item open in the inspector;
+    ///  - `network:history|older|pick:<n>` — Network on History, on the previous snapshot, or
+    ///    with the nth-largest program open;
+    ///  - `reports:pick:<n>|raw` — Reports with the nth report open, or its source pushed.
+    /// Pure: the screen reads the data and applies the request when it has it.
+    private static func resolveDynamic(_ target: String) -> Resolution? {
+        let sections: [(prefix: String, section: SectionID)] = [
+            ("startup:", loginItems), ("network:", network), ("reports:", reports),
+        ]
+        for (prefix, section) in sections where target.hasPrefix(prefix) {
+            return .mainWithIntent(Location(section),
+                                   SectionIntent(section: section, payload: String(target.dropFirst(prefix.count))))
+        }
+        return nil
+    }
 
     @ViewBuilder private static func screen(_ section: SectionID) -> some View {
         switch section {
-        case network: NetworkSettingsView()
-        case loginItems: LoginItemsRoot()
-        case reports: ReportsSettingsView()
+        case network: NetworkView()
+        case loginItems: LoginItemsView()
+        case reports: ReportsView()
         default: EmptyView()
         }
     }
 
-    @ViewBuilder static func destination(for route: SystemRoute) -> some View {
-        switch route {
-        case .changes: LogsSettingsView(kind: .persistence)
-        }
-    }
-}
-
-private struct LoginItemsRoot: View {
-    @Environment(Navigator.self) private var navigator
-
-    var body: some View {
-        LoginItemsView()
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Changes") { navigator.push(.system(.changes)) }
-                        .help("What was added to or removed from startup")
-                }
-            }
-    }
+    /// The System group pushes no screens of its own.
+    static func destination(for route: SystemRoute) -> EmptyView { EmptyView() }
 }

@@ -196,9 +196,21 @@ if args.first == "--probe-review-session" {
 if args.first == "--probe-review-rules" {
     await probeReviewRules()
 }
+if args.first == "--probe-login-removal" {
+    await probeLoginRemoval()
+}
 if args.first == "--probe-quit" {
     await probeQuit()
 }
+
+// System screens: `--probe-startup [--file <login-items.tsv>]` (Login & Startup
+// Items), `--probe-startup-changes [--log <persistence.log>]` (its Changes scope),
+// `--probe-network [--log <top-talkers.log>] [--history]` and `--probe-reports
+// [--read <n>]` print what each screen's rows would say. See SystemProbes.swift.
+if args.first == "--probe-startup" { probeStartup(args) }
+if args.first == "--probe-startup-changes" { probeStartupChanges(args) }
+if args.first == "--probe-network" { probeNetwork(args) }
+if args.first == "--probe-reports" { probeReports(args) }
 
 // `--probe-guard-history` prints Memory Guard's history as the screen groups it.
 // See GuardHistoryProbe.swift.
