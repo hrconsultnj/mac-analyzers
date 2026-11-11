@@ -127,7 +127,7 @@ fi
 # shellcheck disable=SC1091
 if ! source "${ANALYZERS_ROOT}/lib/live-sessions.sh" 2>/dev/null; then
   echo "FATAL: lib/live-sessions.sh is missing — refusing to sweep without the live-session exemption." >&2
-  exit 78
+  exit 79
 fi
 SESSION_ROOTS="$(live_session_roots)"
 EXEMPT="$(live_session_exempt "$SESSION_ROOTS"; echo "$$")"

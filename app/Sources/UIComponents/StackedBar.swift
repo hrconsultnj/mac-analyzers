@@ -28,7 +28,7 @@ public struct StackedBar: View {
 
     public var body: some View {
         GeometryReader { geo in
-            HStack(spacing: 1) {
+            HStack(spacing: Tokens.Space.hair) {
                 ForEach(segments) { segment in
                     if total > 0, segment.value > 0 {
                         Rectangle()

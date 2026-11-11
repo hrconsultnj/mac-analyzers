@@ -16,7 +16,7 @@ public struct ProcessRow: View {
     }
 
     public var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tokens.Space.s) {
             processIcon
                 .accessibilityHidden(true)  // decorative — friendlyName below already names it
             Text(proc.memoryText)
@@ -44,6 +44,7 @@ public struct ProcessRow: View {
                         stopping = false
                     }
                 }
+                // small on purpose: dense process rows (the menu panel and the dossier)
                 .controlSize(.small)
                 .disabled(stopping)
                 .help(proc.isDev

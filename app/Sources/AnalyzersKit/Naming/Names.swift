@@ -202,6 +202,26 @@ public enum Names {
         }
     }
 
+    // MARK: - the shared review, raw output and run screens
+
+    public enum Review {
+        public static let selectAll = "Select All"
+        public static let selectNone = "Select None"
+        public static let nothingToFree = "Nothing to Free"
+        public static let previewAgain = "Preview Again"
+        public static let nameColumn = "Name"
+        public static let sizeColumn = "Size"
+    }
+
+    public enum Raw {
+        public static let screen = "Raw Output"
+        public static let searchPrompt = "Search Output"
+        public static let copy = "Copy"
+        public static let noOutput = "No Output Was Kept"
+        public static let showAll = "Show All"
+        public static let showOlder = "Show Older"
+    }
+
     // MARK: - everything above, for the check
 
     /// Every name with the table it belongs to, for `agent-runner --probe-names`.
@@ -235,6 +255,10 @@ public enum Names {
         rows += [Fence.fenced, Fence.notFenced].map { ("Fence", $0) }
         rows += JobKind.allCases.map { ("Task \($0.rawValue)", job($0)) }
         rows += EngineLog.allCases.map { ("Log \($0.rawValue)", log($0)) }
+        rows += [Review.selectAll, Review.selectNone, Review.nothingToFree, Review.previewAgain,
+                 Review.nameColumn, Review.sizeColumn].map { ("Review", $0) }
+        rows += [Raw.screen, Raw.searchPrompt, Raw.copy, Raw.noOutput, Raw.showAll, Raw.showOlder].map { ("Raw", $0) }
+        rows += TokenWords.all.map { ("Token \($0.token)", $0.label) }
         return rows.map { (table: $0.0, name: $0.1) }
     }
 }
