@@ -17,6 +17,8 @@ enum ProbeToolbar {
         let line: Bool
         /// The embedding the System screens used: safe-area insets around the table, the top one empty.
         var insets = false
+        /// Rows with a `headerTitle` draw as day section headers (Trends).
+        var headers = false
         var body: some View {
             NavigationSplitView {
                 List { Text("Overview"); Text("Login & Startup Items") }
@@ -24,7 +26,7 @@ enum ProbeToolbar {
                 VStack(spacing: 0) {
                     if line { Text("Audited 8 hours ago: 29 items").padding() }
                     if insets {
-                        ProbeScreen(model: model, hosted: false)
+                        ProbeScreen(model: model, hosted: false, headers: headers)
                             .safeAreaInset(edge: .bottom, spacing: 0) {
                                 Text("Audited 8 hours ago: 29 items, 11 of them leftovers.").font(.caption).padding()
                             }
@@ -32,7 +34,7 @@ enum ProbeToolbar {
                                 if model.rows.isEmpty { Text("note") }
                             }
                     } else {
-                        ProbeScreen(model: model, hosted: false)
+                        ProbeScreen(model: model, hosted: false, headers: headers)
                     }
                 }
                 .navigationTitle("Login & Startup Items")
@@ -41,9 +43,23 @@ enum ProbeToolbar {
         }
     }
 
-    private static func window(line: Bool, insets: Bool = false, size: NSSize = NSSize(width: 1100, height: 720)) -> (ProbeWindow, ProbeModel) {
-        let model = ProbeModel(rows: makeProbeRows(parents: 3, kids: 2))
-        let host = NSHostingController(rootView: Screen(model: model, line: line, insets: insets))
+    private static func window(line: Bool, insets: Bool = false, headers: Bool = false, size: NSSize = NSSize(width: 1100, height: 720)) -> (ProbeWindow, ProbeModel) {
+        let model: ProbeModel
+        if headers {
+            var next = 0
+            func id() -> Int { next += 1; return next }
+            let days = (1...5).map { day in
+                ProbeRow(id: id(), name: "Day \(day)", cpu: 0, mem: 0, kind: "", children: (1...6).map { _ in
+                    let rowID = id()
+                    return ProbeRow(id: rowID, name: "event \(rowID)", cpu: 0, mem: rowID * 7, kind: "")
+                }, headerTitle: ["Today", "Yesterday", "Monday", "Sunday", "Saturday"][day - 1])
+            }
+            model = ProbeModel(rows: days)
+            model.expanded = Set(days.map(\.id))
+        } else {
+            model = ProbeModel(rows: makeProbeRows(parents: 3, kids: 2))
+        }
+        let host = NSHostingController(rootView: Screen(model: model, line: line, insets: insets, headers: headers))
         let window = ProbeWindow(contentViewController: host)
         window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
         window.setContentSize(size)
@@ -102,9 +118,10 @@ enum ProbeToolbar {
         if name == "first" { return firstAppearance(arguments) }
         if name == "render" {
             guard arguments.count >= 2 else { return 2 }
-            let (window, model) = window(line: arguments[0] == "line", insets: arguments[0] == "inset")
+            let (window, model) = window(line: arguments[0] == "line", insets: arguments[0] == "inset", headers: arguments[0] == "headers")
             // an update after the first draw, as a screen's refresh is
-            model.rows.append(ProbeRow(id: model.newID(), name: "Parent new", cpu: 1, mem: 5, kind: "App", children: nil))
+            if arguments[0] != "headers" { model.rows.append(ProbeRow(id: model.newID(), name: "Parent new", cpu: 1, mem: 5, kind: "App", children: nil)) }
+            else { model.rows.append(ProbeRow(id: model.newID(), name: "More", cpu: 0, mem: 0, kind: "", children: [], headerTitle: "Friday")) }
             _ = settle(); spin(0.5)
             guard let view = window.contentView else { return 1 }
             view.layoutSubtreeIfNeeded()

@@ -297,6 +297,12 @@ check() {
     total=$((total + WARN + OUTSIDE))
     clean || fail
   done
+  # columns that give way to room: essentials always inside the visible rect, optional ones hidden and restored
+  run_probe "fit"
+  echo "fit warnings=$WARN outside=$OUTSIDE exit=$RC"
+  say_out
+  total=$((total + WARN + OUTSIDE))
+  clean || fail
   # first appearance, repeated: the timing of a window's first layout is not deterministic
   run_probe "toolbar:first" 25
   echo "toolbar:first warnings=$WARN outside=$OUTSIDE exit=$RC ($(grep -ac '^PASS' "$TMP/out") passes)"
