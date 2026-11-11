@@ -16,8 +16,12 @@ struct StartupChangesList: View {
         var id: Date { date }
     }
 
+    /// The newest 200 changes; "Show Older" adds 200 more. A list never gains
+    /// more than that in one update.
+    @State private var limit = 200
+
     private var days: [Day] {
-        Dictionary(grouping: changes) { Calendar.current.startOfDay(for: $0.date) }
+        Dictionary(grouping: changes.prefix(limit)) { Calendar.current.startOfDay(for: $0.date) }
             .map { Day(date: $0.key, changes: $0.value.sorted { $0.date > $1.date }) }
             .sorted { $0.date > $1.date }
     }
@@ -37,6 +41,12 @@ struct StartupChangesList: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if changes.count > limit {
+                Button("Show Older (\(changes.count - limit) more)") { limit += 200 }
+                    .padding(6)
             }
         }
         .contextMenu(forSelectionType: StartupChange.ID.self) { ids in

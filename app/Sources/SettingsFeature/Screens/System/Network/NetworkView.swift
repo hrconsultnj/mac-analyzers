@@ -32,7 +32,8 @@ struct NetworkView: View {
     @State private var scope: Scope = .snapshot
     @State private var query = ""
     @State private var selection: NetworkNode.ID?
-    @State private var opened: [NetworkGroup.ID: Bool] = [:]
+    /// Which apps are open, kept across window close and relaunch; a few start open.
+    @State private var expansion = RememberedExpansion<String>(screen: "network")
     @State private var historySelection: NetworkSnapshotRun.ID?
     @State private var showInspector = false
 
@@ -81,6 +82,11 @@ struct NetworkView: View {
                 if stamp?.stage == .succeeded { Task { await model.reload() } }
             }
             .onChange(of: selection) { showInspector = selection != nil }
+            // a few apps start open, many start closed; never once a person chose
+            .onChange(of: groups.map(\.id), initial: true) {
+                let multi = groups.filter { $0.count > 1 }
+                expansion.seedIfUntouched(multi.count <= 6 ? Set(multi.map(\.id)) : [])
+            }
             // a link opened while Network is already showing
             .onChange(of: navigator.pendingIntent) { applyPendingLink() }
     }
@@ -96,7 +102,7 @@ struct NetworkView: View {
                                         : "Take a snapshot to see which programs have been using the network.")
                 }
             } else {
-                NetworkTable(groups: groups, selection: $selection, opened: $opened, onShowInFinder: reveal)
+                NetworkTable(groups: groups, selection: $selection, expansion: expansion, onShowInFinder: reveal)
                     .safeAreaInset(edge: .top, spacing: 0) { totalsBar }
             }
         case .history:
@@ -174,7 +180,10 @@ struct NetworkView: View {
         guard let payload = navigator.takeIntent(for: SystemGroup.network) else { return }
         if payload == "history" { scope = .history }
         if payload == "older", model.snapshots.count > 1 { model.viewingID = model.snapshots[1].id }
-        if payload == "collapsed" { opened = Dictionary(uniqueKeysWithValues: NetworkGroup.groups(of: model.rows()).map { ($0.id, false) }) }
+        if payload == "collapsed" {
+            let open = expansion.binding   // a person's choice: it ends the seeding
+            open.wrappedValue = []
+        }
         if payload.hasPrefix("pick:"), let n = Int(payload.dropFirst("pick:".count)) {
             let ranked = NetworkGroup.groups(of: model.rows())
             if ranked.indices.contains(n) {

@@ -46,7 +46,8 @@ struct LoginItemsView: View {
     @State private var notCheckedOnly = false
     @State private var query = ""
     @State private var selection: StartupNode.ID?
-    @State private var opened: [StartupGroup.ID: Bool] = [:]
+    /// Which groups are open, kept across window close and relaunch; a few groups start open.
+    @State private var expansion = RememberedExpansion<String>(screen: "loginItems")
     @State private var changeSelection: StartupChange.ID?
     @State private var showInspector = false
     @State private var confirmRemoval = false
@@ -132,6 +133,10 @@ struct LoginItemsView: View {
             }
             .onChange(of: selection) { showInspector = selection != nil }
             .onChange(of: tab) { selection = nil; showInspector = false }
+            // a few groups start open, many start closed; never once a person chose
+            .onChange(of: groups.map(\.id), initial: true) {
+                expansion.seedIfUntouched(groups.count <= 6 ? Set(groups.filter { $0.count > 1 }.map(\.id)) : [])
+            }
     }
 
     // MARK: - content
@@ -155,7 +160,8 @@ struct LoginItemsView: View {
             } else if groups.isEmpty {
                 ContentUnavailableView(emptyTitle, systemImage: tab.symbol, description: Text(emptyDescription))
             } else {
-                StartupItemTable(groups: groups, selection: $selection, opened: $opened,
+                StartupItemTable(groups: groups, autosave: "loginItems.\(tab.rawValue)", selection: $selection,
+                                 expansion: expansion,
                                  onShowInFinder: reveal, onRemove: askToRemove)
                     .safeAreaInset(edge: .bottom, spacing: 0) {
                         if let sentence = auditSentence {
@@ -355,7 +361,8 @@ struct LoginItemsView: View {
             let parts = payload.dropFirst("open:".count).split(separator: ":", maxSplits: 1).map(String.init)
             if parts.count == 2, let target = Tab.allCases.first(where: { $0.category?.rawValue == parts[0] }) {
                 tab = target
-                opened["\(parts[0])|\(parts[1])"] = true
+                let open = expansion.binding   // a person's choice: it ends the seeding
+                open.wrappedValue.insert("\(parts[0])|\(parts[1])")
             }
         }
         if payload.hasPrefix("select:") {
