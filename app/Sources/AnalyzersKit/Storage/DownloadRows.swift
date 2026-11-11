@@ -140,6 +140,8 @@ public struct DownloadReview: Sendable {
                 rest = String(line.dropFirst("[SKIP] kept by pattern".count)).trimmingCharacters(in: .whitespaces)
             } else if line.hasPrefix("[DRY]") {
                 tag = "DRY"; rest = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+            } else if line.hasPrefix("[CLOUD]") {
+                tag = "CLOUD"; rest = String(line.dropFirst(7)).trimmingCharacters(in: .whitespaces)
             } else if results, line.hasPrefix("[TRASHED]") {
                 tag = "TRASHED"; rest = String(line.dropFirst(9)).trimmingCharacters(in: .whitespaces)
             } else if results, line.hasPrefix("[FAILED]") {
@@ -159,6 +161,16 @@ public struct DownloadReview: Sendable {
             let facts = results ? (modified: nil as Date?, isFolder: false) : info(path)
             let kind = DownloadKind.of(path: path, isFolder: facts.isFolder, source: source)
             let days = facts.modified.map { max(0, Int(now.timeIntervalSince($0) / 86_400)) }
+            if tag == "CLOUD" {
+                // kept in iCloud only: `du` says 0, the real size is shown, it frees nothing here, and
+                // ticking it would remove the iCloud copy, so it is shown and not offered
+                found.append(StorageRow(id: path, category: DownloadCategory(kind).rawValue, group: Names.Download.onlyInICloud,
+                                        title: (path as NSString).lastPathComponent,
+                                        detail: [DownloadReview.whyText(days: days, limit: limit, folder: false), source.title].joined(separator: " · "),
+                                        bytes: nil, valueText: bytes.map(ByteSize.format), iconPath: path,
+                                        keptReason: Names.Kept.onlyInICloud))
+                continue
+            }
             let group = results || isKept ? source.title : DownloadAge(days: days).title
             let why = whyText(days: days, limit: limit, folder: facts.isFolder)
             let outcome: String? = switch tag {

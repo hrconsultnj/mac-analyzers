@@ -7,35 +7,55 @@ import SwiftUI
 /// next time it is needed.
 struct CachesScreen: View {
     @State private var model = StorageReviewModel()
-    @State private var mode: CacheMode = .daily
+    /// The person's own pick for the next preview; nil until they pick. What the screen SHOWS
+    /// (`mode`) comes from the preview on screen, because that is what an Apply runs with.
+    @State private var chosen: CacheMode?
     @Environment(JobStore.self) private var store
     /// Example rows for `SnapshotRunner`; nil in the app.
     var fixture: StorageRows?
 
+    private var mode: CacheMode {
+        CacheMode(options: model.setting(kind: .storageClean, chosen: (chosen ?? .daily).options))
+    }
+
+    private var modeBinding: Binding<CacheMode> {
+        Binding(get: { mode }, set: { picked in
+            if model.pick(picked.options, kind: .storageClean, chosen: (chosen ?? .daily).options, store) { chosen = picked }
+        })
+    }
+
     var body: some View {
+        let words = CleanWords.caches(deep: mode == .deep)
         StorageReviewScreen<CacheCategory>(
             model: model, title: Names.Screen.cachesAndBuilds, kind: .storageClean, screenKey: "caches",
             options: mode.options,
             parse: { CacheReview.build(lines: $0.lines, banner: $0.banner).rows },
-            lastKnownMatches: { [deep = mode == .deep] in $0.banner.contains("mode=deep") == deep },
-            applyTitle: "Remove",
-            confirmation: ReviewConfirmation(
-                verb: "Remove", destination: "permanently",
-                message: "These are caches and builds that are made again the next time they are needed.",
-                permanent: "They are deleted, not moved to the Trash, so this can't be undone."),
+            // before the person picks, the newest logged preview of either mode; after, only that mode's
+            lastKnownMatches: { [picked = chosen] block in
+                picked.map { StorageSetting.options(kind: .storageClean, banner: block.banner) == $0.options } ?? true
+            },
+            applyTitle: words.applyTitle,
+            confirmation: ReviewConfirmation(words: words),
             emptyText: "Daily: \(CacheMode.daily.sentence) Deep: \(CacheMode.deep.sentence) Nothing is removed until you review it.",
-            subtitlePrefix: mode.title)
+            subtitlePrefix: mode.title, destination: Names.Review.deletedPermanently)
             .toolbar {
                 ToolbarItem {
-                    Picker("Cleanup", selection: $mode) {
-                        ForEach(CacheMode.allCases) { Text($0.title).tag($0) }
+                    // a menu whose label is the current choice, icon and title: the value is always in view
+                    Menu {
+                        Picker("Cleanup", selection: modeBinding) {
+                            ForEach(CacheMode.allCases) { Label($0.title, systemImage: Self.symbol($0)).tag($0) }
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Label(mode.title, systemImage: Self.symbol(mode))
                     }
-                    .pickerStyle(.menu)
+                    .labelStyle(.titleAndIcon)
                     .help(mode.sentence)
                 }
-                .toolbarRank(.secondary)
+                .toolbarRank(.primary)
             }
-            .onChange(of: mode) { model.discard(store) }
             .onAppear { if let fixture { model.showFixture(fixture) } }
     }
+
+    private static func symbol(_ mode: CacheMode) -> String { mode == .deep ? "square.stack.3d.down.right" : "calendar" }
 }

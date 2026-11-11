@@ -12,19 +12,35 @@ without an entry here — see `scripts/cut-release.sh`.
   (Projects, App Caches and Developer Tools; documents, images and
   screenshots; temporary files and your coding agents' folders), grouped under
   the project, app or agent they belong to, with a count and a total on every
-  group. Tick what to clear, then Apply. The cleaner picker, the banner and
-  the lists of log lines are gone, and every earlier run is one tap away under
-  History.
+  group. Tick what to clear, then Apply. The banner and the list of log lines
+  are gone, and every earlier run is one click away under History.
+- A cleanup's setting now belongs to its preview. When you come back to a
+  Deep Caches & Builds preview, or a Temp & Agents preview made with Delete
+  Permanently, the screen shows that setting, asks the matching question
+  and applies exactly that; changing the menu puts the preview away. Thinning
+  Time Machine's local snapshots is now a row you can see and untick, instead
+  of something a Deep Apply did on its own. Every screen also says, first in
+  its subtitle, whether what is cleared goes to the Trash or is deleted for good.
+- A finished Caches & Builds cleanup says what each package cleanup, Docker
+  and the snapshot thinning did: ran, skipped because it wasn't ticked, or
+  couldn't run.
 - Temp & Agents names what it finds ("codemod", "Session Transcripts") and says
   why anything is left alone: "Left for Its Owner", "Conversation History",
-  "On Your Keep List".
+  "On Your Keep List". It also says what is not on your disk (files inside
+  mounted disk images) and which coding agents are running.
+- Screenshots that exist only in iCloud are no longer shown as empty files
+  under "Nothing to Free". They are listed under "Only in iCloud" with their
+  real size and left unticked: moving one to the Trash frees nothing on this
+  Mac and removes it from iCloud once the Trash is emptied.
 - Spotlight lists your developer folders by project with a checkbox to fence
-  or unfence each one, and Fence and Unfence for a whole selection. A fence is
-  one empty file, and nothing else is changed.
+  or unfence each one, and Fence and Unfence for a whole selection. Fence All
+  names the folders it will fence and fences exactly those, not whatever a new
+  scan would find. A fence is one empty file, and nothing else is changed.
 - Disk shows your capacity, how long the free space will last at the rate it
   has been falling, and what each cleanup could free and how old that figure
-  is. The "full in" forecast never appeared before; it now reads all your
-  cleanups' figures, not only the newest few.
+  is. The "full in" forecast never appeared before; it now reads every
+  Caches & Builds run's figure, not only the newest few, and says why when
+  there is no forecast. A nearly full disk is shown in red.
 - A finished cleanup's own screen shows what it did in the same tabs and groups
   as the screen it came from.
 - When a memory cleanup refuses to run because part of Mac Analyzers is

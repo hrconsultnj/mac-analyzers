@@ -29,7 +29,8 @@ enum StorageGroup {
     static var fixtureTargets: [String: Resolution] {
         ["caches:fixture": .main(Location(caches, path: [.storage(.fixture("caches"))])),
          "downloads:fixture": .main(Location(downloads, path: [.storage(.fixture("downloads"))])),
-         "temp:fixture": .main(Location(temp, path: [.storage(.fixture("temp"))]))]
+         "temp:fixture": .main(Location(temp, path: [.storage(.fixture("temp"))])),
+         "disk:fixture": .main(Location(disk, path: [.storage(.fixture("disk"))]))]
     }
 
     private static func log(_ log: EngineLog) -> Route { .overview(.raw(.log(log.rawValue))) }
@@ -115,6 +116,7 @@ enum StorageGroup {
             switch name {
             case "downloads": DownloadsScreen(fixture: StorageFixtures.downloads())
             case "temp": TempScreen(fixture: StorageFixtures.temp())
+            case "disk": DiskScreen(fixture: StorageFixtures.disk())
             default: CachesScreen(fixture: StorageFixtures.caches())
             }
         }

@@ -121,6 +121,7 @@ public enum Names {
 
     /// What a file in Downloads or Screenshots is, and how long it has sat there.
     public enum Download {
+        public static let onlyInICloud = "Only in iCloud"
         public static let documents = "Documents"
         public static let images = "Images"
         public static let archives = "Archives"
@@ -156,6 +157,8 @@ public enum Names {
         public static let conversationHistory = "Conversation History"
         public static let keepList = "On Your Keep List"
         public static let currentVersion = "Current Version"
+        /// A file kept only in iCloud: its row says what it is and that nothing is freed here.
+        public static let onlyInICloud = "Only in iCloud: not downloaded to this Mac, so nothing is freed here. Moving it to the Trash would remove it from iCloud once the Trash is emptied."
     }
 
     /// The categories (tabs) of each Storage screen, and what groups the rows in them.
@@ -176,6 +179,7 @@ public enum Names {
         public static let xcodeSimulators = "Xcode Simulators"
         public static let docker = "Docker"
         public static let toolCaches = "Tool Caches"
+        public static let timeMachine = "Time Machine"
     }
 
     /// The cleanups that are not files: each is a reviewed row.
@@ -185,6 +189,11 @@ public enum Names {
         public static let brew = "Homebrew Downloads"
         public static let simulators = "Unused Simulators"
         public static let docker = "Docker Cleanup"
+        public static let snapshots = "Time Machine Snapshots"
+        /// What a finished run did with each.
+        public static let ran = "Ran"
+        public static let skipped = "Skipped"
+        public static let couldNotRun = "Couldn't Run"
     }
 
     /// Developer-tool caches the deep cleanup can empty.
@@ -293,6 +302,12 @@ public enum Names {
         public static let stop = "Stop"
         public static let history = "History"
         public static let showRawOutput = "Show Raw Output"
+        /// Where a cleanup puts what it clears, said on every state of its screen.
+        public static let goesToTrash = "Goes to the Trash"
+        public static let deletedPermanently = "Deleted Permanently"
+        public static let copyDiagnostics = "Copy Diagnostics"
+        public static let discard = "Discard"
+        public static let showInFinder = "Show in Finder"
     }
 
     public enum Raw {

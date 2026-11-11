@@ -52,12 +52,18 @@ public struct StorageRows: Sendable {
     public let notes: [String]
     /// Short facts for the subtitle ("free space 122.5 GB").
     public let facts: [String]
+    /// Sentences that belong to one tab only (a category's `rawValue`), said over that tab.
+    public let tabNotes: [String: [String]]
 
-    public init(_ rows: [StorageRow], notes: [String] = [], facts: [String] = []) {
+    public init(_ rows: [StorageRow], notes: [String] = [], facts: [String] = [], tabNotes: [String: [String]] = [:]) {
         self.rows = rows
         self.notes = notes
         self.facts = facts
+        self.tabNotes = tabNotes
     }
+
+    /// What is said over a tab: the notes for the whole review, then the tab's own.
+    public func notes<C: StorageCategory>(for category: C) -> [String] { notes + (tabNotes[category.rawValue] ?? []) }
 
     public func rows<C: StorageCategory>(in category: C) -> [StorageRow] { rows.filter { $0.category == category.rawValue } }
     public func count<C: StorageCategory>(in category: C) -> Int { rows(in: category).count }

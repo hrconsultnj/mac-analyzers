@@ -96,6 +96,18 @@ human() {
   }'
 }
 
+# A file that exists only in iCloud (macOS keeps its name and size, not its content, on this Mac):
+# prints its real size in KB; prints nothing for anything else. `du` says 0 for these, so a
+# preview would call them empty; they are listed on a line of their own instead.
+cloud_only_kb() {
+  [[ -f "$1" && ! -L "$1" ]] || return 0
+  local info
+  info="$(stat -f '%Sf %z' "$1" 2>/dev/null)" || return 0
+  case "${info%% *}" in
+    *dataless*) echo $(( (${info##* } + 1023) / 1024 )) ;;
+  esac
+}
+
 keep_match() {
   local name="$1"
   [[ -z "${KEEP}" ]] && return 1
@@ -137,7 +149,7 @@ sweep() {
   else
     find_args+=(-maxdepth 1)
   fi
-  local item name kb size dest moved _try
+  local item name kb size dest moved _try cloud_kb
   while IFS= read -r -d '' item; do
     # A name with a line break cannot be written on one log line or named safely in a
     # reviewed list, so it is left alone and said so (it used to stop the whole run).
@@ -160,7 +172,14 @@ sweep() {
     [[ -z "${kb}" ]] && kb=0
     size="$(human "${kb}")"
     if [[ "${DRY_RUN}" -eq 1 ]]; then
-      log "[DRY] ${size}  ${item}"
+      cloud_kb=""
+      [[ "${kb}" -eq 0 ]] && cloud_kb="$(cloud_only_kb "${item}")"
+      if [[ -n "${cloud_kb}" ]]; then
+        # moving it frees nothing on this Mac; it removes the iCloud copy once the Trash is emptied
+        log "[CLOUD] $(human "${cloud_kb}")  ${item}"
+      else
+        log "[DRY] ${size}  ${item}"
+      fi
     else
       # Never onto something already in the Trash: `trash_dest` finds a free
       # name and `mv -n` refuses to replace anything, so two same-named items

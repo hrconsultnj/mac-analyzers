@@ -122,8 +122,21 @@ func probeStorage(_ which: String, logOverride: String?) -> Never {
     case "fixtures":
         print("-- Caches & Builds example"); problems += printLevels(StorageFixtures.caches(), CacheCategory.self)
         print("\n-- Downloads example"); problems += printLevels(StorageFixtures.downloads(), DownloadCategory.self, perGroup: 3, namesAreFiles: true)
+        // files kept only in iCloud are shown with what they are and never offered for a tick
+        let cloud = StorageFixtures.downloads().rows.filter { $0.group == Names.Download.onlyInICloud }
+        if cloud.isEmpty { problems.append("the Downloads example has no iCloud-only rows") }
+        for row in cloud where row.isChoosable || row.bytes != nil || row.valueText == nil {
+            problems.append("iCloud-only row \"\(row.title)\" is offered for a tick, counted as freeing space, or has no size")
+        }
         print("\n-- Temp & Agents example"); problems += printLevels(StorageFixtures.temp(), TempCategory.self)
         print("\n-- a finished Caches & Builds run (what it did to each row)"); problems += printLevels(StorageFixtures.cachesRun(), CacheCategory.self)
+        // an apply's prunes, Docker and snapshot thinning each show what they did
+        let ran = StorageFixtures.cachesRun().rows
+        for (id, outcome) in [("prune:pnpm", Names.Prune.ran), ("prune:npm", Names.Prune.skipped),
+                              ("prune:docker", Names.Prune.ran), ("prune:snapshots", Names.Prune.ran)] {
+            let seen = ran.first { $0.id == id }?.valueText
+            if seen != outcome { problems.append("a finished Caches run: \(id) shows \"\(seen ?? "nothing")\", expected \"\(outcome)\"") }
+        }
         print("\n-- a finished Downloads run"); problems += printLevels(StorageFixtures.downloadsRun(), DownloadCategory.self, perGroup: 3, namesAreFiles: true)
 
     case "disk":

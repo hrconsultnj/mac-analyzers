@@ -7,3 +7,12 @@ extension StorageRow {
                   keptReason: keptReason, valueText: valueText)
     }
 }
+
+extension ReviewConfirmation {
+    /// The confirmation for a cleanup's words (`CleanWords`), so its title and second question can
+    /// only come from the setting the words were made for.
+    init(words: CleanWords) {
+        self.init(verb: words.verb, destination: words.destination, message: words.message,
+                  permanent: words.permanentWarning)
+    }
+}

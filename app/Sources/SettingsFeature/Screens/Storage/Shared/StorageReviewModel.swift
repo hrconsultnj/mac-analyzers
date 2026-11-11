@@ -52,6 +52,24 @@ final class StorageReviewModel {
         refreshPhase()
     }
 
+    /// The setting (Daily/Deep, Trash/permanent) the screen shows, words and previews with. It comes
+    /// from the preview on screen, else from the logged preview shown read-only, and only with
+    /// neither from the person's own pick (`StorageSetting`).
+    func setting(kind: JobKind, chosen: JobOptions) -> JobOptions {
+        StorageSetting.shown(kind: kind, preview: job?.request.options,
+                             lastKnownBanner: phase == .lastKnown ? block?.banner : nil, chosen: chosen)
+    }
+
+    /// The person picked a setting in the menu. When it is not the one on screen, the preview
+    /// (or last-known list) was made with the other one: it is put away, as a mode change always has.
+    /// Returns whether anything changed.
+    @discardableResult
+    func pick(_ picked: JobOptions, kind: JobKind, chosen: JobOptions, _ store: JobStore) -> Bool {
+        guard StorageSetting.isChange(kind: kind, shown: setting(kind: kind, chosen: chosen), picked: picked) else { return false }
+        discard(store)
+        return true
+    }
+
     /// Forgets the preview on screen (the options changed, or a new preview starts).
     func discard(_ store: JobStore) {
         store.dismiss(job)
@@ -61,7 +79,8 @@ final class StorageReviewModel {
 
     /// Where the preview is now; the screen calls this whenever the job's stage changes.
     func refreshPhase() {
-        guard let job else { if phase != .lastKnown { phase = .empty }; return }
+        // no preview: the last known list stays, and so does an example review (`showFixture`)
+        guard let job else { if phase != .lastKnown, !(phase == .ready && session != nil) { phase = .empty }; return }
         switch job.state {
         case .queued, .running: phase = .running
         case .failed(let failure): phase = .failed(failure.message)

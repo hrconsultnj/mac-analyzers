@@ -1,4 +1,5 @@
 import AnalyzersKit
+import AppKit
 import SwiftUI
 import UIComponents
 
@@ -29,6 +30,9 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
     var emptyTitle = "No Preview Yet"
     /// What the subtitle starts with when there is a review (the mode: "Deep").
     var subtitlePrefix: String?
+    /// Where what is cleared goes ("Goes to the Trash", "Deleted Permanently"): first in the
+    /// subtitle in every state, so a person never has to open a dialog to find out.
+    var destination: String?
 
     @Environment(JobStore.self) private var store
     @Environment(Navigator.self) private var navigator
@@ -39,7 +43,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
          parse: @escaping @Sendable (WholeRun.Block) -> StorageRows,
          lastKnownMatches: @escaping @Sendable (WholeRun.Block) -> Bool = { _ in true }, applyTitle: String,
          confirmation: ReviewConfirmation, emptyText: String, emptyTitle: String = "No Preview Yet",
-         subtitlePrefix: String? = nil) {
+         subtitlePrefix: String? = nil, destination: String? = nil) {
         self.model = model
         self.title = title
         self.kind = kind
@@ -52,6 +56,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
         self.emptyText = emptyText
         self.emptyTitle = emptyTitle
         self.subtitlePrefix = subtitlePrefix
+        self.destination = destination
         _category = State(initialValue: Category.allCases.first!)
     }
 
@@ -59,17 +64,18 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
     private var current: Category { filled.contains(category) ? category : (filled.first ?? category) }
 
     private var subtitle: String {
+        let detail: String
         switch model.phase {
-        case .empty: return ""
+        case .empty, .failed, .stopped, .unreadable: detail = ""
         case .running: return model.job?.step ?? "Previewing…"
-        case .failed, .stopped, .unreadable: return ""
         case .loading: return "Reading the results…"
         case .ready:
-            return ([subtitlePrefix, model.session?.summary] + (model.rows?.facts ?? [])).compactMap { $0 }
+            detail = ([subtitlePrefix, model.session?.summary] + (model.rows?.facts ?? [])).compactMap { $0 }
                 .filter { !$0.isEmpty }.joined(separator: " · ")
         case .lastKnown:
-            return model.asOf.flatMap(StorageLog.ago).map { "From the preview \($0)" } ?? "From the last preview"
+            detail = model.asOf.flatMap(StorageLog.ago).map { "From the preview \($0)" } ?? "From the last preview"
         }
+        return [destination, detail].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     var body: some View {
@@ -103,19 +109,19 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
                             onPreviewAgain: { startPreview() }, onApplied: { _ in },
                             only: shownIDs(rows), tabs: filled.map { Set(rows.rows(in: $0).map(\.id)) },
                             screen: screenKey)
-                    .safeAreaInset(edge: .top, spacing: 0) { notesStrip }
+                    .safeAreaBar(edge: .top, alignment: .leading, spacing: 0) { notesStrip }
             }
         }
     }
 
+    /// What the preview says that is not a row, as the system's own bar over the table.
     @ViewBuilder private var notesStrip: some View {
-        if let notes = model.rows?.notes, !notes.isEmpty {
+        if let notes = model.rows?.notes(for: current), !notes.isEmpty {
             VStack(alignment: .leading) {
                 ForEach(notes, id: \.self) { Label($0, systemImage: "info.circle").font(.callout) }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(.bar)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
         }
     }
 
@@ -140,6 +146,13 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
             }
         }
         .toolbarRank(.primary)
+        ToolbarItem {
+            if model.phase == .ready {
+                Button { model.discard(store) } label: { Label(Names.Review.discard, systemImage: "xmark.circle") }
+                    .help("Throw this review away without applying it")
+            }
+        }
+        .toolbarRank(.secondary)
         ToolbarItem {
             Button { navigator.push(.storage(.history(kind.rawValue))) } label: {
                 Label(Names.Review.history, systemImage: "clock.arrow.circlepath")
@@ -209,6 +222,7 @@ struct StoragePhaseContent<Ready: View>: View {
             } actions: {
                 Button(Names.Review.preview, action: preview).buttonStyle(.borderedProminent)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .running:
             VStack {
                 ProgressView()
@@ -217,7 +231,8 @@ struct StoragePhaseContent<Ready: View>: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed(let message):
-            retry("Preview Failed", systemImage: "exclamationmark.triangle", text: message)
+            retry("Preview Failed", systemImage: "exclamationmark.triangle", text: message,
+                  diagnostics: StorageDiagnostics.report(job: model.job, message: message))
         case .stopped:
             retry("Preview Stopped", systemImage: "stop.circle", text: "Nothing was changed.")
         case .unreadable(let why):
@@ -230,13 +245,37 @@ struct StoragePhaseContent<Ready: View>: View {
         }
     }
 
-    private func retry(_ title: String, systemImage: String, text: String) -> some View {
+    private func retry(_ title: String, systemImage: String, text: String, diagnostics: String? = nil) -> some View {
         ContentUnavailableView {
             Label(title, systemImage: systemImage)
         } description: {
             Text(text)
         } actions: {
             Button(Names.Review.previewAgain, action: preview).buttonStyle(.borderedProminent)
+            if let diagnostics {
+                Button(Names.Review.copyDiagnostics) {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(diagnostics, forType: .string)
+                }
+                .help("Copy the failure and the last lines of output, to send to someone who can help")
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// What "Copy Diagnostics" puts on the clipboard after a failed run: which script, how it was
+/// started, what it said, and the last lines it printed.
+enum StorageDiagnostics {
+    @MainActor static func report(job: Job?, message: String) -> String? {
+        guard let job else { return nil }
+        let args = (try? job.kind.previewArgs(job.request.options)) ?? []
+        return """
+        script: \(job.kind.script.path)
+        args: \(args.joined(separator: " "))
+        message: \(message)
+
+        \(job.lines.suffix(40).joined(separator: "\n"))
+        """
     }
 }

@@ -98,7 +98,28 @@ public struct TempReview: Sendable {
                               bytes: image.sizeBytes,
                               keptReason: "Mounted: eject it from the toolbar to clear what holds it")
         }
-        return TempReview(rows: StorageRows(unique + imageRows, facts: facts), diskImages: images, freeSpace: run.freeSpace,
+        // what the old overview said and the rows do not: what is not on the disk, who is running,
+        // the rules in force, and what macOS clears by itself, each over the tab it is about
+        var tabNotes: [String: [String]] = [:]
+        if let inside = run.insideImages, let bytes = run.insideImagesBytes, bytes > 0 {
+            tabNotes[TempCategory.temporaryFiles.rawValue, default: []]
+                .append("\(inside) in temp is inside mounted disk images, not on your disk. A plain du would report \(run.plainDu ?? "more").")
+        }
+        if let rules = run.rulesLine { tabNotes[TempCategory.temporaryFiles.rawValue, default: []].append(rules) }
+        if let selfClean = run.selfCleanLine { tabNotes[TempCategory.temporaryFiles.rawValue, default: []].append(selfClean) }
+        var agentParts: [String] = []
+        if let n = run.liveClaudeSessions { agentParts.append("\(n) live Claude Code \(n == 1 ? "session" : "sessions")") }
+        if let codex = run.codexRunning { agentParts.append(codex ? "Codex is running" : "Codex is closed") }
+        if let claude = run.claudeAppRunning { agentParts.append(claude ? "the Claude app is running" : "the Claude app is closed") }
+        if !agentParts.isEmpty {
+            let text = ListFormatter.localizedString(byJoining: agentParts)
+            tabNotes[TempCategory.codingAgents.rawValue, default: []].append(text.prefix(1).uppercased() + text.dropFirst() + ". Folders of anything running are kept.")
+        }
+        if !images.isEmpty {
+            tabNotes[TempCategory.diskImages.rawValue, default: []]
+                .append("Their contents are not on your disk. A file that backs an image can't free space until the image is ejected; clearing it ejects it first.")
+        }
+        return TempReview(rows: StorageRows(unique + imageRows, facts: facts, tabNotes: tabNotes), diskImages: images, freeSpace: run.freeSpace,
                           tempOnDisk: run.tempOnDisk, agentFolders: run.agentFolders)
     }
 

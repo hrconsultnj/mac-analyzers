@@ -317,7 +317,7 @@ check_env() {
 # folder, reads nothing of the person's, and exits non-zero when a rule breaks.
 # A probe that only prints (review rules, quit, failures) is not here: nothing
 # would fail. Add a probe to PROBES when it has an exit status worth trusting.
-PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids"
+PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-storage-setting --probe-disk-runway"
 check_probes() {
   local app="$ROOT/app"
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi

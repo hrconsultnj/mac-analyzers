@@ -122,6 +122,18 @@ public struct CacheReview: Sendable {
             if line.hasPrefix("Free space now:") {
                 free = String(line.dropFirst(15)).trimmingCharacters(in: .whitespaces); continue
             }
+            // the cleanups that are not paths: a preview's `[DRY] prune:<id>` row, and what an apply
+            // printed for each (`running: <command>`, `[SKIP] prune:<id>`, the snapshot lines)
+            if line.hasPrefix("["), let close = line.firstIndex(of: "]"),
+               String(line[line.index(after: line.startIndex)..<close]) == "DRY" {
+                let rest = String(line[line.index(after: close)...]).trimmingCharacters(in: .whitespaces)
+                if rest.hasPrefix("prune:"), let space = rest.firstIndex(of: " ") {
+                    rows.append(pruneRow(key: String(rest[..<space]),
+                                         summary: String(rest[space...]).trimmingCharacters(in: .whitespaces)))
+                    continue
+                }
+            }
+            if results, let row = pruneResult(line) { rows.append(row); continue }
             if section.hasPrefix("Time Machine") {
                 if !line.isEmpty, !line.hasPrefix("[") { notes.append(line) }
                 continue
@@ -129,11 +141,6 @@ public struct CacheReview: Sendable {
             guard line.hasPrefix("["), let close = line.firstIndex(of: "]") else { continue }
             let tag = String(line[line.index(after: line.startIndex)..<close])
             let rest = String(line[line.index(after: close)...]).trimmingCharacters(in: .whitespaces)
-            if tag == "DRY", rest.hasPrefix("prune:"), let space = rest.firstIndex(of: " ") {
-                let key = String(rest[..<space])
-                rows.append(pruneRow(key: key, summary: String(rest[space...]).trimmingCharacters(in: .whitespaces)))
-                continue
-            }
             guard let status = StoragePathItem.Status(rawValue: tag), results || status == .dry,
                   let sizeRange = rest.range(of: #"^~?[\d.]+ [KMGT]?B\s+"#, options: .regularExpression),
                   let bytes = ByteSize.parse(String(rest[sizeRange]).trimmingCharacters(in: .whitespaces))
@@ -187,18 +194,62 @@ public struct CacheReview: Sendable {
                           detail: detail(used), bytes: bytes, iconPath: path)
     }
 
-    private static func pruneRow(key: String, summary: String) -> StorageRow {
-        let id = String(key.dropFirst("prune:".count))
-        let (title, group): (String, String) = switch id {
+    private static func pruneWords(_ id: String) -> (title: String, group: String) {
+        switch id {
         case "pnpm": (Names.Prune.pnpm, Names.StorageTab.packageManagers)
         case "npm": (Names.Prune.npm, Names.StorageTab.packageManagers)
         case "brew": (Names.Prune.brew, Names.StorageTab.packageManagers)
         case "simulators": (Names.Prune.simulators, Names.StorageTab.xcodeSimulators)
         case "docker": (Names.Prune.docker, Names.StorageTab.docker)
+        case "snapshots": (Names.Prune.snapshots, Names.StorageTab.timeMachine)
         default: (id, Names.StorageTab.developerTools)
         }
-        return StorageRow(id: key, category: CacheCategory.developerTools.rawValue, group: group, title: title,
-                          detail: summary, bytes: nil, valueText: "Runs When Applied")
+    }
+
+    private static func pruneRow(key: String, summary: String) -> StorageRow {
+        let id = String(key.dropFirst("prune:".count))
+        let words = pruneWords(id)
+        return StorageRow(id: key, category: CacheCategory.developerTools.rawValue, group: words.group, title: words.title,
+                          detail: summary, bytes: nil, valueText: "When Applied")
+    }
+
+    /// What an apply did for one of those cleanups, from the line it printed; nil for any other line.
+    static func pruneResult(_ line: String) -> StorageRow? {
+        func row(_ id: String, _ outcome: String, _ detail: String) -> StorageRow {
+            let words = pruneWords(id)
+            return StorageRow(id: "prune:\(id)", category: CacheCategory.developerTools.rawValue, group: words.group,
+                              title: words.title, detail: detail, bytes: nil, valueText: outcome)
+        }
+        if line.hasPrefix("running: ") {
+            let command = String(line.dropFirst("running: ".count))
+            let known: [(String, String, String)] = [
+                ("pnpm store prune", "pnpm", "Unused packages were removed from the pnpm store."),
+                ("npm cache clean", "npm", "The npm cache was emptied; it downloads again when needed."),
+                ("brew cleanup", "brew", "Old Homebrew versions and downloads were removed."),
+                ("xcrun simctl delete unavailable", "simulators", "Simulators whose runtime is gone were removed."),
+                ("docker system prune", "docker", "Unused containers, networks and images were removed."),
+            ]
+            guard let hit = known.first(where: { command.hasPrefix($0.0) }) else { return nil }
+            return row(hit.1, Names.Prune.ran, hit.2)
+        }
+        if line.hasPrefix("["), let close = line.firstIndex(of: "]"),
+           String(line[line.index(after: line.startIndex)..<close]) == "SKIP" {
+            let rest = String(line[line.index(after: close)...]).trimmingCharacters(in: .whitespaces)
+            if rest.hasPrefix("prune:"), let space = rest.firstIndex(of: " ") {
+                let id = String(rest[rest.index(rest.startIndex, offsetBy: 6)..<space])
+                return row(id, Names.Prune.skipped, "It wasn't ticked in the review, so it didn't run.")
+            }
+        }
+        if line.hasPrefix("thinned "), let range = line.range(of: #"\d+"#, options: .regularExpression) {
+            let count = Int(line[range]) ?? 0
+            return row("snapshots", Names.Prune.ran,
+                       "\(count) Time Machine local \(count == 1 ? "snapshot was" : "snapshots were") thinned. Your backups are not touched.")
+        }
+        if line.contains("snapshot thin needs the tmutil-thin sudoers rule") {
+            return row("snapshots", Names.Prune.couldNotRun,
+                       "Thinning needs a one-time permission. The space stays reclaimable until macOS frees it.")
+        }
+        return nil
     }
 
     /// The folders the engine sweeps, from the run's own settings line (`roots=/a /b  cache>3d …`).

@@ -11,6 +11,10 @@ public struct StorageTask: Identifiable, Sendable {
     /// A sentence on what the figure is made of.
     public let detail: String
 
+    public init(kind: JobKind, reclaimableBytes: Int64?, measuredAt: Date?, detail: String) {
+        self.kind = kind; self.reclaimableBytes = reclaimableBytes; self.measuredAt = measuredAt; self.detail = detail
+    }
+
     public var id: String { kind.rawValue }
     public var title: String { Names.job(kind) }
 }
@@ -34,12 +38,19 @@ public enum StorageTasks {
             return none(.storageClean, "No preview yet. Preview to see what could go.")
         }
         let review = CacheReview.build(lines: run.lines, banner: run.banner, modified: { _ in nil })
-        let folders = review.rows.rows.filter { $0.bytes != nil }
-        let projects = Set(review.rows.rows(in: CacheCategory.projects).compactMap(\.group)).count
+        let sized = review.rows.rows.filter { $0.bytes != nil }
+        let inProjects = review.rows.rows(in: CacheCategory.projects).filter { $0.bytes != nil }
+        let projects = Set(inProjects.compactMap(\.group)).count
+        let appCaches = review.rows.rows(in: CacheCategory.appCaches).filter { $0.bytes != nil }.count
+        let tools = review.rows.rows(in: CacheCategory.developerTools).filter { $0.bytes != nil }.count
+        var parts: [String] = []
+        if !inProjects.isEmpty { parts.append("\(plural(inProjects.count, "folder")) in \(plural(projects, "project"))") }
+        if appCaches > 0 { parts.append(plural(appCaches, "app cache")) }
+        if tools > 0 { parts.append(plural(tools, "developer tool cache")) }
         return StorageTask(kind: .storageClean, reclaimableBytes: review.rows.totalBytes,
                            measuredAt: RunDate.date(of: run.banner),
-                           detail: folders.isEmpty ? "Nothing to clean."
-                                                   : "\(plural(folders.count, "folder")) in \(plural(projects, "project")).")
+                           detail: sized.isEmpty ? "Nothing to clean."
+                                                 : "\(review.mode.title) preview: " + ListFormatter.localizedString(byJoining: parts) + ".")
     }
 
     static func downloads() -> StorageTask {
@@ -51,7 +62,7 @@ public enum StorageTasks {
         return StorageTask(kind: .janitor, reclaimableBytes: review.rows.choosableBytes,
                            measuredAt: RunDate.date(of: run.banner),
                            detail: count == 0 ? "Nothing old enough to move."
-                                              : "\(plural(count, "old item")), moved to the Trash.")
+                                              : "\(plural(count, "old item")) can go to the Trash.")
     }
 
     static func temp() -> StorageTask {

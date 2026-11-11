@@ -15,9 +15,9 @@ struct SpotlightScreen: View {
     @State private var sortOrder = [KeyPathComparator(\SpotlightNode.sortBytes, order: .reverse)]
     @State private var expansion = RememberedExpansion<String>(screen: "spotlight")
     @State private var problem: String?
-    @State private var confirmingAll = false
+    /// The folders the Fence All dialog was opened for: what it names is what it fences.
+    @State private var confirmingAll: [SpotlightFolder]?
     @State private var query = ""
-    @State private var fencing: Job?
     @Environment(JobStore.self) private var store
     @Environment(Navigator.self) private var navigator
 
@@ -73,16 +73,11 @@ struct SpotlightScreen: View {
             }.value
             changed = [:]
         }
-        // Fence All ran through the check: once it is done, read the fences as they are now
-        .task(id: JobStamp(fencing)) {
-            guard let fencing, case .succeeded = fencing.state, let review else { return }
-            for folder in review.folders where FenceMarker.isFenced(folder.path) { changed[folder.path] = .fenced }
-            self.fencing = nil
-        }
-        .confirmationDialog("Fence Every Unfenced Folder?", isPresented: $confirmingAll, titleVisibility: .visible) {
+        .confirmationDialog(FencePlan.title(count: confirmingAll?.count ?? 0), isPresented: Binding(
+            get: { confirmingAll != nil }, set: { if !$0 { confirmingAll = nil } }), titleVisibility: .visible) {
             Button("Fence All", role: .destructive) { fenceAll() }
         } message: {
-            Text("Places an empty .metadata_never_index file in every unfenced developer folder the check found, so Spotlight stops indexing them. Nothing is moved or deleted, and each fence can be lifted here or by deleting that file.")
+            Text(FencePlan.message(confirmingAll ?? []))
         }
         .alert("Fence Not Changed", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
             Button("OK", role: .cancel) {}
@@ -93,13 +88,6 @@ struct SpotlightScreen: View {
 
     @ViewBuilder private var table: some View {
         VStack(spacing: 0) {
-            if let review {
-                Label("\(review.status) \(review.verdictSentence)", systemImage: "magnifyingglass")
-                    .font(.callout)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(.bar)
-            }
             if tree.isEmpty {
                 ContentUnavailableView("No Developer Folders", systemImage: "checkmark.circle",
                                        description: Text("The check found no node_modules, build output or caches under your projects."))
@@ -133,6 +121,19 @@ struct SpotlightScreen: View {
                 }
                 .contextMenu({ ids in menu(for: ids) }, primaryAction: nil)
             }
+        }
+        .safeAreaBar(edge: .top, alignment: .leading, spacing: 0) { statusBar }
+    }
+
+    /// Whether indexing is on and how it is going, as the system's own bar over the table.
+    @ViewBuilder private var statusBar: some View {
+        if let review {
+            VStack(alignment: .leading, spacing: 4) {
+                Label("\(review.status) \(review.verdictSentence)", systemImage: "magnifyingglass").font(.callout)
+                ForEach(review.statusDetails, id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
         }
     }
 
@@ -185,9 +186,20 @@ struct SpotlightScreen: View {
         }
         .toolbarRank(.secondary)
         ToolbarItem {
-            Button { confirmingAll = true } label: { Label("Fence All", systemImage: "lock.shield") }
-                .disabled(!canFenceAll)
-                .help("Fence every unfenced folder from the check you just ran")
+            Button { confirmingAll = FencePlan.targets(folders: review?.folders ?? [], changed: changed) } label: {
+                Label("Fence All", systemImage: "lock.shield")
+            }
+            .disabled(!canFenceAll)
+            .help("Fence every folder listed here as Not Fenced")
+        }
+        .toolbarRank(.secondary)
+        ToolbarItem {
+            if model.phase == .ready {
+                Button { model.discard(store); review = nil; changed = [:] } label: {
+                    Label(Names.Review.discard, systemImage: "xmark.circle")
+                }
+                .help("Throw this check away; nothing is changed")
+            }
         }
         .toolbarRank(.secondary)
         ToolbarItem {
@@ -206,6 +218,16 @@ struct SpotlightScreen: View {
         }
         .toolbarRank(.secondary)
         ToolbarItem {
+            if let command = review?.deepCheckCommand {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(command, forType: .string)
+                } label: { Label("Copy Deep Check Command", systemImage: "terminal") }
+                .help("Copy the Terminal command that shows whether Spotlight's index is stuck")
+            }
+        }
+        .toolbarRank(.secondary)
+        ToolbarItem {
             if let command = review?.rebuildCommand {
                 Button {
                     NSPasteboard.general.clearContents()
@@ -217,10 +239,11 @@ struct SpotlightScreen: View {
         .toolbarRank(.secondary)
     }
 
-    /// A check that finished well, recent enough to apply, and that found something unfenced.
+    /// A check on screen that found something Not Fenced. (Age is judged when the dialog's
+    /// button is pressed, so a stale check says why instead of just being dimmed.)
     private var canFenceAll: Bool {
-        guard model.phase == .ready, let job = model.job, case .succeeded = job.state else { return false }
-        return (review?.folders ?? []).contains { (changed[$0.path] ?? $0.state) == .notFenced }
+        guard model.phase == .ready || model.phase == .lastKnown else { return false }
+        return !FencePlan.targets(folders: review?.folders ?? [], changed: changed).isEmpty
     }
 
     private func preview() { model.startPreview(store, kind: .spotlight, options: JobOptions()) }
@@ -237,9 +260,11 @@ struct SpotlightScreen: View {
         if !failures.isEmpty { problem = failures.prefix(3).joined(separator: "\n") }
     }
 
+    /// Fences the folders the dialog named, one by one, the way a row does. Nothing is scanned again.
     private func fenceAll() {
-        guard let job = model.job else { return }
-        let apply = store.apply(from: job, approved: .everything)
-        if case .failed(let failure) = apply.state { problem = failure.message } else { fencing = apply }
+        guard let targets = confirmingAll else { return }
+        confirmingAll = nil
+        if FencePlan.isStale(finishedAt: model.asOf) { problem = FencePlan.staleMessage; return }
+        set(targets.map(\.path), fenced: true)
     }
 }

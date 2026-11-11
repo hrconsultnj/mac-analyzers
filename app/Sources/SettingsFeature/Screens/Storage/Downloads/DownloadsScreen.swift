@@ -17,7 +17,8 @@ struct DownloadsScreen: View {
             confirmation: ReviewConfirmation(
                 verb: "Move", destination: "to the Trash",
                 message: "You can put them back from Undo.", permanent: nil),
-            emptyText: "Looks through your Downloads folder and your screenshots for anything not touched in a while. Nothing is moved until you review it.")
+            emptyText: "Looks through your Downloads folder and your screenshots for anything not touched in a while. Nothing is moved until you review it.",
+            destination: Names.Review.goesToTrash)
             .onAppear { if let fixture { model.showFixture(fixture) } }
     }
 }

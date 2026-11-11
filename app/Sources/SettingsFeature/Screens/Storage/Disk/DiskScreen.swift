@@ -8,11 +8,14 @@ import SwiftUI
 struct DiskScreen: View {
     @State private var usage: DiskUsage?
     @State private var runway: DiskRunway?
+    @State private var runwayReason = ""
     @State private var tasks: [StorageTask] = []
     @State private var backups: [IOSBackup] = []
     @State private var loaded = false
     @Environment(JobStore.self) private var store
     @Environment(Navigator.self) private var navigator
+    /// The worst case, for `SnapshotRunner`; nil in the app.
+    var fixture: (usage: DiskUsage, runway: DiskRunway, reason: String, tasks: [StorageTask])?
 
     private var reclaimable: Int64 { tasks.compactMap(\.reclaimableBytes).reduce(0, +) }
 
@@ -41,16 +44,22 @@ struct DiskScreen: View {
         if let usage {
             Section("Capacity") {
                 VStack(alignment: .leading) {
-                    ProgressView(value: usage.usedFraction)
+                    ProgressView(value: usage.usedFraction).tint(usage.isLow ? .red : nil)
                     Text("\(usage.usedText) used of \(usage.totalText)").foregroundStyle(.secondary)
+                    if usage.isLow {
+                        Label(usage.lowText, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                        Text(reclaimable > 0
+                             ? "The cleanups below could give back \(ByteSize.format(reclaimable)). Open one to review what it would clear."
+                             : "Preview the cleanups below to see what could be cleared.")
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 LabeledContent("Free Space", value: usage.freeText)
                 LabeledContent("Full In") {
                     Text(runway?.text ?? "No forecast")
                         .foregroundStyle(runway?.isUrgent == true ? .red : .secondary)
                 }
-                .help(runway.map { "Worked out from \($0.points) cleanups' free-space figures over the last months" }
-                      ?? "A forecast needs a week of falling free space; yours is steady or rising")
+                .help(runwayReason)
             }
         }
     }
@@ -143,10 +152,16 @@ struct DiskScreen: View {
     }
 
     private func load() async {
+        if let fixture {
+            (usage, runway, runwayReason, tasks) = (fixture.usage, fixture.runway, fixture.reason, fixture.tasks)
+            loaded = true
+            return
+        }
         let found = await Task.detached(priority: .userInitiated) {
-            (LiveStats.diskUsage(), DiskRunway.current(), StorageTasks.load(), IOSBackups.scan())
+            (LiveStats.diskUsage(), DiskRunway.outlook(DiskRunway.series()), StorageTasks.load(), IOSBackups.scan())
         }.value
-        (usage, runway, tasks, backups) = found
+        (usage, runway, runwayReason) = (found.0, found.1.runway, found.1.reason)
+        (tasks, backups) = (found.2, found.3)
         loaded = true
     }
 }

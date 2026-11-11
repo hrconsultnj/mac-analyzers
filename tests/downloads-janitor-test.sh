@@ -93,8 +93,30 @@ missing_case() { # label shell
         "$([[ $rc -eq 78 && -e "$home/Downloads/one.pdf" ]] && grep -q 'FATAL: lib/approved-list.sh is missing' "$TMP/$label.out" && echo ok || echo "exit $rc")"
 }
 
+# a file kept only in iCloud: du says 0, so a preview lists it on its own [CLOUD] line with its real size,
+# and a normal file is still [DRY]. A stand-in `stat` plays the iCloud flags for a file named like
+# cloud-only-*; every other call goes to the real stat. A preview moves nothing.
+cloud_case() { # label shell
+  local label="$1" sh="$2" home="$TMP/home-$1" stubs="$TMP/stubs-$1"
+  mkdir -p "$home/Downloads" "$stubs"
+  printf 'x' > "$home/Downloads/cloud-only-1.png"
+  printf 'y' > "$home/Downloads/normal.pdf"
+  touch -t 202001010000 "$home/Downloads/cloud-only-1.png" "$home/Downloads/normal.pdf"
+  printf '#!/bin/bash\nfor a in "$@"; do [[ "$a" == *cloud-only-* ]] && { echo "compressed,dataless 26818"; exit 0; }; done\nexec /usr/bin/stat "$@"\n' > "$stubs/stat"
+  # du reports no blocks for such a file, as it does for a real one
+  printf '#!/bin/bash\nfor a in "$@"; do [[ "$a" == *cloud-only-* ]] && { printf "0\\t%%s\\n" "$a"; exit 0; }; done\nexec /usr/bin/du "$@"\n' > "$stubs/du"
+  chmod +x "$stubs/stat" "$stubs/du"
+  PATH="$stubs:$PATH" HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" > "$TMP/$label.out" 2>&1
+  check "[$label] an iCloud-only file is listed as [CLOUD] with its real size" \
+        "$(grep -q '^\[CLOUD\] 27 KB  .*cloud-only-1.png' "$TMP/$label.out" && echo ok || grep 'cloud-only' "$TMP/$label.out")"
+  check "[$label] a normal file is still [DRY]" "$(grep -q '^\[DRY\] .*normal.pdf' "$TMP/$label.out" && echo ok || echo "no [DRY] row")"
+  check "[$label] a preview moves nothing" "$([[ -e "$home/Downloads/cloud-only-1.png" && -e "$home/Downloads/normal.pdf" ]] && echo ok || echo moved)"
+}
+
 run_case bash bash
 run_case old /bin/bash
+cloud_case cloud-bash bash
+cloud_case cloud-old /bin/bash
 missing_case nolib-bash bash
 missing_case nolib-old /bin/bash
 exit $fail

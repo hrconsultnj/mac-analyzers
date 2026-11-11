@@ -53,6 +53,19 @@ func probeFence() -> Never {
     check("a link to a folder can't be fenced", attempt { try FenceMarker.fence(link) } != nil
           && !fm.fileExists(atPath: folder + "/" + FenceMarker.name))
 
+    // Fence All acts on what the screen shows, and says which; a stale check is refused
+    func listed(_ name: String, _ state: FenceState) -> SpotlightFolder {
+        SpotlightFolder(path: "/p/\(name)/node_modules", project: name, kind: .nodePackages, sizeBytes: 1, state: state, title: "Node.js Packages")
+    }
+    let shown = [listed("a", .notFenced), listed("b", .fenced), listed("c", .notFenced)]
+    check("Fence All targets the folders listed as Not Fenced", FencePlan.targets(folders: shown, changed: [:]).map(\.project) == ["a", "c"])
+    check("a row lifted since the check is a target, one fenced since is not",
+          FencePlan.targets(folders: shown, changed: ["/p/b/node_modules": .notFenced, "/p/a/node_modules": .fenced]).map(\.project) == ["b", "c"])
+    check("a folder the check never listed is never a target", !FencePlan.targets(folders: shown, changed: [:]).contains { $0.project == "new" })
+    check("the confirmation names the folders it will fence",
+          FencePlan.message(FencePlan.targets(folders: shown, changed: [:])).contains("in a") && FencePlan.message(FencePlan.targets(folders: shown, changed: [:])).contains("in c"))
+    check("a check from this minute is fresh, one from an hour ago is stale",
+          !FencePlan.isStale(finishedAt: Date()) && FencePlan.isStale(finishedAt: Date(timeIntervalSinceNow: -3600)) && FencePlan.isStale(finishedAt: nil))
     print(failures == 0 ? "\nall hold" : "\n\(failures) FAILED")
     exit(failures == 0 ? 0 : 1)
 }

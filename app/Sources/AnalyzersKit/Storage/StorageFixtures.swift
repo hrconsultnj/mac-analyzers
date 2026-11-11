@@ -39,13 +39,29 @@ public enum StorageFixtures {
                                  modified: { _ in Date().addingTimeInterval(-9 * 86_400) }).rows
     }
 
+    /// A Mac at 98 percent full whose last day lost 110 GB, for looking at the Disk screen's worst case.
+    public static func disk() -> (usage: DiskUsage, runway: DiskRunway, reason: String, tasks: [StorageTask]) {
+        let now = Date()
+        return (DiskUsage(totalBytes: 494_000_000_000, freeBytes: 10_000_000_000),
+                DiskRunway(daysToFull: 0.1, points: 4),
+                "Worked out from the last 2 days (4 cleanups' figures), which are falling faster than the long trend.",
+                [StorageTask(kind: .storageClean, reclaimableBytes: 3_600_000_000, measuredAt: now.addingTimeInterval(-3_600),
+                             detail: "Deep preview: 30 folders in 5 projects, 2 app caches."),
+                 StorageTask(kind: .janitor, reclaimableBytes: 2_500_000_000, measuredAt: now.addingTimeInterval(-50_000),
+                             detail: "70 old items can go to the Trash."),
+                 StorageTask(kind: .tempClean, reclaimableBytes: 597_000_000, measuredAt: now.addingTimeInterval(-72_000),
+                             detail: "15 items ready to clear."),
+                 StorageTask(kind: .spotlight, reclaimableBytes: nil, measuredAt: now.addingTimeInterval(-72_000),
+                             detail: "13 developer folders still indexed.")])
+    }
+
     public static func downloads() -> StorageRows {
         var lines = ["### Downloads (untouched 60+ days)"]
         let documents = ["Invoice March.pdf", "Tax Notes.docx", "Lease.pdf", "Receipt 4821.pdf", "Meeting Notes.txt"]
         for (index, name) in documents.enumerated() { lines.append("[DRY] \(index + 1) MB  \(home)/Downloads/\(name)") }
         lines += ["[DRY] 2.5 GB  \(home)/Downloads/2025", "[DRY] 640.0 MB  \(home)/Downloads/Setup.dmg",
                   "[DRY] 3 MB  \(home)/Downloads/photo.jpg", "### Screenshots (untouched 60+ days)"]
-        for index in 0..<12 { lines.append("[DRY] 0 KB  \(home)/Desktop/Screenshots/Screenshot \(index).png") }
+        for index in 0..<12 { lines.append("[CLOUD] 26 KB  \(home)/Desktop/Screenshots/Screenshot \(index).png") }
         lines.append("[SKIP] kept by pattern  \(home)/Downloads/keep-me.zip")
         return DownloadReview.build(lines: lines, info: { path in
             (Date().addingTimeInterval(-Double(70 + path.count) * 86_400), !path.contains("."))
@@ -92,6 +108,14 @@ public enum StorageFixtures {
         [FAILED]     410.0 MB  \(home)/Projects/api/.turbo
         ### 3c. App caches (each app's folder in ~/Library/Caches)
         [DELETED]    1.4 GB  \(home)/Library/Caches/com.example.Editor
+        ### 3. Package-manager caches (prune unreferenced only)
+        running: pnpm store prune
+        [SKIP]    prune:npm  not in the reviewed list
+        ### 3.5 Docker prune
+        OrbStack already running — pruning, will leave it running.
+        running: docker system prune -f
+        ### 4. Time Machine local snapshots
+        thinned 2 local snapshot(s) — freed space now realized in df.
         Free space now: 108Gi avail (74% used)
         """.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
         return CacheReview.build(lines: lines, banner: "storage-auto-clean.sh | mode=daily | APPLY | 2026-11-11 08:00:00",

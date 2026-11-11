@@ -5,7 +5,9 @@ import SwiftUI
 /// what it is, with what the cleanup leaves alone shown beside it and why.
 struct TempScreen: View {
     @State private var model = StorageReviewModel()
-    @State private var permanent = false
+    /// The person's own pick for the next preview; nil until they pick. What the screen SHOWS
+    /// (`permanent`) comes from the preview on screen: an Apply runs with the preview's setting.
+    @State private var chosen: Bool?
     /// Example rows for `SnapshotRunner`; nil in the app.
     var fixture: StorageRows?
     @State private var ejecting: StorageRow?
@@ -15,31 +17,47 @@ struct TempScreen: View {
     /// The images mounted from temp folders, as the review found them.
     private var images: [StorageRow] { model.rows?.rows(in: TempCategory.diskImages) ?? [] }
 
+    private var permanent: Bool {
+        model.setting(kind: .tempClean, chosen: JobOptions(permanent: chosen ?? false)).permanent
+    }
+
+    private var permanentBinding: Binding<Bool> {
+        Binding(get: { permanent }, set: { picked in
+            if model.pick(JobOptions(permanent: picked), kind: .tempClean, chosen: JobOptions(permanent: chosen ?? false), store) {
+                chosen = picked
+            }
+        })
+    }
+
     var body: some View {
+        let words = CleanWords.temp(permanent: permanent)
         StorageReviewScreen<TempCategory>(
             model: model, title: Names.Screen.tempAndAgents, kind: .tempClean, screenKey: "temp",
             options: JobOptions(permanent: permanent),
             parse: { TempReview.build(from: TempCleanParser.parse(runHeader: $0.banner, lines: $0.lines)).rows },
-            lastKnownMatches: { [permanent] in $0.banner.contains("permanent") == permanent },
-            applyTitle: permanent ? "Delete" : "Move to Trash",
-            confirmation: permanent
-                ? ReviewConfirmation(verb: "Delete", destination: "permanently",
-                                     message: "Nothing here is open, recent, live or someone else's.",
-                                     permanent: "Deleted items can't be put back.")
-                : ReviewConfirmation(verb: "Move", destination: "to the Trash",
-                                     message: "You can put them back from Undo. The space returns when the Trash is emptied.",
-                                     permanent: nil),
-            emptyText: "Looks through /tmp, your temp folder, /var/tmp and the folders Claude Code, Codex and other AI tools keep. Nothing open, recent, live or someone else's is ever touched.")
+            lastKnownMatches: { [picked = chosen] block in
+                picked.map { StorageSetting.options(kind: .tempClean, banner: block.banner).permanent == $0 } ?? true
+            },
+            applyTitle: words.applyTitle,
+            confirmation: ReviewConfirmation(words: words),
+            emptyText: "Looks through /tmp, your temp folder, /var/tmp and the folders Claude Code, Codex and other AI tools keep. Nothing open, recent, live or someone else's is ever touched.",
+            destination: permanent ? Names.Review.deletedPermanently : Names.Review.goesToTrash)
             .toolbar {
                 ToolbarItem {
-                    Picker("Clear To", selection: $permanent) {
-                        Text("Trash").tag(false)
-                        Text("Delete Permanently").tag(true)
+                    // a menu whose label is the current choice, icon and title: where cleared items go is always in view
+                    Menu {
+                        Picker("Clear To", selection: permanentBinding) {
+                            Label("Trash", systemImage: "trash").tag(false)
+                            Label("Delete Permanently", systemImage: "trash.slash").tag(true)
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Label(permanent ? "Delete Permanently" : "Trash", systemImage: permanent ? "trash.slash" : "trash")
                     }
-                    .pickerStyle(.menu)
+                    .labelStyle(.titleAndIcon)
                     .help("Where cleared items go")
                 }
-                .toolbarRank(.secondary)
+                .toolbarRank(.primary)
                 ToolbarItem {
                     if !images.isEmpty {
                         Menu {
@@ -50,7 +68,6 @@ struct TempScreen: View {
                 }
                 .toolbarRank(.secondary)
             }
-            .onChange(of: permanent) { model.discard(store) }
             .onAppear { if let fixture { model.showFixture(fixture) } }
             .confirmationDialog("Eject \(ejecting?.title ?? "Disk Image")?", isPresented: Binding(
                 get: { ejecting != nil }, set: { if !$0 { ejecting = nil } }), titleVisibility: .visible) {

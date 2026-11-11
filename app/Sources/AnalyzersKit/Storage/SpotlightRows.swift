@@ -15,6 +15,11 @@ public struct SpotlightFolder: Identifiable, Hashable, Sendable {
     public let sizeBytes: Int64
     public var state: FenceState
 
+    public init(path: String, project: String, kind: CacheKind, sizeBytes: Int64, state: FenceState, title: String) {
+        self.path = path; self.project = project; self.kind = kind; self.sizeBytes = sizeBytes
+        self.state = state; self.title = title
+    }
+
     public var id: String { path }
     /// "apps/mobile · Node.js Packages": where in the project, and what it is.
     public let title: String
@@ -51,6 +56,8 @@ public struct SpotlightReview: Sendable {
     public let unfencedBulkBytes: Int64?
     public let deepCheckCommand: String?
     public let rebuildCommand: String?
+    /// What section 1 of the check said besides on or off: Spotlight's helper processes, and a recent macOS update.
+    public let statusDetails: [String]
 
     /// The folders as the rows Storage screens share: grouped by project, each saying whether it
     /// is fenced (a run's results read the same way).
@@ -88,9 +95,17 @@ public struct SpotlightReview: Sendable {
         case .notRunning: sentence = "Spotlight isn't indexing at the moment."
         case .unknown: sentence = "The audit couldn't tell whether indexing is stuck."
         }
+        var details: [String] = []
+        if let mds = run.mdsLine { details.append("Spotlight's helper processes: \(mds).") }
+        if let update = run.recentUpdateLine {
+            // "macOS 27.0.1     27.0.1     10/15/2026, 15:08:25": the name and version, and when
+            let parts = update.components(separatedBy: "  ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            let what = parts.count >= 2 ? "\(parts[0]), \(parts[parts.count - 1])" : update
+            details.append("A recent macOS update (\(what)) makes a full reindex expected; it can take hours.")
+        }
         return SpotlightReview(status: indexing, verdict: run.verdict, verdictSentence: sentence, folders: folders,
                                unfencedBulkBytes: run.unfencedBulkBytes, deepCheckCommand: run.deepCheckCommand,
-                               rebuildCommand: run.rebuildCommand)
+                               rebuildCommand: run.rebuildCommand, statusDetails: details)
     }
 }
 

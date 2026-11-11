@@ -188,6 +188,14 @@ if args.first == "--probe-storage" {
 if args.first == "--probe-storage-apply" {
     await probeStorageApply()
 }
+// `--probe-storage-setting` judges itself: what a Storage screen shows, asks and sends for every
+// pairing of a preview's setting and the screen's own. See StorageSettingProbe.swift.
+if args.first == "--probe-storage-setting" {
+    await probeStorageSetting()
+}
+if args.first == "--probe-disk-runway" {
+    probeDiskRunway()
+}
 // `--probe-run-matcher` proves how a job's own block is found in a log (very large
 // runs, identical banners, a growing log) against stand-in logs. See RunMatcherProbes.swift.
 if args.first == "--probe-run-matcher" {

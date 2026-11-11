@@ -942,7 +942,13 @@ if [[ "$MODE" == "deep" ]]; then
     snap_count="$(printf '%s\n' "$snaps" | grep -c . )"
     if [[ "$snap_count" -eq 0 ]]; then
       log "  No local snapshots present. Nothing to do."
-    elif [[ "$PRUNE_SNAPSHOTS" -eq 1 && "$DRY_RUN" -eq 0 ]]; then
+    elif [[ "$PRUNE_SNAPSHOTS" -eq 1 && "$DRY_RUN" -eq 1 ]]; then
+      # a reviewed row like the other prunes: the app shows it, and an apply with a
+      # reviewed list thins only when this key is in it
+      log "  [DRY]     prune:snapshots  ${snap_count} Time Machine local snapshot(s) are thinned to realize the space freed above (your backups are not touched)"
+    elif [[ "$PRUNE_SNAPSHOTS" -eq 1 ]] && ! command_approved prune:snapshots; then
+      log "  [SKIP]    prune:snapshots  not in the reviewed list"
+    elif [[ "$PRUNE_SNAPSHOTS" -eq 1 ]]; then
       # ONLY the exact whitelisted command runs here — cannot delete real backups.
       # shellcheck disable=SC2024  # the log is the user's own file; only tmutil needs root
       if sudo -n /usr/bin/tmutil thinlocalsnapshots / 999999999999 4 >>"$LOG_FILE" 2>&1; then
