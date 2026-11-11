@@ -28,6 +28,5 @@ struct DataScreen<Content: View>: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .navigationTitle(title)
             .navigationSubtitle(subtitle ?? "")
-            .preference(key: ToolbarTitleWidthKey.self, value: ToolbarBudget.titleWidth(title: title, subtitle: subtitle))
     }
 }

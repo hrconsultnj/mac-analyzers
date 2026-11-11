@@ -11,8 +11,6 @@ import UIComponents
 struct JobStatusToolbarItem: ToolbarContent {
     let store: JobStore
     let navigator: Navigator
-    /// False when the screen's tabs need the room (`ToolbarAllowsStatusKey`).
-    var allowed = true
 
     /// Priority: the screen's own controls come first, and this item is secondary.
     /// On Activity's own list it is not shown at all (it is on a run screen pushed over
@@ -22,7 +20,7 @@ struct JobStatusToolbarItem: ToolbarContent {
     /// group into the overflow menu at 900 points when both were present). It is
     /// on every other screen.
     var body: some ToolbarContent {
-        if allowed && !(navigator.section == OverviewGroup.activity && navigator.path.isEmpty) {
+        if !(navigator.section == OverviewGroup.activity && navigator.path.isEmpty) {
             ToolbarItem(placement: .status) {
                 JobStatusItemView(store: store, navigator: navigator)
             }

@@ -30,7 +30,7 @@ public struct ScopeTabItem<Value: Hashable & Sendable>: Identifiable {
 /// a different control, decided once for the app); never a second row of tabs under these.
 ///
 /// This is the plain view: it takes its size from the environment's `controlSize`, sets no widths
-/// and knows nothing about toolbars, so a window and the menu-bar panel use the same control. In
+/// and knows nothing about windows, so a window and the menu-bar panel use the same control. In
 /// content (the menu-bar panel), small, remembered under a key the caller gives:
 ///
 ///     ScopeTabs(selection: $tab, items: [
@@ -40,37 +40,77 @@ public struct ScopeTabItem<Value: Hashable & Sendable>: Identifiable {
 ///     .controlSize(.small)
 ///     .scopeTabMemory(key: "panel", selection: $tab, items: items)   // PanelTab: String raw value
 ///
-/// A window puts it in the toolbar with `.scopeTabsToolbar(screen:items:selection:)` (in
-/// SettingsFeature), which adds the toolbar's priority and the View menu commands; the panel has
-/// neither. Drawn as `Toggle(.button)` with a `Label`: the only native arrangement that shows both
-/// icon and title (a segmented `Picker` keeps the icon, a palette `Picker` the title; `TabView`
-/// draws neither). That departs from Apple's "text or images, not both" for segmented controls, on
-/// purpose. The drawing is `ScopeTabButtons`, one private view; a different native control would
-/// replace only that.
+/// A window puts it in a bar directly under its toolbar with `.scopeTabsToolbar(screen:items:selection:)`
+/// (in SettingsFeature), which adds the View menu commands; the panel has neither. Never in a toolbar:
+/// a toolbar moves a wide item into its `»` menu, and tabs must always be visible.
+///
+/// Every tab is a system `Button`; the selected one uses the prominent system style, the others the
+/// bordered one. When the titles do not all fit the width it is given, the unselected tabs drop their
+/// titles first (icon and count stay; the title is the tooltip and the accessibility label) and the
+/// selected tab keeps its title, so every tab stays visible and clickable. That is the one shape
+/// change, and it depends on width only, never on state.
 public struct ScopeTabs<Value: Hashable & Sendable>: View {
-    /// How the categories are drawn: every one as a button, or collapsed into ONE control that
-    /// shows the current category (icon, title, count) and opens a menu of all of them. Same
-    /// component, same state; a window's toolbar switches to `.menu` when the buttons cannot fit.
-    public enum Style: Sendable { case tabs, menu, measure }
-
     @Binding var selection: Value
     let items: [ScopeTabItem<Value>]
-    let style: Style
 
-    public init(selection: Binding<Value>, items: [ScopeTabItem<Value>], style: Style = .tabs) {
+    public init(selection: Binding<Value>, items: [ScopeTabItem<Value>]) {
         _selection = selection
         self.items = items
-        self.style = style
     }
 
     public var body: some View {
         assert((2...6).contains(items.count),
                "ScopeTabs takes two to six categories; a screen with one kind of thing has no tabs, and seven or more need a different control (ask the lead)")
-        return Group {
-            switch style {
-            case .tabs: ScopeTabButtons(selection: $selection, items: items)
-            case .menu: ToolbarChoice(selection: $selection, items: items)
-            case .measure: ScopeTabButtons(selection: $selection, items: items, rowForMeasuring: true)
+        // ViewThatFits picks the first row that fits the width it is offered (its own measurement,
+        // not a hand-made budget); the compressed row is the last and always fits six tabs at 780.
+        return ViewThatFits(in: .horizontal) {
+            row(compressed: false)
+            row(compressed: true)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isTabBar)
+    }
+
+    private func row(compressed: Bool) -> some View {
+        HStack(spacing: 6) {
+            ForEach(items) { item in
+                let selected = item.value == selection
+                tab(item, selected: selected, showsTitle: !compressed || selected)
+            }
+        }
+    }
+
+    @ViewBuilder private func tab(_ item: ScopeTabItem<Value>, selected: Bool, showsTitle: Bool) -> some View {
+        let button = Button { selection = item.value } label: { label(item, selected: selected, showsTitle: showsTitle) }
+        Group {
+            if selected { button.buttonStyle(.borderedProminent) } else { button.buttonStyle(.bordered) }
+        }
+        .buttonBorderShape(.capsule)
+        // the filled symbol marks the selected tab even where the accent colour is not drawn
+        // (a window that is not in front draws the prominent style in grey)
+        .symbolVariant(selected ? .fill : .none)
+        .help(item.titleWithCount)
+        .accessibilityLabel(item.titleWithCount)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    @ViewBuilder private func label(_ item: ScopeTabItem<Value>, selected: Bool, showsTitle: Bool) -> some View {
+        // a count of zero is not shown: it says nothing and only makes the tab wider
+        let count = item.count.flatMap { $0 > 0 ? $0 : nil }
+        if showsTitle {
+            Label {
+                if let count {
+                    // on the prominent (accent) fill a secondary colour would not read
+                    Text("\(item.title) \(Text("\(count)").foregroundStyle(selected ? .primary : .secondary))")
+                } else {
+                    Text(item.title)
+                }
+            } icon: { Image(systemName: item.symbol) }
+            .labelStyle(.titleAndIcon)
+        } else {
+            HStack(spacing: 4) {
+                Image(systemName: item.symbol)
+                if let count { Text("\(count)").foregroundStyle(.secondary) }
             }
         }
     }
@@ -106,40 +146,6 @@ public struct ToolbarChoice<Value: Hashable & Sendable>: View {
         .menuIndicator(.visible)
         .labelStyle(.titleAndIcon)
         .help("Choose a category")
-    }
-}
-
-/// The drawing of the tabs, and only that.
-private struct ScopeTabButtons<Value: Hashable & Sendable>: View {
-    @Binding var selection: Value
-    let items: [ScopeTabItem<Value>]
-    /// Draws the same buttons side by side in a plain row, for a hidden copy that reports their width
-    /// (a `ControlGroup` outside a toolbar does not lay out as one row).
-    var rowForMeasuring = false
-
-    var body: some View {
-        if rowForMeasuring {
-            HStack(spacing: 0) { buttons }.labelStyle(.titleAndIcon)
-        } else {
-            ControlGroup { buttons }
-                .labelStyle(.titleAndIcon)
-                .help("Choose a category")
-        }
-    }
-
-    private var buttons: some View {
-        ForEach(items) { item in
-            Toggle(isOn: Binding(get: { selection == item.value }, set: { if $0 { selection = item.value } })) {
-                Label { title(item) } icon: { Image(systemName: item.symbol) }
-            }
-            .toggleStyle(.button)
-        }
-    }
-
-    private func title(_ item: ScopeTabItem<Value>) -> Text {
-        // a count of zero is not shown: it only makes the tabs wider
-        guard let count = item.count, count > 0 else { return Text(item.title) }
-        return Text("\(item.title) \(Text("\(count)").foregroundStyle(.secondary))")
     }
 }
 

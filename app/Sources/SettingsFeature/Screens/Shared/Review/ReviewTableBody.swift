@@ -20,6 +20,11 @@ struct ReviewTableBody: View {
     let expansion: RememberedExpansion<String>
     /// The screen's key: column widths, order and hidden columns are kept per screen too.
     let screen: String
+    /// What the first column and the value column are called when the review is not about files and
+    /// sizes: a column is named for what it holds, and a review of things with no size and no value
+    /// has no value column at all.
+    var nameTitle: String = Names.Column.name
+    var valueTitle: String?
 
     @State private var selection: Set<String> = []
 
@@ -33,19 +38,21 @@ struct ReviewTableBody: View {
     var body: some View {
         let table = OutlineTable(nodes, children: \.children, selection: $selection, sortOrder: $sortOrder,
                                  expanded: expansion.binding, autosave: screen) {
-            OutlineColumn("name", Names.Column.name, sortUsing: KeyPathComparator(\ReviewNode.sortName)) { node in
+            OutlineColumn("name", nameTitle, sortUsing: KeyPathComparator(\ReviewNode.sortName)) { node in
                 ReviewNameCell(node: node)
             }
             .help { $0.detail ?? $0.title }
             // the title and, under it, what the row is: two lines when there is something to say
             .lines { $0.detail == nil ? 1 : 2 }
             .typeSelect { $0.title }
-            OutlineColumn("size", Names.Column.size,
-                          text: { $0.bytes.map(ByteSize.format) ?? $0.valueText ?? "" },
-                          sortUsing: KeyPathComparator(\ReviewNode.sortBytes))
-                .alignment(.trailing).monospacedDigits().textStyle { _ in .secondary }
-                // a size is a short number: a column wide enough for "3.20 GB", not half the table
-                .width(min: 72, ideal: 96, max: 140)
+            if let columnTitle = Self.valueColumnTitle(nodes, valueTitle: valueTitle) {
+                OutlineColumn("size", columnTitle,
+                              text: { $0.bytes.map(ByteSize.format) ?? $0.valueText ?? "" },
+                              sortUsing: KeyPathComparator(\ReviewNode.sortBytes))
+                    .alignment(.trailing).monospacedDigits().textStyle { _ in .secondary }
+                    // a size is a short number: a column wide enough for "3.20 GB", not half the table
+                    .width(min: 72, ideal: 96, max: 140)
+            }
         }
         // rows the cleanup leaves alone are drawn dimmed; they can still be selected, so the
         // reason beside them can be read
@@ -61,6 +68,17 @@ struct ReviewTableBody: View {
             }
         }
         .onChange(of: nodes.count, initial: true) { seed() }
+    }
+
+    /// "Size" when the rows have sizes, the caller's title when they carry another value (a time), and no
+    /// column when they carry neither.
+    static func valueColumnTitle(_ nodes: [ReviewNode], valueTitle: String?) -> String? {
+        func any(_ keep: (ReviewNode) -> Bool, in list: [ReviewNode]) -> Bool {
+            list.contains { keep($0) || any(keep, in: $0.children ?? []) }
+        }
+        if any({ $0.bytes != nil }, in: nodes) { return Names.Column.size }
+        if any({ $0.valueText != nil }, in: nodes) { return valueTitle ?? Names.Column.size }
+        return nil
     }
 
     /// A row's tick: on or off for one thing the review can choose, on, mixed or off for a group
@@ -93,7 +111,8 @@ struct ReviewTableBody: View {
         let groups = nodes.filter { $0.isGroup && $0.id != ReviewNode.foldID }
         let rows = groups.reduce(0) { $0 + ($1.children?.count ?? 0) }
         let openThem = groups.count <= Self.openByDefault && rows <= Self.openRowLimit
-        expansion.seedIfUntouched(openThem ? Set(groups.map(\.id)) : [])
+        // a group whose rows are all kept starts closed: there is nothing in it the person can do
+        expansion.seedIfUntouched(openThem ? Set(groups.filter { !$0.isKept }.map(\.id)) : [])
     }
 }
 

@@ -50,10 +50,7 @@ struct ActivityView: View {
                 }
             }
             .listStyle(.inset)
-            // A list that changes its rows when the tab changes keeps the row heights it measured for
-            // the old rows (a Failed row came out one line high); a list per tab measures its own.
-            .id(filter.scope)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .runHistoryRows()
             .overlay { emptyState(sections) }
         }
         .searchable(text: $filter.query, prompt: "Search")

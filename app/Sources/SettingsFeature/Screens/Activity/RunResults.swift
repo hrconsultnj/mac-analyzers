@@ -32,6 +32,8 @@ struct RunResultsDefault: View {
     var body: some View {
         ReviewTable(session: session, readOnly: true,
                     note: section.hidden > 0 ? "and \(section.hidden.formatted()) more, smaller ones, are in the raw output" : nil,
+                    nameTitle: section.valueTitle == Names.Column.when ? Names.Column.whatHappened : Names.Column.name,
+                    valueTitle: section.valueTitle,
                     screen: screen)
     }
 }
