@@ -3,78 +3,50 @@ import AppKit
 import AnalyzersKit
 import UIComponents
 
-/// Finder-style capacity bar: used fill over a track, color escalating with
-/// fullness. (A per-category segmented bar like the system Storage pane
-/// needs a full-disk scan — the storage analyzer's report has that detail;
-/// this bar answers the at-a-glance question.)
-struct CapacityBar: View {
-    let fraction: Double
+/// A row that is one button: the whole row is the hit area, it reads as
+/// pressable (the plain style darkens on press), and it fills the panel's
+/// width whatever it holds — one layout for every state.
+struct MenuRowButton<Label: View>: View {
+    let action: () -> Void
+    @ViewBuilder let label: Label
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.quaternary)
-                    Capsule()
-                        .fill(color.gradient)
-                        .frame(width: max(6, geo.size.width * fraction))
-                }
-            }
-            .frame(height: 7)
-            // the escalating red/orange/blue tint is invisible to a colourblind
-            // or VoiceOver user — the number is the second channel
-            Text(fraction, format: .percent.precision(.fractionLength(0)))
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.secondary)
+        Button(action: action) {
+            label
+                .padding(.vertical, 3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
         }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var color: Color {
-        fraction > 0.9 ? .red : fraction > 0.75 ? .orange : .blue
+        .buttonStyle(.plain)
     }
 }
 
-/// Two-line event row: friendly what-happened on top, raw identity +
-/// mechanics + time underneath. Click opens the guard log.
-struct EventRow: View {
-    let event: GuardEvent
+/// A guard event as a named row: what happened to which app, in a sentence,
+/// and when. Opens Memory Guard. Text wraps rather than truncating.
+struct MenuEventRow: View {
+    let row: OverviewModel.EventRow
 
     var body: some View {
-        Button {
-            SettingsOpener.open(target: "activity")
-        } label: {
-            HStack(alignment: .top, spacing: 6) {
-                Image(systemName: event.symbol)
-                    .foregroundStyle(event.tint)
-                    .font(.caption)
-                    .padding(.top, 2)
-                    .accessibilityHidden(true)  // decorative — the title text already says what happened
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(event.title)
-                        .font(.callout)
-                        .foregroundStyle(event.tint)
-                        .lineLimit(1)
-                    Text(subtitleWithTime)
-                        .font(.caption2)
+        MenuRowButton(action: { SettingsOpener.open(target: "log:guardLog") }) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: row.event.symbol)
+                    .foregroundStyle(row.event.tint)
+                    .accessibilityHidden(true)  // decorative — the title already says what happened
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(row.title).font(.callout)
+                    Text(row.outcome)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
                 }
-                Spacer(minLength: 4)
-                // is this spike/hog still going, or already over?
-                if let live = event.isProcessStillRunning {
-                    LiveStateChip(active: live)
-                        .padding(.top, 1)
-                }
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                // is this spike or hog still going, or already over?
+                if let live = row.event.isProcessStillRunning { LiveStateChip(active: live) }
+                Text(row.when, format: .dateTime.hour().minute())
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
         }
-        .buttonStyle(.plain)
-        .help(event.raw)
-    }
-
-    private var subtitleWithTime: String {
-        let time = event.date.formatted(.dateTime.hour().minute())
-        return event.subtitle.isEmpty ? time : "\(event.subtitle) · \(time)"
+        .help(row.event.raw)
     }
 }

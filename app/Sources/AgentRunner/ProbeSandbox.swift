@@ -16,7 +16,8 @@ import Foundation
 enum ProbeSandbox {
 
     /// The probes that run in the sandbox.
-    static let names: Set<String> = ["--probe-cleanup-apply", "--probe-agents", "--probe-guard-rules", "--probe-stop-targets", "--probe-activity-ids"]
+    static let names: Set<String> = ["--probe-cleanup-apply", "--probe-agents", "--probe-guard-rules", "--probe-stop-targets", "--probe-activity-ids",
+                                     "--probe-panel-stop"]
 
     /// The repository this binary was built from: `…/app/Sources/AgentRunner/ProbeSandbox.swift` is four levels down.
     static let sourceRoot: URL = {

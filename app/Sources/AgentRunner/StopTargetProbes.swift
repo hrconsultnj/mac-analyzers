@@ -18,7 +18,7 @@ private func pad(_ text: String, _ width: Int) -> String {
 }
 
 @MainActor
-private final class Fixtures {
+final class Fixtures {
     let shell: String
     let marker = "ma-probe-\(UUID().uuidString.prefix(8))"
     /// The executable name the fake agent list calls a coding session.
@@ -154,7 +154,7 @@ private final class Fixtures {
 
 /// Runs this probe again with its parent set to launchd, so no case that signals runs from a
 /// shell that is a child of a coding session, and prints what it prints. Never returns.
-private func relaunchDetached(_ args: [String]) -> Never {
+func relaunchDetached(_ args: [String]) -> Never {
     let scratch = ProbeScratch.folder("ma-probe-run")
     let out = scratch.appending(path: "out.txt").path
     let status = scratch.appending(path: "status.txt").path
