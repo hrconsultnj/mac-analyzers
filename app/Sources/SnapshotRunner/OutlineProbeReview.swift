@@ -117,6 +117,7 @@ enum ProbeReview {
         case "acting": return acting()
         case "unlistable": return unlistable()
         case "menu": return menu()
+        case "sort": return sortKept()
         case "only": return only()
         case "readonly": return readOnly()
         case "scale": return scale(ProbeOptions([]))
@@ -217,10 +218,37 @@ enum ProbeReview {
         return rig.exitCode
     }
 
+    /// The sort order is kept per screen: sort by Name, replace the table (a new preview), and the order and the
+    /// header's indicator are still Name; Size, largest first, is only where a screen starts.
+    static func sortKept() -> Int32 {
+        mark("begin review:sort")
+        var failed = false
+        func verdict(_ ok: Bool, _ line: String) { say((ok ? "PASS " : "FAIL ") + line); if !ok { failed = true } }
+        func indicator(_ rig: ReviewRig) -> String {
+            guard let d = rig.outline.sortDescriptors.first else { return "none" }
+            return "\(d.key ?? "?") \(d.ascending ? "ascending" : "descending")"
+        }
+        let first = ReviewRig()
+        verdict(indicator(first) == "size descending", "a screen starts at Size, largest first: \(indicator(first))")
+        first.outline.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        first.settleAll()
+        verdict(indicator(first) == "name ascending", "sorted by Name: \(indicator(first))")
+        first.harness.window.contentViewController = nil
+        first.harness.window.close()
+        spin(0.3)
+        let second = ReviewRig()          // the screen replaced its table: a new session, the same screen key
+        verdict(indicator(second) == "name ascending", "the table was replaced: the header still shows \(indicator(second))")
+        second.outline.sortDescriptors = [NSSortDescriptor(key: "size", ascending: false)]
+        second.settleAll()
+        verdict(indicator(second) == "size descending", "back to Size: \(indicator(second))")
+        mark("end review:sort")
+        return failed ? 1 : 0
+    }
+
     /// The row menu a screen supplies (`.files`): for the clicked row, for the selection when the click is in it,
     /// nothing on a group; and a right-click never changes what is ticked or what is sent.
     static func menu() -> Int32 {
-        let rig = ReviewRig(acting: true)
+        let rig = ReviewRig(acting: true, unlistable: true)
         mark("begin review:menu")
         guard let next = rig.row(tip: "/p/web-app/.next"), let dist = rig.row(tip: "/p/web-app/dist"),
               let group = rig.groupRow(above: next), let kept = rig.row(tip: "Kept: open in an editor"),
@@ -237,6 +265,12 @@ enum ProbeReview {
         rig.verdict(onGroup.isEmpty, "a group's line offers nothing: \(onGroup)")
         let onKept = rig.rightClick(row: kept)
         rig.verdict(onKept == [Names.Review.showInFinder, Names.Review.copyPath], "a kept row can still be shown in Finder: \(onKept)")
+        // Copy Path never splits a path: a name with a line break is one item
+        let odd = ReviewFixtureProbe.unlistableKey
+        let single = rig.probe.copyPathsProbe([odd])
+        rig.verdict(single.items == 1 && single.texts == [odd], "Copy Path on a name with a line break is one item, not two: items=\(single.items)")
+        let several = rig.probe.copyPathsProbe(["/p/web-app/dist", odd])
+        rig.verdict(several.items == 2 && several.texts == ["/p/web-app/dist", odd], "several rows: one item each: items=\(several.items)")
         let onActing = rig.rightClick(row: opera)
         rig.verdict(onActing.isEmpty, "an app that is not a file offers nothing: \(onActing)")
         rig.verdict(rig.approved() == before && rig.probe.report().ticked == ticked, rig.line("no menu click changed a tick or the sent list"))

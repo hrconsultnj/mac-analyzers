@@ -27,6 +27,17 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
     /// changes are not the person's and are not echoed to the caller.
     var isApplying = false
     private var applyQueued = false
+    /// True once the screen has taken this table away (`dismantleNSView`). Nothing queued for a later
+    /// turn does anything after that: no update, no delivery to the caller's bindings, no fit.
+    private(set) var isGone = false
+
+    /// The table was removed from its window. Whatever it had queued is dropped, so a table that no
+    /// longer exists writes nothing to the bindings of the one that replaced it.
+    func tearDown() {
+        isGone = true
+        pending = OutlinePending()
+        fitter.cancel()
+    }
 
     // MARK: rule 2 — every write to a caller's binding happens on the next main turn
 
@@ -54,7 +65,9 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
         headerMenu = OutlineHeaderMenu(outline: outline)
         fitter = OutlineFitter(outline: outline, scrollView: scrollView)
         super.init()
-        fitter.mayChangeColumns = { [unowned self] in self.depth == 0 && !self.isApplying }
+        // weak, and nil when this table is gone: a fit queued for the next turn can outlive the table (a
+        // screen that replaces its table when a preview arrives), and must then do nothing
+        fitter.mayChangeColumns = { [weak self] in self.map { !$0.isGone && $0.depth == 0 && !$0.isApplying } }
         headerMenu.fitter = fitter
         updater = OutlineUpdater(coordinator: self)
         outline.dataSource = self
@@ -74,9 +87,9 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
         outline.autosaveExpandedItems = false
         outline.doubleAction = #selector(doubleClicked(_:))
         outline.target = self
-        outline.onPrimaryKey = { [unowned self] in self.primaryKey() }
-        outline.onSpaceKey = { [unowned self] in self.spaceKey() }
-        outline.menuProvider = { [unowned self] event in self.contextMenu(for: event) }
+        outline.onPrimaryKey = { [weak self] in self?.primaryKey() ?? false }
+        outline.onSpaceKey = { [weak self] in self?.spaceKey() ?? false }
+        outline.menuProvider = { [weak self] event in self?.contextMenu(for: event) }
         scrollView.documentView = outline
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
@@ -125,6 +138,7 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
     /// update that arrives inside a callback because something synchronous
     /// caused it) or an update is already running.
     func requestApply() {
+        guard !isGone else { return }
         if depth > 0 || isApplying {
             queueApply()
             return
@@ -136,10 +150,11 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
         guard !applyQueued else { return }
         applyQueued = true
         Self.log.notice("OutlineTable: update queued to the next main turn because AppKit was calling in")
-        DispatchQueue.main.async { [self] in
+        DispatchQueue.main.async { [weak self] in
             MainActor.assumeIsolated {
-                applyQueued = false
-                requestApply()
+                guard let self else { return }      // the table is gone
+                self.applyQueued = false
+                self.requestApply()
             }
         }
     }

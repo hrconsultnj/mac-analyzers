@@ -23,14 +23,26 @@ final class OutlineFitter {
     private var personHidden: Set<String> = []
     private var personShown: Set<String> = []
     private var key = ""
+    private var shownKey: String { key.replacingOccurrences(of: "hiddenByPerson", with: "shownByPerson") }
+    /// Block observers are removed by their token, not by `removeObserver(self)`.
+    private var observers: [NSObjectProtocol] = []
     /// The columns as declared (id, fit, minimum width), in declared order.
     private var columns: [(id: String, fit: OutlineColumnFit, minimum: CGFloat, startsHidden: Bool)] = []
     private var queued = false
-    /// What the inset style adds at the table's edge, measured: with none of it counted the last column
-    /// ends 5 points past the visible rect.
-    private static let edge: CGFloat = 5
-    /// Asked before a fit changes anything: false while AppKit is calling in.
-    var mayChangeColumns: () -> Bool = { true }
+    /// What the inset style adds to the table's width beyond its columns and their spacing, measured
+    /// (content width less the columns and spacing: 15 at every width). Counting less leaves the table wider
+    /// than its view, and with "Show scroll bars: Always" a horizontal scroll bar under every table.
+    private static let edge: CGFloat = 15
+    /// Asked before a fit changes anything: false while AppKit is calling in, nil when the table that
+    /// owned this is gone (then nothing is done and nothing is queued again).
+    var mayChangeColumns: () -> Bool? = { true }
+    private var cancelled = false
+
+    /// The table is gone: no fit runs after this.
+    func cancel() {
+        cancelled = true
+        removeObservers()
+    }
 
     init(outline: NSOutlineView, scrollView: NSScrollView) {
         self.outline = outline
@@ -44,27 +56,38 @@ final class OutlineFitter {
         autoHidden = []
         personShown = []
         let optional = columns.filter { $0.fit == .optional }
-        if let saved = UserDefaults.standard.array(forKey: key) as? [String] {
-            personHidden = Set(saved)
+        let savedHidden = UserDefaults.standard.array(forKey: key) as? [String]
+        let savedShown = UserDefaults.standard.array(forKey: shownKey) as? [String]
+        if savedHidden != nil || savedShown != nil {
+            personHidden = Set(savedHidden ?? [])
+            personShown = Set(savedShown ?? [])
         } else {
             personHidden = Set(optional.filter(\.startsHidden).map(\.id))
         }
-        for column in optional { column.id.withColumn(outline) { $0.isHidden = personHidden.contains(column.id) } }
+        // a column a person showed is shown whatever the room; one they hid is hidden; the rest is the room's
+        for column in optional {
+            column.id.withColumn(outline) { $0.isHidden = personHidden.contains(column.id) }
+        }
         scrollView.contentView.postsFrameChangedNotifications = true
-        NotificationCenter.default.removeObserver(self)
-        NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: scrollView.contentView,
-                                               queue: .main) { [weak self] _ in
+        removeObservers()
+        observers.append(NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: scrollView.contentView,
+                                                                queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.schedule() }
-        }
+        })
         // a person resizing a column gives the first one what is left, as a window resize does
-        NotificationCenter.default.addObserver(forName: NSTableView.columnDidResizeNotification, object: outline,
-                                               queue: .main) { [weak self] _ in
+        observers.append(NotificationCenter.default.addObserver(forName: NSTableView.columnDidResizeNotification, object: outline,
+                                                                queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.schedule() }
-        }
+        })
         schedule()
     }
 
-    isolated deinit { NotificationCenter.default.removeObserver(self) }
+    private func removeObservers() {
+        for token in observers { NotificationCenter.default.removeObserver(token) }
+        observers = []
+    }
+
+    isolated deinit { removeObservers() }
 
     // MARK: the header menu
 
@@ -78,13 +101,18 @@ final class OutlineFitter {
     /// The menu's choice for an optional column: a person's decision.
     func toggle(_ id: String) {
         guard isOptional(id) else { return }
+        let hiddenForRoom = autoHidden.contains(id)
         if isShown(id) {
             personHidden.insert(id); personShown.remove(id)
         } else {
-            personHidden.remove(id); personShown.insert(id)
+            personHidden.remove(id)
+            // asking for a column the ROOM hid is the choice to keep it despite the room; showing one the
+            // person had hidden only undoes that choice
+            if hiddenForRoom { personShown.insert(id) }
         }
         autoHidden.removeAll { $0 == id }
         UserDefaults.standard.set(personHidden.sorted(), forKey: key)
+        UserDefaults.standard.set(personShown.sorted(), forKey: shownKey)
         id.withColumn(outline) { $0.isHidden = personHidden.contains(id) }
         schedule()
     }
@@ -94,11 +122,15 @@ final class OutlineFitter {
     func schedule() {
         guard !queued else { return }
         queued = true
-        DispatchQueue.main.async { [self] in
+        DispatchQueue.main.async { [weak self] in
             MainActor.assumeIsolated {
-                queued = false
-                guard mayChangeColumns() else { schedule(); return }
-                fit()
+                guard let self, !self.cancelled else { return }       // the table is gone
+                self.queued = false
+                switch self.mayChangeColumns() {
+                case nil: return                    // the table that owned this is gone
+                case false?: self.schedule()        // AppKit is calling in: next turn
+                case true?: self.fit()
+                }
             }
         }
     }
@@ -124,6 +156,8 @@ final class OutlineFitter {
     }
 
     func fit() {
+        // a table being taken out of its window has no room to speak of: fitting it would save that
+        // (AppKit autosaves a width change) over what the person had
         guard columns.count > 1, available > 0 else { return }
         // 1. hide optional columns, rightmost first, while the rest does not fit
         for column in columns.reversed() where column.fit == .optional && needed() > available {

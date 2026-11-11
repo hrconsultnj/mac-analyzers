@@ -83,7 +83,12 @@ struct ReviewTable: View {
     var rowMenu: ReviewRowMenu?
 
     @Environment(JobStore.self) private var store
-    @State private var sortOrder = [KeyPathComparator(\ReviewNode.sortBytes, order: .reverse)]
+    /// nil until a person sorts: then what this screen last had (`ReviewSortMemory`), so replacing the table keeps it.
+    @State private var chosenSort: [KeyPathComparator<ReviewNode>]?
+    private var sortOrder: Binding<[KeyPathComparator<ReviewNode>]> {
+        Binding(get: { chosenSort ?? ReviewSortMemory.order(for: screenKey) },
+                set: { chosenSort = $0; ReviewSortMemory.save($0, for: screenKey) })
+    }
     @State private var tree = ReviewTreeCache()
     @State private var expansions = ReviewExpansions()
     @State private var asking = false
@@ -136,7 +141,7 @@ struct ReviewTable: View {
         // what is on offer is worked out ONCE per body (a pass over every row, a few ms at Downloads'
         // size) and read by the bar and the change watcher; actions work it out again at the moment they act
         let offer = readOnly ? nil : offer()
-        return ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder, only: only), sortOrder: $sortOrder,
+        return ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder.wrappedValue, only: only), sortOrder: sortOrder,
                         session: readOnly ? nil : session, expansion: expansions.expansion(for: screenKey),
                         screen: screenKey, rowMenu: rowMenu,
                         rowsFor: { ids in session.rows.filter { ids.contains($0.id) } })

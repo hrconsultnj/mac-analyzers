@@ -290,9 +290,19 @@ check() {
   # under the main window's toolbar the first row stays below the header, also after the screen's
   # own updates (a row arriving, a re-sort)
   local embedding
-  for embedding in bare line inset; do
+  for embedding in bare line inset bar; do
     run_probe "toolbar:$embedding"
     echo "toolbar:$embedding warnings=$WARN outside=$OUTSIDE exit=$RC"
+    say_out
+    total=$((total + WARN + OUTSIDE))
+    clean || fail
+  done
+  # work queued for the next turn when a screen replaces its table: nothing crashes and nothing is written to
+  # the caller's bindings. One process per case: a crash is the failure and must not hide the other cases.
+  local lifetime
+  for lifetime in fit selection expansion sort; do
+    run_probe "lifetime:$lifetime"
+    echo "lifetime:$lifetime warnings=$WARN outside=$OUTSIDE exit=$RC"
     say_out
     total=$((total + WARN + OUTSIDE))
     clean || fail
