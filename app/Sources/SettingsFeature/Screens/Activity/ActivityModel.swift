@@ -40,15 +40,17 @@ final class ActivityModel {
         if maxAge == 0 { dirty = true }
         if let inFlight { await inFlight.value; return }
         guard !hasLoaded || Date().timeIntervalSince(refreshedAt) >= maxAge else { return }
+        // `inFlight` is cleared inside the task, in the same step as the last `dirty` check: a
+        // change that arrives after that sees no read running and starts its own
         let task = Task {
             repeat {
                 dirty = false
                 await refresh(store: store)
             } while dirty
+            inFlight = nil
         }
         inFlight = task
         await task.value
-        if inFlight == task { inFlight = nil }
     }
 
     /// Reads the logs and the index again, then joins them with the store's

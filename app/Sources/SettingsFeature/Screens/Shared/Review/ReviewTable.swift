@@ -56,6 +56,18 @@ struct ReviewTable: View {
     /// Shown beside a disabled Apply when the review is old or from another preview.
     var onPreviewAgain: (() -> Void)?
     var onApplied: (Job) -> Void = { _ in }
+    /// Shows only these rows (a category's tab); the bar, Select All and Apply still cover the
+    /// whole review. nil shows every row.
+    var only: Set<String>?
+    /// What Apply sends, when the screen has a stricter rule than the ticks: a cleanup that
+    /// leaves out a process whose pid is no longer the program that was reviewed. nil sends the
+    /// ticks. Whatever it returns, rows with a `keptReason`, rows left unticked (the fold's
+    /// included) and keys the review never listed are removed before anything is sent, and the
+    /// bar's and the confirmation's counts are the rows that ARE sent.
+    var approval: ((ReviewSession) -> ApprovedSet)?
+    /// The ids of each tab's rows, so the bar can say how many tabs the selection spans. Without
+    /// it the bar says how many selected rows are in other tabs.
+    var tabs: [Set<String>] = []
 
     @Environment(JobStore.self) private var store
     @State private var sortOrder = [KeyPathComparator(\ReviewNode.sortBytes, order: .reverse)]
@@ -87,7 +99,7 @@ struct ReviewTable: View {
     }
 
     private var applyDisabled: Bool {
-        if gate != .ready || session.selectedRows.isEmpty { return true }
+        if gate != .ready || sentRows.isEmpty { return true }
         guard let applied else { return false }
         switch applied.state {
         case .queued, .running, .succeeded: return true
@@ -96,7 +108,7 @@ struct ReviewTable: View {
     }
 
     var body: some View {
-        ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder), sortOrder: $sortOrder,
+        ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder, only: only), sortOrder: $sortOrder,
                         session: readOnly ? nil : session)
             .safeAreaInset(edge: .bottom, spacing: 0) { bar }
             .confirmationDialog(confirmTitle, isPresented: $asking, titleVisibility: .visible) {
@@ -118,7 +130,7 @@ struct ReviewTable: View {
     @ViewBuilder private var bar: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text(readOnly ? session.readOnlySummary : session.summary).monospacedDigit()
+                Text(readOnly ? session.readOnlySummary : summaryText).monospacedDigit()
                 if let line = readOnly ? note : message {
                     Text(line).font(.caption).foregroundStyle(.secondary)
                 }
@@ -143,11 +155,41 @@ struct ReviewTable: View {
 
     // MARK: - applying
 
-    /// "9 Items (8.5 GB)", from the same numbers as the bar.
+    /// What Apply would send: the caller's `approval` (or the ticks), narrowed to ticked, choosable
+    /// rows. Applying, the bar and the confirmation all read this one set.
+    private var sent: ApprovedSet {
+        session.selection.narrowed(approval?(session) ?? session.approved)
+    }
+
+    private var sentRows: [ReviewRow] {
+        let ids = Set(sent.approved)
+        return session.rows.filter { ids.contains($0.id) }
+    }
+
+    private var sentBytes: Int64 { sentRows.compactMap(\.bytes).reduce(0, +) }
+
+    /// "9 Items (8.5 GB)", from the rows that are sent.
     private var countText: String {
-        let count = session.selectedRows.count
+        let count = sentRows.count
         let items = "\(count) \(count == 1 ? "Item" : "Items")"
-        return session.hasSizes ? "\(items) (\(ByteSize.format(session.selectedBytes)))" : items
+        return session.hasSizes ? "\(items) (\(ByteSize.format(sentBytes)))" : items
+    }
+
+    /// "12 selected · 3.2 GB · 3 kept", and where the selection reaches beyond the tab in view,
+    /// "12 selected across 3 tabs" (or "12 selected, 5 in other tabs" when the tabs are not given).
+    private var summaryText: String {
+        let rows = sentRows
+        var text = "\(rows.count) selected"
+        if let only {
+            let outside = rows.filter { !only.contains($0.id) }.count
+            if outside > 0 {
+                let spanned = tabs.filter { tab in rows.contains { tab.contains($0.id) } }.count
+                text += spanned > 1 ? " across \(spanned) tabs" : ", \(outside) in other tabs"
+            }
+        }
+        if session.hasSizes { text += " · \(ByteSize.format(sentBytes))" }
+        if session.keptCount > 0 { text += " · \(session.keptCount) kept" }
+        return text
     }
 
     private var confirmTitle: String {
@@ -161,7 +203,7 @@ struct ReviewTable: View {
 
     private func apply() {
         guard gate == .ready, let preview else { return }
-        let job = store.apply(from: preview, approved: session.approved)
+        let job = store.apply(from: preview, approved: sent)
         appliedFor.set(job, for: preview.id)
         onApplied(job)
     }
@@ -186,13 +228,20 @@ struct ReviewTable: View {
     }
 }
 
-/// The grouped, sorted tree, rebuilt when the session (a different review) or the sort
-/// changes, never on a tick: a tick must not regroup thousands of rows.
+/// The grouped, sorted tree, rebuilt when the session (a different review), the sort or the
+/// rows in view change, never on a tick: a tick must not regroup thousands of rows.
 @MainActor
 final class ReviewTreeCache {
-    private let memo = IdentityMemo<ReviewSession, [KeyPathComparator<ReviewNode>], [ReviewNode]>()
+    private let memo = IdentityMemo<ReviewSession, Key, [ReviewNode]>()
 
-    func nodes(for session: ReviewSession, order: [KeyPathComparator<ReviewNode>]) -> [ReviewNode] {
-        memo.value(for: session, key: order) { ReviewNode.tree(session.rows, order: order) }
+    func nodes(for session: ReviewSession, order: [KeyPathComparator<ReviewNode>], only: Set<String>? = nil) -> [ReviewNode] {
+        memo.value(for: session, key: Key(order: order, only: only)) {
+            ReviewNode.tree(only.map { keep in session.rows.filter { keep.contains($0.id) } } ?? session.rows, order: order)
+        }
+    }
+
+    private struct Key: Equatable {
+        let order: [KeyPathComparator<ReviewNode>]
+        let only: Set<String>?
     }
 }

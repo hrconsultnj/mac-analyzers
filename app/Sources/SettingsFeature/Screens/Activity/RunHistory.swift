@@ -142,7 +142,8 @@ struct RunHistoryList: View {
         var used = 0
         for day in all {
             if used >= budget { return (days, true) }
-            if used + day.rows.count > budget && !days.isEmpty && limit != nil { return (days, true) }
+            // a task's first screenful keeps whole days; once someone asks for more, pages go by rows
+            if used + day.rows.count > budget && !days.isEmpty && limit != nil && extra == 0 { return (days, true) }
             let room = max(budget - used, 0)
             let rows = Array(day.rows.prefix(room))
             days.append(ShownDay(day: day, rows: rows))
@@ -180,7 +181,7 @@ struct RunHistoryList: View {
             }
             if cut {
                 Section {
-                    Button(limit != nil ? Names.Raw.showAll : Names.Raw.showOlder) { extra += Self.cap }
+                    Button(limit != nil && extra == 0 ? Names.Raw.showAll : Names.Raw.showOlder) { extra += Self.cap }
                 }
             }
         }
