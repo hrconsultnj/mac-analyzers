@@ -9,6 +9,8 @@ final class OutlineHeaderMenu: NSObject, NSMenuDelegate {
     /// Column ids that may be hidden, with the title the menu shows.
     private var hideable: [(id: String, title: String)] = []
     let menu = NSMenu()
+    /// Decides for the columns that give way to room (`OutlineColumnFit.optional`).
+    weak var fitter: OutlineFitter?
 
     init(outline: NSOutlineView) {
         self.outline = outline
@@ -37,6 +39,7 @@ final class OutlineHeaderMenu: NSObject, NSMenuDelegate {
     @objc private func toggle(_ item: NSMenuItem) {
         guard let id = item.representedObject as? String, let outline,
               let column = outline.tableColumn(withIdentifier: NSUserInterfaceItemIdentifier(id)) else { return }
+        if let fitter, fitter.isOptional(id) { fitter.toggle(id); return }
         column.isHidden.toggle()
     }
 }

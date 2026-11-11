@@ -33,8 +33,12 @@ public struct ApprovedSet: Sendable, Hashable {
     /// break is two lines, and one of them could approve another item. Such a row
     /// is never written to the list; a review shows it as not choosable, with
     /// `unlistableReason`.
+    ///
+    /// Tested on BYTES. Swift treats a carriage return followed by a line feed as ONE character,
+    /// so `contains("\n")` and `contains("\r")` are both false for a key that holds that pair,
+    /// while the script reading the list still sees two lines.
     public static func isListable(_ key: String) -> Bool {
-        !key.isEmpty && !key.contains("\n") && !key.contains("\r")
+        !key.isEmpty && !key.utf8.contains { $0 == 0x0A || $0 == 0x0D || $0 == 0x00 }
     }
 
     public static let unlistableReason = "Its name contains a line break, so it can't be named safely to the cleaning tool and is left alone."

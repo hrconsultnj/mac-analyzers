@@ -82,6 +82,9 @@ struct ReviewTable: View {
     /// A table with a preview may leave it out (the key is the preview's kind); a read-only review or
     /// an example has no preview and MUST pass one, or every such table would share one memory.
     var screen: String?
+    /// Items a screen offers on a row (right-click, and the selection): `.files` for Show in Finder and
+    /// Copy Path. Never changes a tick.
+    var rowMenu: ReviewRowMenu?
 
     @Environment(JobStore.self) private var store
     @State private var sortOrder = [KeyPathComparator(\ReviewNode.sortBytes, order: .reverse)]
@@ -139,7 +142,8 @@ struct ReviewTable: View {
         let offer = readOnly ? nil : offer()
         return ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder, only: only), sortOrder: $sortOrder,
                         session: readOnly ? nil : session, expansion: expansions.expansion(for: screenKey),
-                        screen: screenKey, nameTitle: nameTitle, valueTitle: valueTitle)
+                        screen: screenKey, nameTitle: nameTitle, valueTitle: valueTitle, rowMenu: rowMenu,
+                        rowsFor: { ids in session.rows.filter { ids.contains($0.id) } })
             .safeAreaInset(edge: .bottom, spacing: 0) { bar(offer) }
             .confirmationDialog(frozen?.title ?? applyTitle, isPresented: $asking, titleVisibility: .visible) {
                 Button(applyTitle, role: .destructive) { chosen() }

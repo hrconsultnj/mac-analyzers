@@ -25,6 +25,10 @@ struct ReviewTableBody: View {
     /// has no value column at all.
     var nameTitle: String = Names.Column.name
     var valueTitle: String?
+    /// A screen's items for a row; nil leaves the table without a menu.
+    var rowMenu: ReviewRowMenu?
+    /// The review's own rows for a set of line ids (a group's or the fold's id matches none).
+    var rowsFor: @MainActor (Set<String>) -> [ReviewRow] = { _ in [] }
 
     @State private var selection: Set<String> = []
 
@@ -36,7 +40,7 @@ struct ReviewTableBody: View {
     private static let openRowLimit = 200
 
     var body: some View {
-        let table = OutlineTable(nodes, children: \.children, selection: $selection, sortOrder: $sortOrder,
+        var table = OutlineTable(nodes, children: \.children, selection: $selection, sortOrder: $sortOrder,
                                  expanded: expansion.binding, autosave: screen) {
             OutlineColumn("name", nameTitle, sortUsing: KeyPathComparator(\ReviewNode.sortName)) { node in
                 ReviewNameCell(node: node)
@@ -57,7 +61,10 @@ struct ReviewTableBody: View {
         // rows the cleanup leaves alone are drawn dimmed; they can still be selected, so the
         // reason beside them can be read
         .rowEnabled { !$0.isKept }
-        Group {
+        if let rowMenu {
+            table = table.contextMenu { ids in rowMenu.items(rowsFor(ids)) }
+        }
+        return Group {
             if let session {
                 table.ticks(OutlineTicks(
                     state: { Self.tickState($0, session: session) },

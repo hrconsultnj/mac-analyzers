@@ -123,15 +123,9 @@ extension OutlineCoordinator {
     private func deliverTicks() {
         guard !pending.tickWrites.isEmpty else { return }
         guard depth == 0, !isApplying else {
+            // AppKit is calling in: the outline is not touched here. The box already shows the new
+            // state (`sender.state`), and the flush a turn later redraws every visible value.
             scheduleFlush()
-            // the boxes show it now, not after the caller has heard
-            let first = IndexSet(integer: 0)
-            for write in pending.tickWrites {
-                if let node = nodes.node(for: write.id) {
-                    let row = outline.row(forItem: node)
-                    if row >= 0 { outline.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: first) }
-                }
-            }
             return
         }
         let writes = pending.tickWrites

@@ -10,9 +10,6 @@ import UIComponents
 /// appearance, a tick, Select All, a re-sort, `updateChoosable` on one row.
 extension ProbeReview {
     static func scale(_ options: ProbeOptions) -> Int32 {
-        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.contains("review.fixture") {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
         let count = 6154
         var loads = [Double](repeating: 0, count: 3)
         getloadavg(&loads, 3)
