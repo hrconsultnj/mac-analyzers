@@ -79,6 +79,22 @@ run_case() { # label shell
   check "[$label] nothing reported as failed" "$([[ "$(grep -c '^\[FAILED\]' "$TMP/$label.out")" -eq 0 ]] && echo ok || echo failures)"
 }
 
+# a copy of the script whose lib/approved-list.sh is missing must say so and stop (exit 78), not exit 1 silently
+missing_case() { # label shell
+  local label="$1" sh="$2" home="$TMP/home-$1" tree="$TMP/tree-nolib-$1"
+  mkdir -p "$home/Downloads" "$tree/storage-analyzer" "$tree/lib"
+  cp "$SCRIPT" "$tree/storage-analyzer/downloads-janitor.sh"
+  printf 'notify() { :; }\n' > "$tree/lib/notify.sh"
+  printf 'x' > "$home/Downloads/one.pdf"; touch -t 202001010000 "$home/Downloads/one.pdf"
+  printf '%s\n' "$home/Downloads/one.pdf" > "$TMP/list-$1"
+  HOME="$home" "$sh" "$tree/storage-analyzer/downloads-janitor.sh" --apply --only-paths "$TMP/list-$1" > "$TMP/$label.out" 2>&1
+  local rc=$?
+  check "[$label] list reader missing: exit 78 with the reason, nothing moved" \
+        "$([[ $rc -eq 78 && -e "$home/Downloads/one.pdf" ]] && grep -q 'FATAL: lib/approved-list.sh is missing' "$TMP/$label.out" && echo ok || echo "exit $rc")"
+}
+
 run_case bash bash
 run_case old /bin/bash
+missing_case nolib-bash bash
+missing_case nolib-old /bin/bash
 exit $fail

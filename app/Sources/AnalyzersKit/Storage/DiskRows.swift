@@ -16,63 +16,64 @@ public struct StorageTask: Identifiable, Sendable {
 }
 
 /// The Disk screen's rows: one per storage task, each from the newest
-/// preview in that task's own log.
+/// preview in that task's own log, read whole.
 public enum StorageTasks {
 
     public static func load() -> [StorageTask] {
         [caches(), downloads(), temp(), spotlight()]
     }
 
+    private static func none(_ kind: JobKind, _ detail: String) -> StorageTask {
+        StorageTask(kind: kind, reclaimableBytes: nil, measuredAt: nil, detail: detail)
+    }
+
+    private static func plural(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
+
     static func caches() -> StorageTask {
-        guard let run = StorageRunReader.run(in: AnalyzersPaths.storageAutoCleanLog, header: nil) else {
-            return StorageTask(kind: .storageClean, reclaimableBytes: nil, measuredAt: nil,
-                               detail: "No preview yet. Check to see what could go.")
+        guard let run = StorageLog.newestPreview(of: .storageClean) else {
+            return none(.storageClean, "No preview yet. Preview to see what could go.")
         }
-        let parsed = StorageCleanParser.parse(runHeader: run.header, lines: run.lines)
-        let review = CacheReview.build(from: parsed, roots: CacheReview.roots(in: run.lines), modified: { _ in nil })
-        let count = review.candidates.count
-        return StorageTask(kind: .storageClean, reclaimableBytes: review.totalBytes,
-                           measuredAt: RunDate.date(of: run.header),
-                           detail: count == 0 ? "Nothing to clean."
-                                              : "\(count) folder\(count == 1 ? "" : "s") in \(review.projects.count) project\(review.projects.count == 1 ? "" : "s").")
+        let review = CacheReview.build(lines: run.lines, banner: run.banner, modified: { _ in nil })
+        let folders = review.rows.rows.filter { $0.bytes != nil }
+        let projects = Set(review.rows.rows(in: CacheCategory.projects).compactMap(\.group)).count
+        return StorageTask(kind: .storageClean, reclaimableBytes: review.rows.totalBytes,
+                           measuredAt: RunDate.date(of: run.banner),
+                           detail: folders.isEmpty ? "Nothing to clean."
+                                                   : "\(plural(folders.count, "folder")) in \(plural(projects, "project")).")
     }
 
     static func downloads() -> StorageTask {
-        guard let run = StorageRunReader.run(in: AnalyzersPaths.janitorLog, header: nil) else {
-            return StorageTask(kind: .janitor, reclaimableBytes: nil, measuredAt: nil,
-                               detail: "No preview yet. Check to see what could go.")
+        guard let run = StorageLog.newestPreview(of: .janitor) else {
+            return none(.janitor, "No preview yet. Preview to see what could go.")
         }
         let review = DownloadReview.build(lines: run.lines, info: { _ in (nil, false) })
-        let count = review.candidates.count
-        return StorageTask(kind: .janitor, reclaimableBytes: review.totalBytes,
-                           measuredAt: RunDate.date(of: run.header),
+        let count = review.rows.choosable.count
+        return StorageTask(kind: .janitor, reclaimableBytes: review.rows.choosableBytes,
+                           measuredAt: RunDate.date(of: run.banner),
                            detail: count == 0 ? "Nothing old enough to move."
-                                              : "\(count) old item\(count == 1 ? "" : "s"), moved to the Trash.")
+                                              : "\(plural(count, "old item")), moved to the Trash.")
     }
 
     static func temp() -> StorageTask {
-        guard let run = StorageRunReader.run(in: AnalyzersPaths.tempCleanLog, header: nil) else {
-            return StorageTask(kind: .tempClean, reclaimableBytes: nil, measuredAt: nil,
-                               detail: "No audit yet. Check to see what could go.")
+        guard let run = StorageLog.newestPreview(of: .tempClean) else {
+            return none(.tempClean, "No audit yet. Preview to see what could go.")
         }
-        let review = TempReview.build(from: TempCleanParser.parse(runHeader: run.header, lines: run.lines))
+        let review = TempReview.build(from: TempCleanParser.parse(runHeader: run.banner, lines: run.lines))
         let count = review.ready.count
         return StorageTask(kind: .tempClean, reclaimableBytes: review.readyBytes,
-                           measuredAt: RunDate.date(of: run.header),
-                           detail: count == 0 ? "Nothing is ready to clear."
-                                              : "\(count) item\(count == 1 ? "" : "s") ready to clear.")
+                           measuredAt: RunDate.date(of: run.banner),
+                           detail: count == 0 ? "Nothing is ready to clear." : "\(plural(count, "item")) ready to clear.")
     }
 
     static func spotlight() -> StorageTask {
-        guard let run = StorageRunReader.run(in: AnalyzersPaths.spotlightAuditLog, header: nil) else {
-            return StorageTask(kind: .spotlight, reclaimableBytes: nil, measuredAt: nil,
-                               detail: "No audit yet. Check to see what Spotlight indexes.")
+        guard let run = StorageLog.newestPreview(of: .spotlight) else {
+            return none(.spotlight, "No audit yet. Preview to see what Spotlight indexes.")
         }
-        let review = SpotlightReview.build(from: SpotlightAuditParser.parse(runHeader: run.header, lines: run.lines),
+        let review = SpotlightReview.build(from: SpotlightAuditParser.parse(runHeader: run.banner, lines: run.lines),
                                            current: { _ in nil })
         let count = review.unfenced.count
-        return StorageTask(kind: .spotlight, reclaimableBytes: nil, measuredAt: RunDate.date(of: run.header),
+        return StorageTask(kind: .spotlight, reclaimableBytes: nil, measuredAt: RunDate.date(of: run.banner),
                            detail: count == 0 ? "Every developer folder is fenced."
-                                              : "\(count) developer folder\(count == 1 ? "" : "s") still indexed.")
+                                              : "\(plural(count, "developer folder")) still indexed.")
     }
 }

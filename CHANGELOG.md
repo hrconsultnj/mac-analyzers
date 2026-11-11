@@ -7,6 +7,26 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
+- Caches & Builds, Downloads and Temp & Agents are rebuilt. Each is one screen:
+  Preview in the toolbar, then what it found as tabs for the kinds of thing
+  (Projects, App Caches and Developer Tools; documents, images and
+  screenshots; temporary files and your coding agents' folders), grouped under
+  the project, app or agent they belong to, with a count and a total on every
+  group. Tick what to clear, then Apply. The cleaner picker, the banner and
+  the lists of log lines are gone, and every earlier run is one tap away under
+  History.
+- Temp & Agents names what it finds ("codemod", "Session Transcripts") and says
+  why anything is left alone: "Left for Its Owner", "Conversation History",
+  "On Your Keep List".
+- Spotlight lists your developer folders by project with a checkbox to fence
+  or unfence each one, and Fence and Unfence for a whole selection. A fence is
+  one empty file, and nothing else is changed.
+- Disk shows your capacity, how long the free space will last at the rate it
+  has been falling, and what each cleanup could free and how old that figure
+  is. The "full in" forecast never appeared before; it now reads all your
+  cleanups' figures, not only the newest few.
+- A finished cleanup's own screen shows what it did in the same tabs and groups
+  as the screen it came from.
 - When a memory cleanup refuses to run because part of Mac Analyzers is
   missing, the app now says so and tells you to update or reinstall. It used
   to tell you to check your protected-apps list, which had nothing to do

@@ -71,56 +71,60 @@ public enum DownloadAge: Int, CaseIterable, Identifiable, Comparable, Sendable {
     }
 }
 
-/// One file or folder the janitor would move to the Trash.
-public struct DownloadCandidate: Identifiable, Hashable, Sendable {
-    public let path: String
-    public let source: DownloadSource
-    public let kind: DownloadKind
-    public let sizeBytes: Int64
-    public let lastUsed: Date?
-    /// The engine's limit in days for this folder, from its own heading.
-    public let limitDays: Int?
-    public let isFolder: Bool
+/// The tabs of Downloads: kinds of file, merged to at most six.
+public enum DownloadCategory: String, StorageCategory {
+    case documents, images, screenshots, archivesAndInstallers, media, foldersAndOther
 
-    /// The engine's key for the item — what `--only-paths` is given.
-    public var id: String { path }
-    public var name: String { (path as NSString).lastPathComponent }
-
-    public func daysUntouched(now: Date = Date()) -> Int? {
-        lastUsed.map { max(0, Int(now.timeIntervalSince($0) / 86_400)) }
+    public var title: String {
+        switch self {
+        case .documents: Names.StorageTab.documents
+        case .images: Names.StorageTab.images
+        case .screenshots: Names.StorageTab.screenshots
+        case .archivesAndInstallers: Names.StorageTab.archivesAndInstallers
+        case .media: Names.StorageTab.media
+        case .foldersAndOther: Names.StorageTab.foldersAndOther
+        }
     }
 
-    public func age(now: Date = Date()) -> DownloadAge { DownloadAge(days: daysUntouched(now: now)) }
-
-    /// Why it qualifies, as a sentence.
-    public func why(now: Date = Date()) -> String {
-        let unit = isFolder ? "Folder not changed" : "Not changed"
-        guard let days = daysUntouched(now: now) else {
-            return limitDays.map { "\(unit) in over \($0) days." } ?? "\(unit) for a long time."
+    public var symbol: String {
+        switch self {
+        case .documents: "doc.text"
+        case .images: "photo"
+        case .screenshots: "camera.viewfinder"
+        case .archivesAndInstallers: "archivebox"
+        case .media: "play.rectangle"
+        case .foldersAndOther: "folder"
         }
-        let span = days >= 365 ? "\(days / 365) year\(days / 365 == 1 ? "" : "s")" : "\(days) days"
-        let limit = limitDays.map { " Your limit is \($0) days." } ?? ""
-        return "\(unit) for \(span).\(limit)"
+    }
+
+    init(_ kind: DownloadKind) {
+        switch kind {
+        case .documents: self = .documents
+        case .images: self = .images
+        case .screenshots: self = .screenshots
+        case .archives, .installers: self = .archivesAndInstallers
+        case .video, .audio: self = .media
+        case .folders, .other: self = .foldersAndOther
+        }
     }
 }
 
-/// What a cleanup of Downloads and Screenshots would do.
+/// What a cleanup of Downloads and Screenshots would do (or did), as the rows Storage
+/// screens share: one tab per kind of file, rows grouped by how long they have sat there.
 public struct DownloadReview: Sendable {
-    public let candidates: [DownloadCandidate]
+    public let rows: StorageRows
     /// Items the engine kept because of a keep pattern.
-    public let keptByPattern: Int
+    public var keptByPattern: Int { rows.rows.filter { $0.keptReason == Names.Kept.keepList }.count }
 
-    public var totalBytes: Int64 { candidates.reduce(0) { $0 + $1.sizeBytes } }
-
-    /// Builds the review from a whole run. `info` reads a path's date and
-    /// whether it is a folder; injected so a probe needs no real files.
-    public static func build(lines: [String],
+    /// Builds the rows from a whole run. `info` reads a path's date and whether it is a folder;
+    /// injected so a probe needs no real files. With `results` the rows are what an apply did
+    /// (moved, couldn't move), grouped by the folder they came from since the items are gone.
+    public static func build(lines: [String], results: Bool = false, now: Date = Date(),
                              info: (String) -> (modified: Date?, isFolder: Bool) = { StorageFileInfo.read($0) })
         -> DownloadReview {
         var source: DownloadSource = .downloads
         var limit: Int?
-        var found: [DownloadCandidate] = []
-        var kept = 0
+        var found: [StorageRow] = []
         for line in lines {
             if line.hasPrefix("### ") {
                 source = line.contains("Screenshots") ? .screenshots : .downloads
@@ -128,20 +132,55 @@ public struct DownloadReview: Sendable {
                     .flatMap { Int(line[$0].split(separator: "+")[0]) }
                 continue
             }
-            if line.hasPrefix("[SKIP] kept by pattern") { kept += 1; continue }
-            guard line.hasPrefix("[DRY]") else { continue }
-            let rest = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
-            guard let range = rest.range(of: #"^~?[\d.]+ [KMGT]?B\s+"#, options: .regularExpression),
-                  let bytes = ByteSize.parse(String(rest[range]).trimmingCharacters(in: .whitespaces))
-            else { continue }
-            let path = String(rest[range.upperBound...])
-            let facts = info(path)
-            found.append(DownloadCandidate(
-                path: path, source: source,
-                kind: DownloadKind.of(path: path, isFolder: facts.isFolder, source: source),
-                sizeBytes: bytes, lastUsed: facts.modified, limitDays: limit, isFolder: facts.isFolder))
+            let isKept = line.hasPrefix("[SKIP] kept by pattern")
+            let tag: String
+            var rest: String
+            if isKept {
+                tag = "SKIP"
+                rest = String(line.dropFirst("[SKIP] kept by pattern".count)).trimmingCharacters(in: .whitespaces)
+            } else if line.hasPrefix("[DRY]") {
+                tag = "DRY"; rest = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+            } else if results, line.hasPrefix("[TRASHED]") {
+                tag = "TRASHED"; rest = String(line.dropFirst(9)).trimmingCharacters(in: .whitespaces)
+            } else if results, line.hasPrefix("[FAILED]") {
+                tag = "FAILED"; rest = String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces)
+            } else { continue }
+
+            var bytes: Int64?
+            if !isKept {
+                guard let range = rest.range(of: #"^~?[\d.]+ [KMGT]?B\s+"#, options: .regularExpression),
+                      let size = ByteSize.parse(String(rest[range]).trimmingCharacters(in: .whitespaces)) else { continue }
+                bytes = size
+                rest = String(rest[range.upperBound...])
+            }
+            // a receipt carries where the item went: "path  ->  Trash path"
+            var path = rest
+            if let arrow = rest.range(of: "  ->  ") { path = String(rest[..<arrow.lowerBound]) }
+            let facts = results ? (modified: nil as Date?, isFolder: false) : info(path)
+            let kind = DownloadKind.of(path: path, isFolder: facts.isFolder, source: source)
+            let days = facts.modified.map { max(0, Int(now.timeIntervalSince($0) / 86_400)) }
+            let group = results || isKept ? source.title : DownloadAge(days: days).title
+            let why = whyText(days: days, limit: limit, folder: facts.isFolder)
+            let outcome: String? = switch tag {
+            case "TRASHED": "Moved to Trash"
+            case "FAILED": "Couldn't Move"
+            default: nil
+            }
+            let detail = [outcome, isKept ? nil : (results ? nil : why), source.title].compactMap { $0 }.joined(separator: " · ")
+            found.append(StorageRow(id: path, category: DownloadCategory(kind).rawValue, group: group,
+                                    title: (path as NSString).lastPathComponent, detail: detail, bytes: bytes,
+                                    iconPath: results ? nil : path,
+                                    keptReason: isKept ? Names.Kept.keepList : nil))
         }
-        return DownloadReview(candidates: found, keptByPattern: kept)
+        return DownloadReview(rows: StorageRows(found))
+    }
+
+    /// Why it qualifies, as a sentence.
+    static func whyText(days: Int?, limit: Int?, folder: Bool) -> String {
+        let unit = folder ? "Folder not changed" : "Not changed"
+        guard let days else { return limit.map { "\(unit) in over \($0) days" } ?? "\(unit) for a long time" }
+        let span = days >= 365 ? "\(days / 365) year\(days / 365 == 1 ? "" : "s")" : "\(days) days"
+        return "\(unit) for \(span)"
     }
 }
 

@@ -148,16 +148,57 @@ public enum Names {
         public static let nodeTools = "Node Tool Caches"
         public static let otherTools = "Other AI Tools"
         public static let managedByMacOS = "Managed by macOS"
+    }
+
+    /// Why a row is shown but left alone, in the words the review's kept rows use.
+    public enum Kept {
+        public static let leftForOwner = "Left for Its Owner"
+        public static let conversationHistory = "Conversation History"
+        public static let keepList = "On Your Keep List"
+        public static let currentVersion = "Current Version"
+    }
+
+    /// The categories (tabs) of each Storage screen, and what groups the rows in them.
+    public enum StorageTab {
+        public static let projects = "Projects"
+        public static let appCaches = "App Caches"
+        public static let developerTools = "Developer Tools"
+        public static let documents = "Documents"
+        public static let images = "Images"
+        public static let screenshots = "Screenshots"
+        public static let archivesAndInstallers = "Archives & Installers"
+        public static let media = "Media"
+        public static let foldersAndOther = "Folders & Other"
+        public static let temporaryFiles = "Temporary Files"
+        public static let codingAgents = "Coding Agents"
         public static let diskImages = "Disk Images"
-        public static let ready = "Ready"
-        public static let tooRecent = "Too Recent"
-        public static let inUse = "In Use"
-        public static let protected = "Protected"
-        public static let notYours = "Not Yours"
-        public static let leftAlone = "Left Alone"
-        public static let sizedOnly = "Sized Only"
-        public static let cleared = "Cleared"
-        public static let failed = "Failed"
+        public static let packageManagers = "Package Managers"
+        public static let xcodeSimulators = "Xcode Simulators"
+        public static let docker = "Docker"
+        public static let toolCaches = "Tool Caches"
+    }
+
+    /// The cleanups that are not files: each is a reviewed row.
+    public enum Prune {
+        public static let pnpm = "pnpm Store"
+        public static let npm = "npm Cache"
+        public static let brew = "Homebrew Downloads"
+        public static let simulators = "Unused Simulators"
+        public static let docker = "Docker Cleanup"
+    }
+
+    /// Developer-tool caches the deep cleanup can empty.
+    public enum ToolCacheName {
+        public static let pip = "pip Cache"
+        public static let uv = "uv Cache"
+        public static let cargo = "Cargo Registry Cache"
+        public static let gradle = "Gradle Caches"
+        public static let derivedData = "Xcode DerivedData"
+        public static let bun = "Bun Install Cache"
+        public static let cipd = "CIPD Cache"
+        public static let goModules = "Go Module Cache"
+        public static let androidSnapshots = "Android Emulator Snapshots"
+        public static let aerials = "Aerial Wallpapers"
     }
 
     /// Whether Spotlight is kept out of a folder.
@@ -189,10 +230,13 @@ public enum Names {
         public static let running = "Running"
         public static let items = "Items"
         public static let removed = "Removed"
+        public static let lastUsed = "Last Used"
+        public static let fenced = "Fenced"
 
         /// Every title above, for the check.
         public static let all = [name, size, memory, cpu, pid, whatItIs, finding, state, kind, belongsTo,
-                                 administrator, total, downloaded, uploaded, share, running, items, removed]
+                                 administrator, total, downloaded, uploaded, share, running, items, removed,
+                                 lastUsed, fenced]
     }
 
     // MARK: - the closed row that holds what is empty
@@ -245,6 +289,10 @@ public enum Names {
         public static let selectAll = "Select All"
         public static let selectNone = "Select None"
         public static let previewAgain = "Preview Again"
+        public static let preview = "Preview"
+        public static let stop = "Stop"
+        public static let history = "History"
+        public static let showRawOutput = "Show Raw Output"
     }
 
     public enum Raw {
@@ -283,15 +331,25 @@ public enum Names {
                  Download.underThreeMonths, Download.threeToSixMonths, Download.sixToTwelveMonths,
                  Download.overAYear, Download.dateUnknown].map { ("Download", $0) }
         rows += [Temp.tempFolder, Temp.yourTempFolder, Temp.sharedTempFolder, Temp.claudeCode, Temp.codex,
-                 Temp.claudeApp, Temp.nodeTools, Temp.otherTools, Temp.managedByMacOS, Temp.diskImages,
-                 Temp.ready, Temp.tooRecent, Temp.inUse, Temp.protected, Temp.notYours, Temp.leftAlone,
-                 Temp.sizedOnly, Temp.cleared, Temp.failed].map { ("Temp", $0) }
+                 Temp.claudeApp, Temp.nodeTools, Temp.otherTools, Temp.managedByMacOS].map { ("Temp", $0) }
+        rows += [Kept.leftForOwner, Kept.conversationHistory, Kept.keepList, Kept.currentVersion]
+            .map { ("Kept", $0) }
+        rows += [StorageTab.projects, StorageTab.appCaches, StorageTab.developerTools, StorageTab.documents,
+                 StorageTab.images, StorageTab.screenshots, StorageTab.archivesAndInstallers, StorageTab.media,
+                 StorageTab.foldersAndOther, StorageTab.temporaryFiles, StorageTab.codingAgents,
+                 StorageTab.diskImages, StorageTab.packageManagers, StorageTab.xcodeSimulators,
+                 StorageTab.docker, StorageTab.toolCaches].map { ("Storage tab", $0) }
+        rows += [Prune.pnpm, Prune.npm, Prune.brew, Prune.simulators, Prune.docker].map { ("Prune", $0) }
+        rows += [ToolCacheName.pip, ToolCacheName.uv, ToolCacheName.cargo, ToolCacheName.gradle,
+                 ToolCacheName.derivedData, ToolCacheName.bun, ToolCacheName.cipd, ToolCacheName.goModules,
+                 ToolCacheName.androidSnapshots, ToolCacheName.aerials].map { ("Tool cache", $0) }
         rows += [Fence.fenced, Fence.notFenced].map { ("Fence", $0) }
         rows += Column.all.map { ("Column", $0) }
         rows += [("Fold", Fold.empty)]
         rows += JobKind.allCases.map { ("Task \($0.rawValue)", job($0)) }
         rows += EngineLog.allCases.map { ("Log \($0.rawValue)", log($0)) }
-        rows += [Review.selectAll, Review.selectNone, Review.previewAgain].map { ("Review", $0) }
+        rows += [Review.selectAll, Review.selectNone, Review.previewAgain, Review.preview, Review.stop, Review.history,
+                 Review.showRawOutput].map { ("Review", $0) }
         rows += [Raw.screen, Raw.searchPrompt, Raw.copy, Raw.noOutput, Raw.showAll, Raw.showOlder].map { ("Raw", $0) }
         rows += TokenWords.all.map { ("Token \($0.token)", $0.label) }
         return rows.map { (table: $0.0, name: $0.1) }

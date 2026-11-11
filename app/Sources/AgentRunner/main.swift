@@ -197,6 +197,10 @@ if args.first == "--probe-run-matcher" {
 if args.first == "--probe-activity-log", args.count > 1 {
     probeActivityLog(args[1])
 }
+// `--probe-fence` proves the Spotlight fence marker's rules on folders it makes itself. See FenceProbe.swift.
+if args.first == "--probe-fence" {
+    probeFence()
+}
 // `--probe-review-rules` shows what `apply(from:)` itself refuses; `--probe-quit`
 // shows what each choice of the quit dialog does to the store. See ReviewProbes.swift.
 if args.first == "--probe-review-session" {

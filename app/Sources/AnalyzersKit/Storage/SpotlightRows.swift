@@ -16,6 +16,8 @@ public struct SpotlightFolder: Identifiable, Hashable, Sendable {
     public var state: FenceState
 
     public var id: String { path }
+    /// "apps/mobile · Node.js Packages": where in the project, and what it is.
+    public let title: String
     public var folderName: String { (path as NSString).lastPathComponent }
     public var shortPath: String { path.replacingOccurrences(of: NSHomeDirectory(), with: "~") }
     /// The marker file whose presence keeps Spotlight out.
@@ -31,6 +33,13 @@ public struct SpotlightFolder: Identifiable, Hashable, Sendable {
     }
 }
 
+/// Spotlight has one kind of thing (folders), so its screen has no tabs.
+public enum SpotlightCategory: String, StorageCategory {
+    case folders
+    public var title: String { Names.Screen.spotlight }
+    public var symbol: String { "magnifyingglass" }
+}
+
 /// Spotlight's own state and the folders it would index.
 public struct SpotlightReview: Sendable {
     /// "Indexing is on."
@@ -43,6 +52,15 @@ public struct SpotlightReview: Sendable {
     public let deepCheckCommand: String?
     public let rebuildCommand: String?
 
+    /// The folders as the rows Storage screens share: grouped by project, each saying whether it
+    /// is fenced (a run's results read the same way).
+    public var rows: StorageRows {
+        StorageRows(folders.map {
+            StorageRow(id: $0.path, category: SpotlightCategory.folders.rawValue, group: $0.project, title: $0.title,
+                       detail: "\($0.state.title) · \(StorageLog.short($0.path))", bytes: $0.sizeBytes, iconPath: $0.path)
+        })
+    }
+
     public var unfenced: [SpotlightFolder] { folders.filter { $0.state == .notFenced } }
     public var fenced: [SpotlightFolder] { folders.filter { $0.state == .fenced } }
 
@@ -51,10 +69,16 @@ public struct SpotlightReview: Sendable {
     public static func build(from run: SpotlightAuditRun,
                              current: (String) -> FenceState? = { SpotlightReview.markerState(of: $0) })
         -> SpotlightReview {
-        let folders = run.exposureItems.map { item in
-            SpotlightFolder(path: item.path, project: item.project, kind: CacheKind(folder: item.cacheKind),
-                            sizeBytes: item.sizeBytes,
-                            state: current(item.path) ?? (item.status == .fenced ? .fenced : .notFenced))
+        let roots = run.exposureRoots.map { $0.split(separator: " ").map(String.init) } ?? []
+        let folders = run.exposureItems.map { item -> SpotlightFolder in
+            let kind = CacheKind(folder: item.cacheKind)
+            let project = CacheReview.projectPath(of: item.path, roots: roots)
+            let relative = item.path.hasPrefix(project + "/") ? String(item.path.dropFirst(project.count + 1)) : item.cacheKind
+            let folder = (relative as NSString).deletingLastPathComponent
+            return SpotlightFolder(path: item.path, project: (project as NSString).lastPathComponent, kind: kind,
+                                   sizeBytes: item.sizeBytes,
+                                   state: current(item.path) ?? (item.status == .fenced ? .fenced : .notFenced),
+                                   title: folder.isEmpty ? kind.title : "\(folder) · \(kind.title)")
         }.sorted { $0.sizeBytes > $1.sizeBytes }
         let indexing = run.indexingLine?.lowercased().contains("disabled") == true ? "Indexing is off." : "Indexing is on."
         let sentence: String

@@ -46,7 +46,7 @@ public struct ActivitySummary: Sendable, Hashable {
             let mb = closed.compactMap(\.mb).reduce(0, +)
             return closed.isEmpty
                 ? ActivitySummary("Nothing needed closing")
-                : ActivitySummary("Closed \(closed.count) — freed ~\(mb) MB",
+                : ActivitySummary(mb > 0 ? "Closed \(closed.count) — freed ~\(mb) MB" : "Closed \(closed.count)",
                                   memoryBytes: Int64(mb) * 1_048_576, closed: closed.count)
 
         case .storage(let run):

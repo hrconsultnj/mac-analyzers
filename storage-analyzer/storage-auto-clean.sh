@@ -845,6 +845,8 @@ if [[ -n "$TOOL_CACHES" ]]; then
     # names in ANALYZERS_APPCACHE_KEEP (regex alternatives), and anything
     # written in the last hour — that app is using it right now.
     if enabled appcaches; then
+      # its own group heading: the app reads the group as the category of these rows
+      group "3c. App caches (each app's folder in ~/Library/Caches)"
       # dotslash: its downloaded executables carry macOS provenance
       # protection — another process can't delete them, so don't try nightly
       keep='com\.apple\..*|Claude.*|com\.anthropic\..*|claude-cli-nodejs|ms-playwright|CloudKit|FamilyCircle|familycircled|GeoServices|Homebrew|pip|dotslash'
@@ -858,6 +860,7 @@ if [[ -n "$TOOL_CACHES" ]]; then
         [[ -n "$(find "$p" -mmin -60 -print -quit 2>/dev/null)" ]] && continue
         reclaim "$p"
       done
+      group "3d. More tool caches"
     fi
 
     if enabled gomod && command -v go >/dev/null 2>&1; then

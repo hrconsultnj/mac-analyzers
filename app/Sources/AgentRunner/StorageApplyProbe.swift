@@ -57,10 +57,10 @@ import Foundation
     }
 
     // keys as the screens build them: the engine's own key per row
-    let downloads = StorageRunReader.run(in: AnalyzersPaths.janitorLog, header: nil)
-        .map { DownloadReview.build(lines: $0.lines, info: { _ in (nil, false) }).candidates.map(\.id) } ?? []
-    let temp = StorageRunReader.run(in: AnalyzersPaths.tempCleanLog, header: nil)
-        .map { TempReview.build(from: TempCleanParser.parse(runHeader: $0.header, lines: $0.lines)).ready.map(\.id) } ?? []
+    let downloads = StorageLog.newestPreview(of: .janitor)
+        .map { DownloadReview.build(lines: $0.lines, info: { _ in (nil, false) }).rows.choosable.map(\.id) } ?? []
+    let temp = StorageLog.newestPreview(of: .tempClean)
+        .map { TempReview.build(from: TempCleanParser.parse(runHeader: $0.banner, lines: $0.lines)).ready.map(\.id) } ?? []
     let caches = ["/p/site/.next", "/p/site/node_modules", "/p/api/dist", "/p/api/.turbo", "/p/web/.vite"]
 
     print("Caches & Builds (storageClean)")

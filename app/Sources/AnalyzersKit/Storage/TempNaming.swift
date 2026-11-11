@@ -30,10 +30,10 @@ enum TempNaming {
             return Name(title: package ?? "Unnamed Tool", group: group)
         }
         if let version = versionFolder(local, parent: "/Library/Application Support/Claude/claude-code/") {
-            return Name(title: "Claude Code — \(isCurrent ? "Current" : "Old") Version \(version)", group: group)
+            return Name(title: "\(isCurrent ? "Current" : "Old") Claude Code Version \(version)", group: group)
         }
         if let version = versionFolder(local, parent: "/Library/Application Support/Claude/claude-code-vm/") {
-            return Name(title: "Claude Code VM — \(isCurrent ? "Current" : "Old") Version \(version)", group: group)
+            return Name(title: "\(isCurrent ? "Current" : "Old") Claude Code VM Version \(version)", group: group)
         }
         if local.hasPrefix("/Library/Application Support/Claude/") {
             let part = String(local.dropFirst("/Library/Application Support/Claude/".count))
@@ -41,30 +41,30 @@ enum TempNaming {
                          "DawnGraphiteCache": "Dawn Graphite Cache", "DawnWebGPUCache": "Dawn WebGPU Cache",
                          "local-agent-mode-sessions": "Agent Sessions", "claude-code-sessions": "Code Sessions",
                          "claude-code-vm/.sdk-version": "VM Version Marker"]
-            return Name(title: "Claude App — \(known[part] ?? pretty(part))", group: group)
+            return Name(title: known[part] ?? pretty(part), group: group)
         }
         if local.hasPrefix("/.claude/") {
             let known = ["projects": "Session Transcripts", "file-history": "File History", "backups": "Backups",
                          "tasks": "Task Lists", "paste-cache": "Pasted Text Cache",
                          "shell-snapshots": "Shell Snapshots", "session-env": "Session Environments"]
             let part = String(local.dropFirst("/.claude/".count))
-            return Name(title: "Claude Code — \(known[part] ?? pretty(part))", group: group)
+            return Name(title: known[part] ?? pretty(part), group: group)
         }
         if path.hasPrefix("/private/tmp/claude-") {
             let rest = path.split(separator: "/").dropFirst(3)      // after /private/tmp/claude-<uid>
-            if rest.isEmpty { return Name(title: "Claude Code — Scratch Folder", group: group) }
+            if rest.isEmpty { return Name(title: "Scratch Folder", group: group) }
             let leaf = rest.last.map(String.init) ?? last
             if (leaf as NSString).pathExtension.isEmpty == false {
-                return Name(title: "Claude Code — Scratch File \(stripIdentifiers(leaf))", group: group)
+                return Name(title: "Scratch File \(stripIdentifiers(leaf))", group: group)
             }
-            return Name(title: "Claude Code — Session Scratch", group: group)
+            return Name(title: "Session Scratch", group: group)
         }
         if local.hasPrefix("/.codex/") {
             let part = String(local.dropFirst("/.codex/".count))
-            if part.hasPrefix(".tmp/") { return Name(title: "Codex Temp Files — \(pretty(String(part.dropFirst(5))))", group: group) }
+            if part.hasPrefix(".tmp/") { return Name(title: "\(pretty(String(part.dropFirst(5)))) Temp Files", group: group) }
             let known = ["sessions": "Conversation History", "archived_sessions": "Archived Conversations",
                          "logs_2.sqlite": "Log Database"]
-            return Name(title: "Codex — \(known[part] ?? pretty(part))", group: group)
+            return Name(title: known[part] ?? pretty(part), group: group)
         }
         // a tool kept for its size only: the engine's reason starts with the tool's name
         if let reason, let head = reason.components(separatedBy: " — ").first, reason.contains(" — "),

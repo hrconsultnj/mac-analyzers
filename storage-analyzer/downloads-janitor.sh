@@ -60,7 +60,8 @@ approved() {
 # The reviewed list is read once (lib/approved-list.sh): a `grep` per item made a
 # 6,000-item apply take minutes. A list that cannot be checked stops the run.
 if [[ -n "${ONLY_PATHS}" ]]; then
-  if ! source "${SUITE_DIR}/lib/approved-list.sh" 2>/dev/null; then
+  # look for the file first: under `set -e` a failed `source` ended the run with exit 1 and no words
+  if [[ ! -f "${SUITE_DIR}/lib/approved-list.sh" ]] || ! source "${SUITE_DIR}/lib/approved-list.sh" 2>/dev/null; then
     echo "FATAL: lib/approved-list.sh is missing — refusing to run with a reviewed list it cannot check." >&2
     exit 78
   fi

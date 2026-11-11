@@ -64,7 +64,7 @@ extension TempSpaceView {
     }
 
     func openActions() {
-        navigator.push(.storage(.review(ActionsSettingsView.Cleaner.tempClean.rawValue)))
+        navigator.open(target: "temp")
     }
 
     // MARK: - load
