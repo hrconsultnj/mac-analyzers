@@ -9,6 +9,9 @@ import ProKit
 /// (and deliberately isn't) measured. Same PaneScaffold as every pane.
 struct AboutSettingsView: View {
     @Environment(Navigator.self) private var navigator
+    /// The sections that are open: the first starts open and every one can be opened and closed.
+    /// (The binding used to be a constant, so only the first could ever be read.)
+    @State private var open: Set<String> = ["What the guard measures"]
 
     var body: some View {
         PaneScaffold(symbol: "questionmark.circle.fill", color: .gray, title: Names.Screen.howItWorks,
@@ -76,12 +79,17 @@ struct AboutSettingsView: View {
     /// having, but scannability beats a wall of text.
     private func section(_ title: String, _ points: [String]) -> some View {
         Section {
-            DisclosureGroup(isExpanded: .constant(title.hasPrefix("What the guard")).animation()) {
-                ForEach(points, id: \.self) { point in
-                    Text(point)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            // one disclosed block, not rows: a section's paragraphs open together
+            DisclosureGroup(isExpanded: Binding(
+                get: { open.contains(title) },
+                set: { if $0 { open.insert(title) } else { open.remove(title) } })) {
+                VStack(alignment: .leading, spacing: Tokens.Space.m) {
+                    ForEach(points, id: \.self) { point in
+                        Text(point)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             } label: {
                 Text(title).font(.callout.weight(.medium))
