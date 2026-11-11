@@ -50,6 +50,24 @@ final class ReviewRig {
         (0..<outline.numberOfRows).first { tip($0) == wanted }
     }
 
+    /// A row by its tooltip, opening a closed group to reach it the way a person would: a group that holds only
+    /// kept rows starts closed. Each closed top-level group is opened in turn and closed again when the row is not
+    /// in it, so nothing else about the table changes. Row numbers found BEFORE this call may have moved.
+    func reveal(tip wanted: String) -> Int? {
+        if let found = row(tip: wanted) { return found }
+        var index = 0
+        while index < outline.numberOfRows {
+            let item = outline.item(atRow: index)
+            if outline.level(forRow: index) == 0, outline.isExpandable(item), !outline.isItemExpanded(item) {
+                outline.expandItem(item); settleAll()
+                if let found = row(tip: wanted) { return found }
+                outline.collapseItem(item); settleAll()
+            }
+            index += 1
+        }
+        return nil
+    }
+
     /// The group row a row sits under: the nearest row above it one level out.
     func groupRow(above row: Int) -> Int? {
         let level = outline.level(forRow: row)
@@ -151,8 +169,8 @@ enum ProbeReview {
                     rig.line("group tick from on: all off, group box \(rig.boxWord(group))"))
         rig.click(group)
 
-        // a row the cleanup leaves alone: a disabled box that does nothing
-        if let kept = rig.row(tip: "Kept: open in an editor") {
+        // a row the cleanup leaves alone: a disabled box that does nothing (its group starts closed: open it)
+        if let kept = rig.reveal(tip: "Kept: open in an editor") {
             let before = rig.approved()
             let word = rig.boxWord(kept)
             rig.click(kept)
@@ -176,7 +194,7 @@ enum ProbeReview {
         rig.verdict(rig.approved() == chosen, rig.line("Select All: every choosable row except the folded empty one"))
         if let first = rig.row(tip: "/p/web-app/node_modules") {
             rig.verdict(rig.boxWord(first) == "on", "Select All is drawn: node_modules box \(rig.boxWord(first))")
-        }
+        } else { rig.verdict(false, "node_modules row not found") }
 
         // the fold: last row, closed, its row starts unticked and stays so after Select All
         let foldRow = rig.outline.numberOfRows - 1
@@ -250,6 +268,7 @@ enum ProbeReview {
     static func menu() -> Int32 {
         let rig = ReviewRig(acting: true, unlistable: true)
         mark("begin review:menu")
+        _ = rig.reveal(tip: "Kept: open in an editor")      // its group starts closed; open it before any row number is taken
         guard let next = rig.row(tip: "/p/web-app/.next"), let dist = rig.row(tip: "/p/web-app/dist"),
               let group = rig.groupRow(above: next), let kept = rig.row(tip: "Kept: open in an editor"),
               let opera = rig.row(tip: ReviewRig.operaWord) else { rig.verdict(false, "rows not found"); return 1 }
@@ -315,6 +334,7 @@ enum ProbeReview {
     static func acting() -> Int32 {
         let rig = ReviewRig(acting: true)
         mark("begin review:acting")
+        _ = rig.reveal(tip: "Kept: open in an editor")      // its group starts closed; open it before any row number is taken
         guard let opera = rig.row(tip: ReviewRig.operaWord) else { rig.verdict(false, "acting row not found"); return 1 }
         rig.verdict(rig.boxWord(opera) == "on(disabled)", "acting row: box \(rig.boxWord(opera))")
         // told apart from a kept row without the box alone: the words under the name, and what VoiceOver reads
@@ -323,13 +343,13 @@ enum ProbeReview {
             rig.verdict(rig.boxWord(kept) == "off(disabled)" && rig.boxWord(opera) == "on(disabled)"
                             && keptHelp == "Kept: open in an editor" && actingHelp == ReviewRig.operaWord,
                         "acting vs kept: kept \(rig.boxWord(kept)) reads \"\(keptHelp)\" | acting \(rig.boxWord(opera)) reads \"\(actingHelp)\"")
-        }
+        } else { rig.verdict(false, "kept row not found") }       // a lookup that fails is a failure, never a skipped check
         // what VoiceOver says by state (the review table's own labels)
         if let kept = rig.row(tip: "Kept: open in an editor"), let normal = rig.row(tip: "/p/mobile-app/Pods") {
             let labels = [rig.box(kept)?.accessibilityLabel(), rig.box(opera)?.accessibilityLabel(), rig.box(normal)?.accessibilityLabel()]
             rig.verdict(labels == ["Not chosen: node_modules", "Opera: Will Be Asked to Quit", "Include Pods"],
                         "labels: kept=\(labels[0] ?? "nil") | acting=\(labels[1] ?? "nil") | choosable=\(labels[2] ?? "nil")")
-        }
+        } else { rig.verdict(false, "label rows not found") }
         rig.click(opera)
         rig.verdict(!rig.approved().contains(ReviewRig.opera) && rig.probe.report().acting == [ReviewRig.opera],
                     rig.line("a click on it changes nothing; it is never approved"))
@@ -373,7 +393,7 @@ enum ProbeReview {
         let boxes = (0..<rig.outline.numberOfRows).filter { rig.box($0) != nil }
         rig.verdict(boxes.isEmpty && rig.outline.numberOfRows > 0, "read-only: \(rig.outline.numberOfRows) rows, \(boxes.count) boxes")
         let before = rig.probe.report().ticked
-        if let first = rig.row(tip: "/p/web-app/node_modules") { rig.space(rows: [first]) }
+        if let first = rig.row(tip: "/p/web-app/node_modules") { rig.space(rows: [first]) } else { rig.verdict(false, "node_modules row not found") }
         rig.verdict(rig.probe.report().ticked == before, "Space changes nothing in a read-only review")
         mark("end review:readonly")
         return rig.exitCode
