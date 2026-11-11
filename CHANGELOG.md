@@ -46,6 +46,60 @@ without an entry here — see `scripts/cut-release.sh`.
   listing the reports by month. A report opens as a document, divided into
   sections you can fold, instead of one long block of text. You can write a
   new report, stop it, export a copy, or see its text exactly as written.
+- Monitor is now one table that fills the window: every app and tool with its
+  memory and processor use, the parts of each app, and a details panel. Open a
+  command-line tool such as Node.js and you see each separate program in its
+  own row, labelled by the project it runs in. Stopping a tool now stops only
+  the programs you choose, in a list you confirm, and never a live coding-agent
+  session or a program that has changed since you looked at it.
+- Memory Guard reads as a history: a section for each day, and a row for each
+  thing the guard stopped or flagged, named for the app or tool ("Stopped Vite
+  dev server", "9 processor alerts for Media Analysis") with what the guard did
+  about it. Repeats are folded into one row. Click a row to see what happened,
+  what the program was, and why the guard acts — and for a memory crisis, which
+  apps were using the memory.
+- Memory Cleanup is a screen of its own. Preview shows what a cleanup would
+  close in tabs (dev servers, orphaned tools, emulators and browsers, and the
+  helpers of coding sessions), grouped by the program they belong to, and you
+  tick what to close. Apps on your list to quit are shown as "will quit"
+  before you apply, and a cleanup closes only the programs you saw, as they
+  were when you looked: a program that has been replaced since is left alone.
+- Stop now asks a program politely first. If it does not stop, you are
+  offered a separate Force Stop, and nothing is forced until you confirm it.
+- The Stop button in a notification now checks that it is still the same
+  program before it does anything. If the program has changed, or is part of a
+  live coding session, Monitor opens on it instead and nothing is stopped.
+- An app that hosts a live coding session, such as a terminal with Claude
+  running in it, is never quit by Everything Now, and Quit on such an app
+  tells you which sessions would end with it.
+- If the list of coding agents cannot be read, Mac Analyzers offers no Stop at
+  all and says why, rather than guessing which programs are sessions.
+- If Mac Analyzers cannot yet tell what a program really is, because its
+  command line cannot be read or still shows the program that started it, Stop
+  does nothing and says "could not tell, so nothing was stopped"; try again in
+  a moment. Quit says so in its confirmation; if you confirm, the app is
+  asked to quit as usual.
+
+## v2.69.2 — Process rows no longer show a program's environment
+
+- A process row could show part of a program's environment after its name,
+  and an environment can hold a password or an API key. It happened for
+  programs that rename themselves while they run, such as a Next.js
+  development server, on Overview's "Biggest Processes Right Now", in Monitor
+  and in the menu-bar panel. Rows now read a program's arguments the way
+  Terminal's `ps` does. This was text on your own screen: the app did not
+  save it to a log or send it anywhere. If a key of yours was on screen while
+  someone else could see it, or in a screenshot you shared, replace that key.
+- Anything on a row written as `NAME=value` now shows its name only, never
+  its value. That also covers the one case where macOS itself hands back
+  environment entries as arguments (a program that gives itself a very long
+  name), where the names can still appear.
+- A row also hides the value of an argument that is plainly a credential,
+  such as `--token abc` or a password inside a web address. It cannot
+  recognise every way a secret may be passed to a program, so a command line
+  is still not a safe place for one.
+- Programs that rename themselves are now named and grouped by that name
+  alone.
 
 ## v2.69.1 — Large Downloads reviews can be applied again
 

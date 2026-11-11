@@ -113,6 +113,7 @@ enum OutlineProbe {
             exit(2)
         }
         let options = ProbeOptions(Array(arguments.dropFirst()))
+        ProbeDefaults.removeOwn()          // a crashed earlier process may have had this pid
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
         let code: Int32
@@ -127,13 +128,39 @@ enum OutlineProbe {
         case "render": code = ProbeRender.run(Array(arguments.dropFirst()))
         case _ where action.hasPrefix("a2:"): code = ProbeChecks.a2(String(action.dropFirst(3)), options)
         case _ where action.hasPrefix("review:"): code = ProbeReview.run(String(action.dropFirst(7)))
+        case "fit": code = ProbeFit.run()
+        case _ where action.hasPrefix("monitor:"): code = ProbeMonitor.run(String(action.dropFirst(8)), options)
+        case _ where action.hasPrefix("toolbar:"): code = ProbeToolbar.run(String(action.dropFirst(8)), Array(arguments.dropFirst()))
         case _ where action.hasPrefix("a11:"): code = ProbeFlat.run(String(action.dropFirst(4)))
         default: code = ProbeActions.single(action, options)
         }
-        // what this process autosaved (column widths, order, hidden) does not outlive it
-        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.contains("OutlineTable.probe") || key.contains("review.fixture") {
+        ProbeDefaults.removeOwn()          // what this process saved does not outlive it
+        exit(code)
+    }
+}
+
+/// Every probe saves table state (column sizes, open groups) under a name that carries its own process
+/// id, and removes only keys carrying that id. Probes can therefore run side by side. This tool's
+/// defaults are its own domain, never the app's, and no key without this pid in it is touched.
+enum ProbeDefaults {
+    static func removeOwn() {
+        let pid = String(getpid())
+        for key in UserDefaults.standard.dictionaryRepresentation().keys where carriesPID(key, pid) {
             UserDefaults.standard.removeObject(forKey: key)
         }
-        exit(code)
+    }
+
+    /// `.<pid>` or `-<pid>` followed by the end, a dot, a dash or a space: "probe-123", "probe.ticks.123.sections",
+    /// never "probe-1234".
+    private static func carriesPID(_ key: String, _ pid: String) -> Bool {
+        for marker in [".", "-"] {
+            var from = key.startIndex
+            while let found = key.range(of: marker + pid, range: from..<key.endIndex) {
+                let next = found.upperBound
+                if next == key.endIndex || ".- ".contains(key[next]) { return true }
+                from = found.upperBound
+            }
+        }
+        return false
     }
 }

@@ -29,11 +29,24 @@ public final class ReviewFixtureProbe {
         public let choosable: Int
     }
 
+    /// The saved state (open groups, column sizes) of this probe's table: one name per process, so a
+    /// probe run beside another never reads or clears the other's, and none can reach what a person's
+    /// app saved under a screen's own name.
+    /// A key with a line break, which an approved list (one key per line) cannot carry.
+    public static let unlistableKey = "/p/odd/two\nlines"
+
+    static var screenKey: String { "fixture.\(ProcessInfo.processInfo.processIdentifier)" }
+
     /// - Parameters:
     ///   - acting: adds a row the apply acts on without a tick ("Will Be Asked to Quit").
     ///   - readOnly: a review that is only read: no ticks.
-    public init(acting: Bool = false, readOnly: Bool = false) {
+    ///   - unlistable: adds a row whose key has a line break (the approved list cannot carry it).
+    public init(acting: Bool = false, readOnly: Bool = false, unlistable: Bool = false) {
         var rows = Self.rows
+        if unlistable {
+            rows.append(ReviewRow(id: Self.unlistableKey, name: "two lines", detail: "/p/odd/two\nlines", group: "odd", bytes: 5_000_000, iconPath: "/Applications"))
+            rows.append(ReviewRow(id: "/p/odd/plain", name: "plain", detail: "/p/odd/plain", group: "odd", bytes: 7_000_000, iconPath: "/Applications"))
+        }
         if acting {
             rows.append(ReviewRow(id: "app:Opera", name: "Opera", detail: "Will Be Asked to Quit", group: "Also closes",
                                   bytes: 300_000_000, actsWord: "Will Be Asked to Quit"))
@@ -126,6 +139,6 @@ private struct ReviewFixtureProbeView: View {
         ReviewTable(session: probe.sessionForView, applyTitle: "Move to Trash",
                     confirmation: ReviewConfirmation(verb: "Move", destination: "to the Trash",
                                                      message: "You can put them back from Undo."),
-                    readOnly: probe.readOnly, only: probe.onlyForView, screen: "fixture")
+                    readOnly: probe.readOnly, only: probe.onlyForView, screen: ReviewFixtureProbe.screenKey, rowMenu: .files)
     }
 }

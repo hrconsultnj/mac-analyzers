@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Canonical file locations shared by every module. Mirrors the bash suite's
 /// layout (~/mac-analyzers/reports/{memory,storage}, ~/scripts/config.local.sh).
@@ -7,7 +8,18 @@ import Foundation
 ///   Navigation/NotifyChannel.swift   the notification names the app and CLI share
 ///   Navigation/SettingsOpener.swift  opening the Settings window from anywhere
 public enum AnalyzersPaths {
-    public static let home = FileManager.default.homeDirectoryForCurrentUser
+    /// The folder a probe that judges itself runs in instead of the person's home (`useHome`); read once, when `home` is
+    /// first used, so it must be set before anything else resolves a path.
+    private static let homeChoice = Mutex<URL?>(nil)
+
+    /// Test support: every path below resolves under `url` instead of the account's home folder. Only the probes that
+    /// judge themselves call it (the interface is `@_spi(TestSupport)`, which the app people install cannot import),
+    /// before anything else asks for a path; they check afterwards that nothing resolved into the real home.
+    @_spi(TestSupport) public static func useHome(_ url: URL) {
+        homeChoice.withLock { $0 = url }
+    }
+
+    public static let home: URL = homeChoice.withLock { $0 } ?? FileManager.default.homeDirectoryForCurrentUser
 
     public static let memoryReports = home.appending(path: "mac-analyzers/reports/memory")
     public static let storageReports = home.appending(path: "mac-analyzers/reports/storage")

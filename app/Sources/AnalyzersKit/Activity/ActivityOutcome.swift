@@ -212,6 +212,7 @@ public struct ActivityOutcome: Sendable {
         let name = appName(event)
         switch event.kind {
         case .killed: return "Stopped \(name)"
+        case .stopFailed: return "Tried to stop a process that had already ended"
         case .spike(let grew): return "\(name) grew by \(grew) MB"
         case .cpuHog(let pct, _): return "\(name) used \(pct)% of a core"
         case .capExceeded: return "Memory limit passed"

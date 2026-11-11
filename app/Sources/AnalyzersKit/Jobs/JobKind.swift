@@ -193,6 +193,8 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .storageClean: options.deep ? ["--mode", "deep", "--prune-snapshots"] : []
         case .tempClean: options.permanent ? ["--permanent"] : []
+        case .memoryClean: options.includeBusyOrphans ? ["--orphans-all"] : []
+        case .reclaim: options.alsoQuit.isEmpty ? [] : ["--apps-list", options.alsoQuit.joined(separator: "\n")]
         default: []
         }
     }

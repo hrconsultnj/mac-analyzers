@@ -8,6 +8,7 @@ extension GuardEvent {
     public var symbol: String {
         switch kind {
         case .killed: "xmark.octagon.fill"
+        case .stopFailed: "xmark.octagon"
         case .spike: "arrow.up.right"
         case .capExceeded: "gauge.with.needle"
         case .pressureWarning, .pressureCritical: "exclamationmark.triangle.fill"
@@ -20,7 +21,7 @@ extension GuardEvent {
     public var tint: Color {
         switch kind {
         case .killed, .pressureCritical: .red
-        case .spike, .capExceeded, .pressureWarning, .warning: .orange
+        case .spike, .capExceeded, .pressureWarning, .warning, .stopFailed: .orange
         case .cpuHog, .forensics: .purple
         }
     }
@@ -28,6 +29,7 @@ extension GuardEvent {
     public var badge: (String, Color)? {
         switch kind {
         case .killed: ("Killed", .red)
+        case .stopFailed: ("Not Stopped", .orange)
         case .spike: ("Spike", .orange)
         case .capExceeded: ("Over Cap", .orange)
         case .pressureWarning: ("Pressure", .orange)

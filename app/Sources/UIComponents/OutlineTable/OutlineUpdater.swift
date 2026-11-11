@@ -364,7 +364,10 @@ final class OutlineUpdater<Row: Identifiable> {
             }
         }
         guard let target else { return false }
-        let insets = c.scrollView.contentInsets
+        // The clip view's own insets are the ones in force: they hold the header's height and what
+        // sits under a toolbar. The scroll view's `contentInsets` can read 0 while the clip view's
+        // top is the header's height, and clamping to that would scroll the first rows under the header.
+        let insets = clip.contentInsets
         let lowest = -insets.top
         let highest = max(lowest, outline.frame.height - clip.bounds.height + insets.bottom)
         let clamped = min(max(target, lowest), highest)

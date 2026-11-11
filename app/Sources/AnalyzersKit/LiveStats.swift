@@ -65,9 +65,9 @@ public enum LiveStats {
         let raw = ProcTable.sweep(minimumMB: min(minimumMB, 32))
         let processes = raw.map { entry in
             LiveProcess(pid: entry.pid, residentMB: entry.residentMB,
-                        rawName: String(entry.command.prefix(100)),
+                        rawName: CommandLineDisplay.shown(entry.command),
                         kind: isDevKillable(entry.command) ? .devTool : .app,
-                        ppid: entry.ppid)
+                        ppid: entry.ppid, identity: ProcessIdentity.of(pid: entry.pid))
         }.sorted { $0.residentMB > $1.residentMB }
 
         return Sample(
@@ -80,9 +80,9 @@ public enum LiveStats {
         // fork-free: the kernel answers this directly (see ProcTable)
         let result = ProcTable.sweep(minimumMB: minimumMB).map { raw in
             LiveProcess(pid: raw.pid, residentMB: raw.residentMB,
-                        rawName: String(raw.command.prefix(100)),
+                        rawName: CommandLineDisplay.shown(raw.command),
                         kind: isDevKillable(raw.command) ? .devTool : .app,
-                        ppid: raw.ppid)
+                        ppid: raw.ppid, identity: ProcessIdentity.of(pid: raw.pid))
         }
         return Array(result.sorted { $0.residentMB > $1.residentMB }.prefix(limit))
     }
@@ -113,7 +113,7 @@ public enum LiveStats {
         let path = ProcTable.executablePath(of: pid32)
         return LiveProcess(pid: pid,
                            residentMB: Int((usage?.resident ?? 0) / 1_048_576),
-                           rawName: String(command.prefix(100)),
+                           rawName: CommandLineDisplay.shown(command),
                            kind: isDev ? .devTool : .app,
                            ppid: identity.ppid,
                            footprintBytes: footprint,
@@ -121,7 +121,8 @@ public enum LiveStats {
                            label: isDev || path.hasPrefix("pid ")
                                ? nil : (path as NSString).lastPathComponent,
                            canQuit: identity.uid == getuid()
-                               && !MemoryCensus.isSystemPath(path))
+                               && !MemoryCensus.isSystemPath(path),
+                           identity: ProcessIdentity.of(pid: pid))
     }
 
     // MARK: - helper grouping
@@ -177,7 +178,7 @@ public enum LiveStats {
         func liveProcess(_ e: Entry) -> LiveProcess {
             let isDev = e.args.range(of: killablePattern, options: .regularExpression) != nil
             return LiveProcess(pid: e.pid, residentMB: e.rssMB,
-                               rawName: String(e.args.prefix(100)),
+                               rawName: CommandLineDisplay.shown(e.args),
                                kind: isDev ? .devTool : .app, ppid: e.ppid)
         }
 

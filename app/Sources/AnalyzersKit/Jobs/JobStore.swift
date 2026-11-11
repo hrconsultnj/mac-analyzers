@@ -194,7 +194,10 @@ public final class JobStore {
     /// no longer what an apply would act on.
     @discardableResult
     public func apply(from preview: Job, approved: ApprovedSet) -> Job {
-        let request = JobRequest(kind: preview.kind, intent: .apply, options: preview.request.options,
+        // the apps to quit are the ones the review listed, not whatever the name list matches now
+        var options = preview.request.options
+        if let apps = approved.apps { options.alsoQuit = apps }
+        let request = JobRequest(kind: preview.kind, intent: .apply, options: options,
                                  approved: approved)
         let reason: String?
         if !preview.kind.isCleaner {
@@ -317,6 +320,10 @@ public final class JobStore {
             let outcome = await Task.detached {
                 override?(kind, header) ?? RunMatcher.outcome(kind: kind, header: header, startedAt: began)
             }.value
+            // a memory preview's review records who each program is NOW, the moment the preview ends
+            if request.intent == .preview, case .reap(let run) = outcome.parsed {
+                CleanupReviews.capture(jobID: job.id, run: run)
+            }
             final = .succeeded(outcome)
         }
         await conclude(job, state: final, exitCode: stopped ? nil : code, approvedFile: approvedFile)

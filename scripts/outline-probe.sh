@@ -28,8 +28,9 @@
 # component reads an environment variable.
 #
 # The probe runs headless: its window is never on a display and never takes focus.
-# macOS only. Build products go to OUTLINE_BUILD_PATH (default app/.build); a5, a6 and review-scale
-# build release (timings), the others debug.
+# macOS only. Build products go to OUTLINE_BUILD_PATH (default app/.build). Every section prints
+# `[build: debug]` or `[build: release]`: the checks run on debug, the timings (a5, a6, review-scale,
+# also inside `all`) on release.
 # Exit 1 when any probe failed or counted a warning.
 set -u
 
@@ -41,6 +42,7 @@ if [ "$(uname -s)" != "Darwin" ]; then
   exit 2
 fi
 
+BUILD_NAME=debug
 BUILD_ARGS=(--disable-keychain)
 [ -n "${OUTLINE_BUILD_PATH:-}" ] && BUILD_ARGS+=(--build-path "$OUTLINE_BUILD_PATH")
 CONFIG_ARGS=()
@@ -136,7 +138,7 @@ a2() {
     say_out
     clean || fail
   done
-  for name in sectionHeaders callback env menu lines; do
+  for name in sectionHeaders callback env menu lines tickBigGroup; do
     run_probe "a2:$name"
     echo "case=$name warnings=$WARN outside=$OUTSIDE exit=$RC queuedFromCallback=$QUEUED"
     say_out
@@ -170,7 +172,7 @@ plain() { # plain <label> <probe args…>
 review() {
   local name
   echo "REVIEW — the real ReviewTable, driven"
-  for name in ticks updateChoosable acting only readonly; do
+  for name in ticks sameTurn updateChoosable acting only readonly unlistable menu; do
     run_probe "review:$name"
     echo "case=review:$name warnings=$WARN outside=$OUTSIDE exit=$RC"
     say_out
@@ -285,27 +287,68 @@ check() {
   echo "lines warnings=$WARN outside=$OUTSIDE"
   total=$((total + WARN + OUTSIDE))
   clean || fail
-  echo "open all and re-sort, text and hosted, and a table with lines: warnings=$total"
+  # under the main window's toolbar the first row stays below the header, also after the screen's
+  # own updates (a row arriving, a re-sort)
+  local embedding
+  for embedding in bare line inset; do
+    run_probe "toolbar:$embedding"
+    echo "toolbar:$embedding warnings=$WARN outside=$OUTSIDE exit=$RC"
+    say_out
+    total=$((total + WARN + OUTSIDE))
+    clean || fail
+  done
+  # columns that give way to room: essentials always inside the visible rect, optional ones hidden and restored
+  run_probe "fit"
+  echo "fit warnings=$WARN outside=$OUTSIDE exit=$RC"
+  say_out
+  total=$((total + WARN + OUTSIDE))
+  clean || fail
+  # first appearance, repeated: the timing of a window's first layout is not deterministic
+  run_probe "toolbar:first" 25
+  echo "toolbar:first warnings=$WARN outside=$OUTSIDE exit=$RC ($(grep -ac '^PASS' "$TMP/out") passes)"
+  total=$((total + WARN + OUTSIDE))
+  clean || { say_out; fail; }
+  echo "open all and re-sort, text and hosted, a table with lines, and the first row below the header under a toolbar: warnings=$total"
 }
 
-# timings in a debug build say nothing about the product: a5 and a6 build and run release
-case "${1:-all}" in a5|a6|review-scale) CONFIG_ARGS=(-c release) ;; esac
-build
+# Which build a number came from is printed with it: the checks run on the debug build (what
+# `swift build` makes, and what check.sh runs), the timings on a release build (what a person has).
+# A timing taken from a debug build says nothing about the product, so `a5`, `a6` and
+# `review-scale` always use release, alone or inside `all`.
+use_build() { # use_build debug|release
+  BUILD_NAME="$1"
+  CONFIG_ARGS=()
+  [ "$1" = "release" ] && CONFIG_ARGS=(-c release)
+  build
+}
+
+# prints the build the section runs on, then runs it
+section() { echo "[build: $BUILD_NAME]"; "$@"; }
+
 case "${1:-all}" in
-  a1) a1 ;;
-  a2) a2 ;;
-  a3) a3 ;;
-  a4) a4 ;;
-  a5) a5 ;;
-  a6) a6 ;;
-  a7) a7 ;;
-  a8) a8 ;;
-  a11) a11 ;;
-  review) review ;;
-  review-scale) review_scale ;;
-  check) check ;;
-  render) render "${2:-}" ;;
-  all) a1; a2; a3; a4; a6; a5; a7; a8; a11; review ;;   # a6 before a5: it is a timing of 3 ms and a5 leaves the Mac warm
-  *) echo "usage: scripts/outline-probe.sh a1|a2|a3|a4|a5|a6|a7|a8|a11|check|all" >&2; exit 2 ;;
+  a5|a6|review-scale) use_build release ;;
+  *) use_build debug ;;
+esac
+case "${1:-all}" in
+  a1) section a1 ;;
+  a2) section a2 ;;
+  a3) section a3 ;;
+  a4) section a4 ;;
+  a5) section a5 ;;
+  a6) section a6 ;;
+  a7) section a7 ;;
+  a8) section a8 ;;
+  a11) section a11 ;;
+  review) section review ;;
+  review-scale) section review_scale ;;
+  check) section check ;;
+  render) section render "${2:-}" ;;
+  all)
+    # the checks on the debug build; then the timings on a release build (A6 before A5: a 3 ms timing
+    # is the first thing a warm Mac spoils)
+    section a1; section a2; section a3; section a4; section a7; section a8; section a11; section review
+    use_build release
+    section a6; section a5; section review_scale ;;
+  *) echo "usage: scripts/outline-probe.sh a1|a2|a3|a4|a5|a6|a7|a8|a11|review|review-scale|check|render <dir>|all" >&2; exit 2 ;;
 esac
 exit "$FAILED"

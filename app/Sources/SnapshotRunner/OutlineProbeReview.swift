@@ -24,13 +24,8 @@ final class ReviewRig {
     static let opera = "app:Opera"
     static let operaWord = "Will Be Asked to Quit"
 
-    init(acting: Bool = false, readOnly: Bool = false) {
-        // what an earlier probe process left open or sized is not this one's start (OutlineProbe.run
-        // also removes what a process saved when it ends)
-        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.contains("review.fixture") {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
-        probe = ReviewFixtureProbe(acting: acting, readOnly: readOnly)
+    init(acting: Bool = false, readOnly: Bool = false, unlistable: Bool = false) {
+        probe = ReviewFixtureProbe(acting: acting, readOnly: readOnly, unlistable: unlistable)
         let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-review-probe-\(getpid())", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
         let jobs = JobStore(ledger: JobLedger(url: scratch.appending(path: "jobs.jsonl")))
@@ -70,6 +65,14 @@ final class ReviewRig {
         return box.isEnabled ? state : state + "(disabled)"
     }
 
+    /// The box's action, sent at once, with no run loop turn after it: what a click followed by another
+    /// click already queued looks like to the table.
+    func clickNow(_ row: Int) {
+        guard let box = box(row), let action = box.action else { return }
+        box.state = box.state == .on ? .off : .on
+        _ = NSApp.sendAction(action, to: box.target, from: box)
+    }
+
     func click(_ row: Int) {
         box(row)?.performClick(nil)
         settleAll()
@@ -81,6 +84,16 @@ final class ReviewRig {
         settleAll()
         if let event = ProbeChecks.key(49, " ", window: harness.window) { outline.keyDown(with: event) }
         settleAll()
+    }
+
+    /// The menu AppKit would pop for a right-click on this row (the outline's own `menu(for:)`).
+    func rightClick(row: Int) -> [String] {
+        let rect = outline.rect(ofRow: row)
+        let inWindow = outline.convert(NSPoint(x: rect.midX, y: rect.midY), to: nil)
+        guard let event = NSEvent.mouseEvent(with: .rightMouseDown, location: inWindow, modifierFlags: [], timestamp: 0,
+                                             windowNumber: harness.window.windowNumber, context: nil, eventNumber: 0,
+                                             clickCount: 1, pressure: 1) else { return ["no event"] }
+        return outline.menu(for: event)?.items.map(\.title) ?? []
     }
 
     func approved() -> Set<String> { Set(probe.report().approved) }
@@ -102,9 +115,12 @@ enum ProbeReview {
         case "ticks": return ticks()
         case "updateChoosable": return updateChoosable()
         case "acting": return acting()
+        case "unlistable": return unlistable()
+        case "menu": return menu()
         case "only": return only()
         case "readonly": return readOnly()
         case "scale": return scale(ProbeOptions([]))
+        case "sameTurn": return sameTurn()
         default:
             FileHandle.standardError.write(Data("unknown review case \(name)\n".utf8))
             return 2
@@ -201,6 +217,66 @@ enum ProbeReview {
         return rig.exitCode
     }
 
+    /// The row menu a screen supplies (`.files`): for the clicked row, for the selection when the click is in it,
+    /// nothing on a group; and a right-click never changes what is ticked or what is sent.
+    static func menu() -> Int32 {
+        let rig = ReviewRig(acting: true)
+        mark("begin review:menu")
+        guard let next = rig.row(tip: "/p/web-app/.next"), let dist = rig.row(tip: "/p/web-app/dist"),
+              let group = rig.groupRow(above: next), let kept = rig.row(tip: "Kept: open in an editor"),
+              let opera = rig.row(tip: ReviewRig.operaWord) else { rig.verdict(false, "rows not found"); return 1 }
+        let before = rig.approved(), ticked = rig.probe.report().ticked
+        let one = rig.rightClick(row: dist)
+        rig.verdict(one == [Names.Review.showInFinder, Names.Review.copyPath], "one row: \(one)")
+        rig.outline.selectRowIndexes(IndexSet([next, dist]), byExtendingSelection: false); rig.settleAll()
+        let two = rig.rightClick(row: dist)
+        rig.verdict(two == [Names.Review.showInFinder, Names.Review.copyPaths], "two selected, click inside them: \(two)")
+        let outside = rig.rightClick(row: rig.row(tip: "/p/mobile-app/Pods") ?? 0)
+        rig.verdict(outside == [Names.Review.showInFinder, Names.Review.copyPath], "click outside the selection: just that row: \(outside)")
+        let onGroup = rig.rightClick(row: group)
+        rig.verdict(onGroup.isEmpty, "a group's line offers nothing: \(onGroup)")
+        let onKept = rig.rightClick(row: kept)
+        rig.verdict(onKept == [Names.Review.showInFinder, Names.Review.copyPath], "a kept row can still be shown in Finder: \(onKept)")
+        let onActing = rig.rightClick(row: opera)
+        rig.verdict(onActing.isEmpty, "an app that is not a file offers nothing: \(onActing)")
+        rig.verdict(rig.approved() == before && rig.probe.report().ticked == ticked, rig.line("no menu click changed a tick or the sent list"))
+        mark("end review:menu")
+        return rig.exitCode
+    }
+
+    /// A row whose key has a line break: shown as kept with the reason, never ticked, never in the sent
+    /// list, and the ticked count, the kept count and the sent list agree at every step.
+    static func unlistable() -> Int32 {
+        let rig = ReviewRig(unlistable: true)
+        let bad = ReviewFixtureProbe.unlistableKey
+        let reason = ApprovedSet.unlistableReason
+        mark("begin review:unlistable")
+        func agree(_ label: String) {
+            let report = rig.probe.report()
+            let sentClean = report.approved.allSatisfy(ApprovedSet.isListable)
+            let ok = Set(report.ticked) == Set(report.approved) && sentClean && !report.ticked.contains(bad)
+                && report.kept.contains(bad) && report.summary.hasSuffix("\(report.kept.count) kept")
+            rig.verdict(ok, rig.line(label) + " ticked=\(report.ticked.count) kept=\(report.kept.count) sent=\(report.approved.count)")
+        }
+        guard let row = rig.row(tip: reason) else { rig.verdict(false, "the row is not shown with the reason as its tip"); return 1 }
+        rig.verdict(rig.boxWord(row) == "off(disabled)", "the row's box is off and disabled: \(rig.boxWord(row))")
+        rig.verdict(rig.probe.report().approved.contains("/p/odd/plain"), "its plain neighbour is ticked and sent")
+        agree("initial")
+        rig.click(row)
+        agree("a click on the box does nothing")
+        rig.probe.barSelectAll(); rig.settleAll()
+        agree("Select All")
+        rig.probe.barSelectNone(); rig.settleAll()
+        agree("Select None")
+        rig.probe.choosableAgain(bad); rig.settleAll()
+        rig.probe.barSelectAll(); rig.settleAll()
+        agree("a screen calls it choosable again, then Select All")
+        rig.space(rows: [row])
+        agree("Space on it")
+        mark("end review:unlistable")
+        return rig.exitCode
+    }
+
     /// An app the apply quits without a tick: a dimmed box that is on, never approved, never "kept".
     static func acting() -> Int32 {
         let rig = ReviewRig(acting: true)
@@ -213,6 +289,12 @@ enum ProbeReview {
             rig.verdict(rig.boxWord(kept) == "off(disabled)" && rig.boxWord(opera) == "on(disabled)"
                             && keptHelp == "Kept: open in an editor" && actingHelp == ReviewRig.operaWord,
                         "acting vs kept: kept \(rig.boxWord(kept)) reads \"\(keptHelp)\" | acting \(rig.boxWord(opera)) reads \"\(actingHelp)\"")
+        }
+        // what VoiceOver says by state (the review table's own labels)
+        if let kept = rig.row(tip: "Kept: open in an editor"), let normal = rig.row(tip: "/p/mobile-app/Pods") {
+            let labels = [rig.box(kept)?.accessibilityLabel(), rig.box(opera)?.accessibilityLabel(), rig.box(normal)?.accessibilityLabel()]
+            rig.verdict(labels == ["Not chosen: node_modules", "Opera: Will Be Asked to Quit", "Include Pods"],
+                        "labels: kept=\(labels[0] ?? "nil") | acting=\(labels[1] ?? "nil") | choosable=\(labels[2] ?? "nil")")
         }
         rig.click(opera)
         rig.verdict(!rig.approved().contains(ReviewRig.opera) && rig.probe.report().acting == [ReviewRig.opera],
@@ -260,6 +342,40 @@ enum ProbeReview {
         if let first = rig.row(tip: "/p/web-app/node_modules") { rig.space(rows: [first]) }
         rig.verdict(rig.probe.report().ticked == before, "Space changes nothing in a read-only review")
         mark("end review:readonly")
+        return rig.exitCode
+    }
+
+    /// Two actions in the same turn reach the review in the order the person made them: a tick and then the
+    /// bar's Select All (or Select None), and Select None and then a tick. The tick is delivered by the box's
+    /// own action, before anything queued behind it can run.
+    static func sameTurn() -> Int32 {
+        let rig = ReviewRig()
+        let chosen = Set(ReviewRig.web + ReviewRig.mobile + ReviewRig.engine)
+        mark("begin review:sameTurn")
+        guard let next = rig.row(tip: "/p/web-app/.next"), let pods = rig.row(tip: "/p/mobile-app/Pods"),
+              let group = rig.groupRow(above: next) else { rig.verdict(false, "rows not found"); return 1 }
+
+        rig.clickNow(next)                                 // untick .next ...
+        rig.probe.barSelectAll()                           // ... and Select All in the same turn
+        rig.settleAll()
+        rig.verdict(rig.approved() == chosen, rig.line("tick, then Select All, same turn: everything ticked (the person's last action wins)"))
+
+        rig.clickNow(pods)                                 // untick Pods ...
+        rig.probe.barSelectNone()                          // ... and Select None in the same turn
+        rig.settleAll()
+        rig.verdict(rig.approved().isEmpty, rig.line("tick, then Select None, same turn: nothing ticked"))
+
+        rig.probe.barSelectNone()                          // Select None ...
+        rig.clickNow(pods)                                 // ... then tick Pods in the same turn
+        rig.settleAll()
+        rig.verdict(rig.approved() == ["/p/mobile-app/Pods"], rig.line("Select None, then tick, same turn: only that row"))
+
+        rig.probe.barSelectAll()
+        rig.clickNow(group)                                // a group's box (all of web-app off) ...
+        rig.probe.barSelectAll()                           // ... then Select All in the same turn
+        rig.settleAll()
+        rig.verdict(rig.approved() == chosen, rig.line("group tick, then Select All, same turn: everything ticked"))
+        mark("end review:sameTurn")
         return rig.exitCode
     }
 }
