@@ -181,7 +181,7 @@ struct RunHistoryList: View {
             }
             if cut {
                 Section {
-                    Button(limit != nil && extra == 0 ? Names.Raw.showAll : Names.Raw.showOlder) { extra += Self.cap }
+                    Button(Names.Raw.showOlder) { extra += Self.cap }
                 }
             }
         }
