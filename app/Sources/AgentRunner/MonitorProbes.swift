@@ -88,12 +88,12 @@ func probeMonitor() -> Never {
 /// from (or the one above it: the checks run it from `app/`), else the suite the app resolves.
 func probeRoot(_ args: [String]) -> URL {
     if let at = args.firstIndex(of: "--root"), args.indices.contains(at + 1) { return URL(fileURLWithPath: args[at + 1]) }
-    let here = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-    for candidate in [here, here.deletingLastPathComponent()]
-    where FileManager.default.fileExists(atPath: candidate.appending(path: "lib/coding-agents.tsv").path) {
-        return candidate
-    }
-    return AnalyzersPaths.suiteRoot
+    // the checkout this binary was built from, whatever folder it is run in, so the answer is the same everywhere;
+    // never the person's own install, which may hold another version of the engine
+    let built = ProbeSandbox.sourceRoot
+    if FileManager.default.fileExists(atPath: built.appending(path: "lib/coding-agents.tsv").path) { return built }
+    print("this probe could not find the checkout it was built from (\(built.path)); pass --root <checkout>")
+    exit(2)
 }
 
 // `agent-runner --probe-agents` proves the app and the engine read one list of

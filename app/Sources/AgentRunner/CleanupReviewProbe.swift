@@ -88,6 +88,11 @@ func probeCleanupReview(_ args: [String]) -> Never {
     let dir = FileManager.default.temporaryDirectory.appending(path: "ma-probe-cleanup-\(UUID().uuidString)")
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: dir) }
+    // the list of coding agents is the probe's own, naming nothing that runs here: whether the stand-in programs are
+    // "part of a live session" must not depend on the list that is installed or on what started this probe
+    let list = dir.appending(path: "coding-agents.tsv")
+    try? "Probe Agent\texe\tma-probe-no-such-agent\n".write(to: list, atomically: true, encoding: .utf8)
+    CodingAgentHosts.useList(at: list)
     let record = dir.appending(path: "record.txt")
     let script = dir.appending(path: "cleaner.sh")
     try? """
@@ -296,6 +301,9 @@ func probeCleanupReview(_ args: [String]) -> Never {
     check("nothing ticked sends an explicit empty list through the clamp", t5?.file?.isEmpty == true, "file \(t5?.file ?? ["no list"])")
 
     if !approvalCases() { failed = true }
+    // exit() does not run the deferred clean-up above: remove the probe's folder and programs first
+    for p in procs where p.isRunning { p.terminate() }
+    try? FileManager.default.removeItem(at: dir)
     exit(failed ? 1 : 0)
 }
 

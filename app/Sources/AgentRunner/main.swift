@@ -11,6 +11,9 @@ import Foundation
 
 let args = Array(CommandLine.arguments.dropFirst())
 
+// a probe that judges itself runs in a throwaway home, never in the person's (see ProbeSandbox.swift)
+if let first = args.first, ProbeSandbox.names.contains(first) { ProbeSandbox.enter(first) }
+
 // `agent-runner --probe-setup` prints the same checklist the Setup screen
 // shows, as plain text. Support can ask for its output, and it is the only
 // way to see the verdicts on a Mac you cannot click through.
