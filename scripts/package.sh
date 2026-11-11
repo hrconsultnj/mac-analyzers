@@ -66,7 +66,9 @@ mkdir -p "$stage"
 # ── 1. build, without installing ───────────────────────────────────────────
 echo "→ building Mac Analyzers $version"
 build_log="$work/build.log"
-if ! MA_NO_INSTALL=1 ./app/build.sh >"$build_log" 2>&1; then
+# MA_STRICT_WARNINGS=1: a download for other people is never built from code
+# that has a compiler warning.
+if ! MA_STRICT_WARNINGS=1 MA_NO_INSTALL=1 ./app/build.sh >"$build_log" 2>&1; then
   echo "package: the build failed — last lines:" >&2
   grep -E "error:" -A4 "$build_log" | tail -30 >&2 || tail -20 "$build_log" >&2
   exit 1

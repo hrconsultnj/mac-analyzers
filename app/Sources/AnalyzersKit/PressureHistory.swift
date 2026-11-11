@@ -18,7 +18,7 @@ public final class PressureHistory {
 
     public init() {
         record()
-        let t = Timer(timeInterval: 30, repeats: true) { _ in
+        let t = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.record() }
         }
         t.tolerance = 5

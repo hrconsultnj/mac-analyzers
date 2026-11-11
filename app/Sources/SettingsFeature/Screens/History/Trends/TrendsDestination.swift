@@ -2,7 +2,7 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-@ViewBuilder
+@MainActor @ViewBuilder
 func trendsDestination(_ route: TrendsRoute) -> some View {
     switch route {
     case .kills(let period):

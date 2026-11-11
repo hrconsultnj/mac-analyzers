@@ -53,23 +53,21 @@ public final class NotificationPoster: NSObject {
     /// System Settings pane so the user can flip it themselves (apps cannot
     /// reset their own grant — that lever is deliberately the user's).
     public func reRequestPermission(completion: @escaping @MainActor (String) -> Void) {
-        center.getNotificationSettings { settings in
-            let status = settings.authorizationStatus
-            Task { @MainActor in
-                switch status {
-                case .notDetermined:
-                    self.center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
-                        Task { @MainActor in
-                            completion(granted ? "Permission granted." : "Permission declined — enable it in System Settings.")
-                        }
-                    }
-                case .denied:
-                    completion("Currently denied — opening System Settings so you can re-enable it.")
-                    GuardControl.openNotificationSettings()
-                default:
-                    completion("Already allowed — opening System Settings for style/preview options.")
-                    GuardControl.openNotificationSettings()
-                }
+        // The async forms of the UserNotifications calls, awaited from the
+        // main actor: the center and the request never cross into a
+        // @Sendable completion handler.
+        Task {
+            let settings = await center.notificationSettings()
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+                completion(granted ? "Permission granted." : "Permission declined — enable it in System Settings.")
+            case .denied:
+                completion("Currently denied — opening System Settings so you can re-enable it.")
+                GuardControl.openNotificationSettings()
+            default:
+                completion("Already allowed — opening System Settings for style/preview options.")
+                GuardControl.openNotificationSettings()
             }
         }
     }
@@ -101,14 +99,14 @@ public final class NotificationPoster: NSObject {
                                             content: content, trigger: nil)
         // Safety net for anyone who never opens Setup: the first thing worth
         // announcing is also a fine moment to ask.
-        center.getNotificationSettings { [center] settings in
+        // Declining the prompt still falls through to `add`, as before; for a
+        // user who declined, macOS simply does not show it.
+        Task {
+            let settings = await center.notificationSettings()
             if settings.authorizationStatus == .notDetermined {
-                center.requestAuthorization(options: [.alert, .sound]) { _, _ in
-                    center.add(request)
-                }
-            } else {
-                center.add(request)
+                _ = try? await center.requestAuthorization(options: [.alert, .sound])
             }
+            try? await center.add(request)
         }
     }
 
