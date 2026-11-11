@@ -41,13 +41,45 @@ where Value.RawValue == String {
     let isActive: Bool
     @Environment(Navigator.self) private var navigator
     @Environment(\.stackDepth) private var depth
+    @State private var columnWidth: CGFloat = 0
+    @State private var fullWidth: CGFloat = 0
+    @State private var menuWidth: CGFloat = 0
+    @State private var titleWidth: CGFloat = ToolbarBudget.defaultTitleWidth
+
+    /// What the toolbar holds besides the tabs: nav buttons, search, the title block.
+    private var base: CGFloat { ToolbarBudget.chrome + titleWidth }
+
+    /// The full row of tabs does not fit beside the nav buttons and the title: collapse them into
+    /// one control that shows the current tab, rather than let the system drop them into `»`.
+    private var collapsed: Bool { columnWidth > 0 && fullWidth > 0 && columnWidth < base + fullWidth }
+
+    /// The job status item gives way before the tabs do: it shows only when it fits beside whichever
+    /// form of the tabs is on screen.
+    private var allowsStatus: Bool {
+        guard columnWidth > 0, fullWidth > 0 else { return true }
+        return columnWidth >= base + (collapsed ? menuWidth : fullWidth) + ToolbarBudget.statusItem
+    }
 
     func body(content: Content) -> some View {
         // Top of the stack by construction: a screen with something pushed over it publishes no
         // commands, so no screen can forget `isActive`.
         let isActive = isActive && navigator.path.count == depth
         return content
-            .toolbar { ScopeTabsToolbar(items: items, selection: $selection) }
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { columnWidth = $0 }
+            // the full row's own width, measured where it can be laid out freely
+            .background {
+                ScopeTabs(selection: $selection, items: items, style: .measure)
+                    .fixedSize().hidden().accessibilityHidden(true)
+                    .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { fullWidth = $0 }
+            }
+            .background {
+                ScopeTabs(selection: $selection, items: items, style: .menu)
+                    .fixedSize().hidden().accessibilityHidden(true)
+                    .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { menuWidth = $0 }
+            }
+            .preference(key: ToolbarAllowsStatusKey.self, value: allowsStatus)
+            .onPreferenceChange(ToolbarTitleWidthKey.self) { titleWidth = $0 ?? ToolbarBudget.defaultTitleWidth }
+            .toolbar { ScopeTabsToolbar(items: items, selection: $selection, collapsed: collapsed) }
             .focusedSceneValue(\.scopeTabs, isActive ? ScopeTabsCommands(
                 titles: items.map(\.title),
                 select: { index in if items.indices.contains(index) { selection = items[index].value } }) : nil)
@@ -60,11 +92,13 @@ where Value.RawValue == String {
 private struct ScopeTabsToolbar<Value: Hashable & Sendable>: ToolbarContent {
     let items: [ScopeTabItem<Value>]
     @Binding var selection: Value
+    let collapsed: Bool
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .principal) { ScopeTabs(selection: $selection, items: items) }
-            .toolbarRank(.primary)
-        ToolbarSpacer(.fixed, placement: .principal)
+        ToolbarItem(placement: .primaryAction) {
+            ScopeTabs(selection: $selection, items: items, style: collapsed ? .menu : .tabs)
+        }
+        .toolbarRank(.primary)
     }
 }
 

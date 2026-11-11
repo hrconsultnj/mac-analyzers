@@ -17,6 +17,8 @@ public struct MainWindowView: View {
     /// every re-creation of this view struct.
     @State private var session: Session
     @Environment(JobStore.self) private var jobs
+    /// Whether the screen's toolbar has room for the job status item (see `ToolbarAllowsStatusKey`).
+    @State private var allowsStatus = true
     private var navigator: Navigator { session.navigator }
 
     /// `restoresLocation: false` starts at the home screen and never reads or writes the
@@ -36,8 +38,9 @@ public struct MainWindowView: View {
         // dropped, which left the window with no Back or Forward button at all.
         .toolbar {
             HistoryToolbar(navigator: navigator)
-            JobStatusToolbarItem(store: jobs, navigator: navigator)
+            JobStatusToolbarItem(store: jobs, navigator: navigator, allowed: allowsStatus)
         }
+        .onPreferenceChange(ToolbarAllowsStatusKey.self) { allowsStatus = $0 }
         .frame(minWidth: 780, minHeight: 620)
         .environment(navigator)
         .focusedSceneValue(\.navigator, navigator)

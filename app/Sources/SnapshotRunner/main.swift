@@ -33,6 +33,13 @@ import SwiftUI
 import SettingsFeature
 
 let arguments = Array(CommandLine.arguments.dropFirst())
+// Each run starts from the target it was given, with nothing remembered from an earlier run (the
+// saved location, the chosen tab, the opened groups): clear this tool's own defaults domain. Never
+// the app's.
+if let domain = Bundle.main.bundleIdentifier ?? Optional(ProcessInfo.processInfo.processName),
+   domain != "com.mac-analyzers.app" {
+    UserDefaults.standard.removePersistentDomain(forName: domain)
+}
 // `--outline-probe <action> …` drives the shared OutlineTable headless (OutlineProbe.swift); it never renders a screen
 if arguments.first == "--outline-probe" { OutlineProbe.run(Array(arguments.dropFirst())) }
 // the example screens (`review:fixture`) can be linked only in this process; this tool has no
@@ -65,6 +72,8 @@ let scrollToEnd = arguments.contains("--scroll-end")
 /// `--update-state uptodate|dev|available`: which state the sidebar's version item shows
 /// (the network is not asked), to render every state of it.
 let updateStateOption = option("--update-state")
+/// `--appearance light|dark`: the window's appearance (default: the system's).
+let appearanceOption = option("--appearance")
 
 @MainActor
 final class Snapshot: NSObject, NSApplicationDelegate {
@@ -132,6 +141,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.contentViewController = controller
+        if let a = appearanceOption { window.appearance = NSAppearance(named: a == "light" ? .aqua : .darkAqua) }
         window.toolbarStyle = .unified
         window.setContentSize(size)
         // far outside every display: drawn by the window server, seen by nobody
@@ -227,6 +237,13 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         } catch {
             FileHandle.standardError.write(Data("snapshot-runner: could not run screencapture: \(error)\n".utf8))
             finish(1)
+        }
+        // the window cannot be smaller than the app's own minimum: say so instead of letting a
+        // "760" render pass for 760
+        let actual = window.contentView?.frame.size ?? size
+        let clamped = abs(actual.width - size.width) > 1 || abs(actual.height - size.height) > 1
+        if clamped {
+            print("snapshot-runner: asked for \(Int(size.width))x\(Int(size.height)); the window's minimum made it \(Int(actual.width))x\(Int(actual.height))")
         }
         let made = FileManager.default.fileExists(atPath: output.path)
         print(made ? "\(target) → \(output.path)  (window title: \(window.title))"

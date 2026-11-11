@@ -10,6 +10,12 @@ public struct ScopeTabItem<Value: Hashable & Sendable>: Identifiable {
 
     public var id: Value { value }
 
+    /// "Running 2", or just "Running" when there is nothing to count: a tab with a count of zero says nothing.
+    var titleWithCount: String {
+        guard let count, count > 0 else { return title }
+        return "\(title) \(count)"
+    }
+
     public init(value: Value, title: String, symbol: String, count: Int? = nil) {
         self.value = value
         self.title = title
@@ -42,18 +48,64 @@ public struct ScopeTabItem<Value: Hashable & Sendable>: Identifiable {
 /// purpose. The drawing is `ScopeTabButtons`, one private view; a different native control would
 /// replace only that.
 public struct ScopeTabs<Value: Hashable & Sendable>: View {
+    /// How the categories are drawn: every one as a button, or collapsed into ONE control that
+    /// shows the current category (icon, title, count) and opens a menu of all of them. Same
+    /// component, same state; a window's toolbar switches to `.menu` when the buttons cannot fit.
+    public enum Style: Sendable { case tabs, menu, measure }
+
     @Binding var selection: Value
     let items: [ScopeTabItem<Value>]
+    let style: Style
 
-    public init(selection: Binding<Value>, items: [ScopeTabItem<Value>]) {
+    public init(selection: Binding<Value>, items: [ScopeTabItem<Value>], style: Style = .tabs) {
         _selection = selection
         self.items = items
+        self.style = style
     }
 
     public var body: some View {
         assert((2...6).contains(items.count),
                "ScopeTabs takes two to six categories; a screen with one kind of thing has no tabs, and seven or more need a different control (ask the lead)")
-        return ScopeTabButtons(selection: $selection, items: items)
+        return Group {
+            switch style {
+            case .tabs: ScopeTabButtons(selection: $selection, items: items)
+            case .menu: ToolbarChoice(selection: $selection, items: items)
+            case .measure: ScopeTabButtons(selection: $selection, items: items, rowForMeasuring: true)
+            }
+        }
+    }
+}
+
+/// A choice that lives in a toolbar as ONE menu button showing the current choice (icon, title,
+/// count) and listing every choice with its icon: the collapsed form of `ScopeTabs`, the way Finder's
+/// view switcher collapses, and the way to put any other picker in a toolbar (a bare `Picker` there
+/// renders as an empty capsule). No limit on how many choices.
+///
+///     ToolbarChoice(selection: $range, items: ranges)     // ScopeTabItem(value:title:symbol:)
+public struct ToolbarChoice<Value: Hashable & Sendable>: View {
+    public init(selection: Binding<Value>, items: [ScopeTabItem<Value>]) {
+        _selection = selection
+        self.items = items
+    }
+
+    @Binding var selection: Value
+    let items: [ScopeTabItem<Value>]
+
+    public var body: some View {
+        let current = items.first { $0.value == selection } ?? items[0]
+        Menu {
+            Picker("Category", selection: $selection) {
+                ForEach(items) { item in
+                    Label { Text(item.titleWithCount) } icon: { Image(systemName: item.symbol) }.tag(item.value)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Label { Text(current.titleWithCount) } icon: { Image(systemName: current.symbol) }
+        }
+        .menuIndicator(.visible)
+        .labelStyle(.titleAndIcon)
+        .help("Choose a category")
     }
 }
 
@@ -61,22 +113,32 @@ public struct ScopeTabs<Value: Hashable & Sendable>: View {
 private struct ScopeTabButtons<Value: Hashable & Sendable>: View {
     @Binding var selection: Value
     let items: [ScopeTabItem<Value>]
+    /// Draws the same buttons side by side in a plain row, for a hidden copy that reports their width
+    /// (a `ControlGroup` outside a toolbar does not lay out as one row).
+    var rowForMeasuring = false
 
     var body: some View {
-        ControlGroup {
-            ForEach(items) { item in
-                Toggle(isOn: Binding(get: { selection == item.value }, set: { if $0 { selection = item.value } })) {
-                    Label { title(item) } icon: { Image(systemName: item.symbol) }
-                }
-                .toggleStyle(.button)
-            }
+        if rowForMeasuring {
+            HStack(spacing: 0) { buttons }.labelStyle(.titleAndIcon)
+        } else {
+            ControlGroup { buttons }
+                .labelStyle(.titleAndIcon)
+                .help("Choose a category")
         }
-        .labelStyle(.titleAndIcon)
-        .help("Choose a category")
+    }
+
+    private var buttons: some View {
+        ForEach(items) { item in
+            Toggle(isOn: Binding(get: { selection == item.value }, set: { if $0 { selection = item.value } })) {
+                Label { title(item) } icon: { Image(systemName: item.symbol) }
+            }
+            .toggleStyle(.button)
+        }
     }
 
     private func title(_ item: ScopeTabItem<Value>) -> Text {
-        guard let count = item.count else { return Text(item.title) }
+        // a count of zero is not shown: it only makes the tabs wider
+        guard let count = item.count, count > 0 else { return Text(item.title) }
         return Text("\(item.title) \(Text("\(count)").foregroundStyle(.secondary))")
     }
 }

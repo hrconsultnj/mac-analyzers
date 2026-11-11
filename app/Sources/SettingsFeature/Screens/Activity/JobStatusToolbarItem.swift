@@ -11,6 +11,8 @@ import UIComponents
 struct JobStatusToolbarItem: ToolbarContent {
     let store: JobStore
     let navigator: Navigator
+    /// False when the screen's tabs need the room (`ToolbarAllowsStatusKey`).
+    var allowed = true
 
     /// Priority: the screen's own controls come first, and this item is secondary.
     /// On Activity's own list it is not shown at all (it is on a run screen pushed over
@@ -20,10 +22,11 @@ struct JobStatusToolbarItem: ToolbarContent {
     /// group into the overflow menu at 900 points when both were present). It is
     /// on every other screen.
     var body: some ToolbarContent {
-        if !(navigator.section == OverviewGroup.activity && navigator.path.isEmpty) {
+        if allowed && !(navigator.section == OverviewGroup.activity && navigator.path.isEmpty) {
             ToolbarItem(placement: .status) {
                 JobStatusItemView(store: store, navigator: navigator)
             }
+            .toolbarRank(.secondary)
         }
     }
 }
@@ -50,8 +53,9 @@ private struct JobStatusItemView: View {
             running(job)
         } else if let job = recentlyFinished, let end = job.finishedAt {
             // redrawn once, when the 30 seconds are up
+            // never on the job's own screen: its title already says so and it takes the tabs' room
             TimelineView(.explicit([end.addingTimeInterval(Self.linger)])) { _ in
-                if Date() < end.addingTimeInterval(Self.linger) { finished(job) }
+                if Date() < end.addingTimeInterval(Self.linger), !isOnOwnScreen(job) { finished(job) }
             }
         }
     }
@@ -105,6 +109,30 @@ private struct JobStatusItemView: View {
                 .foregroundStyle(ok ? Tokens.Status.safe.tint : Tokens.Status.caution.tint)
         }
         .help("\(sentence). Open \(job.kind.title) in Activity.")
+    }
+
+    /// The screen a job belongs to is the one its task is named after: where its log, its review or
+    /// its own link leads (the same places a run's "Open <Task>" and "Review" go).
+    private func isOnOwnScreen(_ job: Job) -> Bool {
+        let kind = job.kind
+        var targets: [String] = []
+        if let log = kind.log { targets.append("log:\(log.rawValue)") }
+        switch kind {
+        case .memoryClean, .reclaim, .storageClean, .janitor, .tempClean: targets.append("actions:\(kind.rawValue)")
+        case .spotlight: targets.append("spotlight")
+        case .loginItems: targets.append("log:loginItems")
+        case .memoryReport, .storageReport: targets.append("reports")
+        case .networkSnapshot: targets.append("network")
+        case .installAgents, .sudoersInstall: targets.append("setup")
+        case .uninstallAgents: targets.append("uninstall")
+        default: break
+        }
+        return targets.contains { target in
+            switch DeepLinkRouter.resolve(target) {
+            case .main(let location), .mainWithIntent(let location, _): location.section == navigator.section
+            default: false
+            }
+        }
     }
 
     private func open(_ job: Job) {
