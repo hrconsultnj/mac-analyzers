@@ -209,6 +209,8 @@ public struct OverviewModel: Sendable {
         switch event.kind {
         case .killed(let reason):
             "Stopped by \(Names.Screen.memoryGuard)" + (event.residentText.map { " — was using \($0)" } ?? "") + " (\(reason))"
+        case .stopFailed:
+            "It had already ended by the time \(Names.Screen.memoryGuard) acted, so nothing was stopped"
         case .spike:
             "Memory was climbing" + (event.residentText.map { " — at \($0)" } ?? "")
         case .capExceeded: "Went over the memory limit" + (event.residentText.map { " — at \($0)" } ?? "")

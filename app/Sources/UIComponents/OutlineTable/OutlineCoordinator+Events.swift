@@ -94,7 +94,7 @@ extension OutlineCoordinator {
         }
         sender.state = value ? .on : .off
         recordTick(node, value)
-        scheduleFlush()
+        deliverTicks()
     }
 
     /// Space: ticks every selected row that can be chosen — all on unless they
@@ -105,19 +105,39 @@ extension OutlineCoordinator {
         guard !targets.isEmpty else { return true }
         let allOn = targets.allSatisfy { effectiveTick(for: $0) == .on }
         for node in targets { recordTick(node, !allOn) }
-        scheduleFlush()
-        // the checkboxes show it now, not after the caller has heard
-        let first = IndexSet(integer: 0)
-        for node in targets {
-            let row = outline.row(forItem: node)
-            if row >= 0 { outline.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: first) }
-        }
+        deliverTicks()
         return true
     }
 
     private func recordTick(_ node: Node, _ value: Bool) {
         pending.tickValues[node.id] = value
         pending.tickWrites.append((node.id, value))
+    }
+
+    /// A tick reaches the caller's state NOW when AppKit is not calling in, and one main turn later
+    /// only when it is. A box's action and the Space key are events, not callbacks: nothing AppKit is
+    /// in the middle of can be disturbed by the write, and delivering at once keeps the person's actions
+    /// in the order they made them (a tick, then the bar's Select All, must not run as Select All, then
+    /// the tick). Rule 2 — writes wait for the next turn — is for the writes that arise INSIDE a
+    /// callback: selection, expansion and sort, which are only ever noticed from one.
+    private func deliverTicks() {
+        guard !pending.tickWrites.isEmpty else { return }
+        guard depth == 0, !isApplying else {
+            // AppKit is calling in: the outline is not touched here. The box already shows the new
+            // state (`sender.state`), and the flush a turn later redraws every visible value.
+            scheduleFlush()
+            return
+        }
+        let writes = pending.tickWrites
+        pending.tickWrites = []
+        for write in writes {
+            if let node = nodes.node(for: write.id), let ticks = configuration.ticks, ticks.state(node.row).isAvailable {
+                ticks.set(node.row, write.value)
+            }
+            pending.tickValues[write.id] = nil
+        }
+        // a group's box follows a member's tick, and the other way round: redraw what is on screen
+        updater.refreshVisibleValues()
     }
 
     // MARK: - context menu

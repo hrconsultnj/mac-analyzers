@@ -134,7 +134,7 @@ enum TrendsModel {
             case .capExceeded, .pressureWarning, .pressureCritical, .warning:
                 pressure += 1
                 bucket.other += 1
-            case .forensics:
+            case .forensics, .stopFailed:   // a stop that found the process already gone is not a kill
                 bucket.other += 1
             }
             perDay[day] = bucket

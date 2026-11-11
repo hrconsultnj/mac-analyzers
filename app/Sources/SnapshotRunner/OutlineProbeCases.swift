@@ -25,6 +25,7 @@ extension ProbeChecks {
         case "env": return environmentCase(options)
         case "menu": return menu(options)
         case "lines": return lines(options)
+        case "tickBigGroup": return tickBigGroup(options)
         case "openWithInsert": return openWithInsert(options)
         case _ where name.hasPrefix("rv-"): return ProbeReviewed.run(String(name.dropFirst(3)), options)
         default:
@@ -269,5 +270,39 @@ extension ProbeChecks {
         let expected = 655 + targets.count * 8
         say("openWithInsert rows=\(harness.outline.numberOfRows) expected=\(expected) opened=\(targets.count)")
         return harness.outline.numberOfRows == expected ? 0 : 1
+    }
+}
+
+extension ProbeChecks {
+    /// A tick on a group of 1,000 members is delivered at once (not a turn later) and brings no
+    /// reentrancy warning back: the deferral of writes exists for writes made inside AppKit's own
+    /// callbacks, and a box's action is not one.
+    fileprivate static func tickBigGroup(_ options: ProbeOptions) -> Int32 {
+        let model = TickModel.big(1000)
+        let harness = ProbeHarness(TickScreen(model: model, hosted: options.hosted))
+        let outline = harness.outline!
+        model.expanded = ["big"]
+        _ = settle(); spin(0.3)
+        var ok = true
+        func verdict(_ good: Bool, _ line: String) { say((good ? "PASS " : "FAIL ") + line); if !good { ok = false } }
+        mark("begin tickBigGroup")
+        func send(_ row: Int) {
+            guard let box = tickButton(outline, row: row), let action = box.action else { return }
+            box.state = box.state == .on ? .off : .on
+            _ = NSApp.sendAction(action, to: box.target, from: box)
+        }
+        // the group's box: 1,000 members, delivered by the action itself, before any run loop turn
+        send(0)
+        verdict(model.ticked.count == 1000 && model.setCalls == ["big=true"], "group of 1,000 ticked at once: ticked=\(model.ticked.count) setCalls=\(model.setCalls)")
+        _ = settle(); spin(0.3)
+        verdict(word(model.state(model.rows[0])) == "on", "the group's box after the update: \(word(model.state(model.rows[0])))")
+        send(0)
+        verdict(model.ticked.isEmpty, "unticked at once: ticked=\(model.ticked.count)")
+        send(0); _ = settle(); spin(0.2)
+        send(2)                                                         // one member (row 0 is the group, 1 the first member)
+        _ = settle(); spin(0.3)
+        verdict(model.ticked.count == 999 && word(model.state(model.rows[0])) == "mixed", "one member off: ticked=\(model.ticked.count), group \(word(model.state(model.rows[0])))")
+        mark("end tickBigGroup")
+        return ok ? 0 : 1
     }
 }

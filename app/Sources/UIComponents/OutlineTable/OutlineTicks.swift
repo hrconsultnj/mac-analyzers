@@ -10,7 +10,8 @@ public struct OutlineTicks<Row: Identifiable> {
     /// - Parameters:
     ///   - state: the row's tick. A group's state is the combination of its
     ///     choosable members (`OutlineTickState.combining`).
-    ///   - set: called on the next main turn with the value the person chose.
+    ///   - set: called with the value the person chose, at once for a click on a box or the Space key
+    ///     (so the person's actions reach the caller in the order they were made).
     ///     For a group row the caller sets every choosable member. Never called
     ///     for a row whose state is `.unavailable`.
     ///   - label: what VoiceOver says, e.g. "Include node_modules".

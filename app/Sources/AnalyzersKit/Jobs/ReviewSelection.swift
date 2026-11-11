@@ -39,7 +39,8 @@ public struct ReviewSelection: Sendable {
         public let acts: Bool
         public init(id: String, choosable: Bool = true, acts: Bool = false) {
             self.id = id
-            self.choosable = choosable && !acts
+            // a key the approved list cannot carry (a line break) is never choosable, whoever built the item
+            self.choosable = choosable && !acts && ApprovedSet.isListable(id)
             self.acts = acts
         }
     }
@@ -105,6 +106,9 @@ public struct ReviewSelection: Sendable {
     }
 
     public mutating func selectNone() { deselected = choosable }
+
+    /// Whether any row is ticked, without building the list: the unticked rows are all choosable rows.
+    public var hasTicked: Bool { choosable.count > deselected.count }
 
     public var tickedIDs: [String] { items.map(\.id).filter(isTicked) }
     public var actingIDs: [String] { items.filter(\.acts).map(\.id) }

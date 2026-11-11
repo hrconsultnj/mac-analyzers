@@ -33,7 +33,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 ROOT="$(cd "$(dirname "$0")/.." && pwd)" || exit 2
 cd "$ROOT" || exit 2
 
-ALL="syntax lint secrets changelog tests workflows strays spi env names probes outline app"
+ALL="syntax lint secrets changelog tests workflows strays spi env snapshot names probes outline app"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ma-check.XXXXXX")" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -55,7 +55,8 @@ describe() {
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root; no source file hidden by .gitignore" ;;
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
     env)       echo "the app people install reads no environment variable: ProcessInfo's environment and getenv appear only in AgentRunner, SnapshotRunner and the one file that passes the environment on to the engine scripts" ;;
-    probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids, Undo restore safety (agent-runner; macOS only)" ;;
+    snapshot)  echo "the snapshot tool's main.swift has no top-level await: one makes its top-level code an async task, and an app run inside a task never fires its delayed capture, so every render hangs" ;;
+    probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids, Undo restore safety, the menu-bar panel's Quit and Stop (agent-runner; macOS only)" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
     outline)   echo "the shared OutlineTable, headless: open all and re-sort with text and with hosted cells log no AppKit reentrancy warning (scripts/outline-probe.sh; macOS only)" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
@@ -270,6 +271,10 @@ EOF
 # AnalyzersKit (where the hooks are declared) and in the two targets that are
 # never part of the shipped app's behaviour — AgentRunner's probes and
 # SnapshotRunner's fixtures — and nowhere else.
+# One thing outside this check ON PURPOSE: `ReviewFixtureProbe` (SettingsFeature/Screens/Shared/Review) is a
+# `public` type compiled into the shipped module, with no `@_spi`, that only SnapshotRunner reaches. It builds
+# scenarios from the fixture rows only, exposes `report()` and named steps, and cannot apply anything: the same
+# wall as `DeepLinkRouter.installFixtures()`. Do not copy the pattern for anything that can change a real preview.
 # MA_SPI_ROOT points the check at another copy of app/Sources (used to prove it fails).
 check_spi() {
   local root="${MA_SPI_ROOT:-$ROOT/app/Sources}"
@@ -313,11 +318,33 @@ check_env() {
   return 0
 }
 
+# SnapshotRunner renders a screen and captures it after a delay on the main
+# dispatch queue. One `await` in main.swift's top-level code turns that code
+# into an async task; NSApplication.run() started inside a task never services
+# the main dispatch queue, the capture never fires, and every render hangs
+# until something kills it (found 2026-11-11, after a night of renders blamed on
+# a locked screen). A real render cannot be a check (it needs an unlocked
+# screen), so the cause is refused instead: no `await` at the start of a line
+# outside a function, closure or type in that file.
+check_snapshot() {
+  local file="app/Sources/SnapshotRunner/main.swift"
+  if [ ! -f "$file" ]; then DETAIL="skipped: no $file"; return 2; fi
+  grep -nE '^(await|let [A-Za-z_]+ = (try )?await|try await|_ = (try )?await) ' "$file" | cut -c1-300 >"$OUT"
+  if [ -s "$OUT" ]; then
+    DETAIL="a top-level await in the snapshot tool — call it directly (top-level code is on the main actor) or move it into a Task"
+    return 1
+  fi
+  DETAIL="no top-level await in the snapshot tool"
+  return 0
+}
+
 # Probes that judge themselves: each builds its own stand-in data in a temporary
 # folder, reads nothing of the person's, and exits non-zero when a rule breaks.
 # A probe that only prints (review rules, quit, failures) is not here: nothing
 # would fail. Add a probe to PROBES when it has an exit status worth trusting.
-PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-undo-fixture"
+# --probe-stop-targets is not here: it needs a shell outside the system folders, detaches itself, starts
+# processes and takes about a minute, so it is run by hand (and by the person reviewing a stop path).
+PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-undo-fixture --probe-panel-stop"
 check_probes() {
   local app="$ROOT/app"
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
@@ -504,7 +531,7 @@ if [ -n "$range" ]; then
       case "$n" in
         syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
         changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
-        app|spi|env|names|probes|outline) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
+        app|spi|env|snapshot|names|probes|outline) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
         secrets|strays) selected="$selected $n" ;;
       esac
     done

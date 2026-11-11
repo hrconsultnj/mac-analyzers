@@ -22,18 +22,27 @@ public struct LiveProcess: Identifiable, Sendable, Hashable {
     /// macOS's own services running as the user — quitting `loginwindow`
     /// logs you out on the spot. They are shown and measured, never offered.
     public let canQuit: Bool
+    /// Who this pid was when it was sampled: its start time. A stop re-checks it,
+    /// so a row drawn minutes ago can never signal the program the system has
+    /// since given the pid to. nil when it could not be read.
+    public let identity: ProcessIdentity?
     public var id: Int { pid }
 
     public init(pid: Int, residentMB: Int, rawName: String, kind: Kind, ppid: Int = 0,
-                footprintBytes: Int64? = nil, label: String? = nil, canQuit: Bool = true) {
+                footprintBytes: Int64? = nil, label: String? = nil, canQuit: Bool = true,
+                identity: ProcessIdentity? = nil) {
         self.pid = pid
         self.residentMB = residentMB
-        self.rawName = rawName
+        // shown on rows, searched and copied: never with a value that may be secret. Callers
+        // pass `CommandLineDisplay.shown(_:)` (redacted, then cut); this is the backstop for one
+        // that passes raw text.
+        self.rawName = CommandLineDisplay.redacted(rawName)
         self.kind = kind
         self.ppid = ppid
         self.footprintBytes = footprintBytes
         self.label = label
         self.canQuit = canQuit
+        self.identity = identity
     }
 
     public var isDev: Bool { kind == .devTool }

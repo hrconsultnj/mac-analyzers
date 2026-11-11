@@ -29,14 +29,25 @@ final class ReviewSession {
             Logger(subsystem: "com.mac-analyzers.app", category: "review")
                 .error("a review was given \(rows.count - unique.count) repeated key(s); the first of each is kept")
         }
-        self.rows = unique
+        let shown = unique.map(Self.withUnlistableKept)
+        self.rows = shown
         self.ticks = ticks
         selection = ReviewSelection(
             previewID: previewID,
-            items: unique.map { ReviewSelection.Item(id: $0.id, choosable: $0.keptReason == nil, acts: $0.acts) },
+            items: shown.map { ReviewSelection.Item(id: $0.id, choosable: $0.keptReason == nil, acts: $0.acts) },
             deselected: ticks.deselected(for: previewID),
             // rows of nothing are folded out of sight: nobody approves what they cannot see
-            startsUnticked: unique.contains { $0.bytes != nil } ? Set(unique.filter { $0.bytes == 0 }.map(\.id)) : [])
+            startsUnticked: shown.contains { $0.bytes != nil } ? Set(shown.filter { $0.bytes == 0 }.map(\.id)) : [])
+    }
+
+    /// A row whose key the approved list cannot carry (it has a line break) is shown as kept, with
+    /// the reason in words: decided here so no screen has to remember it, and the selection, the bar's
+    /// counts, the sent list and the confirmation all see the same row as not choosable.
+    private static func withUnlistableKept(_ row: ReviewRow) -> ReviewRow {
+        guard !row.acts, !ApprovedSet.isListable(row.id) else { return row }
+        var kept = row
+        kept.keptReason = ApprovedSet.unlistableReason
+        return kept
     }
 
     /// A review that is only read: no preview behind it, nothing to tick.
@@ -45,6 +56,8 @@ final class ReviewSession {
     }
 
     func isTicked(_ id: String) -> Bool { selection.isTicked(id) }
+    /// Whether anything is ticked, without building the rows (Select None's enabled state).
+    var hasTicked: Bool { selection.hasTicked }
 
     func setTicked(_ id: String, _ ticked: Bool) {
         selection.setTicked(id, ticked)
@@ -89,7 +102,8 @@ final class ReviewSession {
             guard !row.acts, let reason = byID[row.id] else { return row }
             var changed = row
             changed.keptReason = reason
-            now[row.id] = reason == nil
+            changed = Self.withUnlistableKept(changed)       // a screen cannot make such a row choosable
+            now[row.id] = changed.keptReason == nil
             return changed
         }
         let selectionChanged = selection.updateChoosable(now)

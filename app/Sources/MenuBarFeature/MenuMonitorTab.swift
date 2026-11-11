@@ -64,66 +64,122 @@ extension MenuContentView {
 }
 
 /// One app, tool or service: its icon, name, what it is made of, the memory it
-/// holds in total, and one Quit (or Stop) for the whole group. Part of macOS:
-/// the same row with a lock where the button would be, so the layout never changes.
+/// holds in total, and one Quit (or Stop) for the whole group.
+///
+/// The row signals nothing itself. Quit and Stop ask `MemoryStop` for a plan from the live process table
+/// when pressed (`PanelStop`); a refusal is said on the row in the sentence the plan gives; a plan that needs
+/// the person's yes is confirmed right here with the plan's own title, detail and action word before
+/// anything is sent; and a program that did not stop is never forced from here: the row offers to open
+/// Monitor on it, where Force Stop has its own confirmation. A row that cannot be stopped has a lock
+/// where the button would be, so the layout never changes, and says why under its name.
 struct ProcessGroupRow: View {
     let row: MenuPanelModel.ProcessRow
     let reload: () -> Void
     @State private var working = false
+    /// A plan waiting for the person's yes.
+    @State private var asking: MemoryStop.Pending?
+    /// What the last press said, on this row.
+    @State private var said: String?
+    /// Where Monitor opens on this program, when the row cannot finish the job itself.
+    @State private var monitorLink: String?
 
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            // the name side opens Monitor: the place to see what a group is made of and to stop a tool
-            MenuRowButton(action: { SettingsOpener.open(target: "monitor") }) {
-                HStack(alignment: .center, spacing: 8) {
-                    icon.frame(width: 20, height: 20).accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(row.name).font(.callout.weight(.medium))
-                        if let detail = row.detail {
-                            Text(detail).font(.caption).foregroundStyle(.secondary)
+        let offer = PanelStop.offer(for: row.group)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 8) {
+                // the name side opens Monitor: the place to see what a group is made of
+                MenuRowButton(action: { SettingsOpener.open(target: "monitor") }) {
+                    HStack(alignment: .center, spacing: 8) {
+                        icon.frame(width: 20, height: 20).accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(row.name).font(.callout.weight(.medium))
+                            if let detail = row.detail {
+                                Text(detail).font(.caption).foregroundStyle(.secondary)
+                            }
+                            if case .locked(let reason) = offer {
+                                Text(reason).font(.caption).foregroundStyle(.tertiary)
+                            }
                         }
-                        if let reason = lockedReason {
-                            Text(reason).font(.caption).foregroundStyle(.tertiary)
-                        }
+                        .fixedSize(horizontal: false, vertical: true)
                     }
-                    .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(row.sizeText)
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                switch offer {
+                case .quit:
+                    Button("Quit") { begin() }
+                        .disabled(working || asking != nil)
+                        .help("Quit \(row.name) and its helpers, like ⌘Q — save prompts still appear")
+                case .stop:
+                    Button("Stop") { begin() }
+                        .disabled(working || asking != nil)
+                        .help("Ask \(row.name) to stop; nothing is forced")
+                case .locked:
+                    Image(systemName: "lock.fill")
+                        .foregroundStyle(.tertiary)
+                        .accessibilityLabel("Not offered here")
                 }
             }
-            Text(row.sizeText)
-                .font(.callout.monospacedDigit())
-                .foregroundStyle(.secondary)
-            if row.canQuit && row.isApp {
-                // an app: ⌘Q, which still asks about unsaved work
-                Button("Quit") {
-                    working = true
-                    GuardControl.quit(row.group.quit)
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .seconds(2))
-                        reload()
-                        working = false
+            if let asking {
+                confirmation(asking)
+            }
+            if let said {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(said).font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let monitorLink {
+                        Button("Open in \(Names.Screen.monitor)") { SettingsOpener.open(target: monitorLink) }
+                            .buttonStyle(.link)
+                            .font(.caption)
                     }
                 }
-                .disabled(working)
-                .help("Quit \(row.name) and its helpers, like ⌘Q — save prompts still appear")
-            } else {
-                // part of macOS, or a command-line tool group. Stopping a tool group from here could end
-                // every live coding-agent session at once, so it is done in Monitor, which protects
-                // live sessions; the panel offers no Stop for it.
-                Image(systemName: "lock.fill")
-                    .foregroundStyle(.tertiary)
-                    .help(row.canQuit ? "Stop it from \(Names.Screen.monitor), which protects live coding sessions"
-                                      : "Part of macOS — not something to quit from here")
-                    .accessibilityLabel(row.canQuit ? "Stopped from Monitor only" : "Part of macOS, not quittable here")
             }
         }
         .padding(.vertical, 2)
     }
 
-    /// Said in words under the name, because a padlock alone explains nothing in a panel.
-    private var lockedReason: String? {
-        if row.canQuit && row.isApp { return nil }
-        return row.canQuit ? "Stop it in \(Names.Screen.monitor), which protects live coding sessions"
-                           : "Part of macOS"
+    /// The plan's own words and action; Cancel sends nothing.
+    private func confirmation(_ plan: MemoryStop.Pending) -> some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(plan.title).font(.callout.weight(.semibold))
+                Text(plan.detail).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    Button("Cancel") { asking = nil }
+                        .keyboardShortcut(.cancelAction)
+                    Button(plan.actionTitle) { confirm(plan) }
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+        }
+    }
+
+    /// Plans from the live process table now.
+    private func begin() {
+        said = nil
+        monitorLink = nil
+        switch PanelStop.begin(group: row.group) {
+        case .ask(let plan): asking = plan
+        case .say(let why): said = why
+        case .openMonitor(let reason, let link):
+            said = reason
+            monitorLink = link
+        }
+    }
+
+    private func confirm(_ plan: MemoryStop.Pending) {
+        asking = nil
+        working = true
+        Task { @MainActor in
+            let done = await PanelStop.confirm(plan, group: row.group.name)
+            said = done.message
+            monitorLink = done.monitorLink
+            reload()
+            working = false
+        }
     }
 
     @ViewBuilder private var icon: some View {

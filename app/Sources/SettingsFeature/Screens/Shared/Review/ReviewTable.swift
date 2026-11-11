@@ -75,8 +75,12 @@ struct ReviewTable: View {
     /// from what is SENT (the Memory track's list of apps); without it the session's acting rows.
     var actingNames: ((ReviewSession) -> [String])?
     /// Names the screen for what the table remembers of it (which groups are open, column widths).
-    /// Without it the key is the preview's kind, or "readonly" for a review that is only read.
+    /// A table with a preview may leave it out (the key is the preview's kind); a read-only review or
+    /// an example has no preview and MUST pass one, or every such table would share one memory.
     var screen: String?
+    /// Items a screen offers on a row (right-click, and the selection): `.files` for Show in Finder and
+    /// Copy Path. Never changes a tick.
+    var rowMenu: ReviewRowMenu?
 
     @Environment(JobStore.self) private var store
     @State private var sortOrder = [KeyPathComparator(\ReviewNode.sortBytes, order: .reverse)]
@@ -112,8 +116,8 @@ struct ReviewTable: View {
         return gate.sentence
     }
 
-    private var applyDisabled: Bool {
-        if gate != .ready || !ReviewWording.hasWork(sent: sentRows.count, acting: session.actingRows.count) { return true }
+    private func applyDisabled(_ offer: Offer) -> Bool {
+        if gate != .ready || !ReviewWording.hasWork(sent: offer.rows.count, acting: offer.acting.count) { return true }
         guard let applied else { return false }
         switch applied.state {
         case .queued, .running, .succeeded: return true
@@ -122,13 +126,21 @@ struct ReviewTable: View {
     }
 
     /// What the table remembers per screen.
-    private var screenKey: String { "review.\(screen ?? preview?.kind.rawValue ?? "readonly")" }
+    private var screenKey: String {
+        assert(screen != nil || preview != nil,
+               "A ReviewTable with no preview (a read-only review, an example) must be given `screen:`; without it every such table would share one memory of which groups are open.")
+        return "review.\(screen ?? preview?.kind.rawValue ?? "unnamed")"
+    }
 
     var body: some View {
-        ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder, only: only), sortOrder: $sortOrder,
+        // what is on offer is worked out ONCE per body (a pass over every row, a few ms at Downloads'
+        // size) and read by the bar and the change watcher; actions work it out again at the moment they act
+        let offer = readOnly ? nil : offer()
+        return ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder, only: only), sortOrder: $sortOrder,
                         session: readOnly ? nil : session, expansion: expansions.expansion(for: screenKey),
-                        screen: screenKey)
-            .safeAreaInset(edge: .bottom, spacing: 0) { bar }
+                        screen: screenKey, rowMenu: rowMenu,
+                        rowsFor: { ids in session.rows.filter { ids.contains($0.id) } })
+            .safeAreaInset(edge: .bottom, spacing: 0) { bar(offer) }
             .confirmationDialog(frozen?.title ?? applyTitle, isPresented: $asking, titleVisibility: .visible) {
                 Button(applyTitle, role: .destructive) { chosen() }
             } message: {
@@ -138,14 +150,14 @@ struct ReviewTable: View {
             .confirmationDialog("Delete Permanently?", isPresented: $askingPermanent, titleVisibility: .visible) {
                 Button("Delete Permanently", role: .destructive) { apply() }
             } message: {
-                Text("\(frozen?.countText ?? countText). \(confirmation?.permanent ?? "")")
+                Text(permanentMessage())
             }
             // The list changed while the dialog was open: close it and say why. Limit: this runs when the
             // view's body is evaluated, i.e. when observed state or the parent changes; a rule that
             // reads state nothing observes is noticed at the next redraw (and Apply itself always
             // sends the frozen set, so the dialog can never send something other than it showed).
-            .onChange(of: sent) { _, live in
-                guard let frozen, asking || askingPermanent, !frozen.holds(for: live) else { return }
+            .onChange(of: offer?.approved) { _, live in
+                guard let frozen, let live, asking || askingPermanent, !frozen.holds(for: live) else { return }
                 asking = false
                 askingPermanent = false
                 self.frozen = nil
@@ -157,10 +169,10 @@ struct ReviewTable: View {
 
     // MARK: - the bar
 
-    @ViewBuilder private var bar: some View {
+    @ViewBuilder private func bar(_ offer: Offer?) -> some View {
         HStack {
             VStack(alignment: .leading) {
-                Text(readOnly ? session.readOnlySummary : summaryText).monospacedDigit()
+                Text(offer.map(summaryText) ?? session.readOnlySummary).monospacedDigit()
                 if let line = readOnly ? note : message {
                     Text(line).font(.caption).foregroundStyle(.secondary)
                 }
@@ -173,10 +185,10 @@ struct ReviewTable: View {
                 Button(Names.Review.selectAll) { session.selectAll() }
                     .disabled(session.isAllSelected)
                 Button(Names.Review.selectNone) { session.selectNone() }
-                    .disabled(session.selectedRows.isEmpty)
+                    .disabled(!session.hasTicked)
                 Button(applyTitle) { confirmation == nil ? apply() : openConfirmation() }
                     .buttonStyle(.glassProminent)
-                    .disabled(applyDisabled)
+                    .disabled(offer.map(applyDisabled) ?? true)
             }
         }
         .padding()
@@ -185,55 +197,67 @@ struct ReviewTable: View {
 
     // MARK: - applying
 
+    /// What Apply would send and what the bar says about it, from ONE pass over the rows.
+    private struct Offer {
+        let approved: ApprovedSet
+        let rows: [ReviewRow]
+        let bytes: Int64
+        let acting: [ReviewRow]
+        let keptCount: Int
+        let hasSizes: Bool
+
+        var countText: String { ReviewWording.countText(count: rows.count, bytes: hasSizes ? bytes : nil) }
+    }
+
     /// What Apply would send: the caller's `approval` (or the ticks), narrowed to ticked, choosable
     /// rows. Applying, the bar and the confirmation all read this one set.
-    private var sent: ApprovedSet {
+    private func offer() -> Offer {
         let wanted = approval?(session) ?? session.approved
         // a rule that returns keys the review never listed is a bug in the screen: say so in a debug build
         assert(wanted.isUnrestricted || Set(wanted.approved).isSubset(of: Set(session.selection.items.map(\.id))),
                "an approval rule returned keys that are not in the review")
-        return session.selection.narrowed(wanted)
+        let approved = session.selection.narrowed(wanted)
+        let ids = Set(approved.approved)
+        let rows = session.rows.filter { ids.contains($0.id) }
+        return Offer(approved: approved, rows: rows, bytes: rows.compactMap(\.bytes).reduce(0, +),
+                     acting: session.actingRows, keptCount: session.keptCount, hasSizes: session.hasSizes)
     }
 
-    private var sentRows: [ReviewRow] {
-        let ids = Set(sent.approved)
-        return session.rows.filter { ids.contains($0.id) }
-    }
+    private var sent: ApprovedSet { offer().approved }
 
-    private var sentBytes: Int64 { sentRows.compactMap(\.bytes).reduce(0, +) }
-
-    /// "9 Items (8.5 GB)", from the rows that are sent.
-    private var countText: String {
-        ReviewWording.countText(count: sentRows.count, bytes: session.hasSizes ? sentBytes : nil)
+    /// The second question of a permanent delete: how many, and the sentence the screen gave.
+    private func permanentMessage() -> String {
+        let count = frozen?.countText ?? offer().countText
+        return "\(count). \(confirmation?.permanent ?? "")"
     }
 
     /// "12 selected across 3 tabs · 2 apps will quit · 3.2 GB · 1 kept", from the rows that are sent.
-    private var summaryText: String {
-        let rows = sentRows
+    private func summaryText(_ offer: Offer) -> String {
+        let rows = offer.rows
         var outside = 0
         var spanned = 0
         if let only {
             outside = rows.filter { !only.contains($0.id) }.count
             spanned = tabs.filter { tab in rows.contains { tab.contains($0.id) } }.count
         }
-        return ReviewWording.summary(selected: rows.count, bytes: session.hasSizes ? sentBytes : nil,
+        return ReviewWording.summary(selected: rows.count, bytes: offer.hasSizes ? offer.bytes : nil,
                                      outside: outside, tabsSpanned: spanned,
-                                     acting: session.actingRows.count, alsoActs: alsoActs, kept: session.keptCount)
+                                     acting: offer.acting.count, alsoActs: alsoActs, kept: offer.keptCount)
     }
 
     /// Opens the confirmation with the set that is on offer NOW; Apply sends exactly that.
     private func openConfirmation() {
         notice = nil
         guard let confirmation else { return }
-        let rows = sentRows
+        let now = offer()
         // the names are read once, here: the title and the message line are frozen with the set
-        let names = actingNames?(session) ?? session.actingRows.map(\.name)
+        let names = actingNames?(session) ?? now.acting.map(\.name)
         frozen = ReviewFrozen(
-            sent: sent,
+            sent: now.approved,
             title: ReviewWording.confirmationTitle(
-                verb: confirmation.verb, destination: confirmation.destination, count: rows.count,
-                bytes: session.hasSizes ? sentBytes : nil, alsoActs: alsoActs, actingNames: names),
-            countText: countText,
+                verb: confirmation.verb, destination: confirmation.destination, count: now.rows.count,
+                bytes: now.hasSizes ? now.bytes : nil, alsoActs: alsoActs, actingNames: names),
+            countText: now.countText,
             actingLine: alsoActs.flatMap { ReviewWording.fullActingLine(alsoActs: $0, names: names) })
         asking = true
     }

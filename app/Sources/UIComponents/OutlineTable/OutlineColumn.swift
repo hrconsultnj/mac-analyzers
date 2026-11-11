@@ -5,6 +5,17 @@ public enum OutlineTextStyle: Sendable, Equatable {
     case primary, secondary, tertiary, warning, critical
 }
 
+/// What a column does when the table is narrower than its columns.
+public enum OutlineColumnFit: Sendable, Equatable {
+    /// Never scrolled out of view: it keeps its width (down to its minimum when it must) and the
+    /// flexible first column gives up width first, down to its own minimum. The default.
+    case essential
+    /// Hidden first when room runs out, last column first, and back when there is room again. It
+    /// stays in the header's menu; a person who hides it keeps it hidden, and one who shows it
+    /// keeps it shown (the table then scrolls sideways rather than hiding it again).
+    case optional
+}
+
 /// One column of an `OutlineTable`, declared the way `Table` declares one.
 public struct OutlineColumn<Row: Identifiable> {
 
@@ -28,6 +39,7 @@ public struct OutlineColumn<Row: Identifiable> {
     var usesMonospacedDigits = false
     var startsHidden = false
     var canHide = true
+    var fit: OutlineColumnFit = .essential
     var tooltip: (@MainActor (Row) -> String?)?
     var typeSelect: (@MainActor (Row) -> String)?
     var lines: (@MainActor (Row) -> Int)?
@@ -87,6 +99,14 @@ public struct OutlineColumn<Row: Identifiable> {
     public func defaultHidden() -> Self {
         var copy = self
         copy.startsHidden = true
+        return copy
+    }
+
+    /// How the column behaves when room runs out (see `OutlineColumnFit`). A screen never sets fixed
+    /// widths to cope with a narrow window: it says which columns can go.
+    public func fit(_ fit: OutlineColumnFit) -> Self {
+        var copy = self
+        copy.fit = fit
         return copy
     }
 

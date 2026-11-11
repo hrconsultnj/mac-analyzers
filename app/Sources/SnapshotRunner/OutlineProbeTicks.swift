@@ -19,7 +19,18 @@ struct TickRow: Identifiable {
 @MainActor
 @Observable
 final class TickModel {
-    let rows: [TickRow] = [
+    /// A group of `members` choosable rows, then one single row: for a tick on a big group.
+    static func big(_ members: Int) -> TickModel {
+        TickModel(rows: [
+            TickRow(id: "big", name: "Big group", children: (0..<members).map { TickRow(id: "m\($0)", name: "member \($0)") }),
+            TickRow(id: "one", name: "One"),
+        ])
+    }
+
+    init(rows: [TickRow] = TickModel.standard) { self.rows = rows }
+
+    let rows: [TickRow]
+    static let standard: [TickRow] = [
         TickRow(id: "r1", name: "Locked file", unavailable: "In use"),
         TickRow(id: "g1", name: "Group one", children: [
             TickRow(id: "a", name: "a"), TickRow(id: "b", name: "b"), TickRow(id: "c", name: "c", unavailable: "Protected"),
@@ -90,8 +101,15 @@ struct TickScreen: View {
                 OutlineColumn("name", "Name", text: { $0.name })
             }
         }
-        .ticks(OutlineTicks(state: { model.state($0) }, set: { model.set($0, $1) }, label: { "Include \($0.name)" }))
+        .ticks(OutlineTicks(state: { model.state($0) }, set: { model.set($0, $1) }, label: { Self.label($0) }))
         .rowEnabled { $0.unavailable == nil }
+    }
+
+    /// The review's rule for what VoiceOver says: "Include X", "Not chosen: X", "X: <what will happen>".
+    static func label(_ row: TickRow) -> String {
+        if let word = row.acting { return "\(row.name): \(word)" }
+        if row.unavailable != nil { return "Not chosen: \(row.name)" }
+        return "Include \(row.name)"
     }
 }
 
@@ -189,6 +207,10 @@ extension ProbeChecks {
                         && locked?.state == .off && locked?.accessibilityHelp() == "In use",
                     "ticks actingVsKept acting box=\(acting.state == .on ? "on" : "off") enabled=\(acting.isEnabled) help=\(acting.accessibilityHelp() ?? "nil") | kept box=\(locked?.state == .off ? "off" : "on") help=\(locked?.accessibilityHelp() ?? "nil")")
         } else { verdict(false, "ticks actingVsKept: acting row not found") }
+        // what VoiceOver says: by what the box means, not "Include" for a row that cannot be chosen
+        let labels = [locked?.accessibilityLabel(), tickButton(outline, row: 10)?.accessibilityLabel(), tickButton(outline, row: 8)?.accessibilityLabel()]
+        verdict(labels == ["Not chosen: Locked file", "Opera: Will Be Asked to Quit", "Include Single"],
+                "ticks labels kept=\(labels[0] ?? "nil") | acting=\(labels[1] ?? "nil") | choosable=\(labels[2] ?? "nil")")
         verdict(model.approved.isDisjoint(with: model.unavailableIDs) && model.isNarrowed,
                 "ticks approved contains unavailable=\(model.approved.intersection(model.unavailableIDs).count) isNarrowed=\(model.isNarrowed) approved=\(model.approved.sorted()) deselected=\(model.deselected.sorted())")
         return failed ? 1 : 0

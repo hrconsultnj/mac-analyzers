@@ -191,6 +191,9 @@ public enum Names {
         public static let selectAll = "Select All"
         public static let selectNone = "Select None"
         public static let previewAgain = "Preview Again"
+        public static let showInFinder = "Show in Finder"
+        public static let copyPath = "Copy Path"
+        public static let copyPaths = "Copy Paths"
     }
 
     public enum Raw {
@@ -200,6 +203,100 @@ public enum Names {
         public static let noOutput = "No Output Was Kept"
         public static let showAll = "Show All"
         public static let showOlder = "Show Older"
+    }
+
+    // MARK: - Monitor
+
+    public enum Monitor {
+        public static let everything = "Everything"
+        public static let tools = "Tools"
+        public static let lens = "Lens"
+        public static let lensMemory = "Memory"
+        public static let lensEnergy = "Energy"
+        public static let lensDisk = "Disk I/O"
+        public static let name = "Name"
+        public static let whatItIs = "What It Is"
+        public static let memory = "Memory"
+        public static let cpu = "CPU"
+        public static let pid = "PID"
+        public static let energy = "Energy"
+        public static let read = "Read"
+        public static let written = "Written"
+        public static let ended = "Ended"
+        public static let refresh = "Refresh"
+        public static let refreshNow = "Refresh Now"
+        public static let every5 = "Every 5 Seconds"
+        public static let every15 = "Every 15 Seconds"
+        public static let every60 = "Every 60 Seconds"
+        public static let paused = "Paused"
+        public static let inspector = "Inspector"
+        public static let showDetails = "Show Details"
+        public static let whereYourMemoryIs = "Where Your Memory Is"
+        public static let nothingInScope = "Nothing in This Scope"
+    }
+
+    // MARK: - stopping things
+
+    public enum Stop {
+        public static let stop = "Stop"
+        public static let quit = "Quit"
+        public static let forceStop = "Force Stop"
+        public static let leaveRunning = "Leave Running"
+        public static let leftAlone = "Some Programs Were Left Alone"
+        public static let leftAloneOne = "Left Alone"
+    }
+
+    // MARK: - Memory Guard
+
+    public enum Guard {
+        public static let stopped = "Stopped"
+        public static let alerts = "Alerts"
+        public static let period = "Period"
+        public static let show = "Show"
+        public static let last7 = "Last 7 Days"
+        public static let last90 = "Last 90 Days"
+        public static let nothingToReport = "Nothing to Report"
+        public static let nothingHere = "Nothing Here"
+        public static let eventGone = "This Event Is Gone"
+        public static let whatHappened = "What Happened"
+        public static let theProgram = "The Program"
+        public static let whyTheGuardDoesThis = "Why the Guard Does This"
+        public static let eachTime = "Each Time"
+        public static let whatWasUsingMemory = "What Was Using Memory"
+        public static let macAtThatMoment = "The Mac at That Moment"
+        public static let showRawLines = "Show Raw Lines"
+    }
+
+    // MARK: - Memory Cleanup
+
+    public enum Cleanup {
+        public static let leftovers = "Leftovers"
+        public static let everythingNow = "Everything Now"
+        public static let devServers = "Dev Servers"
+        public static let orphanedTools = "Orphaned Tools"
+        public static let emulators = "Emulators & Browsers"
+        public static let buildHelpers = "Build Helpers"
+        public static let containers = "Containers"
+        public static let editorHelpers = "Editor Helpers"
+        public static let apps = "Apps on Your List"
+        public static let liveSessions = "Live Sessions"
+        public static let busyOrphans = "Include Busy Leftovers"
+        public static let alsoQuit = "Also Quit"
+        public static let other = "Other"
+        public static let preview = "Preview"
+        public static let closePrograms = "Close Programs"
+        public static let options = "Options"
+        public static let cleanup = "Cleanup"
+        /// How the review says the apps it will quit without a tick: "2 apps will quit",
+        /// "Close 1 Item now and Quit Opera, Docker?". Words, not names (they are not title style).
+        public static let alsoActs = ReviewAlsoActs(singular: "app", plural: "apps", verb: "will quit",
+                                                    confirmVerb: Names.Stop.quit)
+        public static let stateReady = "Ready to Close"
+        public static let stateWillQuit = "Will Be Asked to Quit"
+        public static let stateKept = "Kept"
+        public static let stateClosed = "Closed"
+        public static let stateGone = "Already Gone"
+        public static let stateNotApproved = "Left Out by You"
     }
 
     // MARK: - everything above, for the check
@@ -225,8 +322,21 @@ public enum Names {
         rows += [("Fold", Fold.empty)]
         rows += JobKind.allCases.map { ("Task \($0.rawValue)", job($0)) }
         rows += EngineLog.allCases.map { ("Log \($0.rawValue)", log($0)) }
-        rows += [Review.selectAll, Review.selectNone, Review.previewAgain].map { ("Review", $0) }
+        rows += [Review.selectAll, Review.selectNone, Review.previewAgain, Review.showInFinder, Review.copyPath, Review.copyPaths].map { ("Review", $0) }
         rows += [Raw.screen, Raw.searchPrompt, Raw.copy, Raw.noOutput, Raw.showAll, Raw.showOlder].map { ("Raw", $0) }
+        rows += [Monitor.everything, Monitor.tools, Monitor.lens, Monitor.lensMemory, Monitor.lensEnergy, Monitor.lensDisk,
+                 Monitor.name, Monitor.whatItIs, Monitor.memory, Monitor.cpu, Monitor.pid, Monitor.energy, Monitor.read,
+                 Monitor.written, Monitor.ended, Monitor.refresh, Monitor.refreshNow, Monitor.every5, Monitor.every15,
+                 Monitor.every60, Monitor.paused, Monitor.inspector, Monitor.showDetails, Monitor.whereYourMemoryIs,
+                 Monitor.nothingInScope].map { ("Monitor", $0) }
+        rows += [Stop.stop, Stop.quit, Stop.forceStop, Stop.leaveRunning, Stop.leftAlone, Stop.leftAloneOne].map { ("Stop", $0) }
+        rows += [Guard.stopped, Guard.alerts, Guard.period, Guard.show, Guard.last7, Guard.last90, Guard.nothingToReport,
+                 Guard.nothingHere, Guard.eventGone, Guard.whatHappened, Guard.theProgram, Guard.whyTheGuardDoesThis,
+                 Guard.eachTime, Guard.whatWasUsingMemory, Guard.macAtThatMoment, Guard.showRawLines].map { ("Guard", $0) }
+        rows += [Cleanup.leftovers, Cleanup.everythingNow, Cleanup.devServers, Cleanup.orphanedTools, Cleanup.emulators,
+                 Cleanup.buildHelpers, Cleanup.containers, Cleanup.editorHelpers, Cleanup.apps, Cleanup.liveSessions,
+                 Cleanup.busyOrphans, Cleanup.alsoQuit, Cleanup.other, Cleanup.preview, Cleanup.closePrograms, Cleanup.options, Cleanup.cleanup, Cleanup.stateReady, Cleanup.stateWillQuit, Cleanup.stateKept,
+                 Cleanup.stateClosed, Cleanup.stateGone, Cleanup.stateNotApproved].map { ("Cleanup", $0) }
         rows += TokenWords.all.map { ("Token \($0.token)", $0.label) }
         return rows.map { (table: $0.0, name: $0.1) }
     }

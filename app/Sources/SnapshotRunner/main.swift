@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -20,7 +20,9 @@
 // screen's longest scroll view to its end before capturing, to look at the
 // bottom of a list that does not fit the window. `--update-state` picks the
 // state of the sidebar's version item (up to date, development build, update
-// available) without asking the network.
+// available) without asking the network. `--appearance light|dark` sets the app's
+// appearance before anything is drawn (the system's setting is used without it):
+// the one way to render a screen in dark mode, so nobody patches a private flag in.
 //
 // Why it exists: a screen can compile, pass every check and still be a list
 // of file names nobody would use. The people and agents building screens
@@ -38,9 +40,14 @@ if arguments.first == "--outline-probe" { OutlineProbe.run(Array(arguments.dropF
 // the example screens (`review:fixture`) can be linked only in this process; this tool has no
 // app bundle, so MA_CHANGELOG names the changelog What's New shows (read HERE, never by the app)
 let changelog = ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fileURLWithPath: $0) }
-await MainActor.run { DeepLinkRouter.installFixtures(changelog: changelog) }
+// Called directly, never awaited: one `await` in this file's top-level code makes the whole of it
+// an async task, and `NSApplication.run()` started inside a task never services the main dispatch
+// queue, so the delayed capture below would never fire and the tool would sit there until killed
+// (`scripts/check.sh snapshot` refuses a top-level await here). Top-level code is already on the
+// main actor.
+DeepLinkRouter.installFixtures(changelog: changelog)
 guard arguments.count >= 2 else {
-    FileHandle.standardError.write(Data("usage: snapshot-runner <target> <out.png> [--size WxH] [--wait seconds] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available]\n".utf8))
+    FileHandle.standardError.write(Data("usage: snapshot-runner <target> <out.png> [--size WxH] [--wait seconds] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark]\n".utf8))
     exit(2)
 }
 var target = arguments[0]
@@ -50,6 +57,8 @@ func option(_ name: String) -> String? {
     guard let index = arguments.firstIndex(of: name), arguments.indices.contains(index + 1) else { return nil }
     return arguments[index + 1]
 }
+// `--guard-log <file>`: show Memory Guard's history from this log instead of the real one.
+if let log = option("--guard-log") { GuardHistory.useLog(at: URL(fileURLWithPath: log)) }
 let sizeParts = (option("--size") ?? "1100x720").split(separator: "x").compactMap { Double($0) }
 let size = NSSize(width: sizeParts.first ?? 1100, height: sizeParts.count > 1 ? sizeParts[1] : 720)
 let wait = Double(option("--wait") ?? "3") ?? 3
@@ -60,6 +69,12 @@ let scrollToEnd = arguments.contains("--scroll-end")
 /// `--update-state uptodate|dev|available`: which state the sidebar's version item shows
 /// (the network is not asked), to render every state of it.
 let updateStateOption = option("--update-state")
+/// `--appearance light|dark`: the app's appearance for this render. Anything else is refused.
+let appearanceOption = option("--appearance")
+if let appearanceOption, !["light", "dark"].contains(appearanceOption) {
+    FileHandle.standardError.write(Data("snapshot-runner: --appearance takes light or dark, not \(appearanceOption)\n".utf8))
+    exit(2)
+}
 
 @MainActor
 final class Snapshot: NSObject, NSApplicationDelegate {
@@ -231,6 +246,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
 }
 
 let app = NSApplication.shared
+if let appearanceOption { app.appearance = NSAppearance(named: appearanceOption == "dark" ? .darkAqua : .aqua) }
 let delegate = Snapshot()
 app.delegate = delegate
 app.setActivationPolicy(.accessory)        // no Dock icon, never frontmost

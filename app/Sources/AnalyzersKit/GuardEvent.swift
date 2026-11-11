@@ -5,6 +5,8 @@ import Foundation
 public struct GuardEvent: Identifiable, Hashable, Sendable {
     public enum Kind: Hashable, Sendable {
         case killed(reason: String)
+        /// The guard tried to stop a process and it had already ended.
+        case stopFailed
         case spike(grewMB: Int)
         case warning                                        // generic fallback
         case capExceeded(killDisabled: Bool)                // over cap, kills off
@@ -26,7 +28,7 @@ public struct GuardEvent: Identifiable, Hashable, Sendable {
 
     public var category: Category {
         switch kind {
-        case .killed: .killed
+        case .killed, .stopFailed: .killed
         case .spike: .spikes
         case .forensics: .reports
         case .cpuHog: .cpu
@@ -97,6 +99,8 @@ public struct GuardEvent: Identifiable, Hashable, Sendable {
             return "\(friendlyName) sustained \(pct)%+ CPU for \(ticks) checks"
         case .forensics:
             return "Forensics report written"
+        case .stopFailed:
+            return "\(friendlyName) could not be stopped — already gone"
         case .warning:
             return processName
         }
