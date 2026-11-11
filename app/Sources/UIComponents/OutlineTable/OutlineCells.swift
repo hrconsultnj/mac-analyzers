@@ -14,10 +14,19 @@ struct OutlineHostedRoot: View {
 
     var body: some View {
         let own = ownColorScheme
-        content
-            .disabled(!isEnabled)
-            .accessibilityElement(children: .combine)
-            .transformEnvironment(\.self) { $0 = environment; $0.colorScheme = own }
+        Group {
+            if isEnabled {
+                content
+            } else {
+                // SwiftUI does not dim a Text for `.disabled`: a row that is not enabled gets the
+                // system's disabled text colour, as a text cell does (colours a cell sets itself
+                // can read `@Environment(\.isEnabled)`)
+                content.foregroundStyle(Color(nsColor: .disabledControlTextColor))
+            }
+        }
+        .disabled(!isEnabled)
+        .accessibilityElement(children: .combine)
+        .transformEnvironment(\.self) { $0 = environment; $0.colorScheme = own }
     }
 }
 
@@ -136,7 +145,7 @@ final class OutlineCell: NSTableCellView {
         case .on: checkbox.state = .on
         case .off: checkbox.state = .off
         case .mixed: checkbox.state = .mixed
-        case .unavailable: checkbox.state = .off
+        case .unavailable(_, let isOn): checkbox.state = isOn ? .on : .off
         }
         checkbox.isEnabled = state.isAvailable
         OutlineAccessibility.describe(tick: checkbox, label: label, state: state)

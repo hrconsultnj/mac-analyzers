@@ -109,7 +109,7 @@ struct ReviewNode: Identifiable, Hashable, Sendable {
     static func tree(_ rows: [ReviewRow], order: [KeyPathComparator<ReviewNode>]) -> [ReviewNode] {
         var top: [ReviewNode] = []
         var fold: ReviewNode?
-        for group in RowGroup.make(rows, group: \.group, bytes: \.bytes, emptyTitle: Names.Review.nothingToFree) {
+        for group in RowGroup.make(rows, group: \.group, bytes: \.bytes, emptyTitle: Names.Fold.empty) {
             let members = group.rows.map(ReviewNode.init(row:)).sorted(using: order)
             if group.isFolded {
                 fold = ReviewNode(group: group.title, id: foldID, members: members)

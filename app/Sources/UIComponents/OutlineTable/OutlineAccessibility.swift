@@ -8,7 +8,7 @@ enum OutlineAccessibility {
     /// A tick says what it includes; an unavailable one says why.
     static func describe(tick button: NSButton, label: String, state: OutlineTickState) {
         button.setAccessibilityLabel(label)
-        if case .unavailable(let reason) = state {
+        if case .unavailable(let reason, _) = state {
             button.setAccessibilityHelp(reason)
             button.toolTip = reason
         } else {

@@ -14,7 +14,7 @@
 // Actions: the thirteen of A1 (appear, expand1, collapse1, expandAll,
 // expandAllOption, values, addChild, removeChild, addParent, removeParent,
 // resort, filter10, filterBack, select), `soak`, `perf`, `preserve`, `diff`,
-// `ticks`, `autosave`, `remembered`, `a2:<case>`, `a11:<case>:<n>`, `render <fixture> <out.png>`.
+// `ticks`, `autosave`, `remembered`, `a2:<case>`, `a11:<case>:<n>`, `render <fixture> <out.png>`, `review:<case>`.
 import AppKit
 import Foundation
 import Observation
@@ -126,11 +126,12 @@ enum OutlineProbe {
         case "remembered": code = ProbeChecks.remembered()
         case "render": code = ProbeRender.run(Array(arguments.dropFirst()))
         case _ where action.hasPrefix("a2:"): code = ProbeChecks.a2(String(action.dropFirst(3)), options)
+        case _ where action.hasPrefix("review:"): code = ProbeReview.run(String(action.dropFirst(7)))
         case _ where action.hasPrefix("a11:"): code = ProbeFlat.run(String(action.dropFirst(4)))
         default: code = ProbeActions.single(action, options)
         }
         // what this process autosaved (column widths, order, hidden) does not outlive it
-        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.contains("OutlineTable.probe") {
+        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.contains("OutlineTable.probe") || key.contains("review.fixture") {
             UserDefaults.standard.removeObject(forKey: key)
         }
         exit(code)

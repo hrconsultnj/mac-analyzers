@@ -14,6 +14,8 @@
 #   scripts/outline-probe.sh a6      the pure diff
 #   scripts/outline-probe.sh a7      ticks (review semantics on a fixture)
 #   scripts/outline-probe.sh a8      autosave, and RememberedExpansion
+#   scripts/outline-probe.sh review  the real ReviewTable on its fixture, driven: ticks, Space, Select All, kept, acting, fold, only, updateChoosable, read-only
+#   scripts/outline-probe.sh review-scale   the review table at Downloads' size, step by step
 #   scripts/outline-probe.sh a11     flat SwiftUI Table re-sorts and List appends, counted
 #   scripts/outline-probe.sh render <dir>   one image per fixture, size and appearance (screencapture of a window outside every display)
 #   scripts/outline-probe.sh check   the subset scripts/check.sh runs: open all and re-sort, text and hosted
@@ -26,8 +28,8 @@
 # component reads an environment variable.
 #
 # The probe runs headless: its window is never on a display and never takes focus.
-# macOS only. Build products go to OUTLINE_BUILD_PATH (default app/.build); a5 and a6 build
-# release (timings), the others debug.
+# macOS only. Build products go to OUTLINE_BUILD_PATH (default app/.build); a5, a6 and review-scale
+# build release (timings), the others debug.
 # Exit 1 when any probe failed or counted a warning.
 set -u
 
@@ -75,6 +77,10 @@ run_probe() {
 
 fail() { FAILED=1; }
 
+# A probe is clean when the process logged no reentrancy warning AT ALL (inside the marks or in
+# the setup before them) and exited 0. A warning outside the marks used to pass.
+clean() { [ "$WARN" -eq 0 ] && [ "$OUTSIDE" -eq 0 ] && [ "$RC" -eq 0 ]; }
+
 say_out() { sed 's/^/    /' "$TMP/out"; }
 
 # ── A1 ──────────────────────────────────────────────────────────────────────
@@ -91,7 +97,7 @@ a1() {
         run_probe "$action" --rows 200,5 $flag
         echo "action=$action variant=$variant run=$run warnings=$WARN outside=$OUTSIDE"
         total=$((total + WARN)); runs=$((runs + 1))
-        [ "$WARN" -eq 0 ] && [ "$RC" -eq 0 ] || fail
+        clean || fail
       done
     done
   done
@@ -109,7 +115,7 @@ a2() {
       run_probe "a2:$name" $flag
       echo "case=$name variant=$variant warnings=$WARN outside=$OUTSIDE exit=$RC"
       say_out
-      [ "$WARN" -eq 0 ] && [ "$RC" -eq 0 ] || fail
+      clean || fail
     done
   done
   local run
@@ -120,7 +126,7 @@ a2() {
       run_probe "a2:openWithInsert" $flag
       echo "case=openWithInsert variant=$variant run=$run warnings=$WARN outside=$OUTSIDE exit=$RC"
       say_out
-      [ "$WARN" -eq 0 ] && [ "$RC" -eq 0 ] || fail
+      clean || fail
     done
   done
   # the independent review's cases, and the closed-group cases below the first level
@@ -128,13 +134,13 @@ a2() {
     run_probe "a2:$name"
     echo "case=$name warnings=$WARN outside=$OUTSIDE exit=$RC"
     say_out
-    [ "$WARN" -eq 0 ] && [ "$RC" -eq 0 ] || fail
+    clean || fail
   done
   for name in sectionHeaders callback env menu lines; do
     run_probe "a2:$name"
     echo "case=$name warnings=$WARN outside=$OUTSIDE exit=$RC queuedFromCallback=$QUEUED"
     say_out
-    [ "$WARN" -eq 0 ] && [ "$RC" -eq 0 ] || fail
+    clean || fail
   done
 }
 
@@ -146,7 +152,7 @@ a3() {
     # shellcheck disable=SC2086
     run_probe soak --seconds "${SOAK_SECONDS:-120}" $flag
     echo "soak variant=$variant seconds=${SOAK_SECONDS:-120} warnings=$WARN outside=$OUTSIDE exit=$RC"
-    [ "$WARN" -eq 0 ] && [ "$RC" -eq 0 ] || fail
+    clean || fail
   done
 }
 
@@ -156,7 +162,31 @@ plain() { # plain <label> <probe args…>
   run_probe "$@"
   echo "$label warnings=$WARN outside=$OUTSIDE exit=$RC"
   say_out
-  [ "$WARN" -eq 0 ] && [ "$RC" -eq 0 ] || fail
+  clean || fail
+}
+
+# the real review table on its fixture: ticks, group ticks, Space, Select All, kept and acting rows,
+# the fold, `only`, `updateChoosable`, read-only — the session's approved set asserted after each step
+review() {
+  local name
+  echo "REVIEW — the real ReviewTable, driven"
+  for name in ticks updateChoosable acting only readonly; do
+    run_probe "review:$name"
+    echo "case=review:$name warnings=$WARN outside=$OUTSIDE exit=$RC"
+    say_out
+    clean || fail
+  done
+}
+
+# the review at Downloads' size, three runs: wall ms / this thread's CPU ms per step, load beside it
+review_scale() {
+  local run
+  echo "REVIEW AT SCALE — 6,154 rows, two-line name cell (wall ms / cpu ms)"
+  for run in 1 2 3; do
+    run_probe "review:scale"
+    grep -a '^scale ' "$TMP/out"
+    clean || { echo "run $run: warnings=$WARN outside=$OUTSIDE exit=$RC"; fail; }
+  done
 }
 
 a4() {
@@ -179,7 +209,7 @@ a5() {
       # shellcheck disable=SC2086
       run_probe perf --rows 1000,5 $flag
       grep -a '^perf ' "$TMP/out" >>"$TMP/perf.$variant"
-      [ "$WARN" -eq 0 ] && [ "$RC" -eq 0 ] || { echo "run $run: warnings=$WARN exit=$RC"; fail; }
+      clean || { echo "run $run: warnings=$WARN outside=$OUTSIDE exit=$RC"; fail; }
     done
     awk -v variant="$variant" '
       function med(a, b, c) { return a + b + c - (a > b ? (a > c ? a : c) : (b > c ? b : c)) - (a < b ? (a < c ? a : c) : (b < c ? b : c)) }
@@ -224,7 +254,7 @@ render() {
   local dir="$1" fixture size appearance flag
   [ -n "$dir" ] || { echo "usage: scripts/outline-probe.sh render <dir>" >&2; exit 2; }
   mkdir -p "$dir"
-  for fixture in plain hosted ticks headers; do
+  for fixture in plain hosted ticks ticks-hosted headers review review-acting; do
     for size in 900x600 1100x720; do
       for appearance in light dark; do
         flag=""; [ "$appearance" = "dark" ] && flag="--dark"
@@ -245,16 +275,21 @@ check() {
     for action in expandAll resort; do
       # shellcheck disable=SC2086
       run_probe "$action" --rows 200,5 $flag
-      echo "$action/$variant warnings=$WARN"
-      total=$((total + WARN))
-      [ "$WARN" -eq 0 ] && [ "$RC" -eq 0 ] || fail
+      echo "$action/$variant warnings=$WARN outside=$OUTSIDE"
+      total=$((total + WARN + OUTSIDE))
+      clean || fail
     done
   done
-  echo "open all and re-sort, text and hosted: warnings=$total"
+  # the lines case: with automatic row heights it warns while it sets up, so a warning anywhere fails it
+  run_probe "a2:lines"
+  echo "lines warnings=$WARN outside=$OUTSIDE"
+  total=$((total + WARN + OUTSIDE))
+  clean || fail
+  echo "open all and re-sort, text and hosted, and a table with lines: warnings=$total"
 }
 
 # timings in a debug build say nothing about the product: a5 and a6 build and run release
-case "${1:-all}" in a5|a6) CONFIG_ARGS=(-c release) ;; esac
+case "${1:-all}" in a5|a6|review-scale) CONFIG_ARGS=(-c release) ;; esac
 build
 case "${1:-all}" in
   a1) a1 ;;
@@ -266,9 +301,11 @@ case "${1:-all}" in
   a7) a7 ;;
   a8) a8 ;;
   a11) a11 ;;
+  review) review ;;
+  review-scale) review_scale ;;
   check) check ;;
   render) render "${2:-}" ;;
-  all) a1; a2; a3; a4; a5; a6; a7; a8; a11 ;;
+  all) a1; a2; a3; a4; a6; a5; a7; a8; a11; review ;;   # a6 before a5: it is a timing of 3 ms and a5 leaves the Mac warm
   *) echo "usage: scripts/outline-probe.sh a1|a2|a3|a4|a5|a6|a7|a8|a11|check|all" >&2; exit 2 ;;
 esac
 exit "$FAILED"

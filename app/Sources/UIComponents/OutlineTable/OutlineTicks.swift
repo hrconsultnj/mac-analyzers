@@ -27,8 +27,9 @@ public enum OutlineTickState: Equatable, Sendable {
     case on, off
     /// Only on a group row: some, not all, of its choosable members are ticked.
     case mixed
-    /// Drawn off and disabled; the reason is the tooltip and the accessibility help.
-    case unavailable(reason: String)
+    /// Drawn disabled, off unless `isOn` (a row the action takes without a tick: dimmed and on);
+    /// the reason is the tooltip and the accessibility help.
+    case unavailable(reason: String, isOn: Bool = false)
 
     public var isAvailable: Bool {
         if case .unavailable = self { return false }

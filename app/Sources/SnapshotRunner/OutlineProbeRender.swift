@@ -1,6 +1,8 @@
+@_spi(TestSupport) import AnalyzersKit
 import AppKit
 import Foundation
 import SwiftUI
+import SettingsFeature
 import UIComponents
 
 /// `--outline-probe render <fixture> <out.png> [--size WxH] [--dark]`: one fixture
@@ -8,9 +10,12 @@ import UIComponents
 /// the tick column and a section header row; it takes no focus and shows nothing.
 @MainActor
 enum ProbeRender {
+    /// Kept alive while the window is drawn.
+    private static var reviewProbe: ReviewFixtureProbe?
+
     static func run(_ arguments: [String]) -> Int32 {
         guard arguments.count >= 2 else {
-            FileHandle.standardError.write(Data("usage: --outline-probe render <plain|hosted|ticks|headers> <out.png> [--size WxH] [--dark]\n".utf8))
+            FileHandle.standardError.write(Data("usage: --outline-probe render <plain|hosted|ticks|ticks-hosted|headers|review|review-acting> <out.png> [--size WxH] [--dark]\n".utf8))
             return 2
         }
         let fixture = arguments[0]
@@ -30,12 +35,12 @@ enum ProbeRender {
             model.expanded = Set(model.parentIDs.prefix(6))
             model.selection = [model.rows[1].children?.first?.id ?? 0]
             content = AnyView(ProbeScreen(model: model, hosted: fixture == "hosted"))
-        case "ticks":
+        case "ticks", "ticks-hosted":
             let model = TickModel()
             model.expanded = ["g1", "g2"]
             model.ticked = ["a", "d"]
             model.selection = ["b"]
-            content = AnyView(TickScreen(model: model))
+            content = AnyView(TickScreen(model: model, hosted: fixture == "ticks-hosted"))
         case "headers":
             var next = 0
             func id() -> Int { next += 1; return next }
@@ -48,6 +53,15 @@ enum ProbeRender {
             let model = ProbeModel(rows: days)
             model.expanded = Set(days.prefix(3).map(\.id))
             content = AnyView(ProbeScreen(model: model, hosted: false, headers: true))
+        case "review", "review-acting":
+            // the real ReviewTable (without the screen around it) on the probe's rows
+            let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-review-render-\(getpid())", directoryHint: .isDirectory)
+            try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+            let jobs = JobStore(ledger: JobLedger(url: scratch.appending(path: "jobs.jsonl")))
+            let probe = ReviewFixtureProbe(acting: fixture == "review-acting")
+            probe.ended("/p/web-app/.next")
+            reviewProbe = probe
+            content = AnyView(probe.view.environment(jobs))
         default:
             FileHandle.standardError.write(Data("unknown fixture \(fixture)\n".utf8))
             return 2
