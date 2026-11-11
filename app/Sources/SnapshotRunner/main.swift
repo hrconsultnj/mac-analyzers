@@ -37,6 +37,14 @@ import SettingsFeature
 let arguments = Array(CommandLine.arguments.dropFirst())
 // `--outline-probe <action> …` drives the shared OutlineTable headless (OutlineProbe.swift); it never renders a screen
 if arguments.first == "--outline-probe" { OutlineProbe.run(Array(arguments.dropFirst())) }
+// A screen render starts from the target it was given, with nothing remembered from an earlier run
+// (the saved location, the chosen tab, the opened groups): clear this tool's own defaults domain,
+// never the app's. Only for a render: the probes above keep their own state per process, and
+// wiping the whole domain under probes that run side by side broke them.
+if let domain = Bundle.main.bundleIdentifier ?? Optional(ProcessInfo.processInfo.processName),
+   domain != "com.mac-analyzers.app" {
+    UserDefaults.standard.removePersistentDomain(forName: domain)
+}
 // the example screens (`review:fixture`) can be linked only in this process; this tool has no
 // app bundle, so MA_CHANGELOG names the changelog What's New shows (read HERE, never by the app)
 let changelog = ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fileURLWithPath: $0) }
@@ -142,6 +150,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.contentViewController = controller
+        if let a = appearanceOption { window.appearance = NSAppearance(named: a == "light" ? .aqua : .darkAqua) }
         window.toolbarStyle = .unified
         window.setContentSize(size)
         // far outside every display: drawn by the window server, seen by nobody
@@ -237,6 +246,13 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         } catch {
             FileHandle.standardError.write(Data("snapshot-runner: could not run screencapture: \(error)\n".utf8))
             finish(1)
+        }
+        // the window cannot be smaller than the app's own minimum: say so instead of letting a
+        // "760" render pass for 760
+        let actual = window.contentView?.frame.size ?? size
+        let clamped = abs(actual.width - size.width) > 1 || abs(actual.height - size.height) > 1
+        if clamped {
+            print("snapshot-runner: asked for \(Int(size.width))x\(Int(size.height)); the window's minimum made it \(Int(actual.width))x\(Int(actual.height))")
         }
         let made = FileManager.default.fileExists(atPath: output.path)
         print(made ? "\(target) → \(output.path)  (window title: \(window.title))"

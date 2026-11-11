@@ -189,3 +189,14 @@ struct RunHistoryList: View {
         .onChange(of: storeStamp) { if refreshes { Task { await model.refreshIfNeeded(store: store, maxAge: 0) } } }
     }
 }
+
+extension View {
+    /// Put this on a `List` that holds run rows (`RunHistoryList`, Activity). A list estimates its
+    /// rows at the system's default minimum height; when all its rows fit in the window (a short
+    /// tab, a narrow search) AppKit kept that estimate for each row's drawing and cut the second
+    /// line off every row. Telling the list how tall a two-line run row is, the native way
+    /// (`defaultMinListRowHeight`), makes the estimate right.
+    func runHistoryRows() -> some View {
+        environment(\.defaultMinListRowHeight, 44)
+    }
+}

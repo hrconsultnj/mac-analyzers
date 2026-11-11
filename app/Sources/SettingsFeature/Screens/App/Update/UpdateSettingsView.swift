@@ -20,8 +20,8 @@ struct UpdateSettingsView: View {
     }
 
     var body: some View {
-        PaneScaffold(symbol: "arrow.down.circle.fill", color: .green, title: Names.Screen.updates,
-                     caption: "See what version you have, what is new, and install the latest.") {
+        DataScreen(title: Names.Screen.updates, subtitle: updates.build.versionText) {
+        List {
             Section {
                 LabeledContent("Installed Version") { Text(updates.build.versionText).monospacedDigit() }
                 if let build = UpdateChecker.installedBuild {
@@ -78,6 +78,8 @@ struct UpdateSettingsView: View {
                     }
                 }
             }
+        }
+        .listStyle(.inset)
         }
         .task {
             UserDefaults.standard.set(installed, forKey: "lastSeenChangelog")
