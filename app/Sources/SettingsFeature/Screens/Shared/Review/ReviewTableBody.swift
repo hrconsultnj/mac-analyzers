@@ -50,8 +50,9 @@ struct ReviewTableBody: View {
 
     @ViewBuilder private func tick(_ node: ReviewNode, session: ReviewSession) -> some View {
         if node.rowIDs.isEmpty {
-            // nothing here can be chosen: the box is shown, off and dimmed
-            Toggle("Not chosen: \(node.title)", isOn: .constant(false)).labelsHidden().disabled(true)
+            // nothing here can be chosen: the box is shown dimmed, off for a row the cleanup leaves
+            // alone and on for one it acts on without a tick
+            Toggle("Not chosen: \(node.title)", isOn: .constant(node.acts)).labelsHidden().disabled(true)
         } else {
             let ticks = Binding<[ReviewTick]>(
                 get: { node.rowIDs.map { ReviewTick(id: $0, isOn: session.isTicked($0)) } },
