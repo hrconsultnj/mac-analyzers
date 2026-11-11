@@ -747,7 +747,9 @@ if [[ "$MODE" == "deep" ]]; then
       fi
     done < <(find "$root" -type d -name node_modules -prune 2>/dev/null)
   done
-  log "  (kept node_modules for $(grep -c . "$ACTIVE_LIST" 2>/dev/null || echo 0) active repos)"
+  # grep -c prints 0 AND exits 1 when nothing matches, so `|| echo 0` printed it twice
+  active_repos="$(grep -c . "$ACTIVE_LIST" 2>/dev/null || true)"
+  log "  (kept node_modules for ${active_repos:-0} active repos)"
 fi
 
 # ---------- 3. Package-manager caches (deep mode only; uses tool prune) ----------

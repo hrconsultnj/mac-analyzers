@@ -97,6 +97,75 @@ public enum Names {
         public static let singleProcesses = "Single Processes"
     }
 
+    // MARK: - storage: what a reclaimable thing is called
+
+    /// Kinds of build cache and package folder, as the review lists them.
+    public enum Cache {
+        public static let nextBuild = "Next.js Build Cache"
+        public static let turbo = "Turborepo Cache"
+        public static let buildOutput = "Build Output"
+        public static let vite = "Vite Cache"
+        public static let svelteKit = "SvelteKit Cache"
+        public static let nuxt = "Nuxt Cache"
+        public static let parcel = "Parcel Cache"
+        public static let nodePackages = "Node.js Packages"
+        public static let vendored = "Vendored Code"
+        public static let pythonCache = "Python Cache"
+        public static let pythonEnvironment = "Python Environment"
+        public static let rustBuild = "Rust Build Output"
+        public static let other = "Cache Folder"
+        /// The two sweeps a cleanup can make.
+        public static let daily = "Daily"
+        public static let deep = "Deep"
+    }
+
+    /// What a file in Downloads or Screenshots is, and how long it has sat there.
+    public enum Download {
+        public static let documents = "Documents"
+        public static let images = "Images"
+        public static let archives = "Archives"
+        public static let installers = "Installers & Disk Images"
+        public static let video = "Video"
+        public static let audio = "Audio"
+        public static let folders = "Folders"
+        public static let screenshots = "Screenshots"
+        public static let other = "Other Files"
+        public static let underThreeMonths = "Under 3 Months"
+        public static let threeToSixMonths = "3 to 6 Months"
+        public static let sixToTwelveMonths = "6 to 12 Months"
+        public static let overAYear = "Over a Year"
+        public static let dateUnknown = "Date Unknown"
+    }
+
+    /// Where an item found in temp and agent folders lives, and the verdict on it.
+    public enum Temp {
+        public static let tempFolder = "Temp Folder"
+        public static let yourTempFolder = "Your Temp Folder"
+        public static let sharedTempFolder = "Shared Temp Folder"
+        public static let claudeCode = "Claude Code"
+        public static let codex = "Codex"
+        public static let claudeApp = "Claude App"
+        public static let nodeTools = "Node Tool Caches"
+        public static let otherTools = "Other AI Tools"
+        public static let managedByMacOS = "Managed by macOS"
+        public static let diskImages = "Disk Images"
+        public static let ready = "Ready"
+        public static let tooRecent = "Too Recent"
+        public static let inUse = "In Use"
+        public static let protected = "Protected"
+        public static let notYours = "Not Yours"
+        public static let leftAlone = "Left Alone"
+        public static let sizedOnly = "Sized Only"
+        public static let cleared = "Cleared"
+        public static let failed = "Failed"
+    }
+
+    /// Whether Spotlight is kept out of a folder.
+    public enum Fence {
+        public static let fenced = "Fenced"
+        public static let notFenced = "Not Fenced"
+    }
+
     // MARK: - lookups by type
 
     /// What a task is called: the screen that holds it.
@@ -152,6 +221,18 @@ public enum Names {
         rows += [Scope.all, Scope.running, Scope.needsReview, Scope.failed].map { ("Scope", $0) }
         rows += [Category.apps, Category.tools, Category.system, Category.appsAndServices,
                  Category.singleProcesses].map { ("Category", $0) }
+        rows += [Cache.nextBuild, Cache.turbo, Cache.buildOutput, Cache.vite, Cache.svelteKit, Cache.nuxt,
+                 Cache.parcel, Cache.nodePackages, Cache.vendored, Cache.pythonCache, Cache.pythonEnvironment,
+                 Cache.rustBuild, Cache.other, Cache.daily, Cache.deep].map { ("Cache", $0) }
+        rows += [Download.documents, Download.images, Download.archives, Download.installers, Download.video,
+                 Download.audio, Download.folders, Download.screenshots, Download.other,
+                 Download.underThreeMonths, Download.threeToSixMonths, Download.sixToTwelveMonths,
+                 Download.overAYear, Download.dateUnknown].map { ("Download", $0) }
+        rows += [Temp.tempFolder, Temp.yourTempFolder, Temp.sharedTempFolder, Temp.claudeCode, Temp.codex,
+                 Temp.claudeApp, Temp.nodeTools, Temp.otherTools, Temp.managedByMacOS, Temp.diskImages,
+                 Temp.ready, Temp.tooRecent, Temp.inUse, Temp.protected, Temp.notYours, Temp.leftAlone,
+                 Temp.sizedOnly, Temp.cleared, Temp.failed].map { ("Temp", $0) }
+        rows += [Fence.fenced, Fence.notFenced].map { ("Fence", $0) }
         rows += JobKind.allCases.map { ("Task \($0.rawValue)", job($0)) }
         rows += EngineLog.allCases.map { ("Log \($0.rawValue)", log($0)) }
         return rows.map { (table: $0.0, name: $0.1) }

@@ -176,6 +176,18 @@ if args.first == "--probe-activity-ids" {
 if args.first == "--probe-failures" {
     await probeFailures()
 }
+// `--probe-storage <caches|downloads|temp|spotlight|disk> [--log <file>]` prints the rows a
+// Storage screen would list, from the newest preview in the real logs. See
+// StorageProbes.swift.
+if args.first == "--probe-storage" {
+    probeStorage(args.count > 1 ? args[1] : "",
+                 logOverride: args.firstIndex(of: "--log").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil })
+}
+// `--probe-storage-apply` proves a tick in a Storage review becomes exactly the
+// `--only-paths` file the engine gets, against a test script. See StorageApplyProbe.swift.
+if args.first == "--probe-storage-apply" {
+    await probeStorageApply()
+}
 // `--probe-review-rules` shows what `apply(from:)` itself refuses; `--probe-quit`
 // shows what each choice of the quit dialog does to the store. See ReviewProbes.swift.
 if args.first == "--probe-review-rules" {
