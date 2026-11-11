@@ -8,13 +8,13 @@ public struct ApprovedSet: Sendable, Hashable {
 
     /// What the user left ticked, in review order: a pid for processes, a path
     /// for files.
-    public let approved: [String]
+    public private(set) var approved: [String]
 
     /// True when the user deselected at least one row.
-    public let isNarrowed: Bool
+    public private(set) var isNarrowed: Bool
 
     /// True for `ApprovedSet.everything`: no per-row list exists.
-    public let isUnrestricted: Bool
+    public private(set) var isUnrestricted: Bool
 
     /// `approvable` is every key the review offered; `deselected` the ones the
     /// user unticked.
@@ -28,6 +28,18 @@ public struct ApprovedSet: Sendable, Hashable {
         approved = []
         isNarrowed = false
         isUnrestricted = true
+    }
+
+    /// A copy of THIS set restricted to the keys of `all` that are in `keep`: the one way a set is
+    /// narrowed after a caller has produced it (the review's clamp, the frozen set a confirmation
+    /// shows). It starts from a copy of itself, so any other field this type gains rides along;
+    /// NEW FIELDS MUST BE COPIED HERE, never rebuilt by a caller through `init(approvable:deselected:)`.
+    public func restricted(over all: [String], keeping keep: Set<String>) -> ApprovedSet {
+        var copy = self
+        copy.approved = all.filter { keep.contains($0) }
+        copy.isNarrowed = all.contains { !keep.contains($0) }
+        copy.isUnrestricted = false
+        return copy
     }
 
     /// For jobs with no per-row approval (Spotlight, login items, Time Machine)

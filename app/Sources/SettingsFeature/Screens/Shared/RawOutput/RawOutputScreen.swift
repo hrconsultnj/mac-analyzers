@@ -43,7 +43,7 @@ struct RawOutputScreen: View {
     @State private var log: LoadedLog?
     private var model: ActivityModel { .shared }
 
-    private struct LoadedLog { var lines: [String]; var cut: Bool; var fromTop = false }
+    private struct LoadedLog { var lines: [String]; var cut: Bool; var gone = false }
 
     /// The text, or nil while it is still being found.
     private var found: (lines: [String], cut: Bool)? {
@@ -71,7 +71,7 @@ struct RawOutputScreen: View {
     private var isGone: Bool {
         switch subject {
         case .run, .job: model.hasLoaded && found == nil
-        case .log, .file: false
+        case .log, .file: log?.gone == true
         }
     }
 
@@ -134,6 +134,7 @@ struct RawOutputScreen: View {
     private var gone: (title: String, detail: String) {
         switch subject {
         case .job: ("This Run Is No Longer Recorded", "It is not in this session, and the list of past runs no longer has it.")
+        case .file, .log: ("This File Is Gone", "It is no longer where it was; it may have been moved or deleted.")
         default: ("This Run Is No Longer in the Log", "The log has moved on since this entry was listed.")
         }
     }
@@ -143,7 +144,7 @@ struct RawOutputScreen: View {
         case .run, .job:
             await model.refreshIfNeeded(store: store)
         case .log(let raw):
-            guard let url = EngineLog(rawValue: raw)?.url else { log = LoadedLog(lines: [], cut: false); return }
+            guard let url = EngineLog(rawValue: raw)?.url else { log = LoadedLog(lines: [], cut: false, gone: true); return }
             let keep = Self.tailLength, bytes = Self.tailBytes
             log = await Task.detached(priority: .userInitiated) { Self.readTail(url, lines: keep, bytes: bytes) }.value
         case .file(let url, let top):
@@ -156,29 +157,31 @@ struct RawOutputScreen: View {
 
     /// The first `lines` lines of a document, from the first `bytes` bytes, decoded leniently.
     nonisolated private static func readHead(_ url: URL, lines keep: Int, bytes: Int) -> LoadedLog {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return LoadedLog(lines: [], cut: false, fromTop: true) }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return LoadedLog(lines: [], cut: false, gone: true) }
         defer { try? handle.close() }
         let data = (try? handle.read(upToCount: bytes)) ?? Data()
         var all = String(decoding: data, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         let size = (try? handle.seekToEnd()) ?? 0
         let truncated = size > UInt64(bytes)
-        // the window may end mid-line: that last piece is not a whole line
-        if truncated, !all.isEmpty { all.removeLast() }
-        return LoadedLog(lines: Array(all.prefix(keep)), cut: truncated || all.count > keep, fromTop: true)
+        // the window may end mid-line: that last piece is not a whole line (unless it is the only one)
+        if truncated, all.count > 1 { all.removeLast() }
+        if all.last == "" { all.removeLast() }
+        return LoadedLog(lines: Array(all.prefix(keep)), cut: truncated || all.count > keep)
     }
 
     /// The last `lines` lines, found by reading the last `bytes` bytes (not the whole
     /// file) and decoding leniently, so one bad byte costs a character, not the log.
     nonisolated private static func readTail(_ url: URL, lines keep: Int, bytes: Int) -> LoadedLog {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return LoadedLog(lines: [], cut: false) }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return LoadedLog(lines: [], cut: false, gone: true) }
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0
         let start = size > UInt64(bytes) ? size - UInt64(bytes) : 0
         try? handle.seek(toOffset: start)
         let data = (try? handle.readToEnd()) ?? Data()
         var all = String(decoding: data, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        // the window may start mid-line: that first piece is not a line
-        if start > 0, !all.isEmpty { all.removeFirst() }
+        // the window may start mid-line: that first piece is not a line (unless it is the only one)
+        if start > 0, all.count > 1 { all.removeFirst() }
+        if all.last == "" { all.removeLast() }
         let cut = start > 0 || all.count > keep
         return LoadedLog(lines: Array(all.suffix(keep)), cut: cut)
     }

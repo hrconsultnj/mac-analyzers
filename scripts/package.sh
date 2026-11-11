@@ -73,6 +73,14 @@ if ! MA_STRICT_WARNINGS=1 MA_NO_INSTALL=1 ./app/build.sh >"$build_log" 2>&1; the
   grep -E "error:" -A4 "$build_log" | tail -30 >&2 || tail -20 "$build_log" >&2
   exit 1
 fi
+# The package turns compiler warnings into errors, but a few diagnostics are
+# not upgraded and a build can succeed while printing one. A download is
+# never made from such a build.
+if grep -a -E '^[^ ].*: warning: ' "$build_log" >"$work/warnings.txt"; then
+  echo "package: the build printed compiler warnings — fix them first (warnings are defects):" >&2
+  cut -c1-300 "$work/warnings.txt" | awk '!seen[$0]++' | head -20 >&2
+  exit 1
+fi
 
 # ── 2. a copy to sign for other people's Macs ──────────────────────────────
 app="$stage/MacAnalyzers.app"

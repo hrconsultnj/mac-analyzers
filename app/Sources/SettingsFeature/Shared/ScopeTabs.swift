@@ -17,6 +17,14 @@ import UIComponents
 /// `isActive: false` while something is pushed over the screen: its tabs are hidden then, so the
 /// View menu must not act on them. On a Mac before macOS 26.1 there is no visibility priority:
 /// the system's own overflow order applies (see `toolbarRank`).
+// The types live in UIComponents (the menu-bar panel imports that module). These module-internal
+// names let a screen USE them in expressions without importing it (a call to `scopeTabsToolbar`
+// with `ScopeTabItem(...)` items). A file that declares a STORED PROPERTY of these types must
+// still `import UIComponents`: the compiler warns otherwise, and `scripts/check.sh app` fails on it.
+typealias ScopeTabItem<Value: Hashable & Sendable> = UIComponents.ScopeTabItem<Value>
+typealias ScopeTabs<Value: Hashable & Sendable> = UIComponents.ScopeTabs<Value>
+typealias ScopeTabMemory = UIComponents.ScopeTabMemory
+
 extension View {
     func scopeTabsToolbar<Value: Hashable & Sendable & RawRepresentable>(
         screen: String, items: [ScopeTabItem<Value>], selection: Binding<Value>, isActive: Bool = true
@@ -31,9 +39,14 @@ where Value.RawValue == String {
     let items: [ScopeTabItem<Value>]
     @Binding var selection: Value
     let isActive: Bool
+    @Environment(Navigator.self) private var navigator
+    @Environment(\.stackDepth) private var depth
 
     func body(content: Content) -> some View {
-        content
+        // Top of the stack by construction: a screen with something pushed over it publishes no
+        // commands, so no screen can forget `isActive`.
+        let isActive = isActive && navigator.path.count == depth
+        return content
             .toolbar { ScopeTabsToolbar(items: items, selection: $selection) }
             .focusedSceneValue(\.scopeTabs, isActive ? ScopeTabsCommands(
                 titles: items.map(\.title),
@@ -53,6 +66,11 @@ private struct ScopeTabsToolbar<Value: Hashable & Sendable>: ToolbarContent {
             .toolbarRank(.primary)
         ToolbarSpacer(.fixed, placement: .principal)
     }
+}
+
+extension EnvironmentValues {
+    /// How many screens are below this one in its section's stack: 0 for the section's own screen.
+    @Entry var stackDepth = 0
 }
 
 /// What the View menu reads: the focused screen's tab titles and how to choose one.
