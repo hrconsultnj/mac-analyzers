@@ -14,7 +14,7 @@ extension MenuContentView {
             if store.killsToday > 0 || !store.events.isEmpty {
                 Button("Clear") { store.clearStats() }
                     .controlSize(.regular)
-                    .help("Resets the badge and this list. The guard log keeps the full history — nothing is deleted.")
+                    .help("Resets the badge and this list; the guard log keeps the history")
             }
         }
 
@@ -22,9 +22,9 @@ extension MenuContentView {
 
         Divider()
 
-        sectionLabel("RECENT EVENTS")
+        sectionLabel("Recent Events")
         if store.events.isEmpty {
-            Text("Quiet — nothing in the last 24 h")
+            Text("Quiet — nothing in the last 24 hours")
                 .foregroundStyle(.secondary)
                 .font(.callout)
         } else {
@@ -40,7 +40,7 @@ extension MenuContentView {
                 .fixedSize(horizontal: false, vertical: true)
         }
         HStack(spacing: 12) {
-            Button(store.guardPaused ? "Resume guard" : "Pause guard") {
+            Button(store.guardPaused ? "Resume Guard" : "Pause Guard") {
                 do {
                     try store.setGuardPaused(!store.guardPaused)
                     pauseError = nil
@@ -48,12 +48,12 @@ extension MenuContentView {
                     pauseError = error.localizedDescription
                 }
             }
-            Button("Guard log") { SettingsOpener.open(target: "log:guardLog") }
+            Button(Names.Screen.memoryGuard) { SettingsOpener.open(target: "log:guardLog") }
             if store.latestForensics != nil {
-                Button("Forensics") { SettingsOpener.open(target: "log:forensics") }
+                Button(Names.crisisReports) { SettingsOpener.open(target: "log:forensics") }
             }
             Spacer()
-            Text("Reaper: \(runText(store.lastMemoryCleanRun))")
+            Text("\(Names.Screen.memoryCleanup): \(runText(store.lastMemoryCleanRun))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .help("Closes helper processes whose app already closed. \(ScheduleKit.describe("com.mac-analyzers.memory-autoclean.daily")) — see the memory-auto-clean log")
@@ -92,13 +92,13 @@ extension MenuContentView {
                 .foregroundStyle(pressureColor)
                 .font(.caption2)
                 .accessibilityHidden(true)  // decorative — the label text already says the state
-            Text("Memory pressure: \(store.pressure.label)")
+            Text("Memory Pressure: \(store.pressure.label)")
                 .font(.callout)
                 .foregroundStyle(store.pressure == .normal ? .secondary : .primary)
             Spacer()
         }
         if !store.topProcesses.isEmpty {
-            sectionLabel("BIGGEST DEV PROCESSES NOW")
+            sectionLabel("Biggest Dev Processes Now")
             ForEach(store.topProcesses) { proc in
                 ProcessRow(proc: proc) { store.reload() }
             }

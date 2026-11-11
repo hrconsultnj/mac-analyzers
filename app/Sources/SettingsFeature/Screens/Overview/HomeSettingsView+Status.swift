@@ -13,7 +13,7 @@ extension HomeSettingsView {
                       spacing: 10) {
                 statTile(symbol: "memorychip", color: pressureColor,
                          value: store.pressure.label,
-                         label: "Memory pressure", target: "monitor")
+                         label: "Memory Pressure", target: "monitor")
                 statTile(symbol: guardSymbol, color: guardColor,
                          value: store.engine?.summary ?? "Checking…",
                          label: guardLabel,

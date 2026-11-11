@@ -11,7 +11,7 @@ struct AboutSettingsView: View {
     @Environment(Navigator.self) private var navigator
 
     var body: some View {
-        PaneScaffold(symbol: "questionmark.circle.fill", color: .gray, title: "About",
+        PaneScaffold(symbol: "questionmark.circle.fill", color: .gray, title: Names.Screen.howItWorks,
                      caption: "How Mac Analyzers decides, measures, and writes everything down.") {
             section("What the guard measures", [
                 "Resident RAM (rss): the physical memory a process occupies right now. That is the number every size in this app shows, and the one the guard acts on.",
@@ -37,7 +37,7 @@ struct AboutSettingsView: View {
             Section {
                 HStack {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Turn off or remove")
+                        Text(Names.Screen.turnOff)
                         Text("Pause it, switch off background protection, or remove it from this Mac — with proof that it worked.")
                             .font(.caption)
                             .foregroundStyle(.secondary)

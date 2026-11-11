@@ -22,8 +22,8 @@ struct TempSpaceView: View {
 
     enum Filter: String, CaseIterable {
         case ready = "Ready"
-        case leftAlone = "Left alone"
-        case sized = "Sized only"
+        case leftAlone = "Left Alone"
+        case sized = "Sized Only"
         case all = "All"
     }
 
@@ -50,18 +50,18 @@ struct TempSpaceView: View {
     static let collapsedRows = 12
 
     var body: some View {
-        PaneScaffold(symbol: "tray.full", color: .mint, title: "Temp & Agents",
+        PaneScaffold(symbol: "tray.full", color: .mint, title: Names.Screen.tempAndAgents,
                      caption: "What /tmp, /var and your AI agents' folders really hold — disk images told apart from real use, every verdict explained. Clearing is reviewed in Actions; nothing open, recent, live or someone else's is ever touched.") {
             Section {
                 HStack {
                     Spacer(minLength: 8)
-                    Button("Run audit") { runAudit() }
+                    Button("Run Audit") { runAudit() }
                         .disabled(isBusy)
-                        .help("Runs temp-clean.sh --dry-run and refreshes this pane. Changes nothing.")
-                    Button("Review & clean…") { openActions() }
+                        .help("Check what is in temp folders; changes nothing")
+                    Button("Review and Clean…") { openActions() }
                         .buttonStyle(.glassProminent)
                         .disabled(isBusy || (run?.readyItems.isEmpty ?? true))
-                        .help("Opens Actions › Temp & Agents: preview, untick anything you want kept, then move to the Trash (or delete permanently).")
+                        .help("Preview, untick what to keep, then move to the Trash or delete")
                     Button("Open in TextEdit") { GuardControl.openLog(AnalyzersPaths.tempCleanLog) }
                     Button {
                         Task { await load(force: true) }
@@ -72,7 +72,7 @@ struct TempSpaceView: View {
                 statusLine
                 if let run {
                     HStack(spacing: 6) {
-                        BadgeCapsule(text: run.dryRun ? "AUDIT" : (run.permanent ? "DELETED" : "TRASHED"),
+                        BadgeCapsule(text: run.dryRun ? "Audit" : (run.permanent ? "Deleted" : "Trashed"),
                                      color: run.dryRun ? .blue : (run.permanent ? .red : .orange))
                         Text(run.summary ?? run.header)
                             .font(.caption)

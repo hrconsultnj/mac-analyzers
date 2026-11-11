@@ -53,7 +53,7 @@ struct UninstallView: View {
     }
 
     var body: some View {
-        PaneScaffold(symbol: "power", color: .red, title: "Turn Off or Remove",
+        PaneScaffold(symbol: "power", color: .red, title: Names.Screen.turnOff,
                      caption: "Three levels, least drastic first. Every one of them reports what actually happened afterwards.") {
             if let result {
                 Section {

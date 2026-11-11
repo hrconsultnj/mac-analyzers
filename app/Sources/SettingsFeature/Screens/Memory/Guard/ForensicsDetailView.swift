@@ -9,7 +9,7 @@ struct ForensicsBrowserView: View {
     @State private var files: [URL] = []
 
     var body: some View {
-        PaneScaffold(symbol: "stethoscope", color: .purple, title: "Forensics",
+        PaneScaffold(symbol: "stethoscope", color: .purple, title: Names.crisisReports,
                      caption: "Every moment the guard wrote a crisis report — newest first.") {
             Section {
                 if files.isEmpty {
@@ -23,7 +23,7 @@ struct ForensicsBrowserView: View {
                                  subtitle: AnalyzersPaths.modificationDate(of: file)
                                      .map { $0.formatted(.dateTime.month(.abbreviated).day().hour().minute()) }
                                      ?? file.deletingLastPathComponent().lastPathComponent,
-                                 badge: ("REPORT", .purple))
+                                 badge: (Names.crisisReport, .purple))
                     }
                 }
             }
@@ -47,7 +47,7 @@ struct ForensicsDetailView: View {
     @State private var snapshot: ForensicsSnapshot?
 
     var body: some View {
-        PaneScaffold(symbol: "stethoscope", color: .purple, title: "Forensics",
+        PaneScaffold(symbol: "stethoscope", color: .purple, title: Names.crisisReport,
                      caption: snapshot?.header ?? (route.path as NSString).lastPathComponent) {
             Section {
                 HStack {
@@ -75,7 +75,7 @@ struct ForensicsDetailView: View {
                     }
                     if let physMem = snapshot.physMemLine {
                         DataCard(symbol: "memorychip", color: .blue,
-                                 title: "Physical memory", subtitle: physMem)
+                                 title: "Physical Memory", subtitle: physMem)
                     }
                     if let swap = snapshot.swapLine {
                         DataCard(symbol: "arrow.left.arrow.right", color: .teal,
@@ -91,12 +91,12 @@ struct ForensicsDetailView: View {
                                  title: proc.friendlyName,
                                  subtitle: "process \(proc.pid) · up \(proc.etime) · \(proc.shortName)",
                                  trailing: proc.rssText,
-                                 badge: proc.rssMB > 4096 ? ("HIGH", tone.tint) : nil)
+                                 badge: proc.rssMB > 4096 ? ("High", tone.tint) : nil)
                     }
                 }
             } else {
                 Section {
-                    Label("This forensics report is no longer on disk.",
+                    Label("This crisis report is no longer on disk.",
                           systemImage: "questionmark.folder")
                         .foregroundStyle(.secondary)
                     Text(route.path)

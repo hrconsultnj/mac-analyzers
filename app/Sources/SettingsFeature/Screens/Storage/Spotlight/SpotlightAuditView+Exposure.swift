@@ -29,7 +29,7 @@ extension SpotlightAuditView {
                     .foregroundStyle(.secondary)
             }
         } header: {
-            Text("Dev-directory exposure" + (run.exposureRoots.map { " (roots: \($0))" } ?? ""))
+            Text("Dev-Directory Exposure" + (run.exposureRoots.map { " (roots: \($0))" } ?? ""))
         }
 
         let items = filteredItems(run)
@@ -58,7 +58,7 @@ extension SpotlightAuditView {
     private func exposureRow(_ item: SpotlightExposureItem) -> some View {
         let exists = FileManager.default.fileExists(atPath: item.path)
         let fenced = liveStatus(item) == .fenced
-        let badge = (fenced ? "FENCED" : "UNFENCED", fenced ? Color.green : Color.blue)
+        let badge = (fenced ? "Fenced" : "Unfenced", fenced ? Color.green : Color.blue)
         return HStack(spacing: 6) {
             if exists {
                 DataCard(appIcon: NSWorkspace.shared.icon(forFile: item.path),

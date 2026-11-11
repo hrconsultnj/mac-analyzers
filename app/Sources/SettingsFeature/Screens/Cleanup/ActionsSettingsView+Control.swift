@@ -14,7 +14,7 @@ extension ActionsSettingsView {
                 HStack {
                     lastRunText
                     Spacer()
-                    Button("See what would be cleaned") {
+                    Button("See What Would Be Cleaned") {
                         preview()
                     }
                     .buttonStyle(.glassProminent)
@@ -50,7 +50,7 @@ extension ActionsSettingsView {
                     Label(summary, systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                     Spacer()
-                    Button("New preview") { resetToIdle() }
+                    Button("New Preview") { resetToIdle() }
                 }
             case .failed(let message):
                 VStack(alignment: .leading, spacing: 6) {
@@ -59,7 +59,7 @@ extension ActionsSettingsView {
                             .foregroundStyle(.red)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer()
-                        Button("Try again") { resetToIdle() }
+                        Button("Try Again") { resetToIdle() }
                     }
                     if !lastOutput.isEmpty {
                         DisclosureGroup("Details") {
@@ -73,7 +73,7 @@ extension ActionsSettingsView {
                                 }
                             }
                         }
-                        Button("Copy diagnostics") {
+                        Button("Copy Diagnostics") {
                             let report = """
                             script: \(cleaner.script.path)
                             args: \(modeArgs.joined(separator: " "))
@@ -122,7 +122,7 @@ extension ActionsSettingsView {
                 .font(.callout.weight(.medium))
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
-            Button("New preview") { preview() }
+            Button("New Preview") { preview() }
                 .buttonStyle(.glassProminent)
         }
     }

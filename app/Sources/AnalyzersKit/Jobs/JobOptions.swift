@@ -18,7 +18,7 @@ public struct JobOptions: Sendable, Hashable, Codable {
     /// Recordings: prune recording folders older than this many days.
     public var recordingsDays = 90
 
-    /// A scheduled run replayed by hand ("Run now"): the arguments from the
+    /// A scheduled run replayed by hand ("Run Now"): the arguments from the
     /// installed launchd plist, after the script path. The store fills this in
     /// itself from the plist for a `.schedule(label)` run, and ignores whatever a
     /// caller put here: they usually include `--apply`.

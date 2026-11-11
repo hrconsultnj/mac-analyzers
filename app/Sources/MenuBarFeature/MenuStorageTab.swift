@@ -8,7 +8,7 @@ extension MenuContentView {
     // MARK: - Storage tab
 
     @ViewBuilder var storageTab: some View {
-        sectionLabel("STORAGE NOW")
+        sectionLabel("Storage Now")
         if let disk = store.disk {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 6) {
@@ -41,21 +41,21 @@ extension MenuContentView {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            .help("What the storage log recorded when the scheduled clean last ran — compare with the live bar above")
+            .help("What the last scheduled clean recorded — compare with the bar above")
         }
 
         Divider()
 
-        sectionLabel("SCHEDULED CLEANS")
+        sectionLabel("Scheduled Cleans")
         storageRow(
-            title: "Daily clean",
+            title: "Daily Clean",
             detail: store.storageDailySummary.map { "last: \($0)" } ?? "no runs yet",
             sub: "\(ScheduleKit.describe(GuardControl.storageCleanLabel)) — stale build caches only",
             label: GuardControl.storageCleanLabel,
             symbol: "sparkles", color: .green
         )
         storageRow(
-            title: "Deep clean",
+            title: "Deep Clean",
             detail: store.storageDeepSummary.map { "last: \($0)" } ?? "no runs yet",
             sub: "\(ScheduleKit.describe(GuardControl.storageDeepLabel)) — + node_modules of idle repos, idle worktrees (never main), package-manager and app caches, ALL unused Docker images, Time Machine snapshot thinning",
             label: GuardControl.storageDeepLabel,
@@ -65,15 +65,15 @@ extension MenuContentView {
         Divider()
 
         // the bigger, reviewed cleans — dry-run → review → apply in the app
-        sectionLabel("REVIEW & CLEAN")
+        sectionLabel("Review and Clean")
         HStack(spacing: 12) {
-            Button("Storage…") { SettingsOpener.open(target: "actions:storageClean") }
+            Button("\(Names.Screen.cachesAndBuilds)…") { SettingsOpener.open(target: "actions:storageClean") }
                 .help("Preview what storage clean would remove, review, then apply")
-            Button("Janitor…") { SettingsOpener.open(target: "actions:janitor") }
+            Button("\(Names.Screen.downloads)…") { SettingsOpener.open(target: "actions:janitor") }
                 .help("Stale Downloads and old screenshots — to the Trash, reviewed first")
-            Button("Temp…") { SettingsOpener.open(target: "actions:tempClean") }
+            Button("\(Names.Screen.tempAndAgents)…") { SettingsOpener.open(target: "actions:tempClean") }
                 .help("Idle /tmp, /var and AI-agent leftovers — to the Trash, reviewed first")
-            Button("Memory…") { SettingsOpener.open(target: "actions:memoryClean") }
+            Button("\(Names.Screen.memoryCleanup)…") { SettingsOpener.open(target: "actions:memoryClean") }
                 .help("Close helper processes whose app already closed — reviewed first")
             Spacer()
         }
@@ -82,10 +82,10 @@ extension MenuContentView {
         Divider()
 
         HStack(spacing: 12) {
-            Button("Storage log") { SettingsOpener.open(target: "log:storageClean") }
-            Button("Login-items audit") { SettingsOpener.open(target: "log:loginItems") }
-            Button("Spotlight audit") { SettingsOpener.open(target: "log:spotlightAudit") }
-            Button("Temp & agents") { SettingsOpener.open(target: "log:tempSpace") }
+            Button(Names.Screen.cachesAndBuilds) { SettingsOpener.open(target: "log:storageClean") }
+            Button(Names.Screen.loginItems) { SettingsOpener.open(target: "log:loginItems") }
+            Button(Names.Screen.spotlight) { SettingsOpener.open(target: "log:spotlightAudit") }
+            Button(Names.Screen.tempAndAgents) { SettingsOpener.open(target: "log:tempSpace") }
             Spacer()
             Text("Last run \(runText(store.lastStorageCleanRun))")
                 .font(.caption)
@@ -107,7 +107,7 @@ extension MenuContentView {
                 Text(sub).font(.caption2).foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Run now") { runNow(label) }
+            Button("Run Now") { runNow(label) }
                 .controlSize(.regular)
                 .disabled(runNowPlan(for: label).problem != nil)
                 .help(runNowPlan(for: label).problem

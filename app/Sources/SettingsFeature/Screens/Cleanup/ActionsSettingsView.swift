@@ -73,7 +73,7 @@ struct ActionsSettingsView: View {
     }
 
     var body: some View {
-        PaneScaffold(symbol: "checklist", color: .cyan, title: "Actions",
+        PaneScaffold(symbol: "checklist", color: .cyan, title: cleaner.title,
                      caption: "Preview what a cleaner would do, untick anything you want kept, then apply. Only the rows you leave ticked can be touched — and the engine re-checks everything at apply time, which can only narrow that set further, never widen it.") {
             Section {
                 FullWidthSegments(
@@ -81,7 +81,7 @@ struct ActionsSettingsView: View {
                     selection: $cleaner
                 )
                 HStack(spacing: 6) {
-                    BadgeCapsule(text: recoverableNow ? "GOES TO TRASH" : "PERMANENT",
+                    BadgeCapsule(text: recoverableNow ? "Goes to Trash" : "Permanent",
                                  color: recoverableNow ? .orange : .red)
                     Text(cleaner.blurb)
                         .font(.caption)
@@ -141,8 +141,8 @@ struct ActionsSettingsView: View {
             Text(recoverableNow
                  ? "These move to the Trash, so you can put them back — from the Undo screen or from Finder. Everything is logged; protected lists always win."
                  : cleaner == .tempClean
-                    ? "This is PERMANENT — these items are deleted, not moved to the Trash, and Undo cannot bring them back. Temp files and agent scratch are disposable by design, but check the list for anything of yours. Everything is logged."
-                    : "This is PERMANENT — these files are deleted, not moved to the Trash, and Undo cannot bring them back. They are rebuildable: your tools recreate them when needed. Everything is logged; protected lists always win.")
+                    ? "This is permanent — these items are deleted, not moved to the Trash, and Undo cannot bring them back. Temp files and agent scratch are disposable by design, but check the list for anything of yours. Everything is logged."
+                    : "This is permanent — these files are deleted, not moved to the Trash, and Undo cannot bring them back. They are rebuildable: your tools recreate them when needed. Everything is logged; protected lists always win.")
         }
         .alert("Delete permanently — this can't be undone", isPresented: $confirmingPermanent) {
             Button("Delete \(ByteSize.format(tempSelectedBytes))", role: .destructive) {
@@ -173,7 +173,7 @@ struct ActionsSettingsView: View {
                         Section {
                             DataCard(symbol: "shield.fill", color: .green,
                                      title: "Protected sessions are exempt",
-                                     subtitle: exempt, badge: ("PROTECTED", .green))
+                                     subtitle: exempt, badge: ("Protected", .green))
                         }
                     }
                     if phase == .review, !dryReapItems.isEmpty {
@@ -217,7 +217,7 @@ struct ActionsSettingsView: View {
                     if let tm = run.tmNote {
                         Section {
                             DataCard(symbol: "clock.arrow.circlepath", color: .purple,
-                                     title: "Time Machine snapshots", subtitle: tm)
+                                     title: "Time Machine Snapshots", subtitle: tm)
                         }
                     }
                 }

@@ -42,7 +42,7 @@ struct OffenderDetailView: View {
         HStack(spacing: 10) {
             statTile("\(t.eventCount)", "Events", .blue)
             statTile("\(t.killCount)", "Kills", .red)
-            statTile(t.peakResidentMB > 0 ? formatMB(t.peakResidentMB) : "—", "Peak resident", .purple)
+            statTile(t.peakResidentMB > 0 ? formatMB(t.peakResidentMB) : "—", "Peak Resident", .purple)
         }
         .padding(.vertical, 2)
     }

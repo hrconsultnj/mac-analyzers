@@ -37,10 +37,10 @@ struct DossierView: View {
     // MARK: - live footprint
 
     @ViewBuilder private var liveSection: some View {
-        Section("Right now") {
+        Section("Right Now") {
             if let live {
                 DataCard(symbol: "memorychip", color: .blue,
-                         title: "Memory in use",
+                         title: "Memory in Use",
                          subtitle: "pid \(live.pid)",
                          trailing: live.memoryText,
                          live: true)
@@ -51,12 +51,12 @@ struct DossierView: View {
             }
             if let energy {
                 DataCard(symbol: "bolt.fill", color: .yellow,
-                         title: "Energy since launch",
+                         title: "Energy Since Launch",
                          trailing: energy.energyText)
             }
             if let diskIO {
                 DataCard(symbol: "internaldrive", color: .indigo,
-                         title: "Disk I/O since launch",
+                         title: "Disk I/O Since Launch",
                          subtitle: "↓ \(diskIO.readText) read",
                          trailing: "↑ \(diskIO.writtenText)")
             }
@@ -77,12 +77,12 @@ struct DossierView: View {
                 DataCard(symbol: "shield.fill", color: .green,
                          title: "On your protected list",
                          subtitle: "The guard and reapers will never touch it.",
-                         badge: ("PROTECTED", .green))
+                         badge: ("Protected", .green))
             } else if killable {
                 DataCard(symbol: "scope", color: .orange,
                          title: "In the guard's auto-stop scope",
                          subtitle: "Dev tooling — can be stopped over the cap or at critical pressure.",
-                         badge: ("IN SCOPE", .orange))
+                         badge: ("In Scope", .orange))
             } else {
                 DataCard(symbol: "shield.lefthalf.filled", color: .blue,
                          title: "Regular app — never auto-stopped",
@@ -94,7 +94,7 @@ struct DossierView: View {
     // MARK: - histories
 
     @ViewBuilder private var guardSection: some View {
-        Section("Guard history (90 days)") {
+        Section("Guard History (90 Days)") {
             if guardEvents.isEmpty {
                 Text("No guard events for this process — quiet is good.")
                     .foregroundStyle(.secondary)
@@ -105,13 +105,13 @@ struct DossierView: View {
                          title: event.title,
                          subtitle: event.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()),
                          trailing: event.residentText,
-                         badge: event.isKill ? ("KILLED", .red) : nil)
+                         badge: event.isKill ? ("Killed", .red) : nil)
             }
         }
     }
 
     @ViewBuilder private var networkSection: some View {
-        Section("Network (latest snapshot)") {
+        Section("Network (Latest Snapshot)") {
             if networkRows.isEmpty {
                 Text("No traffic recorded in the latest snapshot.")
                     .foregroundStyle(.secondary)

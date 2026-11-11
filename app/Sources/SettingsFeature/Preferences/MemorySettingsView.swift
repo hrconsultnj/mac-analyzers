@@ -13,10 +13,10 @@ struct MemorySettingsView: View {
 
     var body: some View {
         @Bindable var config = config
-        PaneScaffold(symbol: "memorychip", color: .blue, title: "Memory",
+        PaneScaffold(symbol: "memorychip", color: .blue, title: Names.Screen.memorySettings,
                      caption: "What the guard is allowed to do, and when it should only warn you.") {
             Section("Memory Guard — Limits") {
-                LabeledContent("Hard RAM cap") {
+                LabeledContent("Hard RAM Cap") {
                     VStack(alignment: .trailing, spacing: 2) {
                         HStack {
                             Slider(
@@ -35,25 +35,25 @@ struct MemorySettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .help("Resident (rss) = physical RAM occupied right now; compressed/swapped pages don't count. Applies only to dev tooling, never to protected processes.")
+                .help("Physical memory in use right now; dev tools only, never protected processes")
 
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle("Stop processes over the cap", isOn: $config.memory.hardCapKill)
-                    Text("Off = the guard still watches and NOTIFIES when something passes the cap, but stops nothing.")
+                    Text("Off = the guard still watches and notifies when something passes the cap, but stops nothing.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Toggle("Stop the biggest dev process on CRITICAL pressure", isOn: $config.memory.pressureKill)
-                    Text("Off = critical memory pressure only notifies (with a forensics report) so you can act yourself.")
+                    Toggle("Stop the biggest dev process at critical pressure", isOn: $config.memory.pressureKill)
+                    Text("Off = critical memory pressure only notifies (with a crisis report) so you can act yourself.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            Section("Memory Guard — Alerts (never stop anything)") {
+            Section("Memory Guard — Alerts (Never Stop Anything)") {
                 VStack(alignment: .leading, spacing: 2) {
-                    LabeledContent("Spike alert") {
+                    LabeledContent("Spike Alert") {
                         HStack {
                             Stepper("+\(config.memory.spikeMB) MB per tick",
                                     value: $config.memory.spikeMB, in: 100...2000, step: 50)
@@ -66,7 +66,7 @@ struct MemorySettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    LabeledContent("CPU hog alert") {
+                    LabeledContent("CPU Hog Alert") {
                         HStack {
                             Stepper("\(config.memory.cpuHogPct)% CPU",
                                     value: $config.memory.cpuHogPct, in: 50...800, step: 25)

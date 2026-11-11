@@ -109,7 +109,7 @@ struct MonitorFamilyRow: View {
             Image(systemName: "lock.fill")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-                .help("Part of macOS — it runs as long as your Mac does, and isn't something to quit from here")
+                .help("Part of macOS — not something to quit from here")
                 .accessibilityLabel("Part of macOS, not quittable here")
         } else {
             Button(quitting ? "…" : quitVerb) { confirmingQuit = true }

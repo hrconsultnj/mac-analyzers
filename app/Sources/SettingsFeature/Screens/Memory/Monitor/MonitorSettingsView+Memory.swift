@@ -13,7 +13,7 @@ extension MonitorSettingsView {
     /// with its value — the bar is the glance, the rows are the answer.
     @ViewBuilder var breakdownSection: some View {
         if let memory = census?.breakdown {
-            Section("Where your memory is") {
+            Section("Where Your Memory Is") {
                 VStack(alignment: .leading, spacing: Tokens.Space.m) {
                     HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s) {
                         Text("\(MemorySize.text(memory.usedBytes)) in use")
@@ -30,13 +30,13 @@ extension MonitorSettingsView {
                 }
                 .padding(.vertical, Tokens.Space.xxs)
 
-                legendRow(.blue, "App memory", memory.appBytes,
+                legendRow(.blue, "App Memory", memory.appBytes,
                           "Held right now by the apps and processes listed below.")
-                legendRow(.indigo, "Wired", memory.wiredBytes,
+                legendRow(.indigo, "Wired Memory", memory.wiredBytes,
                           "macOS itself — the kernel, drivers and graphics. Can't be moved or squeezed.")
                 legendRow(.purple, "Compressed", memory.compressedBytes,
                           "Idle memory macOS squeezed to make room — \(MemorySize.text(memory.compressedOriginalBytes)) of it packed into this.")
-                legendRow(.teal, "Cached files", memory.cachedBytes,
+                legendRow(.teal, "Cached Files", memory.cachedBytes,
                           "Recently used files kept for speed. Not counted as in use — handed back the moment an app needs the room.")
                 legendRow(nil, "Free", memory.freeBytes, "Untouched.")
             }
@@ -71,7 +71,7 @@ extension MonitorSettingsView {
     /// before a single row is opened.
     @ViewBuilder var ledgerSection: some View {
         if let census {
-            Section("Who is holding it") {
+            Section("Who Is Holding It") {
                 Text("\(census.processCount.formatted()) processes are running, holding \(MemorySize.text(census.totalBytes)) between them.")
                 FilterChipsBar(
                     chips: [.init(CensusGroup.Category?.none,
@@ -86,7 +86,7 @@ extension MonitorSettingsView {
                         },
                     selection: $scope
                 )
-                Text("A group's total counts compressed memory at its full size, so the groups add up to roughly App memory plus what is packed inside Compressed."
+                Text("A group's total counts compressed memory at its full size, so the groups add up to roughly App Memory plus what is packed inside Compressed."
                      + (census.unmeasuredCount > 0
                         ? " \(census.unmeasuredCount) processes could not be measured and count as zero."
                         : ""))

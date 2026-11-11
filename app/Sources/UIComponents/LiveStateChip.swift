@@ -13,7 +13,7 @@ public struct LiveStateChip: View {
             Circle()
                 .fill(active ? Tokens.Status.live.tint : Tokens.Status.inert.tint)
                 .frame(width: 5, height: 5)
-            Text(active ? "ACTIVE" : "ENDED")
+            Text(active ? "Active" : "Ended")
                 .font(.caption2.weight(.bold))
         }
         // one source for the tone (was a hardcoded Color.green/.secondary

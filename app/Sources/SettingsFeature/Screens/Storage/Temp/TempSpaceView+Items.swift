@@ -33,7 +33,7 @@ extension TempSpaceView {
                             itemRow(item)
                         }
                         if rows.count > Self.collapsedRows {
-                            Button(showAll ? "Show fewer" : "Show all \(rows.count)") {
+                            Button(showAll ? "Show Fewer" : "Show All \(rows.count)") {
                                 if showAll { expanded.remove(section) } else { expanded.insert(section) }
                             }
                             .buttonStyle(.borderless)
@@ -93,20 +93,20 @@ extension TempSpaceView {
 
     private func badge(_ item: TempItem) -> (String, Color) {
         switch item.status {
-        case .dry: ("READY", .blue)
-        case .trashed: ("TRASHED", .orange)
-        case .deleted: ("DELETED", .red)
-        case .failed: ("FAILED", .red)
-        case .skip: ("UNTICKED", .gray)
-        case .recent: ("RECENT", .teal)
-        case .inUse: ("IN USE", .green)
-        case .protected: ("PROTECTED", .green)
-        case .notYours: ("NOT YOURS", .gray)
-        case .keep: ("YOUR KEEP LIST", .gray)
-        case .system: ("SYSTEM", .gray)
-        case .history: ("HISTORY", .purple)
-        case .kept: ("KEPT", .gray)
-        case .managed: ("MANAGED", .gray)
+        case .dry: ("Ready", .blue)
+        case .trashed: ("Trashed", .orange)
+        case .deleted: ("Deleted", .red)
+        case .failed: ("Failed", .red)
+        case .skip: ("Unticked", .gray)
+        case .recent: ("Recent", .teal)
+        case .inUse: ("In Use", .green)
+        case .protected: ("Protected", .green)
+        case .notYours: ("Not Yours", .gray)
+        case .keep: ("Your Keep List", .gray)
+        case .system: ("System", .gray)
+        case .history: ("History", .purple)
+        case .kept: ("Kept", .gray)
+        case .managed: ("Managed", .gray)
         }
     }
 

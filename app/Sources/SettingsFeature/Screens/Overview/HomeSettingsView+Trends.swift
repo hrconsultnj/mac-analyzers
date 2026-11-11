@@ -40,7 +40,7 @@ extension HomeSettingsView {
                     Button("Export…") { HealthReport.save() }
                 }
             } header: {
-                Text("This week")
+                Text("This Week")
             }
         }
     }

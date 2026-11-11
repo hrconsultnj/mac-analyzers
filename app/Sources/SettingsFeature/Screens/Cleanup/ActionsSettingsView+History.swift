@@ -19,7 +19,7 @@ extension ActionsSettingsView {
 
     @ViewBuilder var historySection: some View {
         if !history.isEmpty {
-            Section("Previous runs") {
+            Section("Previous Runs") {
                 ForEach(history) { run in
                     DisclosureGroup {
                         historyCards(run)

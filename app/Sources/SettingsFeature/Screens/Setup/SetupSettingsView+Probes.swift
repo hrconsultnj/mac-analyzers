@@ -68,7 +68,7 @@ extension SetupSettingsView {
             return SetupCheck(id: "login", title: "Opens when you log in", why: why,
                               verdict: .degraded,
                               detail: "macOS does not recognise this copy of the app. Move it to your Applications folder and try again.",
-                              repair: .enableLoginItem, repairTitle: "Try again")
+                              repair: .enableLoginItem, repairTitle: "Try Again")
         default:
             return SetupCheck(id: "login", title: "Opens when you log in", why: why,
                               verdict: .unset, detail: "Not enabled.",

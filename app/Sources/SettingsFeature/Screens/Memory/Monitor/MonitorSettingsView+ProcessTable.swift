@@ -13,7 +13,7 @@ extension MonitorSettingsView {
     /// only door.
     @ViewBuilder var standaloneSection: some View {
         if !standaloneProcs.isEmpty {
-            Section("Single processes — \(standaloneProcs.count) · \(MemorySize.text(standaloneProcs.reduce(0) { $0 + $1.memoryBytes }))") {
+            Section("\(Names.Category.singleProcesses) — \(standaloneProcs.count) · \(MemorySize.text(standaloneProcs.reduce(0) { $0 + $1.memoryBytes }))") {
                 Table(standaloneProcs, selection: $selectedPID, sortOrder: $sortOrder) {
                     TableColumn("Name", sortUsing: KeyPathComparator<LiveProcess>(\.friendlyName)) { proc in
                         Text(proc.friendlyName)
@@ -24,7 +24,7 @@ extension MonitorSettingsView {
                     .width(min: 140, ideal: 190)
                     // what a macOS service is for where that is known,
                     // otherwise the command that started the process
-                    TableColumn("What it is") { proc in
+                    TableColumn("What It Is") { proc in
                         let role = ProcessGlossary.systemRole(of: proc.friendlyName)
                         let detail = role
                             ?? (proc.rawName == proc.friendlyName ? "" : proc.rawName)

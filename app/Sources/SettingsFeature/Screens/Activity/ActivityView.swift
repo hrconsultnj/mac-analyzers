@@ -35,7 +35,7 @@ struct ActivityView: View {
         let now = Date()
         List(selection: $selection) {
             if !sections.running.isEmpty {
-                Section("Running now") {
+                Section("Running Now") {
                     ForEach(sections.running) { row in rowView(row, now: now) }
                 }
             }
@@ -45,7 +45,7 @@ struct ActivityView: View {
                 }
             }
             if !sections.neverRan.isEmpty {
-                Section("Hasn't run yet") {
+                Section("Hasn't Run Yet") {
                     ForEach(sections.neverRan) { row in rowView(row, now: now) }
                 }
             }
@@ -167,16 +167,16 @@ struct ActivityView: View {
         if model.hasLoaded, sections.running.isEmpty, sections.days.isEmpty, sections.neverRan.isEmpty {
             switch filter.scope {
             case .all where filter.query.isEmpty:
-                ContentUnavailableView("Nothing has run yet", systemImage: "list.bullet.rectangle",
+                ContentUnavailableView("Nothing Has Run Yet", systemImage: "list.bullet.rectangle",
                                        description: Text("Cleanups, checks and reports appear here as they run."))
             case .running:
-                ContentUnavailableView("Nothing is running", systemImage: "play.circle",
+                ContentUnavailableView("Nothing Is Running", systemImage: "play.circle",
                                        description: Text("A cleanup or check that is running shows here, with a Stop button."))
             case .needsReview:
-                ContentUnavailableView("Nothing is waiting for review", systemImage: "eye",
+                ContentUnavailableView("Nothing Is Waiting for Review", systemImage: "eye",
                                        description: Text("A preview you ran in the last \(Int(JobStore.reviewWindow / 60)) minutes that found something shows here until you apply or discard it. Older ones stay in the list as what they found."))
             case .failed:
-                ContentUnavailableView("Nothing has failed", systemImage: "checkmark.circle",
+                ContentUnavailableView("Nothing Has Failed", systemImage: "checkmark.circle",
                                        description: Text("Runs that could not finish are listed here, with the reason."))
             default:
                 ContentUnavailableView.search(text: filter.query)

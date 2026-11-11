@@ -21,7 +21,7 @@ struct LoginItemsView: View {
 
     var body: some View {
         PaneScaffold(symbol: "person.crop.circle.badge.questionmark", color: .brown,
-                     title: "Login-Items Audit",
+                     title: Names.Screen.loginItems,
                      caption: "Apps that quietly start when you log in, even after you removed them. This audit finds login items and launch agents whose original app is gone, with the exact removal command for each.") {
             Section {
                 HStack {
@@ -41,7 +41,7 @@ struct LoginItemsView: View {
                 }
                 if let run {
                     HStack(spacing: 6) {
-                        BadgeCapsule(text: run.dryRun ? "DRY RUN" : "APPLIED",
+                        BadgeCapsule(text: run.dryRun ? "Dry Run" : "Applied",
                                      color: run.dryRun ? .blue : .green)
                         Text(run.header)
                             .font(.caption)
@@ -87,12 +87,12 @@ struct LoginItemsView: View {
                 DataCard(appIcon: NSWorkspace.shared.icon(forFile: target),
                          title: entry.displayName,
                          subtitle: subtitle(for: entry),
-                         badge: (entry.verdict.rawValue, color(for: entry.verdict)))
+                         badge: (TokenLabel.title(entry.verdict.rawValue), color(for: entry.verdict)))
             } else {
                 DataCard(symbol: symbol(for: entry.verdict), color: color(for: entry.verdict),
                          title: entry.displayName,
                          subtitle: subtitle(for: entry),
-                         badge: (entry.verdict.rawValue, color(for: entry.verdict)))
+                         badge: (TokenLabel.title(entry.verdict.rawValue), color(for: entry.verdict)))
             }
             if let cmd = entry.sudoCommand {
                 HStack(spacing: 6) {
@@ -104,7 +104,7 @@ struct LoginItemsView: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                         .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.chip))
-                    Button(copiedID == entry.id ? "Copied ✓" : "Copy command") {
+                    Button(copiedID == entry.id ? "Copied" : "Copy Command") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(cmd, forType: .string)
                         copiedID = entry.id

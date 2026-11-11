@@ -92,7 +92,7 @@ public struct GuardEvent: Identifiable, Hashable, Sendable {
         case .pressureWarning(let level):
             return "Memory pressure warning (level \(level)) — compressing/swapping"
         case .pressureCritical(let level, let killDisabled):
-            return "Memory pressure CRITICAL (level \(level))\(killDisabled ? " — kills off, notified only" : "")"
+            return "Memory pressure critical (level \(level))\(killDisabled ? " — kills off, notified only" : "")"
         case .cpuHog(let pct, let ticks):
             return "\(friendlyName) sustained \(pct)%+ CPU for \(ticks) checks"
         case .forensics:

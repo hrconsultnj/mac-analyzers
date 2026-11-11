@@ -49,7 +49,7 @@ public final class ThermalWatcher {
             if new.rawValue > lastNotified.rawValue {
                 lastNotified = new
                 onElevation?(
-                    "Your Mac is throttling (\(label.lowercased()))",
+                    "Your Mac Is Throttling (\(label.capitalized))",
                     "macOS is slowing the CPU to cool down. Busiest right now: \(hogs).")
             }
         case .fair:

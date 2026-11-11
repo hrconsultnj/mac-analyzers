@@ -132,7 +132,7 @@ public final class JobStore {
             return kind.isCleaner ? nil : "\(kind.rawValue) has no preview mode."
         case .run:
             guard kind.isCleaner else { return nil }
-            // A cleaner runs by hand only as its own scheduled run ("Run now"); what it
+            // A cleaner runs by hand only as its own scheduled run ("Run Now"); what it
             // runs is read from the installed plist (`resolvedSchedule`), never from the caller.
             if case .schedule = trigger { return nil }
             return "\(kind.rawValue) cannot run without a review: only a scheduled run can be replayed."

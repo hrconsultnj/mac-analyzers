@@ -14,33 +14,36 @@ struct UpdateSettingsView: View {
     /// Which entries the reader opened or closed, by entry id.
     @State private var expanded: [String: Bool] = [:]
 
-    private var installed: String { UpdateChecker.installedVersion }
+    private var installed: String { updates.installed }
     private var updateAvailable: Bool {
         latest.map { UpdateChecker.isNewer($0, than: installed) } ?? false
     }
 
     var body: some View {
-        PaneScaffold(symbol: "arrow.down.circle.fill", color: .green, title: "Update",
+        PaneScaffold(symbol: "arrow.down.circle.fill", color: .green, title: Names.Screen.updates,
                      caption: "See what version you have, what is new, and install the latest.") {
             Section {
-                LabeledContent("Installed version") { Text("v\(installed)").monospacedDigit() }
+                LabeledContent("Installed Version") { Text(updates.build.versionText).monospacedDigit() }
                 if let build = UpdateChecker.installedBuild {
                     LabeledContent("Build") {
                         Text(build)
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
-                    .help("Which exact build this copy is. The version number only changes when a release is published.")
+                    .help("The exact build of this copy; the version changes only on release")
                 }
-                LabeledContent("Latest release") {
-                    Text(latest.map { "v\($0)" } ?? (checking ? "checking…" : "—"))
+                LabeledContent("Latest Release") {
+                    Text(latest.map { "v\($0)" } ?? (checking ? "Checking…" : "—"))
                         .monospacedDigit()
                 }
                 if updateAvailable {
-                    Label("Update available", systemImage: "exclamationmark.circle.fill")
+                    Label(Names.State.updateAvailable, systemImage: "exclamationmark.circle.fill")
                         .foregroundStyle(.orange)
+                } else if updates.build.isDevelopment {
+                    Label(updates.build.developmentSentence(latest: latest), systemImage: "hammer.fill")
+                        .foregroundStyle(.blue)
                 } else if latest != nil {
-                    Label("You're up to date", systemImage: "checkmark.circle.fill")
+                    Label(Names.State.upToDate, systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                 }
             }
@@ -78,7 +81,8 @@ struct UpdateSettingsView: View {
         }
         .task {
             UserDefaults.standard.set(installed, forKey: "lastSeenChangelog")
-            await awaitLoad({ ReleaseNote.bundled() }) { notes = $0 }
+            let includeNext = updates.build.isDevelopment
+            await awaitLoad({ ReleaseNote.bundled(includeNext: includeNext) }) { notes = $0 }
         }
         .task {
             // always fresh when the pane opens — the cache is for background

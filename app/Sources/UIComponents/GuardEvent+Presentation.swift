@@ -27,14 +27,14 @@ extension GuardEvent {
 
     public var badge: (String, Color)? {
         switch kind {
-        case .killed: ("KILLED", .red)
-        case .spike: ("SPIKE", .orange)
-        case .capExceeded: ("OVER CAP", .orange)
-        case .pressureWarning: ("PRESSURE", .orange)
-        case .pressureCritical: ("CRITICAL", .red)
+        case .killed: ("Killed", .red)
+        case .spike: ("Spike", .orange)
+        case .capExceeded: ("Over Cap", .orange)
+        case .pressureWarning: ("Pressure", .orange)
+        case .pressureCritical: ("Critical", .red)
         case .cpuHog: ("CPU", .purple)
         case .forensics: nil
-        case .warning: ("WARN", .orange)
+        case .warning: ("Warning", .orange)
         }
     }
 }

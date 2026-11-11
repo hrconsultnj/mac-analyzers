@@ -10,7 +10,7 @@ extension MonitorSettingsView {
         let rows = search.isEmpty ? energy : energy.filter {
             $0.name.lowercased().contains(search.lowercased())
         }
-        Section("Energy since launch (the numbers macOS itself reports — who drained the battery)") {
+        Section("Energy Since Launch (the numbers macOS itself reports — who drained the battery)") {
             if rows.isEmpty {
                 Text("No energy accounting available yet.")
                     .foregroundStyle(.secondary)
@@ -36,7 +36,7 @@ extension MonitorSettingsView {
         let rows = search.isEmpty ? diskIO : diskIO.filter {
             $0.name.lowercased().contains(search.lowercased())
         }
-        Section("Disk I/O since launch (writes are what wear the SSD)") {
+        Section("Disk I/O Since Launch (writes are what wear the SSD)") {
             if rows.isEmpty {
                 Text("No disk-I/O accounting available yet.")
                     .foregroundStyle(.secondary)

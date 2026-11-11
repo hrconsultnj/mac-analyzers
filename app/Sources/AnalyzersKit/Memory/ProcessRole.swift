@@ -15,16 +15,16 @@ enum ProcessRole {
         let many: String
     }
 
-    static let main = Described(kind: .main, title: "The app itself", one: "main", many: "main")
-    static let pages = Described(kind: .pages, title: "Tabs and pages",
+    static let main = Described(kind: .main, title: "The App Itself", one: "main", many: "main")
+    static let pages = Described(kind: .pages, title: "Tabs and Pages",
                                  one: "tab or page", many: "tabs and pages")
-    static let extensions = Described(kind: .extensions, title: "Extensions and plug-ins",
+    static let extensions = Described(kind: .extensions, title: "Extensions and Plug-ins",
                                       one: "extension", many: "extensions")
     static let graphics = Described(kind: .graphics, title: "Graphics",
                                     one: "for graphics", many: "for graphics")
-    static let network = Described(kind: .network, title: "Network and storage",
+    static let network = Described(kind: .network, title: "Network and Storage",
                                    one: "for network and storage", many: "for network and storage")
-    static let helper = Described(kind: .helper, title: "Other helpers",
+    static let helper = Described(kind: .helper, title: "Other Helpers",
                                   one: "other helper", many: "other helpers")
 
     /// - Parameters:

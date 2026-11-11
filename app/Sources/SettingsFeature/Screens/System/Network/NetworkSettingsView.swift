@@ -16,7 +16,7 @@ struct NetworkSettingsView: View {
     private var refreshing: Bool { job?.isActive ?? false }
 
     var body: some View {
-        PaneScaffold(symbol: "network", color: .purple, title: "Network",
+        PaneScaffold(symbol: "network", color: .purple, title: Names.Screen.network,
                      caption: "Cumulative traffic per process since it launched — the phoning-home ledger. Observation only; nothing is blocked.") {
             Section {
                 HStack {
@@ -33,7 +33,7 @@ struct NetworkSettingsView: View {
                         Button {
                             refresh()
                         } label: {
-                            Label("Snapshot now", systemImage: "arrow.clockwise")
+                            Label("Take Snapshot", systemImage: "arrow.clockwise")
                         }
                     }
                 }
@@ -55,7 +55,7 @@ struct NetworkSettingsView: View {
                     }
                     .padding(.vertical, 2)
                 }
-                Section("Top talkers") {
+                Section("Top Talkers") {
                     ForEach(snapshot.talkers) { talker in
                         row(for: talker)
                     }

@@ -8,13 +8,13 @@ extension SpotlightAuditView {
     // MARK: - section 1: indexing status
 
     @ViewBuilder func statusSection(_ run: SpotlightAuditRun) -> some View {
-        Section("Indexing status") {
+        Section("Indexing Status") {
             DataCard(symbol: statusSymbol(run), color: statusColor(run),
                      title: run.indexingLine ?? "Indexing status unknown",
                      subtitle: run.mdsLine.map { "mds/mdworker: \($0)" })
             if let update = run.recentUpdateLine {
                 DataCard(symbol: "arrow.triangle.2.circlepath", color: .purple,
-                         title: "Recent macOS update", subtitle: update)
+                         title: "Recent macOS Update", subtitle: update)
             }
             if !run.statusRaw.isEmpty {
                 rawBlock(run.statusRaw)

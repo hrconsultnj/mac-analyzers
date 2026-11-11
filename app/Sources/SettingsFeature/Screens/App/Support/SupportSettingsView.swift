@@ -12,11 +12,11 @@ struct SupportSettingsView: View {
     private let repo = "https://github.com/hrconsultnj/mac-analyzers"
 
     var body: some View {
-        PaneScaffold(symbol: "heart.fill", color: .pink, title: "Support this project",
+        PaneScaffold(symbol: "heart.fill", color: .pink, title: Names.Screen.support,
                      caption: "Mac Analyzers is free, and the parts that tell you what your Mac is doing always will be.") {
             Section {
                 VStack(alignment: .leading, spacing: Tokens.Space.m) {
-                    Text("What you already have")
+                    Text("What You Already Have")
                         .font(.callout.weight(.semibold))
                     ForEach(freeThings, id: \.self) { line in
                         Label(line, systemImage: "checkmark.circle.fill")
@@ -28,7 +28,7 @@ struct SupportSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Section("Ways to help") {
+            Section("Ways to Help") {
                 LabeledContent {
                     Button("Open on GitHub") { open(repo) }
                 } label: {
@@ -37,14 +37,14 @@ struct SupportSettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 LabeledContent {
-                    Button("Report an issue") { open("\(repo)/issues/new") }
+                    Button("Report an Issue") { open("\(repo)/issues/new") }
                 } label: {
                     Text("Tell me what broke")
                     Text("A screenshot and what you expected is enough. Bug reports are how the awkward edges get found.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 LabeledContent {
-                    Button("Read the code") { open(repo) }
+                    Button("Read the Code") { open(repo) }
                 } label: {
                     Text("Check what it does")
                     Text("Every script that touches your Mac is readable. A tool with this much reach should be inspectable.")

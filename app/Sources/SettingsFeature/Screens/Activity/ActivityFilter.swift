@@ -76,10 +76,10 @@ enum ActivityScope: String, CaseIterable, Identifiable, Codable {
 
     var title: String {
         switch self {
-        case .all: "All"
-        case .running: "Running"
-        case .needsReview: "Needs review"
-        case .failed: "Failed"
+        case .all: Names.Scope.all
+        case .running: Names.Scope.running
+        case .needsReview: Names.Scope.needsReview
+        case .failed: Names.Scope.failed
         }
     }
 

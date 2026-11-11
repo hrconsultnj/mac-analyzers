@@ -17,18 +17,18 @@ extension HomeSettingsView {
         let throttling = ThermalWatcher.shared.isElevated
 
         if updateReady || store.guardPaused || reclaimable > 1 << 30 || pressureBad || throttling {
-            Section("Needs attention") {
+            Section("Needs Attention") {
                 if throttling {
                     attentionRow(symbol: "thermometer.high", color: .red,
                                  title: "Your Mac is throttling to cool down",
                                  subtitle: "macOS is slowing the CPU — see who's working it hardest.",
-                                 action: "Open Monitor", target: "monitor")
+                                 action: "Open \(Names.Screen.monitor)", target: "monitor")
                 }
                 if pressureBad {
                     attentionRow(symbol: "exclamationmark.triangle.fill", color: .orange,
                                  title: "Memory pressure is \(store.pressure.label.lowercased())",
                                  subtitle: "See what's using RAM right now.",
-                                 action: "Open Monitor", target: "monitor")
+                                 action: "Open \(Names.Screen.monitor)", target: "monitor")
                 }
                 if store.guardPaused {
                     HStack {
@@ -42,9 +42,9 @@ extension HomeSettingsView {
                 }
                 if updateReady, let latestRelease {
                     attentionRow(symbol: "arrow.down.circle.fill", color: .green,
-                                 title: "Update available — v\(latestRelease)",
+                                 title: "\(Names.State.updateAvailable) — v\(latestRelease)",
                                  subtitle: "You're on v\(UpdateChecker.installedVersion).",
-                                 action: "Open Update", target: "update")
+                                 action: "Open \(Names.Screen.updates)", target: "update")
                 }
                 if reclaimable > 1 << 30 {
                     attentionRow(symbol: "sparkles", color: .teal,
@@ -56,7 +56,7 @@ extension HomeSettingsView {
                     attentionRow(symbol: "chart.line.downtrend.xyaxis", color: .red,
                                  title: "Disk full in \(runway.text) at the current pace",
                                  subtitle: "Trend from your own storage-clean history.",
-                                 action: "Free space", target: "actions:storageClean")
+                                 action: "Free Space", target: "actions:storageClean")
                 }
             }
         }

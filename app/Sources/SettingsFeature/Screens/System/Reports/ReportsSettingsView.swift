@@ -49,7 +49,7 @@ struct ReportsSettingsView: View {
     private var jobStamps: [JobStamp] { Kind.allCases.map { JobStamp(runs[$0]) } }
 
     var body: some View {
-        PaneScaffold(symbol: "doc.text.magnifyingglass", color: .purple, title: "Reports",
+        PaneScaffold(symbol: "doc.text.magnifyingglass", color: .purple, title: Names.Screen.reports,
                      caption: "Two read-only reports that explain what your Mac is doing. Running one changes nothing — it only writes a document you can read here or keep.") {
             if let error {
                 Section {
@@ -65,7 +65,7 @@ struct ReportsSettingsView: View {
                             IconTile(symbol: kind.symbol, color: kind.color, side: Tokens.Icon.card)
                                 .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("\(kind.title) report").font(.callout.weight(.medium))
+                                Text("\(kind.title) Report").font(.callout.weight(.medium))
                                 Text(kind.summary)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -88,7 +88,7 @@ struct ReportsSettingsView: View {
                         }
                         if body_[kind] != nil {
                             HStack {
-                                Button(showing == kind ? "Hide report" : "Read report") {
+                                Button(showing == kind ? "Hide Report" : "Read Report") {
                                     showing = showing == kind ? nil : kind
                                 }
                                 Button("Open in TextEdit") { GuardControl.openLog(kind.latest) }

@@ -8,22 +8,7 @@ extension JobKind {
     /// The product's name for what this kind works on — the same words as the
     /// sidebar row that holds its screen. The mode ("deep cleanup", "preview")
     /// is added where it is shown (`ActivityRow.displayTitle`).
-    public var title: String {
-        switch self {
-        case .memoryClean, .reclaim: "Memory Cleanup"
-        case .storageClean: "Caches & Builds"
-        case .janitor: "Downloads"
-        case .tempClean, .eject: "Temp & Agents"
-        case .tmReclaim: "Time Machine"
-        case .spotlight: "Spotlight"
-        case .loginItems: "Login & Startup Items"
-        case .unusedApps: "Unused Apps"
-        case .recordings: "Old Recordings"
-        case .networkSnapshot: "Network"
-        case .memoryReport, .storageReport: "Reports"
-        case .installAgents, .uninstallAgents, .sudoersInstall: "Setup"
-        }
-    }
+    public var title: String { Names.job(self) }
 
     public var symbol: String {
         switch self {

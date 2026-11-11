@@ -61,7 +61,7 @@ private struct JobStatusItemView: View {
                 Image(systemName: "stop.circle.fill")
             }
             .buttonStyle(.plain)
-            .help("Stop \(job.kind.title). Quitting Mac Analyzers asks whether to stop it or let it finish.")
+            .help("Stop \(job.kind.title) — quitting asks whether to stop it or let it finish")
             .accessibilityLabel("Stop \(job.kind.title)")
         }
     }

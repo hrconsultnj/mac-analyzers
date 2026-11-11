@@ -20,7 +20,7 @@ extension ActionsSettingsView {
                                  title: "\(item.displayName) backs mounted disk images",
                                  subtitle: "Applying ejects them first (never forced): "
                                      + item.ejects.map { ($0 as NSString).lastPathComponent }.joined(separator: ", "),
-                                 badge: ("EJECTS FIRST", .purple))
+                                 badge: ("Ejects First", .purple))
                     }
                 }
             }
@@ -62,10 +62,10 @@ extension ActionsSettingsView {
         if let reason = item.reason { bits.append(reason) }
         let subtitle = bits.isEmpty ? item.path : bits.joined(separator: " · ")
         let badge: (String, Color) = switch item.status {
-        case .trashed: ("TRASHED", .orange)
-        case .deleted: ("DELETED", .red)
-        case .failed: ("FAILED", .red)
-        default: recoverableNow ? ("WOULD TRASH", .blue) : ("WOULD DELETE", .red)
+        case .trashed: ("Trashed", .orange)
+        case .deleted: ("Deleted", .red)
+        case .failed: ("Failed", .red)
+        default: recoverableNow ? ("Would Trash", .blue) : ("Would Delete", .red)
         }
         return HStack(spacing: 6) {
             Group {

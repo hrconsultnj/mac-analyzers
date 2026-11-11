@@ -43,7 +43,7 @@ enum AppGroup {
     static let support = SectionID("support")
 
     static let group = SidebarGroup(
-        title: "Mac Analyzers",
+        title: Names.Group.app,
         rows: rows,
         hidden: [support],
         root: screen,
@@ -56,12 +56,12 @@ enum AppGroup {
 
     private static var rows: [SidebarRow] {
         var rows = [
-            SidebarRow(updates, "Updates", symbol: "arrow.down.circle",
+            SidebarRow(updates, Names.Screen.updates, symbol: "arrow.down.circle",
                        badge: { UpdateBadge.shared.updateAvailable ? "1" : nil }),
-            SidebarRow(howItWorks, "How It Works", symbol: "questionmark.circle"),
+            SidebarRow(howItWorks, Names.Screen.howItWorks, symbol: "questionmark.circle"),
         ]
         #if !canImport(ProKit)
-        rows.append(SidebarRow(support, "Support", symbol: "heart"))
+        rows.append(SidebarRow(support, Names.Screen.support, symbol: "heart"))
         #endif
         return rows
     }

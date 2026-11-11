@@ -21,7 +21,7 @@ struct JobScreen: View {
             if row != nil {
                 ActivityInspector(row: row, model: model)
             } else if model.hasLoaded {
-                ContentUnavailableView("This run is no longer recorded", systemImage: "questionmark.folder",
+                ContentUnavailableView("This Run Is No Longer Recorded", systemImage: "questionmark.folder",
                                        description: Text("It is not in this session, and the list of past runs no longer has it."))
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)

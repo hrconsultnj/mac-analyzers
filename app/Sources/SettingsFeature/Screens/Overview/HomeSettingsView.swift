@@ -22,7 +22,7 @@ struct HomeSettingsView: View {
     @State var runway: ForecastModel.Runway?
 
     var body: some View {
-        PaneScaffold(symbol: "macwindow.on.rectangle", color: .blue, title: "Overview",
+        PaneScaffold(symbol: "macwindow.on.rectangle", color: .blue, title: Names.Screen.overview,
                      caption: "Your Mac at a glance — click anything to go deeper.") {
             statusSection
             attentionSection

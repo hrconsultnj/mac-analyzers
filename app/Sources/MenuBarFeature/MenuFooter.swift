@@ -20,9 +20,9 @@ extension MenuContentView {
                UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion) {
                 Button("Upgrade to v\(latest)") { updates.requestInstall() }
                     .buttonStyle(.borderedProminent)
-                    .help("Runs upgrade.command in Terminal — pull, rebuild, relaunch; settings untouched")
+                    .help("Update in Terminal, then relaunch; settings are kept")
             } else {
-                Text("v\(UpdateChecker.installedVersion)")
+                Text(updates.build.versionText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

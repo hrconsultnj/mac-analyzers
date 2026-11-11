@@ -33,7 +33,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 ROOT="$(cd "$(dirname "$0")/.." && pwd)" || exit 2
 cd "$ROOT" || exit 2
 
-ALL="syntax lint secrets changelog tests workflows strays spi app"
+ALL="syntax lint secrets changelog tests workflows strays spi names app"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ma-check.XXXXXX")" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -54,6 +54,7 @@ describe() {
     workflows) echo "actionlint on .github/workflows (optional: skipped, visibly, when not installed)" ;;
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root" ;;
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
+    names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
   esac
 }
@@ -264,6 +265,37 @@ check_spi() {
   return 0
 }
 
+# The names of screens, tasks, scopes and states are written once, in
+# `AnalyzersKit/Naming/Names.swift`, and are all title-style names. The probe
+# lives in `agent-runner` so the check never parses Swift with grep: it builds
+# the runner, asks it to print every name and exits 1 on one that
+# `TitleStyle` rejects. MA_NAMES_APP points the check at another copy of app/
+# (used to prove it fails on a lowercased name).
+check_names() {
+  local app="${MA_NAMES_APP:-$ROOT/app}"
+  if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
+  if [ ! -f "$app/Package.swift" ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
+  if ! command -v swift >/dev/null 2>&1; then DETAIL="skipped: swift is not installed"; return 2; fi
+  local bin
+  if ! ( cd "$app" && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0= \
+          swift build --disable-keychain --product AgentRunner ) >"$TMP/names-build.out" 2>&1; then
+    grep -a -E ': error: ' "$TMP/names-build.out" | cut -c1-300 | awk '!seen[$0]++' | head -10 >"$OUT"
+    [ -s "$OUT" ] || tail -n 10 "$TMP/names-build.out" | cut -c1-300 >"$OUT"
+    DETAIL="could not build agent-runner"
+    return 1
+  fi
+  bin="$(cd "$app" && swift build --disable-keychain --show-bin-path 2>/dev/null)/AgentRunner"
+  if [ ! -x "$bin" ]; then DETAIL="agent-runner was not built"; return 1; fi
+  if "$bin" --probe-names >"$TMP/names.out" 2>&1; then
+    DETAIL="$(tail -n 1 "$TMP/names.out")"
+    return 0
+  fi
+  grep -a '^FAIL' "$TMP/names.out" >"$OUT"
+  tail -n 1 "$TMP/names.out" >>"$OUT"
+  DETAIL="a name is not in title style"
+  return 1
+}
+
 check_app() {
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
   if [ ! -f app/Package.swift ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
@@ -340,7 +372,7 @@ if [ -n "$range" ]; then
       case "$n" in
         syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
         changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
-        app|spi) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
+        app|spi|names) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
         secrets|strays) selected="$selected $n" ;;
       esac
     done

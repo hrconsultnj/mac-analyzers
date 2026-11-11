@@ -42,7 +42,7 @@ struct ReapLogView: View {
                 }
                 if let run {
                     HStack(spacing: 6) {
-                        BadgeCapsule(text: run.dryRun ? "DRY RUN" : "APPLIED",
+                        BadgeCapsule(text: run.dryRun ? "Dry Run" : "Applied",
                                      color: run.dryRun ? .blue : .green)
                         Text(run.summary ?? run.header)
                             .font(.caption)
@@ -167,6 +167,6 @@ struct ReapLogView: View {
     }
 
     private func badgeText(_ status: ReapItem.Status) -> String {
-        status == .exempt ? "PROTECTED" : status.rawValue
+        status == .exempt ? "Protected" : status == .dry ? "Would Close" : TokenLabel.title(status.rawValue)
     }
 }

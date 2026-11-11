@@ -63,6 +63,39 @@ REVISION="$(git -C .. rev-parse --short HEAD 2>/dev/null || echo "unknown")"
 [[ -n "$(git -C .. status --porcelain 2>/dev/null)" ]] && REVISION="$REVISION, with local changes"
 /usr/libexec/PlistBuddy -c "Add :MABuildRevision string $REVISION" \
   -c "Add :MABuildDate string $(date '+%b %-d at %H:%M')" "$APP/Contents/Info.plist" 2>/dev/null || true
+# How far this build is from the release it is named after, so a development
+# build can say so on screen: that release's tag, the commits made since it,
+# and whether the tree had local changes. A copy with no git history gets no
+# stamp and reads as a release.
+#
+# Counted from the tag of the version in VERSION (`v2.69.0..HEAD`), not from
+# `git describe`: describe only finds a tag on this branch's own history, and
+# a release is tagged on main's merge commit, which development does not
+# contain — so right after a release it would name the release BEFORE and call
+# an identical tree a development build. Counting from the version's own tag
+# gives 0 for that tree whatever the branch layout. Only when that tag is not
+# known here (not fetched yet) does it fall back to the nearest tag in history.
+BUILD_AHEAD=""
+BUILD_DIRTY=0
+BUILD_TAG="v$(tr -d ' \n' < ../VERSION)"
+if git -C .. rev-parse -q --verify "refs/tags/$BUILD_TAG" >/dev/null 2>&1; then
+  BUILD_AHEAD="$(git -C .. rev-list --count "$BUILD_TAG..HEAD" 2>/dev/null || true)"
+else
+  BUILD_DESCRIBE="$(git -C .. describe --tags --long --match 'v[0-9]*' 2>/dev/null || true)"
+  if [[ "$BUILD_DESCRIBE" =~ ^(v[0-9][^-]*)-([0-9]+)-g[0-9a-f]+$ ]]; then
+    BUILD_TAG="${BASH_REMATCH[1]}"
+    BUILD_AHEAD="${BASH_REMATCH[2]}"
+  fi
+fi
+if [[ "$BUILD_AHEAD" =~ ^[0-9]+$ ]]; then
+  [[ -n "$(git -C .. status --porcelain 2>/dev/null)" ]] && BUILD_DIRTY=1
+  /usr/libexec/PlistBuddy -c "Add :MABuildReleaseTag string $BUILD_TAG" \
+    -c "Add :MABuildCommitsAfter integer $BUILD_AHEAD" \
+    -c "Add :MABuildLocalChanges bool $([[ "$BUILD_DIRTY" == 1 ]] && echo true || echo false)" \
+    "$APP/Contents/Info.plist" 2>/dev/null || true
+else
+  BUILD_AHEAD=""
+fi
 cp "$BIN/MacAnalyzersApp" "$APP/Contents/MacOS/MacAnalyzersApp"
 cp "$BIN/NotifierCLI" "$APP/Contents/MacOS/notify"
 cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"
@@ -73,7 +106,15 @@ cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Bundled changelog: the newest 20 entries of the repo's CHANGELOG.md — the
 # same file each GitHub release publishes, so the app's What's New and the
 # release page can never say different things.
-awk '/^## v[0-9]/{count++} count>20{exit} count>0{print}' ../CHANGELOG.md \
+# A build ahead of the last release also carries the "## Next" section: what is
+# in this build and not yet released. A release build starts at the first "## v".
+WANT_NEXT=0
+if [[ "$BUILD_AHEAD" =~ ^[0-9]+$ ]] && { [[ "$BUILD_AHEAD" -gt 0 ]] || [[ "${BUILD_DIRTY:-0}" == 1 ]]; }; then WANT_NEXT=1; fi
+awk -v next_wanted="$WANT_NEXT" '
+  /^## Next/ { in_next = 1 }
+  /^## v[0-9]/ { in_next = 0; count++ }
+  count > 20 { exit }
+  count > 0 || (in_next && next_wanted == 1) { print }' ../CHANGELOG.md \
   > "$APP/Contents/Resources/CHANGELOG.md" 2>/dev/null || true
 
 # Bundled engine: the bash suite ships INSIDE the app, so a downloaded copy

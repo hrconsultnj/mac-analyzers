@@ -1,4 +1,5 @@
 import SwiftUI
+import AnalyzersKit
 
 /// What can be pushed in the Memory group.
 enum MemoryRoute: Hashable, Codable, Sendable {
@@ -25,11 +26,11 @@ enum MemoryGroup {
     private static let reclaim = ActionsSettingsView.Cleaner.reclaim.rawValue
 
     static let group = SidebarGroup(
-        title: "Memory",
+        title: Names.Group.memory,
         rows: [
-            SidebarRow(monitor, "Monitor", symbol: "gauge.with.dots.needle.67percent"),
-            SidebarRow(memoryGuard, "Memory Guard", symbol: "shield.lefthalf.filled"),
-            SidebarRow(memoryCleanup, "Memory Cleanup", symbol: "sparkles"),
+            SidebarRow(monitor, Names.Screen.monitor, symbol: "gauge.with.dots.needle.67percent"),
+            SidebarRow(memoryGuard, Names.Screen.memoryGuard, symbol: "shield.lefthalf.filled"),
+            SidebarRow(memoryCleanup, Names.Screen.memoryCleanup, symbol: "sparkles"),
         ],
         root: screen,
         aliases: [
@@ -85,7 +86,7 @@ private struct GuardRoot: View {
         GuardLogView()
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Forensics") { navigator.push(.memory(.forensicsList)) }
+                    Button(Names.crisisReports) { navigator.push(.memory(.forensicsList)) }
                         .help("Every crisis report the guard wrote")
                 }
             }

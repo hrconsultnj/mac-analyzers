@@ -24,7 +24,7 @@ struct DiskReclaimedDetailView: View {
                                      title: item.cacheKind,
                                      subtitle: item.path,
                                      trailing: ByteSize.format(item.sizeBytes),
-                                     badge: ("DELETED", .red))
+                                     badge: ("Deleted", .red))
                         }
                     } label: {
                         HStack {

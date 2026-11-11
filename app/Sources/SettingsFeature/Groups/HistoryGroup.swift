@@ -1,4 +1,5 @@
 import SwiftUI
+import AnalyzersKit
 
 /// What can be pushed in the History group.
 enum HistoryRoute: Hashable, Codable, Sendable {
@@ -13,10 +14,10 @@ enum HistoryGroup {
     static let undo = SectionID("undo")
 
     static let group = SidebarGroup(
-        title: "History",
+        title: Names.Group.history,
         rows: [
-            SidebarRow(trends, "Trends", symbol: "chart.xyaxis.line"),
-            SidebarRow(undo, "Undo", symbol: "arrow.uturn.backward"),
+            SidebarRow(trends, Names.Screen.trends, symbol: "chart.xyaxis.line"),
+            SidebarRow(undo, Names.Screen.undo, symbol: "arrow.uturn.backward"),
         ],
         root: screen,
         aliases: [

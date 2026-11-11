@@ -8,20 +8,7 @@ typealias LogKind = EngineLog
 /// How each engine log looks: title, symbol and tile colour.
 extension EngineLog {
 
-    var title: String {
-        switch self {
-        case .guardLog: "Memory Guard"
-        case .memoryClean: "Memory Auto-Clean"
-        case .reclaim: "Memory Reclaim"
-        case .storageClean: "Storage Auto-Clean"
-        case .janitor: "Downloads Janitor"
-        case .tempSpace: "Temp & Agents"
-        case .persistence: "Persistence Changes"
-        case .loginItems: "Login-Items Audit"
-        case .spotlightAudit: "Spotlight Audit"
-        case .forensics: "Forensics"
-        }
-    }
+    var title: String { Names.log(self) }
 
     var symbol: String {
         switch self {

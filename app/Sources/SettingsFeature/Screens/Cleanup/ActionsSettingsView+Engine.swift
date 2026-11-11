@@ -160,7 +160,7 @@ extension ActionsSettingsView {
         deselected.removeAll()
     }
 
-    /// Discard, "New preview" and "Try again": forget this review. The jobs
+    /// Discard, "New Preview" and "Try Again": forget this review. The jobs
     /// stay in the store and in Activity.
     func resetToIdle() {
         jobs.dismiss(previewJob)

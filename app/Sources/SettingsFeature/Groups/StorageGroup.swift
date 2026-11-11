@@ -1,4 +1,5 @@
 import SwiftUI
+import AnalyzersKit
 
 /// What can be pushed in the Storage group.
 enum StorageRoute: Hashable, Codable, Sendable {
@@ -25,13 +26,13 @@ enum StorageGroup {
     private static let tempClean = ActionsSettingsView.Cleaner.tempClean.rawValue
 
     static let group = SidebarGroup(
-        title: "Storage",
+        title: Names.Group.storage,
         rows: [
-            SidebarRow(disk, "Disk", symbol: "internaldrive"),
-            SidebarRow(caches, "Caches & Builds", symbol: "shippingbox"),
-            SidebarRow(downloads, "Downloads", symbol: "arrow.down.circle"),
-            SidebarRow(temp, "Temp & Agents", symbol: "tray.full"),
-            SidebarRow(spotlight, "Spotlight", symbol: "magnifyingglass"),
+            SidebarRow(disk, Names.Screen.disk, symbol: "internaldrive"),
+            SidebarRow(caches, Names.Screen.cachesAndBuilds, symbol: "shippingbox"),
+            SidebarRow(downloads, Names.Screen.downloads, symbol: "arrow.down.circle"),
+            SidebarRow(temp, Names.Screen.tempAndAgents, symbol: "tray.full"),
+            SidebarRow(spotlight, Names.Screen.spotlight, symbol: "magnifyingglass"),
         ],
         root: screen,
         aliases: [

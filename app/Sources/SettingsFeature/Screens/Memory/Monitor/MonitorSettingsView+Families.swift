@@ -13,7 +13,7 @@ extension MonitorSettingsView {
             let folded = !showAllFamilies && search.isEmpty
                 && familyGroups.count > Self.familyFold
             let visible = folded ? Array(familyGroups.prefix(Self.familyFold)) : familyGroups
-            Section("Apps and services — \(familyGroups.count) · \(MemorySize.text(familyGroups.reduce(0) { $0 + $1.totalBytes }))") {
+            Section("\(Names.Category.appsAndServices) — \(familyGroups.count) · \(MemorySize.text(familyGroups.reduce(0) { $0 + $1.totalBytes }))") {
                 ForEach(visible) { group in
                     MonitorFamilyRow(
                         group: group,
@@ -27,7 +27,7 @@ extension MonitorSettingsView {
                     foldedTail(familyGroups.dropFirst(Self.familyFold))
                 } else if showAllFamilies, search.isEmpty,
                           familyGroups.count > Self.familyFold {
-                    Button("Show only the \(Self.familyFold) largest") { showAllFamilies = false }
+                    Button("Show Only the \(Self.familyFold) Largest") { showAllFamilies = false }
                         .buttonStyle(.plain)
                         .foregroundStyle(Color.accentColor)
                 }
@@ -42,7 +42,7 @@ extension MonitorSettingsView {
             showAllFamilies = true
         } label: {
             HStack {
-                Text("Show \(rest.count) smaller ones")
+                Text("Show \(rest.count) Smaller Ones")
                 Spacer()
                 Text(MemorySize.text(rest.reduce(0) { $0 + $1.totalBytes }))
                     .font(Tokens.Typography.valueKey)

@@ -59,7 +59,27 @@ final class Snapshot: NSObject, NSApplicationDelegate {
     let scratch = FileManager.default.temporaryDirectory
         .appending(path: "ma-snapshot-\(UUID().uuidString)", directoryHint: .isDirectory)
     lazy var jobs = JobStore(ledger: JobLedger(url: scratch.appending(path: "app-jobs.jsonl")))
-    let updates = UpdateState()
+    /// This binary has no Info.plist, so the version a bundled app reads from its
+    /// bundle comes from the repository's VERSION file here — the render then
+    /// shows what the installed app would.
+    let updates: UpdateState = {
+        let version = (try? String(contentsOf: AnalyzersPaths.suiteRoot.appending(path: "VERSION"), encoding: .utf8))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? "0"
+        // the stamp build.sh would have written, read from git here instead
+        func git(_ args: [String]) -> String {
+            let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            p.arguments = ["-C", AnalyzersPaths.suiteRoot.path] + args
+            let pipe = Pipe(); p.standardOutput = pipe; p.standardError = FileHandle.nullDevice
+            guard (try? p.run()) != nil else { return "" }
+            let out = pipe.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
+            return String(decoding: out, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let parts = git(["describe", "--tags", "--long", "--match", "v[0-9]*"]).split(separator: "-")
+        let ahead = parts.count >= 3 ? Int(parts[parts.count - 2]) : nil
+        return UpdateState(installed: version,
+                           build: BuildInfo(release: version, commitsAfter: ahead,
+                                            localChanges: !git(["status", "--porcelain"]).isEmpty))
+    }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
@@ -72,6 +92,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         chmod(nothing.path, 0o755)
         jobs.scriptOverride = nothing
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
+        Task { await updates.check() }
         let root = MainWindowView()
             .environment(store)
             .environment(config)

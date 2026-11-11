@@ -9,9 +9,9 @@ struct StorageSettingsView: View {
 
     var body: some View {
         @Bindable var config = config
-        PaneScaffold(symbol: "internaldrive.fill", color: .indigo, title: "Storage",
-                     caption: "What the SCHEDULED cleans may touch — build output and caches only, all of it regenerable. The Downloads janitor is separate: it moves old files to the Trash, after you review them, and you can undo it.") {
-            Section("Storage auto-clean") {
+        PaneScaffold(symbol: "internaldrive.fill", color: .indigo, title: Names.Screen.storageSettings,
+                     caption: "What the scheduled cleans may touch — build output and caches only, all of it regenerable. The Downloads janitor is separate: it moves old files to the Trash, after you review them, and you can undo it.") {
+            Section("Storage Auto-Clean") {
                 StringListEditor(
                     title: "Extra cache-directory patterns (cleaned when idle > 7 days)",
                     prompt: "e.g. ~/.someapp/cache/.next-*",
@@ -23,7 +23,7 @@ struct StorageSettingsView: View {
                     items: $config.storage.staleApps,
                     height: 140
                 )
-                LabeledContent("Recordings folder") {
+                LabeledContent("Recordings Folder") {
                     TextField("empty = feature disabled", text: $config.storage.recordingsDir)
                         .textFieldStyle(.roundedBorder)
                 }
@@ -41,7 +41,7 @@ struct StorageSettingsView: View {
                     }
                 }
             } header: {
-                Text("Tool caches (expansion pack)")
+                Text("Tool Caches (Expansion Pack)")
             } footer: {
                 Text("Opt-in per tool. Everything here is redownloadable or rebuildable cache — sources and state are never in scope. Sizes show every time you preview; cleaning happens when you apply.")
                     .font(.caption)
@@ -84,7 +84,7 @@ struct StorageSettingsView: View {
                     }
                 }
             } header: {
-                Text("Code projects")
+                Text("Code Projects")
             }
 
             // The janitor is the ONE cleaner that touches documents rather
@@ -114,7 +114,7 @@ struct StorageSettingsView: View {
                     items: $config.storage.janitorKeepPatterns
                 )
             } header: {
-                Text("Downloads janitor")
+                Text(Names.Screen.downloads)
             } footer: {
                 Text("These move to the Trash, so you can always put them back — from the Undo screen or from Finder. Nothing moves until you review it and apply.")
                     .font(.caption)
@@ -146,7 +146,7 @@ struct StorageSettingsView: View {
                     }
                 }
             } header: {
-                Text("iPhone/iPad backups on this Mac")
+                Text("iPhone/iPad Backups on This Mac")
             } footer: {
                 Text("Report only — deleting a backup is always your manual call, in Finder.")
                     .font(.caption)

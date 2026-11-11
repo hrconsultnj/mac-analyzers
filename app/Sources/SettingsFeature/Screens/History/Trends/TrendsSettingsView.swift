@@ -16,7 +16,7 @@ struct TrendsSettingsView: View {
     }
 
     var body: some View {
-        PaneScaffold(symbol: "chart.xyaxis.line", color: .mint, title: "Trends",
+        PaneScaffold(symbol: "chart.xyaxis.line", color: .mint, title: Names.Screen.trends,
                      caption: "What the guard and cleaners have done for this Mac — from its own logs, nothing leaves the machine.") {
             Section {
                 // 3/7/30 fill the bar; the fixed-width ellipsis is a menu
@@ -107,7 +107,7 @@ struct TrendsSettingsView: View {
             ])
         }
         if !snap.days.isEmpty {
-            Section("Guard events per day") {
+            Section("Guard Events per Day") {
                 Chart(snap.days) { day in
                     BarMark(x: .value("Day", day.day, unit: .day),
                             y: .value("Kills", day.kills))
@@ -131,7 +131,7 @@ struct TrendsSettingsView: View {
             }
         }
         if !snap.offenders.isEmpty {
-            Section("Repeat offenders") {
+            Section("Repeat Offenders") {
                 ForEach(snap.offenders) { offender in
                     NavigationLink(value: Route.history(.trends(.offender(offender.name, period)))) {
                         DataCard(symbol: "flame.fill", color: .orange,
@@ -139,7 +139,7 @@ struct TrendsSettingsView: View {
                                  subtitle: "\(offender.count) event\(offender.count == 1 ? "" : "s") in this window",
                                  trailing: "\(offender.count)×",
                                  badge: offender.kills > 0
-                                     ? ("\(offender.kills) KILLED", .red) : nil)
+                                     ? ("\(offender.kills) Killed", .red) : nil)
                     }
                 }
             }

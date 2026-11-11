@@ -27,6 +27,8 @@ public final class UpdateState {
     public private(set) var checkedAt: Date?
 
     public let installed: String
+    /// How far this copy is from the release it is named after.
+    public let build: BuildInfo
 
     /// The app's job store, handed over once it exists: an install restarts the
     /// app, so it must not start while a job runs.
@@ -35,8 +37,10 @@ public final class UpdateState {
     @ObservationIgnored private var loop: Task<Void, Never>?
     private static let cadence: Duration = .seconds(6 * 3600)
 
-    public init(installed: String = UpdateChecker.installedVersion) {
+    public init(installed: String = UpdateChecker.installedVersion, build: BuildInfo? = nil) {
         self.installed = installed
+        self.build = build ?? BuildInfo(release: installed, commitsAfter: BuildInfo.current.commitsAfter,
+                                         localChanges: BuildInfo.current.localChanges)
     }
 
     /// A newer release than the one installed exists.

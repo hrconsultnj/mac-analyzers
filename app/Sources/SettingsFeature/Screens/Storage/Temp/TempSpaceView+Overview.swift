@@ -8,25 +8,25 @@ extension TempSpaceView {
     // MARK: - overview
 
     @ViewBuilder func overviewSection(_ run: TempCleanRun) -> some View {
-        Section("Where the space is") {
+        Section("Where the Space Is") {
             if let free = run.freeSpace {
                 DataCard(symbol: "internaldrive", color: .blue,
-                         title: "Free space", subtitle: "on this Mac's disk", trailing: free)
+                         title: "Free Space", subtitle: "on this Mac's disk", trailing: free)
             }
             DataCard(symbol: "tray.full", color: .mint,
-                     title: "Temp on disk", subtitle: "/tmp, your temp folder and /var/tmp",
+                     title: "Temp on Disk", subtitle: "/tmp, your temp folder and /var/tmp",
                      trailing: run.tempOnDisk)
             if let inside = run.insideImagesBytes, inside > 0 {
                 DataCard(symbol: "opticaldiscdrive", color: .purple,
-                         title: "Inside mounted disk images",
+                         title: "Inside Mounted Disk Images",
                          subtitle: "Not on your disk — a plain du would report \(run.plainDu ?? "more")",
                          trailing: run.insideImages)
             }
             DataCard(symbol: "sparkles", color: .orange,
-                     title: "AI agent folders", subtitle: agentSubtitle(run),
+                     title: "AI Agent Folders", subtitle: agentSubtitle(run),
                      trailing: run.agentFolders)
             DataCard(symbol: "checkmark.circle", color: .green,
-                     title: "Ready to clear",
+                     title: "Ready to Clear",
                      subtitle: run.readyItems.isEmpty
                          ? "Nothing qualifies right now"
                          : "\(run.readyItems.reduce(0) { $0 + $1.count }) item(s) — review and untick in Actions",

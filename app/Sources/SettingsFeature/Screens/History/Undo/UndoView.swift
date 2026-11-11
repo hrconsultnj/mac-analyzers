@@ -15,7 +15,7 @@ struct UndoView: View {
     @State private var copiedID: String?
 
     var body: some View {
-        PaneScaffold(symbol: "arrow.uturn.backward", color: .gray, title: "Undo",
+        PaneScaffold(symbol: "arrow.uturn.backward", color: .gray, title: Names.Screen.undo,
                      caption: "What can be brought back — items the Janitor or Temp & Agents moved to the Trash, restored with a receipt, and the commands behind stopped dev servers.") {
             Section("Moved to the Trash") {
                 if let restoreError {
@@ -41,25 +41,25 @@ struct UndoView: View {
                         case .restorable:
                             Button("Restore") { restore(item) }
                         case .trashCopyGone:
-                            Text("Trash emptied")
+                            Text("Trash Emptied")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         case .pathOccupied:
-                            Text("Path occupied")
+                            Text("Path Occupied")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .help("Something new exists at the original path — restore manually from the Trash if needed.")
+                                .help("Something new is at the original path — restore from the Trash")
                         case .destinationUnknown:
-                            Text("Restore manually")
+                            Text("Restore Manually")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .help("This item was trashed before the app tracked exactly where files came from, so restoring would mean guessing which file in the Trash is the right one — the app won't guess. Drag it back yourself if you need it.")
+                                .help("Trashed before the app tracked origins — drag it back from the Trash yourself")
                         }
                     }
                 }
             }
 
-            Section("Stopped dev servers (recent)") {
+            Section("Stopped Dev Servers (Recent)") {
                 if kills.isEmpty {
                     Text("The guard hasn't stopped anything recently.")
                         .foregroundStyle(.secondary)
@@ -70,8 +70,8 @@ struct UndoView: View {
                                  title: event.friendlyName,
                                  subtitle: "\(event.processName) · \(event.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()))",
                                  trailing: event.residentText,
-                                 badge: ("KILLED", .red))
-                        Button(copiedID == event.id ? "Copied" : "Copy command") {
+                                 badge: ("Killed", .red))
+                        Button(copiedID == event.id ? "Copied" : "Copy Command") {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(event.processName, forType: .string)
                             copiedID = event.id

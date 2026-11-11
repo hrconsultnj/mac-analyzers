@@ -54,7 +54,7 @@ struct MonitorSettingsView: View {
     }
 
     var body: some View {
-        PaneScaffold(symbol: "gauge.with.dots.needle.67percent", color: .orange, title: "Monitor",
+        PaneScaffold(symbol: "gauge.with.dots.needle.67percent", color: .orange, title: Names.Screen.monitor,
                      caption: "Where your memory is and who is holding it — every running process, grouped by the app or service it belongs to. Nothing is left out for being small.") {
             Section {
                 HStack {
@@ -62,19 +62,19 @@ struct MonitorSettingsView: View {
                         .fill(pressure == .normal ? .green
                               : pressure == .warning ? .orange : .red)
                         .frame(width: 8, height: 8)
-                    Text("Memory pressure: \(pressure.label)")
+                    Text("Memory Pressure: \(pressure.label)")
                         .foregroundStyle(pressure == .normal ? .secondary : .primary)
                     if thermal.isElevated {
-                        BadgeCapsule(text: "THROTTLING", color: .red)
+                        BadgeCapsule(text: "Throttling", color: .red)
                             .help("macOS is slowing the CPU to cool down — receipts in reports/thermal.log")
                     } else if thermal.state == .fair {
-                        BadgeCapsule(text: "WARM", color: .orange)
+                        BadgeCapsule(text: "Warm", color: .orange)
                     }
                     Spacer()
                     Picker("", selection: $refresh) {
-                        Text("5s").tag(5)
-                        Text("15s").tag(15)
-                        Text("60s").tag(60)
+                        Text("5 s").tag(5)
+                        Text("15 s").tag(15)
+                        Text("60 s").tag(60)
                         Text("Off").tag(0)
                     }
                     .pickerStyle(.segmented)

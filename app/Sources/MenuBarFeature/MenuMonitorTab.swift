@@ -22,16 +22,16 @@ extension MenuContentView {
             Spacer()
             // Activity-Monitor-style update frequency
             Picker("", selection: $monitorRefresh) {
-                Text("5s").tag(5)
-                Text("15s").tag(15)
-                Text("60s").tag(60)
+                Text("5 s").tag(5)
+                Text("15 s").tag(15)
+                Text("60 s").tag(60)
                 Text("Off").tag(0)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
             .controlSize(.small)
             .frame(width: 150)
-            .help("How often this list refreshes while open (like Activity Monitor's update frequency)")
+            .help("How often this list refreshes while open")
         }
         .task(id: monitorRefresh) {
             guard monitorRefresh > 0 else { return }
@@ -44,7 +44,7 @@ extension MenuContentView {
         // same family grouping as the Monitor pane — one row per app,
         // helpers rolled underneath, expandable in place
         if !store.monitorGroups.isEmpty {
-            sectionLabel("PROCESSES")
+            sectionLabel("Processes")
             ForEach(store.monitorGroups) { group in
                 if group.children.isEmpty {
                     ProcessRow(proc: group.parent) { store.reload() }

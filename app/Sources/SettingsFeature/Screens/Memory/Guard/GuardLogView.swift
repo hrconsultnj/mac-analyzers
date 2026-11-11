@@ -12,7 +12,7 @@ struct GuardLogView: View {
     enum Window: Hashable {
         case week, quarter
         var seconds: TimeInterval { self == .week ? 7 * 86_400 : 90 * 86_400 }
-        var label: String { self == .week ? "Last 7 days" : "Last 90 days" }
+        var label: String { self == .week ? "Last 7 Days" : "Last 90 Days" }
     }
 
     @State private var window: Window = .quarter
@@ -36,11 +36,11 @@ struct GuardLogView: View {
     }
 
     var body: some View {
-        PaneScaffold(symbol: "shield.lefthalf.filled", color: .blue, title: "Memory Guard",
+        PaneScaffold(symbol: "shield.lefthalf.filled", color: .blue, title: Names.Screen.memoryGuard,
                      caption: "What the guard saw and did — pick a range, then filter by what matters.") {
             Section {
                 FullWidthSegments(
-                    options: [(Window.week, "Last 7 days"), (Window.quarter, "Last 90 days")],
+                    options: [(Window.week, "Last 7 Days"), (Window.quarter, "Last 90 Days")],
                     selection: $window
                 )
                 HStack {
@@ -84,7 +84,7 @@ struct GuardLogView: View {
                 DataCard(symbol: "stethoscope", color: .purple,
                          title: event.title,
                          subtitle: "\(event.subtitle) · \(time(event))",
-                         badge: ("REPORT", .purple))
+                         badge: (Names.crisisReport, .purple))
             }
         } else {
             DataCard(symbol: event.symbol, color: event.tint,

@@ -57,7 +57,7 @@ struct StorageCleanView: View {
                         if kind == .storageClean {
                             BadgeCapsule(text: run.mode.uppercased(), color: .indigo)
                         }
-                        BadgeCapsule(text: run.dryRun ? "DRY RUN" : "APPLIED",
+                        BadgeCapsule(text: run.dryRun ? "Dry Run" : "Applied",
                                      color: run.dryRun ? .blue : .green)
                         Text(run.summary ?? run.header)
                             .font(.caption)
@@ -99,7 +99,7 @@ struct StorageCleanView: View {
                                                  title: item.cacheKind,
                                                  subtitle: item.path,
                                                  trailing: ByteSize.format(item.sizeBytes),
-                                                 badge: (item.status.rawValue, statusColor(item.status)))
+                                                 badge: (item.status == .dry ? "Would Remove" : TokenLabel.title(item.status.rawValue), statusColor(item.status)))
                                         if FileManager.default.fileExists(atPath: item.path) {
                                             Button {
                                                 NSWorkspace.shared.activateFileViewerSelecting(
@@ -147,7 +147,7 @@ struct StorageCleanView: View {
                 if let tm = run.tmNote, filter == .all {
                     Section("Time Machine Snapshots") {
                         DataCard(symbol: "clock.arrow.circlepath", color: .teal,
-                                 title: "Local snapshots", subtitle: tm)
+                                 title: "Local Snapshots", subtitle: tm)
                     }
                 }
             } else {
@@ -163,7 +163,7 @@ struct StorageCleanView: View {
     /// Third-party CLI output — the one place a collapsed monospaced block is
     /// honest (this app doesn't own that text's structure).
     private func rawBlock(_ lines: [String]) -> some View {
-        DisclosureGroup("Raw output (\(lines.count) lines)") {
+        DisclosureGroup("Raw Output (\(lines.count) lines)") {
             VStack(alignment: .leading, spacing: 1) {
                 ForEach(Array(lines.prefix(40).enumerated()), id: \.offset) { _, line in
                     Text(line)

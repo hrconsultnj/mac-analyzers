@@ -19,11 +19,11 @@ extension ActionsSettingsView {
 
         var title: String {
             switch self {
-            case .memoryClean: "Memory Clean"
-            case .reclaim: "Memory Reclaim"
-            case .storageClean: "Storage Clean"
-            case .janitor: "Janitor"
-            case .tempClean: "Temp & Agents"
+            case .memoryClean: Names.Screen.memoryCleanup
+            case .reclaim: Names.memoryReclaim
+            case .storageClean: Names.Screen.cachesAndBuilds
+            case .janitor: Names.Screen.downloads
+            case .tempClean: Names.Screen.tempAndAgents
             }
         }
 
@@ -32,7 +32,7 @@ extension ActionsSettingsView {
             case .memoryClean:
                 "Closes helper processes whose parent session already died, and dev servers idle more than 24 hours. Protected apps are never touched."
             case .reclaim:
-                "Sweeps EVERY reclaimable dev process at once — no age threshold, a wider net than the guard uses. Live AI sessions are exempt; protected apps are never touched."
+                "Sweeps every reclaimable dev process at once — no age threshold, a wider net than the guard uses. Live AI sessions are exempt; protected apps are never touched."
             case .storageClean:
                 "Removes stale build caches and trims oversized Turborepo caches; in deep mode also downloaded code for projects you haven't touched lately (node_modules), idle git worktrees (never main — uncommitted work is parked first), package-manager caches (npm's entire cache), the app and tool caches you enabled in Settings › Storage, and releases Time Machine snapshot space so the freed space shows up. Anything touched recently or in use is skipped."
             case .janitor:

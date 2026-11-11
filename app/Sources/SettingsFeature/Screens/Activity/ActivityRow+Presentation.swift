@@ -117,7 +117,7 @@ extension ActivityRow {
         }
     }
 
-    /// Where "Review and apply" goes: the screen that holds that task's review.
+    /// Where "Review and Apply" goes: the screen that holds that task's review.
     var reviewTarget: String? {
         switch kind {
         case .memoryClean, .reclaim, .storageClean, .janitor, .tempClean: "actions:\(kind?.rawValue ?? "")"

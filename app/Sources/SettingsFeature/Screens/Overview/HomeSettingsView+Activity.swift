@@ -16,9 +16,9 @@ extension HomeSettingsView {
             ForEach(store.topProcesses.prefix(4)) { proc in
                 ProcessRow(proc: proc) { store.reload() }
             }
-            seeAllRow("Open Monitor", target: "monitor")
+            seeAllRow("Open \(Names.Screen.monitor)", target: "monitor")
         } header: {
-            Text("Biggest processes right now")
+            Text("Biggest Processes Right Now")
         }
     }
 
@@ -40,9 +40,9 @@ extension HomeSettingsView {
                          trailing: event.residentText,
                          live: event.isProcessStillRunning)
             }
-            seeAllRow("All activity", target: "activity")
+            seeAllRow("All Activity", target: "activity")
         } header: {
-            Text("Recent events")
+            Text("Recent Events")
         }
     }
 }

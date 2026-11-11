@@ -49,17 +49,17 @@ struct SpotlightAuditView: View {
     @State var fenceVersion = 0
 
     var body: some View {
-        PaneScaffold(symbol: "magnifyingglass", color: .yellow, title: "Spotlight Audit",
+        PaneScaffold(symbol: "magnifyingglass", color: .yellow, title: Names.Screen.spotlight,
                      caption: "Is Finder search keeping up, and is it wasting time indexing node_modules and build output? Reads the indexer's own state and fences dev directories it never needs to see — reversibly.") {
             Section {
                 HStack {
                     Spacer(minLength: 8)
-                    Button("Run audit") { runAudit() }
+                    Button("Run Audit") { runAudit() }
                         .disabled(isBusy)
-                        .help("Runs spotlight-audit.sh --dry-run and refreshes this pane. Changes nothing.")
+                        .help("Check indexing and dev folders; changes nothing")
                     // redrawn once, when the audit stops being recent enough to apply from
                     TimelineView(.explicit(jobs.latest(.spotlight, intents: [.preview])?.reviewExpiry.map { [$0] } ?? [])) { _ in
-                        Button("Apply fences") { confirmingApply = true }
+                        Button("Apply Fences") { confirmingApply = true }
                             .buttonStyle(.glassProminent)
                             .disabled(isBusy || reviewedAudit == nil)
                             .help(reviewedAudit == nil
@@ -98,7 +98,7 @@ struct SpotlightAuditView: View {
                 }
                 if let run {
                     HStack(spacing: 6) {
-                        BadgeCapsule(text: run.dryRun ? "DRY RUN" : "APPLIED",
+                        BadgeCapsule(text: run.dryRun ? "Dry Run" : "Applied",
                                      color: run.dryRun ? .blue : .green)
                         Text(run.summary ?? run.header)
                             .font(.caption)
@@ -128,7 +128,7 @@ struct SpotlightAuditView: View {
             Task { await load(force: true) }
         }
         .confirmationDialog(applyPrompt, isPresented: $confirmingApply, titleVisibility: .visible) {
-            Button("Apply fences", role: .destructive) {
+            Button("Apply Fences", role: .destructive) {
                 applyFences()
             }
             Button("Cancel", role: .cancel) {}

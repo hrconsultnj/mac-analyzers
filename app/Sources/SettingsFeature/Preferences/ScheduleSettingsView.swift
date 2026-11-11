@@ -18,11 +18,11 @@ struct ScheduleSettingsView: View {
     private static let deepLabel = "com.mac-analyzers.storage-autoclean.deep"
 
     var body: some View {
-        PaneScaffold(symbol: "calendar.badge.clock", color: .teal, title: "Schedule",
+        PaneScaffold(symbol: "calendar.badge.clock", color: .teal, title: Names.Screen.schedule,
                      caption: "When each clean runs. Changes apply immediately and survive upgrades.") {
             Section("Daily Cleans") {
                 VStack(alignment: .leading, spacing: 2) {
-                    LabeledContent("Memory auto-clean") {
+                    LabeledContent("Memory Auto-Clean") {
                         DatePicker("", selection: $memoryCleanTime,
                                    displayedComponents: .hourAndMinute)
                             .labelsHidden()
@@ -32,7 +32,7 @@ struct ScheduleSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    LabeledContent("Storage daily clean") {
+                    LabeledContent("Storage Daily Clean") {
                         DatePicker("", selection: $storageDailyTime,
                                    displayedComponents: .hourAndMinute)
                             .labelsHidden()
@@ -45,7 +45,7 @@ struct ScheduleSettingsView: View {
 
             Section("Deep Clean") {
                 VStack(alignment: .leading, spacing: 2) {
-                    LabeledContent("Storage deep clean") {
+                    LabeledContent("Storage Deep Clean") {
                         Stepper("every \(deepDays) day\(deepDays == 1 ? "" : "s")",
                                 value: $deepDays, in: 1...14)
                     }
@@ -56,7 +56,7 @@ struct ScheduleSettingsView: View {
             }
 
             Section("Always On") {
-                LabeledContent("Memory guard") {
+                LabeledContent("Memory Guard") {
                     Label("Runs continuously — checks every 15 s while the Mac is awake",
                           systemImage: "shield.lefthalf.filled")
                         .foregroundStyle(.secondary)

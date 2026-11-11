@@ -50,9 +50,9 @@ extension ActionsSettingsView {
                      title: item.cacheKind,
                      subtitle: item.path,
                      trailing: ByteSize.format(item.sizeBytes),
-                     badge: item.status == .deleted ? ("DELETED", .red)
-                         : item.status == .trashed ? ("TRASHED", .orange)
-                         : ("WOULD REMOVE", .blue))
+                     badge: item.status == .deleted ? ("Deleted", .red)
+                         : item.status == .trashed ? ("Trashed", .orange)
+                         : ("Would Remove", .blue))
             if exists {
                 Button {
                     NSWorkspace.shared.activateFileViewerSelecting(

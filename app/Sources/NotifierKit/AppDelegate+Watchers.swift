@@ -18,9 +18,9 @@ extension AppDelegate {
                         .joined(separator: ", ")
                     NotificationPoster.shared.post(
                         title: additions.count == 1
-                            ? "New login/startup item installed"
-                            : "\(additions.count) new login/startup items installed",
-                        subtitle: "Persistence",
+                            ? "New Login Item Installed"
+                            : "\(additions.count) New Login Items Installed",
+                        subtitle: Names.startupChanges,
                         message: "\(names). Click to review — nothing was blocked.",
                         sound: nil, logPath: nil, paneTarget: "log:persistence")
                 }
@@ -38,9 +38,9 @@ extension AppDelegate {
                    UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion),
                    UserDefaults.standard.string(forKey: "updateNotifiedFor") != latest {
                     NotificationPoster.shared.post(
-                        title: "Mac Analyzers update available",
+                        title: "\(Names.app) \(Names.State.updateAvailable)",
                         subtitle: "v\(latest)",
-                        message: "You're on v\(UpdateChecker.installedVersion). Click to open the Update screen and install with one click.",
+                        message: "You're on v\(UpdateChecker.installedVersion). Click to open \(Names.Screen.updates) and install with one click.",
                         sound: nil, logPath: nil, paneTarget: "update")
                     UserDefaults.standard.set(latest, forKey: "updateNotifiedFor")
                 }

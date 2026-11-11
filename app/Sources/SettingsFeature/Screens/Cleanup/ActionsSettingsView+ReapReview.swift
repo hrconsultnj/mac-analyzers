@@ -18,12 +18,12 @@ extension ActionsSettingsView {
 
     func badge(for status: ReapItem.Status) -> (String, Color)? {
         switch status {
-        case .dry: ("WOULD CLOSE", .blue)
-        case .killed: ("CLOSED", .red)
-        case .quit: ("QUIT", .red)
-        case .reported: ("REPORTED", .purple)
-        case .exempt: ("PROTECTED", .green)
-        case .gone: ("GONE", .gray)
+        case .dry: ("Would Close", .blue)
+        case .killed: ("Closed", .red)
+        case .quit: ("Quit", .red)
+        case .reported: ("Reported", .purple)
+        case .exempt: ("Protected", .green)
+        case .gone: ("Gone", .gray)
         case .skip: nil
         }
     }

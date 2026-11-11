@@ -17,9 +17,9 @@ struct NotifySettingsView: View {
 
     var body: some View {
         @Bindable var config = config
-        PaneScaffold(symbol: "bell.badge.fill", color: .red, title: "Notifications",
+        PaneScaffold(symbol: "bell.badge.fill", color: .red, title: Names.Screen.notifications,
                      caption: "How alerts behave, and the fix-it levers when they don't.") {
-            Section("Notification behavior") {
+            Section("Notification Behavior") {
                 Picker("Clicking a notification opens logs in", selection: $config.notify.logViewer) {
                     Text("TextEdit").tag("TextEdit")
                     Text("Console").tag("Console")
@@ -39,7 +39,7 @@ struct NotifySettingsView: View {
 
             Section("Maintenance") {
                 VStack(alignment: .leading, spacing: 2) {
-                    Button("Fix notifications…") {
+                    Button("Fix Notifications…") {
                         NotificationPoster.shared.reRequestPermission { permissionStatus = $0 }
                     }
                     if let permissionStatus {
@@ -56,7 +56,7 @@ struct NotifySettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Button("Restart memory guard") { GuardControl.restartGuard() }
+                    Button("Restart Memory Guard") { GuardControl.restartGuard() }
                     Text("Restarts the background watcher process so saved limits and lists apply immediately.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

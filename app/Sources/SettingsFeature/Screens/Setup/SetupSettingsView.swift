@@ -27,7 +27,7 @@ struct SetupSettingsView: View {
     @State var messageIsError = false
 
     var body: some View {
-        PaneScaffold(symbol: "checklist.checked", color: .green, title: "Setup",
+        PaneScaffold(symbol: "checklist.checked", color: .green, title: Names.Screen.setup,
                      caption: "What this Mac can actually do right now. Every line was checked, not assumed.") {
             if let report {
                 progress(report)
@@ -53,10 +53,10 @@ struct SetupSettingsView: View {
                 }
                 // blocking first — a checklist that buries the thing stopping
                 // the product behind six green ticks has failed at its job
-                group("NEEDS ATTENTION", report.checks.filter { $0.verdict == .blocking })
-                group("WORTH DOING", report.checks.filter { $0.verdict == .degraded })
-                group("YOUR CHOICE", report.checks.filter { $0.verdict == .unset })
-                group("WORKING", report.checks.filter { $0.verdict == .ready })
+                group("Needs Attention", report.checks.filter { $0.verdict == .blocking })
+                group("Worth Doing", report.checks.filter { $0.verdict == .degraded })
+                group("Your Choice", report.checks.filter { $0.verdict == .unset })
+                group("Working", report.checks.filter { $0.verdict == .ready })
                 Section {
                     Text("This screen stays in the sidebar after everything is green. Permissions can be withdrawn and background jobs can be unloaded by macOS, so it is worth a look if something stops behaving.")
                         .font(.caption)

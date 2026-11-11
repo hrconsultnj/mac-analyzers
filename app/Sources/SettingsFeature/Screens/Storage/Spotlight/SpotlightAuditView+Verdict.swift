@@ -9,11 +9,11 @@ extension SpotlightAuditView {
     // MARK: - section 2: verdict
 
     @ViewBuilder func verdictSection(_ run: SpotlightAuditRun) -> some View {
-        Section("Stuck or progressing?") {
+        Section("Stuck or Progressing?") {
             DataCard(symbol: verdictSymbol(run.verdict), color: verdictColor(run.verdict),
                      title: verdictTitle(run.verdict),
                      subtitle: run.verdictDetail,
-                     badge: (run.verdict.rawValue, verdictColor(run.verdict)))
+                     badge: (TokenLabel.title(run.verdict.rawValue), verdictColor(run.verdict)))
             if let cmd = run.deepCheckCommand {
                 commandRow("Deep check — the definitive signal", cmd)
             }
@@ -38,7 +38,7 @@ extension SpotlightAuditView {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.chip))
-                Button(copiedCommand == cmd ? "Copied ✓" : "Copy command") {
+                Button(copiedCommand == cmd ? "Copied" : "Copy Command") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(cmd, forType: .string)
                     copiedCommand = cmd

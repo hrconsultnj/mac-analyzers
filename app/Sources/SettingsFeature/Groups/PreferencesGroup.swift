@@ -1,4 +1,5 @@
 import SwiftUI
+import AnalyzersKit
 
 /// INTERIM: the four preference forms as sidebar rows. They move into a
 /// Settings window (and this file goes away) when that window is built; until
@@ -13,12 +14,12 @@ enum PreferencesGroup {
     static let schedule = SectionID("prefsSchedule")
 
     static let group = SidebarGroup(
-        title: "Settings",
+        title: Names.Group.settings,
         rows: [
-            SidebarRow(memory, "Memory", symbol: "memorychip"),
-            SidebarRow(storage, "Storage", symbol: "internaldrive.fill"),
-            SidebarRow(notifications, "Notifications", symbol: "bell.badge"),
-            SidebarRow(schedule, "Schedule", symbol: "calendar.badge.clock"),
+            SidebarRow(memory, Names.Screen.memorySettings, symbol: "memorychip"),
+            SidebarRow(storage, Names.Screen.storageSettings, symbol: "internaldrive.fill"),
+            SidebarRow(notifications, Names.Screen.notifications, symbol: "bell.badge"),
+            SidebarRow(schedule, Names.Screen.schedule, symbol: "calendar.badge.clock"),
         ],
         root: screen,
         aliases: [

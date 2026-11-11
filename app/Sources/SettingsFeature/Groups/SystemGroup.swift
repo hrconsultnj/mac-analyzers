@@ -16,11 +16,11 @@ enum SystemGroup {
     static let reports = SectionID("reports")
 
     static let group = SidebarGroup(
-        title: "System",
+        title: Names.Group.system,
         rows: [
-            SidebarRow(network, "Network", symbol: "network"),
-            SidebarRow(loginItems, "Login & Startup Items", symbol: "person.crop.circle.badge.questionmark"),
-            SidebarRow(reports, "Reports", symbol: "doc.text.magnifyingglass"),
+            SidebarRow(network, Names.Screen.network, symbol: "network"),
+            SidebarRow(loginItems, Names.Screen.loginItems, symbol: "person.crop.circle.badge.questionmark"),
+            SidebarRow(reports, Names.Screen.reports, symbol: "doc.text.magnifyingglass"),
         ],
         root: screen,
         aliases: [

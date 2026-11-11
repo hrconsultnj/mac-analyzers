@@ -14,7 +14,7 @@ extension TempSpaceView {
                 mountRow(mount)
             }
         } header: {
-            Text("Mounted disk images")
+            Text("Mounted Disk Images")
         } footer: {
             Text("Their contents are not on your disk. A file that backs an image can't free space until the image is ejected — clearing it in Actions ejects it first.")
                 .font(.caption)
@@ -24,9 +24,9 @@ extension TempSpaceView {
 
     private func mountRow(_ mount: TempMount) -> some View {
         let badge: (String, Color) = switch mount.status {
-        case .mounted: mount.imageLivesInTemp ? ("IMAGE IN TEMP", .orange) : ("MOUNTED", .purple)
-        case .ejected: ("EJECTED", .green)
-        case .ejectFailed: ("EJECT FAILED", .red)
+        case .mounted: mount.imageLivesInTemp ? ("Image in Temp", .orange) : ("Mounted", .purple)
+        case .ejected: ("Ejected", .green)
+        case .ejectFailed: ("Eject Failed", .red)
         }
         return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {

@@ -39,6 +39,56 @@ if args.first == "--probe-setup" {
     exit(report.isUsable ? 0 : 1)
 }
 
+// `agent-runner --probe-build` prints what the Update screen, the sidebar item,
+// the menu footer and What's New will say for THIS copy, read from its own
+// Info.plist and bundled changelog — so a development build can be told from a
+// release without opening a window.
+if args.first == "--probe-build" {
+    let build = BuildInfo.current
+    print("stamp: release v\(build.release), commits after: \(build.commitsAfter.map(String.init) ?? "none (reads as a release)"), local changes: \(build.localChanges)")
+    print("build line:            \(UpdateChecker.installedBuild ?? "(none)")")
+    print("Installed Version:     \(build.versionText)")
+    if build.isDevelopment {
+        print("status line:           \(build.developmentSentence(latest: "\(build.release)"))")
+        print("sidebar state:         \(Names.State.developmentBuild)")
+    } else {
+        print("status line:           \(Names.State.upToDate) (when no newer release exists)")
+        print("sidebar state:         \(Names.State.upToDate)")
+    }
+    print("sidebar version:       \(build.sidebarText)")
+    print("menu footer:           \(build.versionText)")
+    let changelog = Bundle.main.resourceURL?.appending(path: "CHANGELOG.md")
+    let text = changelog.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+    let headings = text.split(separator: "\n").filter { $0.hasPrefix("## ") }.prefix(2).map { String($0) }
+    print("What's New starts:     \(headings.isEmpty ? "(no bundled changelog)" : headings.joined(separator: "  /  "))")
+    print("  (shown first, open: \(build.isDevelopment && headings.first == "## Next" ? "In This Build — Not Yet Released" : "the newest release"))")
+    exit(0)
+}
+
+// `agent-runner --probe-names` prints every name in the central name table
+// (`Names.all`) and checks it against title-style capitalization
+// (`TitleStyle`). Exit 1 when any name fails; `scripts/check.sh names` runs it.
+// `--probe-names-extra <name>…` checks more names the same way (used to prove
+// the check fails on a lowercased one).
+if args.first == "--probe-names" {
+    var rows = Names.all
+    if let extra = args.firstIndex(of: "--probe-names-extra") {
+        rows += args[(extra + 1)...].map { (table: "Extra", name: $0) }
+    }
+    var failures = 0
+    for row in rows {
+        let problems = TitleStyle.violations(in: row.name)
+        if problems.isEmpty {
+            print("ok    [\(row.table)] \(row.name)")
+        } else {
+            failures += 1
+            print("FAIL  [\(row.table)] \(row.name) — \(problems.joined(separator: "; "))")
+        }
+    }
+    print("\(rows.count) names, \(failures) not in title style")
+    exit(failures == 0 ? 0 : 1)
+}
+
 // `agent-runner --probe-memory [--all]` prints the Monitor pane's full
 // memory census as text: where physical memory is, then every process group
 // with its total. Same numbers the pane shows; `--all` lists every group

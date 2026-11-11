@@ -47,9 +47,9 @@ extension ActionsSettingsView {
                  : "\(approvedCount) of \(totalApprovable) selected")
                 .font(.callout.weight(.medium))
             Spacer()
-            Button("Select all") { deselected.removeAll() }
+            Button("Select All") { deselected.removeAll() }
                 .disabled(deselected.isEmpty)
-            Button("Select none") { deselected = Set(approvableKeys) }
+            Button("Select None") { deselected = Set(approvableKeys) }
                 .disabled(approvedCount == 0)
         }
     }

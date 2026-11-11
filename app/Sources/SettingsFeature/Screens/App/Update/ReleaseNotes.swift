@@ -26,21 +26,36 @@ struct ReleaseNote: Identifiable {
     var id: String { title }
 
     /// Each "## vX.Y…" heading starts one release; newest first, as written.
-    static func bundled() -> [ReleaseNote] {
-        guard let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md"),
-              let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
-        return parse(text)
+    ///
+    /// A build ahead of the last release (`includeNext`) starts with what is in
+    /// it and not yet released: the changelog's "## Next" section.
+    static func bundled(includeNext: Bool = false) -> [ReleaseNote] {
+        // MA_CHANGELOG: a development run with no bundle (SnapshotRunner) names the file.
+        let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md")
+            ?? ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fileURLWithPath: $0) }
+        guard let url, let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        return parse(text, includeNext: includeNext)
     }
 
-    static func parse(_ changelog: String) -> [ReleaseNote] {
+    /// What the unreleased section is called on screen.
+    static let unreleasedTitle = "In This Build — Not Yet Released"
+
+    static func parse(_ changelog: String, includeNext: Bool = false) -> [ReleaseNote] {
         changelog.components(separatedBy: "\n## ")
             .map { $0.hasPrefix("## ") ? String($0.dropFirst(3)) : $0 }
-            .filter { $0.hasPrefix("v") }
+            .filter { $0.hasPrefix("v") || (includeNext && $0.hasPrefix("Next")) }
             .compactMap { section in
                 let lines = section.split(separator: "\n", omittingEmptySubsequences: false)
                 guard let title = lines.first else { return nil }
-                return ReleaseNote(title: String(title),
-                                   blocks: blocks(from: lines.dropFirst().map(String.init)))
+                var body = blocks(from: lines.dropFirst().map(String.init))
+                if title.hasPrefix("Next") {
+                    // the file's own note to whoever edits it is not release news
+                    if case .paragraph(let first)? = body.first, first.hasPrefix("Notes for the release") {
+                        body.removeFirst()
+                    }
+                    return ReleaseNote(title: unreleasedTitle, blocks: body)
+                }
+                return ReleaseNote(title: String(title), blocks: body)
             }
     }
 

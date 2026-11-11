@@ -9,7 +9,7 @@ import UIComponents
 ///
 ///  - a header: glyph, name, when, how long, who started it, how it ended;
 ///  - while it runs: what step it is on, Stop, and the live output;
-///  - a waiting preview: "Review and apply", which opens that task's screen;
+///  - a waiting preview: "Review and Apply", which opens that task's screen;
 ///  - the outcome as a list of things — what was freed, found or left alone;
 ///  - Open <Task>, Copy Details;
 ///  - the raw output, one level down, behind "Show raw output".
@@ -28,7 +28,7 @@ struct ActivityInspector: View {
         if let row {
             screen(for: row)
         } else {
-            ContentUnavailableView("Select a run", systemImage: "list.bullet.rectangle",
+            ContentUnavailableView("Select a Run", systemImage: "list.bullet.rectangle",
                                    description: Text("Pick a run to see what it did."))
         }
     }
@@ -144,7 +144,7 @@ struct ActivityInspector: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Tokens.Space.xl)
             if let target = row.reviewTarget {
-                Button(row.needsReview ? "Review and apply" : "Preview again") { navigator.open(target: target) }
+                Button(row.needsReview ? "Review and Apply" : "Preview Again") { navigator.open(target: target) }
                     .buttonStyle(.glassProminent)
             }
         }
@@ -168,7 +168,7 @@ struct ActivityInspector: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Tokens.Space.xl)
             if let target = row.reviewTarget {
-                Button("Preview again") { navigator.open(target: target) }
+                Button("Preview Again") { navigator.open(target: target) }
                     .buttonStyle(.glassProminent)
             }
         }
@@ -226,7 +226,7 @@ struct ActivityInspector: View {
     @ViewBuilder private func rawOutput(_ row: ActivityRow, live: Job?) -> some View {
         let lines = live?.lines ?? model.lines(for: row)
         if live != nil || !lines.isEmpty, !(live?.isActive ?? false) {
-            DisclosureGroup("Show raw output", isExpanded: $showRaw) {
+            DisclosureGroup("Show Raw Output", isExpanded: $showRaw) {
                 Group {
                     if let live { LiveOutputView(job: live) } else { RunLinesView(lines: lines) }
                 }

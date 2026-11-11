@@ -22,9 +22,15 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 260)
-        #if canImport(ProKit)
-        .safeAreaInset(edge: .bottom) { ProBadgeSlot() }
-        #endif
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                #if canImport(ProKit)
+                ProBadgeSlot()
+                #endif
+                Divider()
+                SidebarVersionItem(navigator: navigator)
+            }
+        }
         .task {
             // each group feeds its own badges; one slow probe never holds up another
             await withTaskGroup(of: Void.self) { tasks in
