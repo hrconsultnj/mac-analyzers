@@ -6,6 +6,10 @@ extension Route {
     /// the payload; the system back button is hidden because the shell owns
     /// the one back/forward pair.
     @MainActor @ViewBuilder var destination: some View {
+        StackDepthReader(route: self) { content }
+    }
+
+    @MainActor @ViewBuilder private var content: some View {
         Group {
             switch self {
             case .overview(let route): OverviewGroup.destination(for: route)
@@ -19,5 +23,16 @@ extension Route {
             }
         }
         .navigationBarBackButtonHidden(true)
+    }
+}
+
+/// Tells the screen how deep in its stack it is, so tab commands come only from the top one.
+private struct StackDepthReader<Content: View>: View {
+    let route: Route
+    @ViewBuilder let content: Content
+    @Environment(Navigator.self) private var navigator
+
+    var body: some View {
+        content.environment(\.stackDepth, (navigator.path.lastIndex(of: route) ?? -1) + 1)
     }
 }

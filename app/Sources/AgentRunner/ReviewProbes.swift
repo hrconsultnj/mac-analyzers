@@ -235,6 +235,83 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     check("an unticked visible row enables Select All, which ticks it and leaves the fold alone",
           !folded.isAllSelected && { folded.selectAll(); return folded.isTicked("/big") && folded.isTicked("/empty") }())
 
+    // a caller's own approval rule can only remove: kept rows, unticked rows and unknown keys never go
+    var rule = ReviewSelection(previewID: first, items: [.init(id: "/a"), .init(id: "/b"), .init(id: "/kept", choosable: false),
+                                                           .init(id: "/empty")], startsUnticked: ["/empty"])
+    rule.setTicked("/b", false)
+    let greedy = ApprovedSet(approvable: ["/a", "/b", "/kept", "/empty", "/stranger"], deselected: [])
+    check("an approval rule cannot add kept, unticked, fold or unknown keys", rule.narrowed(greedy).approved == ["/a"],
+          "sent: \(rule.narrowed(greedy).approved)")
+    check("an approval rule that removes a row is honoured",
+          rule.narrowed(ApprovedSet(approvable: ["/a"], deselected: ["/a"])).approved.isEmpty)
+    check("an unrestricted approval means the ticks", rule.narrowed(.everything).approved == ["/a"])
+
+    // a row the apply acts on without a tick ("will quit"): counted, named, never in the sent set
+    let quit = ReviewAlsoActs(singular: "app", plural: "apps", verb: "will quit", confirmVerb: "Quit")
+    let acting = ReviewSelection(previewID: first, items: [.init(id: "1"), .init(id: "Opera", acts: true),
+                                                             .init(id: "Docker", acts: true), .init(id: "kept", choosable: false)])
+    check("acting rows are never in the approved list",
+          !acting.approved.approved.contains("Opera") && !acting.approved.approved.contains("Docker") && acting.approved.isNarrowed,
+          "approved: \(acting.approved.approved)")
+    check("acting rows are not kept rows", acting.actingIDs == ["Opera", "Docker"] && !acting.isChoosable("Opera"))
+    check("the bar names them: 1 selected · 2 apps will quit · 1 kept",
+          ReviewWording.summary(selected: acting.tickedIDs.count, bytes: nil, outside: 0, tabsSpanned: 0,
+                                acting: acting.actingIDs.count, alsoActs: quit, kept: 1)
+              == "1 selected · 2 apps will quit · 1 kept")
+    check("the confirmation names them",
+          ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: 1, bytes: nil, alsoActs: quit,
+                                          actingNames: ["Opera", "Docker"]) == "Close 1 Item now and Quit Opera, Docker?",
+          ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: 1, bytes: nil, alsoActs: quit,
+                                          actingNames: ["Opera", "Docker"]))
+    check("across tabs: 12 selected across 3 tabs · 3.2 GB",
+          ReviewWording.summary(selected: 12, bytes: 3_200_000_000, outside: 5, tabsSpanned: 3, acting: 0, alsoActs: nil, kept: 0)
+              .hasPrefix("12 selected across 3 tabs · 3"))
+
+    // freezing what is sent when the confirmation opens
+    let onOffer = ReviewFrozen(sent: acting.approved, title: "Close 1 Item now?")
+    var changed = acting
+    changed.setTicked("1", false)
+    check("the dialog's set still holds while nothing changed", onOffer.holds(for: acting.approved))
+    check("the dialog closes when the live set changes under it", !onOffer.holds(for: changed.approved))
+
+    // the clamp is `ApprovedSet.restricted` on the caller's own result (so a field a branch adds to
+    // `ApprovedSet` is carried by the type, in that one method)
+    let direct = ApprovedSet(approvable: ["/a", "/b", "/c"], deselected: ["/b"]).restricted(over: ["/a", "/b", "/c"], keeping: ["/a", "/c", "/zzz"])
+    check("restricted keeps the keys that are in both, in review order, and flags a narrowing",
+          direct.approved == ["/a", "/c"] && direct.isNarrowed && !direct.isUnrestricted, "got \(direct.approved)")
+    check("restricted over a full keep set does not narrow",
+          !ApprovedSet.everything.restricted(over: ["/a"], keeping: ["/a"]).isNarrowed)
+    let frozenValue = ReviewFrozen(sent: rule.narrowed(greedy), title: "t")
+    check("the frozen set is the clamped VALUE that Apply will send", frozenValue.sent == rule.narrowed(greedy) && frozenValue.sent.approved == ["/a"])
+
+    // a program ended while the review is open: updated in place
+    var live = ReviewSelection(previewID: first, items: [.init(id: "p1"), .init(id: "p2"), .init(id: "p3")])
+    live.setTicked("p2", false)
+    live.updateChoosable(["p3": false])
+    check("a row that stops being choosable is unticked and never approved",
+          !live.isTicked("p3") && !live.approved.approved.contains("p3"), "approved: \(live.approved.approved)")
+    check("ticks on rows that stay choosable are untouched", live.isTicked("p1") && !live.isTicked("p2"))
+    let countBefore = live.tickedIDs.count
+    check("a row that becomes choosable starts UNTICKED, so the bar's count does not rise",
+          live.updateChoosable(["p3": true]) && !live.isTicked("p3") && live.tickedIDs.count == countBefore
+              && !live.approved.approved.contains("p3"), "ticked: \(live.tickedIDs)")
+    check("a call that changes nothing says so (the table is not regrouped)", !live.updateChoosable(["p1": true, "p3": true]))
+    live.setTicked("p3", true)
+    check("the person can then tick it", live.isTicked("p3") && live.approved.approved.contains("p3"))
+
+    // only apps to quit, nothing ticked: Apply is on, the title names them, the sent list is empty
+    var onlyActing = ReviewSelection(previewID: first, items: [.init(id: "1"), .init(id: "Opera", acts: true), .init(id: "Docker", acts: true)])
+    onlyActing.selectNone()
+    check("nothing ticked, two acting rows: Apply has work", ReviewWording.hasWork(sent: onlyActing.tickedIDs.count, acting: 2))
+    check("and the title names them", ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: 0, bytes: nil,
+          alsoActs: quit, actingNames: ["Opera", "Docker"]) == "Quit Opera, Docker?")
+    check("and the sent list is explicitly empty", onlyActing.approved.approved.isEmpty && onlyActing.approved.isNarrowed)
+    check("nothing ticked and nothing acting: no work", !ReviewWording.hasWork(sent: 0, acting: 0))
+
+    // a repeated key is kept once and does not stop a debug build
+    let repeated = ReviewSelection(previewID: first, items: [.init(id: "/a"), .init(id: "/a"), .init(id: "/b")])
+    check("a repeated key is kept once", repeated.items.map(\.id) == ["/a", "/b"])
+
     // 6. a new review with the SAME number of rows shows its own rows, not the old tree
     final class Owner {}
     let memo = IdentityMemo<Owner, Int, [String]>()

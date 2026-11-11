@@ -56,14 +56,36 @@ struct ReviewTable: View {
     /// Shown beside a disabled Apply when the review is old or from another preview.
     var onPreviewAgain: (() -> Void)?
     var onApplied: (Job) -> Void = { _ in }
+    /// Shows only these rows (a category's tab); the bar, Select All and Apply still cover the
+    /// whole review. nil shows every row.
+    var only: Set<String>?
+    /// What Apply sends, when the screen has a stricter rule than the ticks: a cleanup that
+    /// leaves out a process whose pid is no longer the program that was reviewed. nil sends the
+    /// ticks. Whatever it returns, rows with a `keptReason`, rows left unticked (the fold's
+    /// included) and keys the review never listed are removed before anything is sent, and the
+    /// bar's and the confirmation's counts are the rows that ARE sent.
+    var approval: ((ReviewSession) -> ApprovedSet)?
+    /// The ids of each tab's rows, so the bar can say how many tabs the selection spans. Without
+    /// it the bar says how many selected rows are in other tabs.
+    var tabs: [Set<String>] = []
+    /// The words for rows the apply acts on without a tick here ("2 apps will quit", "and Quit
+    /// Opera, Docker"); nil when the review has none.
+    var alsoActs: ReviewAlsoActs?
+    /// Names the screen for what the table remembers of it (which groups are open, column widths).
+    /// Without it the key is the preview's kind, or "readonly" for a review that is only read.
+    var screen: String?
 
     @Environment(JobStore.self) private var store
     @State private var sortOrder = [KeyPathComparator(\ReviewNode.sortBytes, order: .reverse)]
     @State private var tree = ReviewTreeCache()
+    @State private var expansions = ReviewExpansions()
     @State private var asking = false
     @State private var askingPermanent = false
     @State private var appliedFor = PerPreview<Job>()
     @State private var expired = false
+    /// What was on offer when the confirmation opened: Apply sends exactly this.
+    @State private var frozen: ReviewFrozen?
+    @State private var notice: String?
 
     /// The apply started for THIS preview; one started for an earlier preview does not count.
     private var applied: Job? { appliedFor.value(for: preview?.id) }
@@ -75,6 +97,7 @@ struct ReviewTable: View {
 
     /// Why Apply is not available, or what its last try said: in words, in the bar.
     private var message: String? {
+        if let notice { return notice }
         if let applied {
             switch applied.state {
             case .queued, .running: return "Applying…"
@@ -87,7 +110,7 @@ struct ReviewTable: View {
     }
 
     private var applyDisabled: Bool {
-        if gate != .ready || session.selectedRows.isEmpty { return true }
+        if gate != .ready || !ReviewWording.hasWork(sent: sentRows.count, acting: session.actingRows.count) { return true }
         guard let applied else { return false }
         switch applied.state {
         case .queued, .running, .succeeded: return true
@@ -95,11 +118,15 @@ struct ReviewTable: View {
         }
     }
 
+    /// What the table remembers per screen.
+    private var screenKey: String { "review.\(screen ?? preview?.kind.rawValue ?? "readonly")" }
+
     var body: some View {
-        ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder), sortOrder: $sortOrder,
-                        session: readOnly ? nil : session)
+        ReviewTableBody(nodes: tree.nodes(for: session, order: sortOrder, only: only), sortOrder: $sortOrder,
+                        session: readOnly ? nil : session, expansion: expansions.expansion(for: screenKey),
+                        screen: screenKey)
             .safeAreaInset(edge: .bottom, spacing: 0) { bar }
-            .confirmationDialog(confirmTitle, isPresented: $asking, titleVisibility: .visible) {
+            .confirmationDialog(frozen?.title ?? applyTitle, isPresented: $asking, titleVisibility: .visible) {
                 Button(applyTitle, role: .destructive) { chosen() }
             } message: {
                 Text(confirmation?.message ?? "")
@@ -107,7 +134,15 @@ struct ReviewTable: View {
             .confirmationDialog("Delete Permanently?", isPresented: $askingPermanent, titleVisibility: .visible) {
                 Button("Delete Permanently", role: .destructive) { apply() }
             } message: {
-                Text("\(countText). \(confirmation?.permanent ?? "")")
+                Text("\(frozen?.countText ?? countText). \(confirmation?.permanent ?? "")")
+            }
+            // the list changed while the dialog was open: close it and say why
+            .onChange(of: sent) { _, live in
+                guard let frozen, asking || askingPermanent, !frozen.holds(for: live) else { return }
+                asking = false
+                askingPermanent = false
+                self.frozen = nil
+                notice = "What would be applied changed while you were confirming. Check the list and press Apply again."
             }
             .task(id: preview?.id) { await watchExpiry() }
             .task(id: applied?.id) { await watchApplied() }
@@ -118,7 +153,7 @@ struct ReviewTable: View {
     @ViewBuilder private var bar: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text(readOnly ? session.readOnlySummary : session.summary).monospacedDigit()
+                Text(readOnly ? session.readOnlySummary : summaryText).monospacedDigit()
                 if let line = readOnly ? note : message {
                     Text(line).font(.caption).foregroundStyle(.secondary)
                 }
@@ -132,7 +167,7 @@ struct ReviewTable: View {
                     .disabled(session.isAllSelected)
                 Button(Names.Review.selectNone) { session.selectNone() }
                     .disabled(session.selectedRows.isEmpty)
-                Button(applyTitle) { confirmation == nil ? apply() : (asking = true) }
+                Button(applyTitle) { confirmation == nil ? apply() : openConfirmation() }
                     .buttonStyle(.glassProminent)
                     .disabled(applyDisabled)
             }
@@ -143,16 +178,55 @@ struct ReviewTable: View {
 
     // MARK: - applying
 
-    /// "9 Items (8.5 GB)", from the same numbers as the bar.
-    private var countText: String {
-        let count = session.selectedRows.count
-        let items = "\(count) \(count == 1 ? "Item" : "Items")"
-        return session.hasSizes ? "\(items) (\(ByteSize.format(session.selectedBytes)))" : items
+    /// What Apply would send: the caller's `approval` (or the ticks), narrowed to ticked, choosable
+    /// rows. Applying, the bar and the confirmation all read this one set.
+    private var sent: ApprovedSet {
+        let wanted = approval?(session) ?? session.approved
+        // a rule that returns keys the review never listed is a bug in the screen: say so in a debug build
+        assert(wanted.isUnrestricted || Set(wanted.approved).isSubset(of: Set(session.selection.items.map(\.id))),
+               "an approval rule returned keys that are not in the review")
+        return session.selection.narrowed(wanted)
     }
 
-    private var confirmTitle: String {
-        guard let confirmation else { return applyTitle }
-        return "\(confirmation.verb) \(countText) \(confirmation.destination)?"
+    private var sentRows: [ReviewRow] {
+        let ids = Set(sent.approved)
+        return session.rows.filter { ids.contains($0.id) }
+    }
+
+    private var sentBytes: Int64 { sentRows.compactMap(\.bytes).reduce(0, +) }
+
+    /// "9 Items (8.5 GB)", from the rows that are sent.
+    private var countText: String {
+        ReviewWording.countText(count: sentRows.count, bytes: session.hasSizes ? sentBytes : nil)
+    }
+
+    /// "12 selected across 3 tabs · 2 apps will quit · 3.2 GB · 1 kept", from the rows that are sent.
+    private var summaryText: String {
+        let rows = sentRows
+        var outside = 0
+        var spanned = 0
+        if let only {
+            outside = rows.filter { !only.contains($0.id) }.count
+            spanned = tabs.filter { tab in rows.contains { tab.contains($0.id) } }.count
+        }
+        return ReviewWording.summary(selected: rows.count, bytes: session.hasSizes ? sentBytes : nil,
+                                     outside: outside, tabsSpanned: spanned,
+                                     acting: session.actingRows.count, alsoActs: alsoActs, kept: session.keptCount)
+    }
+
+    /// Opens the confirmation with the set that is on offer NOW; Apply sends exactly that.
+    private func openConfirmation() {
+        notice = nil
+        guard let confirmation else { return }
+        let rows = sentRows
+        frozen = ReviewFrozen(
+            sent: sent,
+            title: ReviewWording.confirmationTitle(
+                verb: confirmation.verb, destination: confirmation.destination, count: rows.count,
+                bytes: session.hasSizes ? sentBytes : nil, alsoActs: alsoActs,
+                actingNames: session.actingRows.map(\.name)),
+            countText: countText)
+        asking = true
     }
 
     private func chosen() {
@@ -160,8 +234,16 @@ struct ReviewTable: View {
     }
 
     private func apply() {
-        guard gate == .ready, let preview else { return }
-        let job = store.apply(from: preview, approved: session.approved)
+        guard let preview else { return }
+        guard gate == .ready else {
+            // say why instead of closing the dialog without a word
+            frozen = nil
+            notice = gate.sentence ?? "This review can no longer be applied. Preview again."
+            return
+        }
+        // from a confirmation: exactly what it showed; without one: the set as it is now
+        let job = store.apply(from: preview, approved: frozen?.sent ?? sent)
+        frozen = nil
         appliedFor.set(job, for: preview.id)
         onApplied(job)
     }
@@ -186,13 +268,21 @@ struct ReviewTable: View {
     }
 }
 
-/// The grouped, sorted tree, rebuilt when the session (a different review) or the sort
-/// changes, never on a tick: a tick must not regroup thousands of rows.
+/// The grouped, sorted tree, rebuilt when the session (a different review), the sort or the
+/// rows in view change, never on a tick: a tick must not regroup thousands of rows.
 @MainActor
 final class ReviewTreeCache {
-    private let memo = IdentityMemo<ReviewSession, [KeyPathComparator<ReviewNode>], [ReviewNode]>()
+    private let memo = IdentityMemo<ReviewSession, Key, [ReviewNode]>()
 
-    func nodes(for session: ReviewSession, order: [KeyPathComparator<ReviewNode>]) -> [ReviewNode] {
-        memo.value(for: session, key: order) { ReviewNode.tree(session.rows, order: order) }
+    func nodes(for session: ReviewSession, order: [KeyPathComparator<ReviewNode>], only: Set<String>? = nil) -> [ReviewNode] {
+        memo.value(for: session, key: Key(order: order, only: only, revision: session.revision)) {
+            ReviewNode.tree(only.map { keep in session.rows.filter { keep.contains($0.id) } } ?? session.rows, order: order)
+        }
+    }
+
+    private struct Key: Equatable {
+        let order: [KeyPathComparator<ReviewNode>]
+        let only: Set<String>?
+        let revision: Int
     }
 }

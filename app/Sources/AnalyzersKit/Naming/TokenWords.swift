@@ -42,9 +42,9 @@ extension TempItem.Status {
         case .inUse: "In Use"
         case .protected: "Protected"
         case .notYours: "Not Yours"
-        case .keep: "Kept"
-        case .system: "Left to macOS"
-        case .history: "History, Not Touched"
+        case .keep: "On Your Keep List"
+        case .system: "Left for Its Owner"
+        case .history: "Conversation History"
         case .kept: "Kept"
         case .managed: "Managed by an App"
         }

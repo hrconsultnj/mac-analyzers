@@ -1,6 +1,7 @@
 import AnalyzersKit
 import Foundation
 import Observation
+import os
 
 /// The state of one review: which rows are ticked, and what Apply would send.
 ///
@@ -12,7 +13,9 @@ import Observation
 /// proves them.
 @MainActor @Observable
 final class ReviewSession {
-    let rows: [ReviewRow]
+    private(set) var rows: [ReviewRow]
+    /// Changes whenever the rows do (a row stopped being choosable): the table redraws on it.
+    private(set) var revision = 0
     private(set) var selection: ReviewSelection
     @ObservationIgnored private let ticks: ReviewTickStore
 
@@ -21,12 +24,16 @@ final class ReviewSession {
     init(previewID: UUID, rows: [ReviewRow], ticks: ReviewTickStore = .shared) {
         var seen = Set<String>()
         let unique = rows.filter { seen.insert($0.id).inserted }
-        assert(unique.count == rows.count, "a review was given the same key twice")
+        if unique.count != rows.count {
+            // keep the first of each key and say so; a debug build must not stop for it
+            Logger(subsystem: "com.mac-analyzers.app", category: "review")
+                .error("a review was given \(rows.count - unique.count) repeated key(s); the first of each is kept")
+        }
         self.rows = unique
         self.ticks = ticks
         selection = ReviewSelection(
             previewID: previewID,
-            items: unique.map { ReviewSelection.Item(id: $0.id, choosable: $0.isChoosable) },
+            items: unique.map { ReviewSelection.Item(id: $0.id, choosable: $0.keptReason == nil, acts: $0.acts) },
             deselected: ticks.deselected(for: previewID),
             // rows of nothing are folded out of sight: nobody approves what they cannot see
             startsUnticked: unique.contains { $0.bytes != nil } ? Set(unique.filter { $0.bytes == 0 }.map(\.id)) : [])
@@ -41,6 +48,12 @@ final class ReviewSession {
 
     func setTicked(_ id: String, _ ticked: Bool) {
         selection.setTicked(id, ticked)
+        ticks.save(selection.deselected, for: previewID)
+    }
+
+    /// Many keys at once (a group's tick): one save, not one per key.
+    func setTicked(_ ids: [String], _ ticked: Bool) {
+        for id in ids { selection.setTicked(id, ticked) }
         ticks.save(selection.deselected, for: previewID)
     }
 
@@ -62,7 +75,30 @@ final class ReviewSession {
     var selectedBytes: Int64 { selectedRows.compactMap(\.bytes).reduce(0, +) }
     var hasSizes: Bool { rows.contains { $0.bytes != nil } }
     var choosableCount: Int { selection.choosableCount }
-    var keptCount: Int { rows.count - selection.choosableCount }
+    /// Rows the cleanup leaves alone (acting rows are not among them).
+    var keptCount: Int { rows.filter { $0.keptReason != nil }.count }
+    var actingRows: [ReviewRow] { rows.filter(\.acts) }
+
+    /// A screen changes which rows can be chosen IN PLACE (a program ended while the review is
+    /// open) without building a new session: ticks on rows that stay choosable are untouched, a
+    /// row that stops being choosable is unticked and gets the reason; `nil` makes it choosable.
+    func updateChoosable(_ changes: [(id: String, keptReason: String?)]) {
+        let byID = Dictionary(changes.map { ($0.id, $0.keptReason) }, uniquingKeysWith: { first, _ in first })
+        var now: [String: Bool] = [:]
+        let newRows = rows.map { row -> ReviewRow in
+            guard !row.acts, let reason = byID[row.id] else { return row }
+            var changed = row
+            changed.keptReason = reason
+            now[row.id] = reason == nil
+            return changed
+        }
+        let selectionChanged = selection.updateChoosable(now)
+        // only a real change regroups the table: a screen may call this on every refresh
+        guard selectionChanged || newRows != rows else { return }
+        rows = newRows
+        ticks.save(selection.deselected, for: previewID)
+        revision += 1
+    }
 
     /// "12 selected · 3.2 GB" (and "· 3 kept" when some rows are left alone).
     var summary: String {

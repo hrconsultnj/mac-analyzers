@@ -52,7 +52,7 @@ let package = Package(
         .executableTarget(name: "AgentRunner", dependencies: ["AnalyzersKit"], swiftSettings: strictSwift),
         // development tool, never bundled: renders a real screen to a PNG in a
         // window that is never on a display (see Sources/SnapshotRunner/main.swift)
-        .executableTarget(name: "SnapshotRunner", dependencies: ["AnalyzersKit", "SettingsFeature"],
+        .executableTarget(name: "SnapshotRunner", dependencies: ["AnalyzersKit", "SettingsFeature", "UIComponents"],
                           swiftSettings: strictSwift),
         // development tool, never bundled: renders the menu-bar panel's content to a
         // PNG in a plain window of the panel's size (see Sources/MenuSnapshot/main.swift)

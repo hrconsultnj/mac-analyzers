@@ -33,7 +33,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 ROOT="$(cd "$(dirname "$0")/.." && pwd)" || exit 2
 cd "$ROOT" || exit 2
 
-ALL="syntax lint secrets changelog tests workflows strays spi names app"
+ALL="syntax lint secrets changelog tests workflows strays spi names outline app"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ma-check.XXXXXX")" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -55,6 +55,7 @@ describe() {
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root; no source file hidden by .gitignore" ;;
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
+    outline)   echo "the shared OutlineTable, headless: open all and re-sort with text and with hosted cells log no AppKit reentrancy warning (scripts/outline-probe.sh; macOS only)" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
   esac
 }
@@ -315,6 +316,54 @@ check_names() {
   return 1
 }
 
+# Every table whose rows open to other rows is an `OutlineTable`
+# (app/Sources/UIComponents/OutlineTable): SwiftUI's hierarchical controls make
+# AppKit log "reentrant operation in its NSTableView delegate" on open-all and
+# on an in-place re-sort. This check runs the headless probes for that
+# (scripts/outline-probe.sh check: open all and re-sort, text and hosted cells,
+# each in a fresh process, counting the warning), so a change to the component
+# that makes it warn fails here.
+#
+# The second half refuses the SwiftUI controls in app/Sources. It is OFF
+# (`OUTLINE_REFUSE_SWIFTUI_HIERARCHY=0`) because every existing screen still uses
+# them; the LAST migration step, when the last screen has moved, sets it to 1.
+OUTLINE_REFUSE_SWIFTUI_HIERARCHY=0
+check_outline() {
+  if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
+  if [ ! -x scripts/outline-probe.sh ]; then DETAIL="skipped: no scripts/outline-probe.sh"; return 2; fi
+  if ! command -v swift >/dev/null 2>&1; then DETAIL="skipped: swift is not installed"; return 2; fi
+  if ! scripts/outline-probe.sh check >"$TMP/outline.out" 2>&1; then
+    tail -n 25 "$TMP/outline.out" | cut -c1-300 >"$OUT"
+    DETAIL="the outline probe failed or counted a reentrancy warning"
+    return 1
+  fi
+  DETAIL="$(tail -n 1 "$TMP/outline.out")"
+  if [ "$OUTLINE_REFUSE_SWIFTUI_HIERARCHY" = "1" ]; then
+    local marker='// one disclosed block, not rows'
+    # whole words only (OutlineTable( is not Table( ), outside the component, and never a comment line
+    local comment='^[^:]+:[0-9]+:[[:space:]]*//'
+    {
+      grep -rnE '(^|[^A-Za-z])(DisclosureTableRow|OutlineGroup)([^A-Za-z]|$)|Section\(isExpanded:' --include='*.swift' app/Sources \
+        | grep -v '^app/Sources/UIComponents/OutlineTable/' | grep -vE "$comment"
+      grep -rnE '(^|[^A-Za-z])Table\(.*children:' --include='*.swift' app/Sources \
+        | grep -v '^app/Sources/UIComponents/OutlineTable/' | grep -vE "$comment"
+      grep -rn -B1 'DisclosureGroup' --include='*.swift' app/Sources \
+        | grep -vE "$comment" \
+        | awk -v marker="$marker" '
+            /DisclosureGroup/ && !/^--$/ { line = $0; if (index(line, marker) == 0 && index(prev, marker) == 0) print line }
+            { prev = $0 }'
+    } >"$OUT" 2>/dev/null
+    if [ -s "$OUT" ]; then
+      DETAIL="SwiftUI hierarchical controls in app/Sources — use OutlineTable (a DisclosureGroup around ONE block of content carries: $marker)"
+      return 1
+    fi
+    DETAIL="$DETAIL; no SwiftUI hierarchical control in app/Sources"
+  else
+    DETAIL="$DETAIL; the grep for SwiftUI hierarchical controls is off until the last migration step"
+  fi
+  return 0
+}
+
 check_app() {
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
   if [ ! -f app/Package.swift ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
@@ -342,7 +391,17 @@ check_app() {
     DETAIL="swift build failed (exit $rc)"
     return 1
   fi
-  DETAIL="swift build ok ($((SECONDS - started))s)"
+  # A build that succeeds while printing a warning is not clean. The package
+  # turns warnings into errors, but some diagnostics are not upgraded (found
+  # 2026-11-11: "cannot use generic struct … was not imported by this file"
+  # printed as a warning, exit 0). Any warning line fails the check. Only
+  # files compiled in this run can warn, so a change is always covered.
+  if grep -a -E '^[^ ].*: warning: ' "$TMP/app.txt" | cut -c1-300 | awk '!seen[$0]++' | head -20 >"$OUT" && [ -s "$OUT" ]; then
+    DETAIL="swift build printed $(wc -l <"$OUT" | tr -d ' ') warning(s) — warnings are defects"
+    return 1
+  fi
+  : >"$OUT"
+  DETAIL="swift build ok, no warnings ($((SECONDS - started))s)"
   return 0
 }
 
@@ -384,14 +443,14 @@ if [ -n "$range" ]; then
         *.sh|*.command|scripts/*|.github/*|tests/*|*/tests/*) want_script=1 ;;
       esac
       case "$f" in CHANGELOG.md|VERSION) want_changelog=1 ;; esac
-      case "$f" in app/*) want_app=1 ;; esac
+      case "$f" in app/*|scripts/outline-probe.sh) want_app=1 ;; esac
     done <"$TMP/changed"
     selected=""
     for n in $scope; do
       case "$n" in
         syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
         changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
-        app|spi|names) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
+        app|spi|names|outline) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
         secrets|strays) selected="$selected $n" ;;
       esac
     done
