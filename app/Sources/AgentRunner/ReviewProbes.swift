@@ -417,6 +417,16 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     }
     let crlf = ApprovedSet(approvable: ["/d/a.pdf", "x\r\n/d/other.zip", "/d/other.zip"], deselected: ["/d/other.zip"])
     check("…and the unticked item it names never reaches the list", crlf.approved == ["/d/a.pdf"], "\(crlf.approved.count) key(s)")
+
+    // a key with a line break is never choosable: not through a screen's item, not through updateChoosable
+    var odd = ReviewSelection(previewID: UUID(), items: [.init(id: "/ok"), .init(id: "/odd\nkey")])
+    check("a key with a line break is not choosable", !odd.isChoosable("/odd\nkey") && odd.isChoosable("/ok"))
+    _ = odd.updateChoosable(["/odd\nkey": true])
+    odd.selectAll()
+    check("and stays so when a screen calls it choosable; Select All leaves it out",
+          !odd.isChoosable("/odd\nkey") && odd.approved.approved == ["/ok"] && odd.choosableCount == 1)
+    let pair = ReviewSelection(previewID: UUID(), items: [.init(id: "/ok"), .init(id: "/odd\r\nkey")])
+    check("a key with a carriage return and line feed is not choosable either", !pair.isChoosable("/odd\r\nkey") && pair.approved.approved == ["/ok"])
     let broken = tally.failed
     if broken == 0 { print("all review-session rules hold") } else { print("\(broken) rule(s) broken") }
     exit(broken == 0 ? 0 : 1)
