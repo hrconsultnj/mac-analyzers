@@ -20,8 +20,10 @@ public enum DeepLinkRouter {
     /// no URL, `--pane` or notification can reach one.
     private static var fixtureTargets: [String: Resolution] = [:]
 
-    /// Makes the example screens linkable (`review:fixture`). Called by SnapshotRunner, nothing else.
-    public static func installFixtures() {
+    /// Makes the example screens linkable (`review:fixture`) and, for a run with no app bundle,
+    /// names the changelog What's New reads. Called by SnapshotRunner, nothing else.
+    public static func installFixtures(changelog: URL? = nil) {
+        ReleaseNote.useDevelopmentFile(changelog)
         fixtureTargets = ["review:fixture": .main(Location(OverviewGroup.activity, path: [.overview(.reviewFixture)]))]
     }
 

@@ -175,7 +175,12 @@ through `config.local.sh` (never hardcoded).
   store's test hooks (`scriptOverride`, `outcomeOverride`, the clock, the schedule
   reader) are `@_spi(TestSupport)`: only `AgentRunner` and `SnapshotRunner`
   import that interface, `scripts/check.sh spi` fails if anything else does, and
-  it is a compile-time wall between our own targets, not a runtime one. For a
+  it is a compile-time wall between our own targets, not a runtime one. The
+  app people install reads NO environment variable (`scripts/check.sh env`):
+  a tool that never ships (`AgentRunner`, `SnapshotRunner`) reads it and
+  hands the value in. Probes that judge themselves on stand-in data run in
+  the gate (`scripts/check.sh probes`; add one to `PROBES` once it exits
+  non-zero on a broken rule). For a
   scheduled replay the store reads the installed plist's arguments itself. The shell's `.status`
   toolbar item (`JobStatusToolbarItem`, attached to the split view, never to a
   stack) and the menu panel's `MenuJobsStrip` show the running job, and
@@ -248,8 +253,11 @@ through `config.local.sh` (never hardcoded).
   kept per screen), ticks and section headers are the screen's own
   bindings; cells are SwiftUI or plain text. Inside the component the
   system view is changed only from its updater and never while AppKit is
-  calling in, and every write back to a binding happens on the next main
-  turn — a change that breaks either rule is a defect even when no warning
+  calling in, and every write back to a binding that arises inside one of
+  AppKit's callbacks (selection, open groups, sort) happens on the next main
+  turn; a tick from a box or the Space key is an event, not a callback, and
+  is delivered at once so ticks reach the screen in the order they were
+  made — a change that breaks either rule is a defect even when no warning
   shows. It uses the system's standard row height (automatic row heights
   bring the warning back); a cell that needs more lines declares them.
   `scripts/check.sh outline` runs the two changes that used to warn

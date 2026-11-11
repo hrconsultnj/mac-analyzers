@@ -35,8 +35,10 @@ import SettingsFeature
 let arguments = Array(CommandLine.arguments.dropFirst())
 // `--outline-probe <action> …` drives the shared OutlineTable headless (OutlineProbe.swift); it never renders a screen
 if arguments.first == "--outline-probe" { OutlineProbe.run(Array(arguments.dropFirst())) }
-// the example screens (`review:fixture`) can be linked only in this process
-await MainActor.run { DeepLinkRouter.installFixtures() }
+// the example screens (`review:fixture`) can be linked only in this process; this tool has no
+// app bundle, so MA_CHANGELOG names the changelog What's New shows (read HERE, never by the app)
+let changelog = ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fileURLWithPath: $0) }
+await MainActor.run { DeepLinkRouter.installFixtures(changelog: changelog) }
 guard arguments.count >= 2 else {
     FileHandle.standardError.write(Data("usage: snapshot-runner <target> <out.png> [--size WxH] [--wait seconds] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available]\n".utf8))
     exit(2)

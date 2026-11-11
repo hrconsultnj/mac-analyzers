@@ -33,7 +33,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 ROOT="$(cd "$(dirname "$0")/.." && pwd)" || exit 2
 cd "$ROOT" || exit 2
 
-ALL="syntax lint secrets changelog tests workflows strays spi names outline app"
+ALL="syntax lint secrets changelog tests workflows strays spi env names probes outline app"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ma-check.XXXXXX")" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -54,6 +54,8 @@ describe() {
     workflows) echo "actionlint on .github/workflows (optional: skipped, visibly, when not installed)" ;;
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root; no source file hidden by .gitignore" ;;
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
+    env)       echo "the app people install reads no environment variable: ProcessInfo's environment and getenv appear only in AgentRunner, SnapshotRunner and the one file that passes the environment on to the engine scripts" ;;
+    probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids (agent-runner; macOS only)" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
     outline)   echo "the shared OutlineTable, headless: open all and re-sort with text and with hosted cells log no AppKit reentrancy warning (scripts/outline-probe.sh; macOS only)" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
@@ -295,6 +297,58 @@ check_spi() {
 # the runner, asks it to print every name and exits 1 on one that
 # `TitleStyle` rejects. MA_NAMES_APP points the check at another copy of app/
 # (used to prove it fails on a lowercased name).
+# The app reads no environment variable. A variable is a switch nobody can see:
+# a test hook left in shipping code changes what the installed app does for
+# whoever happens to have it set. The two tools that never ship (AgentRunner's
+# probes, SnapshotRunner) may read them and hand the value in; EngineProcess
+# passes the environment on to the engine scripts, which is its job.
+check_env() {
+  if [ ! -d app/Sources ]; then DETAIL="skipped: no app/Sources"; return 2; fi
+  grep -rnE 'processInfo\.environment|(^|[^A-Za-z_])(getenv|setenv|unsetenv|putenv)\(' --include='*.swift' app/Sources 2>/dev/null \
+    | grep -v -E '^app/Sources/(AgentRunner|SnapshotRunner)/' \
+    | grep -v -E '^app/Sources/AnalyzersKit/Jobs/EngineProcess\.swift:' \
+    | grep -v -E '^[^:]+:[0-9]+:[[:space:]]*//' \
+    | cut -c1-300 >"$OUT"
+  if [ -s "$OUT" ]; then
+    DETAIL="shipping code reads the environment — pass the value in from AgentRunner or SnapshotRunner instead"
+    return 1
+  fi
+  DETAIL="no environment read outside AgentRunner, SnapshotRunner and EngineProcess"
+  return 0
+}
+
+# Probes that judge themselves: each builds its own stand-in data in a temporary
+# folder, reads nothing of the person's, and exits non-zero when a rule breaks.
+# A probe that only prints (review rules, quit, failures) is not here: nothing
+# would fail. Add a probe to PROBES when it has an exit status worth trusting.
+PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids"
+check_probes() {
+  local app="$ROOT/app"
+  if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
+  if [ ! -f "$app/Package.swift" ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
+  if ! command -v swift >/dev/null 2>&1; then DETAIL="skipped: swift is not installed"; return 2; fi
+  local bin probe started=$SECONDS count=0
+  if ! ( cd "$app" && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0= \
+          swift build --disable-keychain --product AgentRunner ) >"$TMP/probes-build.out" 2>&1; then
+    grep -a -E ': error: ' "$TMP/probes-build.out" | cut -c1-300 | awk '!seen[$0]++' | head -10 >"$OUT"
+    [ -s "$OUT" ] || tail -n 10 "$TMP/probes-build.out" | cut -c1-300 >"$OUT"
+    DETAIL="could not build agent-runner"
+    return 1
+  fi
+  bin="$(cd "$app" && swift build --disable-keychain --show-bin-path 2>/dev/null)/AgentRunner"
+  if [ ! -x "$bin" ]; then DETAIL="agent-runner was not built"; return 1; fi
+  for probe in $PROBES; do
+    if ! "$bin" "$probe" >"$TMP/probe.out" 2>&1; then
+      { grep -a -E '^(FAIL|✗)' "$TMP/probe.out" | head -15; tail -n 2 "$TMP/probe.out"; } | cut -c1-300 >"$OUT"
+      DETAIL="$probe failed"
+      return 1
+    fi
+    count=$((count + 1))
+  done
+  DETAIL="$count probe(s) hold ($((SECONDS - started))s)"
+  return 0
+}
+
 check_names() {
   local app="${MA_NAMES_APP:-$ROOT/app}"
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
@@ -454,7 +508,7 @@ if [ -n "$range" ]; then
       case "$n" in
         syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
         changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
-        app|spi|names|outline) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
+        app|spi|env|names|probes|outline) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
         secrets|strays) selected="$selected $n" ;;
       esac
     done
