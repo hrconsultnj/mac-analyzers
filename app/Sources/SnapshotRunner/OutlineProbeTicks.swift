@@ -9,6 +9,8 @@ struct TickRow: Identifiable {
     var name: String
     var children: [TickRow]?
     var unavailable: String?
+    /// The apply acts on this row without a tick here: the action in words (a dimmed box that is ON).
+    var acting: String?
 }
 
 /// A review's tick semantics (section 1.5) on a fixture: a group is computed
@@ -25,6 +27,7 @@ final class TickModel {
         TickRow(id: "g2", name: "Group two", children: [TickRow(id: "d", name: "d"), TickRow(id: "e", name: "e")]),
         TickRow(id: "x", name: "Single"),
         TickRow(id: "y", name: "Locked two", unavailable: "In use"),
+        TickRow(id: "o", name: "Opera", acting: "Will Be Asked to Quit"),
     ]
     var ticked: Set<String> = []
     var expanded: Set<String> = []
@@ -39,6 +42,7 @@ final class TickModel {
     func state(_ row: TickRow) -> OutlineTickState {
         if row.children == nil {
             if let reason = row.unavailable { return .unavailable(reason: reason) }
+            if let word = row.acting { return .unavailable(reason: word, isOn: true) }
             return ticked.contains(row.id) ? .on : .off
         }
         return OutlineTickState.combining(row.children!.map(state), whenNoneChoosable: "Nothing here can be chosen")
@@ -46,25 +50,45 @@ final class TickModel {
 
     func set(_ row: TickRow, _ value: Bool) {
         setCalls.append("\(row.id)=\(value)")
-        for leaf in leaves(row) where leaf.unavailable == nil {
+        for leaf in leaves(row) where leaf.unavailable == nil && leaf.acting == nil {
             if value { ticked.insert(leaf.id) } else { ticked.remove(leaf.id) }
         }
     }
 
     var approvable: Set<String> { Set(rows.flatMap(leaves).map(\.id)) }
-    var unavailableIDs: Set<String> { Set(rows.flatMap(leaves).filter { $0.unavailable != nil }.map(\.id)) }
+    var unavailableIDs: Set<String> { Set(rows.flatMap(leaves).filter { $0.unavailable != nil || $0.acting != nil }.map(\.id)) }
     var deselected: Set<String> { approvable.subtracting(ticked).union(unavailableIDs) }
     var isNarrowed: Bool { !deselected.isEmpty }
     var approved: Set<String> { approvable.subtracting(deselected) }
 }
 
+/// A hosted name cell the way the review draws one: the title, and a second line whose colour it
+/// sets itself, so it has to follow `isEnabled` to dim with the rest of its row.
+struct TickHostedName: View {
+    let row: TickRow
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(row.name).lineLimit(1)
+            Text(row.unavailable ?? row.acting ?? "can be chosen").font(.caption).lineLimit(1)
+                .foregroundStyle(isEnabled ? Color.secondary : Color(nsColor: .disabledControlTextColor))
+        }
+    }
+}
+
 struct TickScreen: View {
     @Bindable var model: TickModel
+    var hosted = false
 
     var body: some View {
         OutlineTable(model.rows, children: \.children, selection: $model.selection, expanded: $model.expanded,
-                     autosave: "probe.ticks") {
-            OutlineColumn("name", "Name", text: { $0.name })
+                     autosave: "probe.ticks.\(getpid())") {
+            if hosted {
+                OutlineColumn("name", "Name") { TickHostedName(row: $0) }.lines { _ in 2 }
+            } else {
+                OutlineColumn("name", "Name", text: { $0.name })
+            }
         }
         .ticks(OutlineTicks(state: { model.state($0) }, set: { model.set($0, $1) }, label: { "Include \($0.name)" }))
         .rowEnabled { $0.unavailable == nil }
@@ -158,6 +182,13 @@ extension ProbeChecks {
         verdict(model.ticked == before && model.setCalls.count == calls && locked?.isEnabled == false,
                 "ticks unavailableClick changed=\(model.ticked == before ? 0 : 1) setCalls=\(model.setCalls.count - calls) enabled=\(locked?.isEnabled ?? true) help=\(locked?.accessibilityHelp() ?? "nil")")
 
+        // a row the action takes without a tick: a dimmed box that is ON, saying so in words; a kept row's
+        // dimmed box is OFF and says why. Both are told apart by their help, not by the box alone.
+        if let acting = tickButton(outline, row: 10) {
+            verdict(acting.state == .on && !acting.isEnabled && acting.accessibilityHelp() == "Will Be Asked to Quit"
+                        && locked?.state == .off && locked?.accessibilityHelp() == "In use",
+                    "ticks actingVsKept acting box=\(acting.state == .on ? "on" : "off") enabled=\(acting.isEnabled) help=\(acting.accessibilityHelp() ?? "nil") | kept box=\(locked?.state == .off ? "off" : "on") help=\(locked?.accessibilityHelp() ?? "nil")")
+        } else { verdict(false, "ticks actingVsKept: acting row not found") }
         verdict(model.approved.isDisjoint(with: model.unavailableIDs) && model.isNarrowed,
                 "ticks approved contains unavailable=\(model.approved.intersection(model.unavailableIDs).count) isNarrowed=\(model.isNarrowed) approved=\(model.approved.sorted()) deselected=\(model.deselected.sorted())")
         return failed ? 1 : 0
