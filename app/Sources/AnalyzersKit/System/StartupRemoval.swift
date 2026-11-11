@@ -28,5 +28,5 @@ public enum StartupRemoval {
 
 extension JobKind {
     /// Whether an apply of this kind carries the approved list to the script.
-    var removesOnlyApproved: Bool { approvalFlag != nil }
+    var removesOnlyApproved: Bool { takesReviewedList }
 }

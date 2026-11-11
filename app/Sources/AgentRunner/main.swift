@@ -193,6 +193,9 @@ if args.first == "--probe-review-session" {
 if args.first == "--probe-review-rules" {
     await probeReviewRules()
 }
+if args.first == "--probe-login-removal" {
+    await probeLoginRemoval()
+}
 if args.first == "--probe-quit" {
     await probeQuit()
 }

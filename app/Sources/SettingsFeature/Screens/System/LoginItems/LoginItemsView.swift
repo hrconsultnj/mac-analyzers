@@ -306,7 +306,9 @@ struct LoginItemsView: View {
 
     private var removalMessage: String {
         let names = removalScope.map(\.name).joined(separator: ", ")
-        return "\(names). The program each one starts is gone, so nothing depends on them. This cannot be undone."
+        return removalScope.count == 1
+            ? "\(names). The program it starts is gone, so nothing depends on it. This cannot be undone."
+            : "\(names). The program each one starts is gone, so nothing depends on them. This cannot be undone."
     }
 
     // MARK: - actions
