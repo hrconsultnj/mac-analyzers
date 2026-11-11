@@ -55,6 +55,7 @@ enum OverviewGroup {
         aliases: [
             "home": .main(Location(overview)),
             "overview": .main(Location(overview)),
+            "activity": .main(Location(activity)),
             "logs": .main(Location(activity)),
             "jobs": .main(Location(activity)),
             "setup": .main(Location(setup)),

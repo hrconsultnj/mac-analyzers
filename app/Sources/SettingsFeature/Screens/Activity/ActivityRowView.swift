@@ -23,8 +23,16 @@ struct ActivityRowView: View {
                 HStack(spacing: Tokens.Space.xl) {
                     GlyphTile(glyph: row.glyph, side: 28)
                     VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
-                        Text(row.displayTitle)
-                            .font(Tokens.Typography.rowTitleKey)
+                        // the task's name, then the kind of run as its own secondary text
+                        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s) {
+                            Text(row.title)
+                                .font(Tokens.Typography.rowTitleKey)
+                            if let kindOfRun = row.kindOfRun {
+                                Text(kindOfRun)
+                                    .font(Tokens.Typography.body)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                         Text(liveLine ?? row.line)
                             .font(Tokens.Typography.body)
                             .foregroundStyle(row.isFailed ? Tokens.Status.destructive.tint : .secondary)

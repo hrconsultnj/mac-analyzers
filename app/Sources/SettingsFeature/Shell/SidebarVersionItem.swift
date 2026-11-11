@@ -12,17 +12,16 @@ struct SidebarVersionItem: View {
         Button {
             navigator.select(AppGroup.updates)
         } label: {
-            // One arrangement in every state: the name and version on the left, the
-            // state beside them on the right. A state too long for the row wraps
-            // inside its own column; the row never changes shape.
-            LabeledContent {
+            // One arrangement in every state: the name, the version and, when there is
+            // one, the state, each on its own line. The sidebar is narrow and a state
+            // such as "Update Available" does not fit beside the version, so it has the
+            // whole row to itself and never wraps.
+            VStack(alignment: .leading) {
+                Text(Names.app).font(.subheadline.weight(.semibold))
+                Text(updates.build.sidebarText).font(.caption).foregroundStyle(.secondary)
                 stateLabel
-            } label: {
-                VStack(alignment: .leading) {
-                    Text(Names.app).font(.subheadline.weight(.semibold))
-                    Text(updates.build.sidebarText).font(.caption).foregroundStyle(.secondary)
-                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
             .contentShape(Rectangle())
         }
