@@ -27,7 +27,9 @@ final class ReviewSession {
         selection = ReviewSelection(
             previewID: previewID,
             items: unique.map { ReviewSelection.Item(id: $0.id, choosable: $0.isChoosable) },
-            deselected: ticks.deselected(for: previewID))
+            deselected: ticks.deselected(for: previewID),
+            // rows of nothing are folded out of sight: nobody approves what they cannot see
+            startsUnticked: unique.contains { $0.bytes != nil } ? Set(unique.filter { $0.bytes == 0 }.map(\.id)) : [])
     }
 
     /// A review that is only read: no preview behind it, nothing to tick.
@@ -43,6 +45,8 @@ final class ReviewSession {
     }
 
     func selectAll() { selection.selectAll(); ticks.save(selection.deselected, for: previewID) }
+    var isAllSelected: Bool { selection.isAllSelected }
+
     func selectNone() { selection.selectNone(); ticks.save(selection.deselected, for: previewID) }
 
     /// Forgets the ticks: the preview was applied (or discarded).

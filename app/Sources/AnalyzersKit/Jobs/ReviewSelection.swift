@@ -44,16 +44,20 @@ public struct ReviewSelection: Sendable {
     public let items: [Item]
     public private(set) var deselected: Set<String>
     private let choosable: Set<String>
+    /// Rows that start unticked (the folded empty ones nobody can see): Select All leaves them as they are.
+    private let startsUnticked: Set<String>
 
-    /// `deselected` restores what a person had unticked for this same preview.
-    public init(previewID: UUID, items: [Item], deselected: Set<String> = []) {
+    /// `deselected` restores what a person had unticked for this same preview; nil means a
+    /// first look, where `startsUnticked` rows are unticked and everything else is ticked.
+    public init(previewID: UUID, items: [Item], deselected: Set<String>? = nil, startsUnticked: Set<String> = []) {
         self.previewID = previewID
         var seen = Set<String>()
         let unique = items.filter { seen.insert($0.id).inserted }
         assert(unique.count == items.count, "a review was given the same key twice")
         self.items = unique
         choosable = Set(unique.filter(\.choosable).map(\.id))
-        self.deselected = deselected.intersection(choosable)
+        self.startsUnticked = startsUnticked.intersection(choosable)
+        self.deselected = (deselected ?? self.startsUnticked).intersection(choosable)
     }
 
     public func isChoosable(_ id: String) -> Bool { choosable.contains(id) }
@@ -64,7 +68,11 @@ public struct ReviewSelection: Sendable {
         if ticked { deselected.remove(id) } else { deselected.insert(id) }
     }
 
-    public mutating func selectAll() { deselected = [] }
+    /// Ticks every visible row and leaves the folded ones as the person set them.
+    public mutating func selectAll() { deselected.formIntersection(startsUnticked) }
+
+    /// True when nothing but the folded rows is unticked: Select All has nothing to do.
+    public var isAllSelected: Bool { deselected.isSubset(of: startsUnticked) }
     public mutating func selectNone() { deselected = choosable }
 
     public var tickedIDs: [String] { items.map(\.id).filter(isTicked) }
@@ -98,10 +106,11 @@ public final class ReviewTickStore {
 
     private var unticked: [UUID: Set<String>] = [:]
 
-    public func deselected(for previewID: UUID) -> Set<String> { unticked[previewID] ?? [] }
+    /// nil when this preview has not been looked at before.
+    public func deselected(for previewID: UUID) -> Set<String>? { unticked[previewID] }
 
     public func save(_ deselected: Set<String>, for previewID: UUID) {
-        if deselected.isEmpty { unticked[previewID] = nil } else { unticked[previewID] = deselected }
+        unticked[previewID] = deselected
     }
 
     public func drop(_ previewID: UUID) { unticked[previewID] = nil }

@@ -43,8 +43,8 @@ extension TempItem.Status {
         case .protected: "Protected"
         case .notYours: "Not Yours"
         case .keep: "Kept"
-        case .system: "System"
-        case .history: "History"
+        case .system: "Left to macOS"
+        case .history: "History, Not Touched"
         case .kept: "Kept"
         case .managed: "Managed by an App"
         }
@@ -99,39 +99,33 @@ extension StoragePathItem.Status {
     }
 }
 
-/// Words for tokens that appear in a line of text rather than as a typed value
-/// (`DRY RUN`, `DONE`), and every typed token with its word, for the check.
+/// Words for tokens that appear in a line of text rather than as a typed value, and every
+/// typed token with its word, for the check.
 public enum TokenWords {
 
-    /// A raw token in capitals read from a line; nil when it has no plain word
-    /// of its own (the caller then title-cases it).
+    /// A banner read out of a line. Only text that has ONE meaning everywhere is here:
+    /// a status such as `DRY` means "would close", "would remove" or "would clear"
+    /// depending on what it is attached to, so it has no context-free word and callers
+    /// use the typed overload (`TokenLabel.plain(item.status)`). nil: the caller title-cases.
     public static func plain(_ token: String) -> String? {
         switch token.trimmingCharacters(in: CharacterSet(charactersIn: "[] ")).uppercased() {
-        case "DRY RUN", "DRY": "Preview"
-        case "DONE": "Done"
-        case "KILLED": "Closed"
-        case "FAILED": "Failed"
-        case "SKIP", "SKIPPED": "Skipped"
-        case "NEEDS SUDO": "Needs Administrator"
-        case "IDLE OR COMPLETE": "Up to Date"
+        case "DRY RUN": "Preview"
         default: nil
         }
     }
 
-    /// Every typed token and its word, for `agent-runner --probe-names`.
+    /// Every typed token and its word, from `allCases`: a case added to a parser is in the
+    /// names check without anyone remembering to list it. Keyed by type and token so the
+    /// four meanings of `DRY` do not collide.
     public static var all: [(token: String, label: String)] {
         var rows: [(String, String)] = []
-        rows += [SpotlightExposureItem.Status.dry, .fenced].map { ($0.rawValue, $0.plainLabel) }
-        rows += [SpotlightAuditRun.Verdict.progressing, .idleOrComplete, .notRunning, .unknown]
-            .map { ($0.rawValue, $0.plainLabel) }
-        rows += TempItem.Status.allCases.map { ($0.rawValue, $0.plainLabel) }
-        rows += [TempMount.Status.mounted, .ejected, .ejectFailed].map { ($0.rawValue, $0.plainLabel) }
-        rows += [LoginItemEntry.Verdict.orphan, .orphanSudo, .removed, .leftover, .skip]
-            .map { ($0.rawValue, $0.plainLabel) }
-        rows += [ReapItem.Status.dry, .killed, .reported, .gone, .exempt, .quit, .skip]
-            .map { ($0.rawValue, $0.plainLabel) }
-        rows += [StoragePathItem.Status.dry, .deleted, .trashed, .restored, .failed]
-            .map { ($0.rawValue, $0.plainLabel) }
+        rows += SpotlightExposureItem.Status.allCases.map { ("SpotlightExposureItem.\($0.rawValue)", $0.plainLabel) }
+        rows += SpotlightAuditRun.Verdict.allCases.map { ("SpotlightAuditRun.\($0.rawValue)", $0.plainLabel) }
+        rows += TempItem.Status.allCases.map { ("TempItem.\($0.rawValue)", $0.plainLabel) }
+        rows += TempMount.Status.allCases.map { ("TempMount.\($0.rawValue)", $0.plainLabel) }
+        rows += LoginItemEntry.Verdict.allCases.map { ("LoginItemEntry.\($0.rawValue)", $0.plainLabel) }
+        rows += ReapItem.Status.allCases.map { ("ReapItem.\($0.rawValue)", $0.plainLabel) }
+        rows += StoragePathItem.Status.allCases.map { ("StoragePathItem.\($0.rawValue)", $0.plainLabel) }
         return rows.map { (token: $0.0, label: $0.1) }
     }
 }
