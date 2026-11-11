@@ -172,7 +172,7 @@ plain() { # plain <label> <probe args…>
 review() {
   local name
   echo "REVIEW — the real ReviewTable, driven"
-  for name in ticks sameTurn updateChoosable acting only readonly; do
+  for name in ticks sameTurn updateChoosable acting only readonly unlistable menu; do
     run_probe "review:$name"
     echo "case=review:$name warnings=$WARN outside=$OUTSIDE exit=$RC"
     say_out
@@ -287,7 +287,22 @@ check() {
   echo "lines warnings=$WARN outside=$OUTSIDE"
   total=$((total + WARN + OUTSIDE))
   clean || fail
-  echo "open all and re-sort, text and hosted, and a table with lines: warnings=$total"
+  # under the main window's toolbar the first row stays below the header, also after the screen's
+  # own updates (a row arriving, a re-sort)
+  local embedding
+  for embedding in bare line inset; do
+    run_probe "toolbar:$embedding"
+    echo "toolbar:$embedding warnings=$WARN outside=$OUTSIDE exit=$RC"
+    say_out
+    total=$((total + WARN + OUTSIDE))
+    clean || fail
+  done
+  # first appearance, repeated: the timing of a window's first layout is not deterministic
+  run_probe "toolbar:first" 25
+  echo "toolbar:first warnings=$WARN outside=$OUTSIDE exit=$RC ($(grep -ac '^PASS' "$TMP/out") passes)"
+  total=$((total + WARN + OUTSIDE))
+  clean || { say_out; fail; }
+  echo "open all and re-sort, text and hosted, a table with lines, and the first row below the header under a toolbar: warnings=$total"
 }
 
 # Which build a number came from is printed with it: the checks run on the debug build (what

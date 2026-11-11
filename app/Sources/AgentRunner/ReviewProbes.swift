@@ -410,6 +410,14 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     check("apply recorded against its own preview", applied.value(for: first) != nil)
     check("new preview: Apply is enabled again and the old message is gone", applied.value(for: second) == nil)
     check("no preview: nothing recorded", applied.value(for: nil) == nil)
+
+    // a key with a line break is never choosable: not through a screen's item, not through updateChoosable
+    var odd = ReviewSelection(previewID: UUID(), items: [.init(id: "/ok"), .init(id: "/odd\nkey")])
+    check("a key with a line break is not choosable", !odd.isChoosable("/odd\nkey") && odd.isChoosable("/ok"))
+    _ = odd.updateChoosable(["/odd\nkey": true])
+    odd.selectAll()
+    check("and stays so when a screen calls it choosable; Select All leaves it out",
+          !odd.isChoosable("/odd\nkey") && odd.approved.approved == ["/ok"] && odd.choosableCount == 1)
     let broken = tally.failed
     if broken == 0 { print("all review-session rules hold") } else { print("\(broken) rule(s) broken") }
     exit(broken == 0 ? 0 : 1)
