@@ -55,6 +55,7 @@ enum OverviewGroup {
         aliases: [
             "home": .main(Location(overview)),
             "overview": .main(Location(overview)),
+            "activity": .main(Location(activity)),
             "logs": .main(Location(activity)),
             "jobs": .main(Location(activity)),
             "setup": .main(Location(setup)),
@@ -65,7 +66,7 @@ enum OverviewGroup {
 
     @ViewBuilder private static func screen(_ section: SectionID) -> some View {
         switch section {
-        case overview: HomeSettingsView()
+        case overview: OverviewView()
         case activity: ActivityView()
         case setup: SetupSettingsView()
         default: EmptyView()

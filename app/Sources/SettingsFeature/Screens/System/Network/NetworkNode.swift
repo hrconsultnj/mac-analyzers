@@ -50,13 +50,11 @@ struct NetworkNode: Identifiable, Hashable {
     var uploadedText: String { ByteSize.format(uploaded) }
     var shareText: String { share.formatted(.percent.precision(.fractionLength(0))) }
 
-    /// The icon of a program (its app's own while it runs), or of an app's first program, at row size.
+    /// The icon of a program (its app's own while it runs), or of an app's first program.
     var iconImage: Image {
         let first = row ?? group?.rows.first
         if let first, first.isRunning, let icon = NSRunningApplication(processIdentifier: pid_t(first.pid))?.icon {
-            let sized = (icon.copy() as? NSImage) ?? icon
-            sized.size = NSSize(width: 16, height: 16)   // an app icon is drawn at its own size: that is its job
-            return Image(nsImage: sized)
+            return Image(nsImage: icon)
         }
         return Image(systemName: "gearshape")
     }
@@ -70,7 +68,8 @@ struct NetworkNodeName: View {
         if let group = node.group {
             OutlineGroupCell(name: group.name, summary: group.countText, icon: node.iconImage)
         } else {
-            Label { Text(node.title) } icon: { node.iconImage }
+            // an icon is a picture of a fixed size, not a control: 16 points, as the group cell draws it
+            Label { Text(node.title) } icon: { node.iconImage.resizable().scaledToFit().frame(width: 16, height: 16) }
         }
     }
 }

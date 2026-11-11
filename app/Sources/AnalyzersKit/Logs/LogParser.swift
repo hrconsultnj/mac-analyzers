@@ -2,14 +2,16 @@ import Foundation
 
 public enum LogParser {
 
-    /// Parse a log file into runs, newest first.
-    public static func runs(for kind: EngineLog) -> [LogRun] {
-        kind.url.map { runs(at: $0) } ?? []
+    /// Parse a log file into runs, newest first. A restore's own block (`RestoreBlock`) is not a
+    /// run of the cleaner whose log it is written in, so it is left out unless `includingRestores`
+    /// (Activity lists it as its own row); that keeps "the newest run" the cleaner's own.
+    public static func runs(for kind: EngineLog, includingRestores: Bool = false) -> [LogRun] {
+        kind.url.map { runs(at: $0, includingRestores: includingRestores) } ?? []
     }
 
     /// The same parse over any file, so a copy of a log can be read the way
     /// the real one is (the id-stability probe does this).
-    public static func runs(at url: URL) -> [LogRun] {
+    public static func runs(at url: URL, includingRestores: Bool = false) -> [LogRun] {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return [] }
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0
@@ -27,14 +29,16 @@ public enum LogParser {
             .map { String($0).trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
 
-        return text.contains("====") ? runBlocks(lines) : dayGroups(lines)
+        return text.contains("====") ? runBlocks(lines, includingRestores: includingRestores) : dayGroups(lines)
     }
 
     /// Report-style logs: runs delimited by ===== separators; a short block
     /// containing "|" is the header for the body block that follows. Headers
     /// run to 3 lines (title, settings, `input:`) — a body block never starts
     /// with a "|" line, it opens on a `### ` group.
-    private static func runBlocks(_ lines: [String]) -> [LogRun] {
+    private static func runBlocks(_ allLines: [String], includingRestores: Bool) -> [LogRun] {
+        // a restore's block is taken out first, so the rest parses exactly as it would without it
+        let (lines, restores) = RestoreBlock.split(allLines)
         var blocks: [[String]] = []
         var current: [String] = []
         for line in lines {
@@ -65,7 +69,8 @@ public enum LogParser {
             result.append(LogRun(id: result.count, header: header, lines: body))
             pendingHeader = nil
         }
-        return result.reversed().prefix(20).map { $0 }
+        let newestFirst = Array(result.reversed().prefix(20))
+        return includingRestores ? RestoreBlock.merge(restores: restores, into: newestFirst) : newestFirst
     }
 
     /// Event-style logs (guard): group by day, newest day first, newest line

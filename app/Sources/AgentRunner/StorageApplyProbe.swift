@@ -10,7 +10,7 @@ import Foundation
 // The real engine is never started.
 
 @MainActor func probeStorageApply() async -> Never {
-    let dir = ProbeTemp.make("ma-probe-storage-apply")
+    let dir = ProbeScratch.folder("ma-probe-storage-apply")
 
     let echo = dir.appending(path: "engine-stand-in.sh")
     try? """

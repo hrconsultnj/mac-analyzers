@@ -8,9 +8,7 @@ import os
 // reaches the real engine or the real LaunchAgents folder.
 
 @MainActor func probeLoginRemoval() async -> Never {
-    let dir = FileManager.default.temporaryDirectory.appending(path: "ma-probe-login-\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: dir) }
+    let dir = ProbeScratch.folder("ma-probe-login")      // removed when the probe ends, however it ends
     let echo = dir.appending(path: "audit-echo.sh")
     try? """
     #!/bin/bash

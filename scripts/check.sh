@@ -56,7 +56,7 @@ describe() {
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
     env)       echo "the app people install reads no environment variable: ProcessInfo's environment and getenv appear only in AgentRunner, SnapshotRunner and the one file that passes the environment on to the engine scripts" ;;
     snapshot)  echo "the snapshot tool's main.swift has no top-level await: one makes its top-level code an async task, and an app run inside a task never fires its delayed capture, so every render hangs" ;;
-    probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids (agent-runner; macOS only)" ;;
+    probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids, Undo restore safety, the menu-bar panel's Quit and Stop (agent-runner; macOS only)" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
     outline)   echo "the shared OutlineTable, headless: open all and re-sort with text and with hosted cells log no AppKit reentrancy warning (scripts/outline-probe.sh; macOS only)" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
@@ -344,13 +344,18 @@ check_snapshot() {
 # would fail. Add a probe to PROBES when it has an exit status worth trusting.
 # --probe-stop-targets is not here: it needs a shell outside the system folders, detaches itself, starts
 # processes and takes about a minute, so it is run by hand (and by the person reviewing a stop path).
-PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-login-removal --probe-storage-setting --probe-disk-runway --probe-fence --probe-cleanup-parse"
+PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-login-removal --probe-storage-setting --probe-disk-runway --probe-fence --probe-cleanup-parse --probe-undo-fixture --probe-panel-stop"
 check_probes() {
   local app="$ROOT/app"
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
   if [ ! -f "$app/Package.swift" ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
   if ! command -v swift >/dev/null 2>&1; then DETAIL="skipped: swift is not installed"; return 2; fi
   local bin probe started=$SECONDS count=0
+  # no probe makes its own temporary folder: ProbeScratch is the one way, so none can forget to remove it
+  if grep -n 'temporaryDirectory\|NSTemporaryDirectory' "$app"/Sources/AgentRunner/*.swift | grep -v 'ProbeScratch.swift' >"$OUT"; then
+    DETAIL="a probe asks for the temp directory itself — use ProbeScratch.folder so it is removed when the probe ends"
+    return 1
+  fi
   if ! ( cd "$app" && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0= \
           swift build --disable-keychain --product AgentRunner ) >"$TMP/probes-build.out" 2>&1; then
     grep -a -E ': error: ' "$TMP/probes-build.out" | cut -c1-300 | awk '!seen[$0]++' | head -10 >"$OUT"
@@ -361,9 +366,18 @@ check_probes() {
   bin="$(cd "$app" && swift build --disable-keychain --show-bin-path 2>/dev/null)/AgentRunner"
   if [ ! -x "$bin" ]; then DETAIL="agent-runner was not built"; return 1; fi
   for probe in $PROBES; do
-    if ! "$bin" "$probe" >"$TMP/probe.out" 2>&1; then
+    rm -rf "$TMP/probe-tmp"; mkdir -p "$TMP/probe-tmp"
+    if ! MA_PROBE_TMP="$TMP/probe-tmp" "$bin" "$probe" >"$TMP/probe.out" 2>&1; then
       { grep -a -E '^(FAIL|✗)' "$TMP/probe.out" | head -15; tail -n 2 "$TMP/probe.out"; } | cut -c1-300 >"$OUT"
       DETAIL="$probe failed"
+      return 1
+    fi
+    # A probe ends with exit(), which runs no defer: a folder it made and did not register with ProbeScratch stayed in
+    # the temp directory, run after run (481 folders, 5.8 GB, before this check). Each probe gets a private scratch
+    # folder and must leave it empty, so what is left is its own whatever else is running on this Mac.
+    if [ -n "$(ls -A "$TMP/probe-tmp")" ]; then
+      ls -A "$TMP/probe-tmp" | head -10 >"$OUT"
+      DETAIL="$probe left $(ls -A "$TMP/probe-tmp" | wc -l | tr -d ' ') item(s) in its scratch folder: use ProbeScratch"
       return 1
     fi
     count=$((count + 1))

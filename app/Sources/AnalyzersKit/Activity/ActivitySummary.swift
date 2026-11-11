@@ -142,6 +142,8 @@ public struct ActivitySummary: Sendable, Hashable {
 
     /// The result of one block of a log, for a row nobody tracked live.
     public static func of(_ run: LogRun, in log: EngineLog) -> ActivitySummary {
+        // a restore's own block: it freed and found nothing; it put things back
+        if RestoreBlock.isRestore(header: run.header) { return RestoreBlock.summary(run) }
         switch log {
         case .guardLog: return guardDay(run)
         case .persistence:

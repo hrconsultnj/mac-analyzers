@@ -80,6 +80,25 @@ without an entry here — see `scripts/cut-release.sh`.
   with search and Copy. A finished run's screen groups its results under tabs
   (what was freed, what was found) and, inside each, under the project they
   belong to, instead of one long list.
+- Overview is now a grid of boxes: Memory, Storage, Memory Guard, Schedule,
+  Recent Events and This Week. Each row opens the screen behind it (an app or
+  tool opens Monitor with that row selected), and a Needs Attention list at
+  the top appears only when something needs you.
+- Trends has two tabs, Memory and Storage, and a period menu in the toolbar.
+  Storage now adds up everything the cleanups removed in the period, under
+  "Removed by Cleanups", instead of reading 0 KB, and each number opens a
+  table of what is behind it.
+- Undo is grouped by day and by cleanup. Restore puts an item back only when
+  it is still the one that was moved to the Trash, and says why when it
+  cannot. A second tab lists the dev servers the guard stopped.
+- Putting items back from Undo now shows up in Activity as its own entry,
+  "Restored 3 Items", started by you, with the list of what came back. It no
+  longer gets mixed into the cleanup it came from, so that cleanup's numbers,
+  and a preview that is waiting for your review, stay exactly as they were.
+- The menu-bar panel uses standard controls, so nothing is cut off, and its
+  process list matches Monitor. Its Quit and Stop follow the same rules as
+  Monitor, and a program that does not stop is never forced from the panel: it
+  offers to open Monitor on that program instead.
 - Login & Startup Items, Network and Reports have been rebuilt as screens you
   can read at a glance instead of lists of lines.
 - Login & Startup Items has a tab for Apps that open when you log in,

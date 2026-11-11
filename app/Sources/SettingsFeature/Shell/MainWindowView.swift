@@ -17,6 +17,7 @@ public struct MainWindowView: View {
     /// every re-creation of this view struct.
     @State private var session: Session
     @Environment(JobStore.self) private var jobs
+    @Environment(UpdateState.self) private var updates
     private var navigator: Navigator { session.navigator }
 
     /// `restoresLocation: false` starts at the home screen and never reads or writes the
@@ -39,6 +40,8 @@ public struct MainWindowView: View {
             JobStatusToolbarItem(store: jobs, navigator: navigator)
         }
         .frame(minWidth: 780, minHeight: 620)
+        // the Updates row's badge reads the one update state
+        .task { UpdateBadge.shared.state = updates }
         .environment(navigator)
         .focusedSceneValue(\.navigator, navigator)
         .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.openPaneInternal)) { note in

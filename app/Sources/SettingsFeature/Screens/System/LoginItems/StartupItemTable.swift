@@ -44,20 +44,23 @@ struct StartupItemTable: View {
             OutlineColumn("state", Names.Column.state, text: \.stateText,
                           sortUsing: KeyPathComparator(\StartupNode.stateText))
                 .textStyle { $0.isGroup ? .secondary : .primary }
-                .width(min: 110, ideal: 170)
+                .width(min: 90, ideal: 170)
             OutlineColumn("kind", Names.Column.kind, text: \.kindText,
                           sortUsing: KeyPathComparator(\StartupNode.kindText))
                 .width(min: 95, ideal: 110)
+                .fit(.optional)   // the inspector and the group row say it
             OutlineColumn("owner", Names.Column.belongsTo, text: \.ownerText,
                           sortUsing: KeyPathComparator(\StartupNode.ownerText, comparator: .localizedStandard))
                 .textStyle { _ in .secondary }
                 .width(min: 100, ideal: 170)
                 .defaultHidden()
+                .fit(.optional)
             OutlineColumn("administrator", Names.Column.administrator, text: \.adminText,
                           sortUsing: KeyPathComparator(\StartupNode.adminText))
                 .textStyle { _ in .secondary }
                 .width(min: 90, ideal: 100)
                 .defaultHidden()
+                .fit(.optional)
         }
         .contextMenu({ ids in
             if let item = item(ids, in: nodes) {

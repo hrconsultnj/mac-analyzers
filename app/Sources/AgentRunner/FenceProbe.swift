@@ -6,7 +6,7 @@ import AnalyzersKit
 // file, a missing path or a link to a folder is refused. Nothing outside that folder is touched.
 
 func probeFence() -> Never {
-    let root = ProbeTemp.make("ma-probe-fence")
+    let root = ProbeScratch.folder("ma-probe-fence")
     let fm = FileManager.default
     var failures = 0
     func check(_ name: String, _ ok: Bool, _ detail: String = "") {

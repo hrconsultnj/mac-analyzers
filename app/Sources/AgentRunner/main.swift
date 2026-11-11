@@ -68,6 +68,13 @@ if args.first == "--probe-build" {
     exit(0)
 }
 
+// Overview-track probes (trends totals, undo history, overview rows, menu panel): OverviewProbes.swift.
+if args.first == "--probe-trends" { probeTrends(args) }
+if args.first == "--probe-undo" { probeUndo(args) }
+if args.first == "--probe-overview" { probeOverview(args) }
+if args.first == "--probe-menu" { probeMenu(args) }
+if args.first == "--probe-undo-fixture" { probeUndoFixture(args) }
+
 // `agent-runner --probe-names` prints every name in the central name table
 // (`Names.all`) and checks it against title-style capitalization
 // (`TitleStyle`). Exit 1 when any name fails; `scripts/check.sh names` runs it.
@@ -271,6 +278,10 @@ if args.first == "--probe-agents" {
 }
 if args.first == "--probe-stop-targets" {
     await probeStopTargets(args)
+}
+// `--probe-panel-stop` proves the menu-bar panel's Quit and Stop go through MemoryStop (PanelStopProbes.swift).
+if args.first == "--probe-panel-stop" {
+    await probePanelStop(args)
 }
 
 // `agent-runner --probe-procargs` proves a process's arguments are read without its

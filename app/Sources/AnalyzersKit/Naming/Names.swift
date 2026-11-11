@@ -301,11 +301,13 @@ public enum Names {
         public static let fenced = "Fenced"
         public static let when = "When"
         public static let whatHappened = "What Happened"
+        public static let project = "Project"
+        public static let memoryFreed = "Memory Freed"
 
         /// Every title above, for the check.
         public static let all = [name, size, memory, cpu, pid, whatItIs, finding, state, kind, belongsTo,
                                  administrator, total, downloaded, uploaded, share, running, items, removed,
-                                 lastUsed, fenced, when, whatHappened]
+                                 lastUsed, fenced, when, whatHappened, project, memoryFreed]
     }
 
     // MARK: - the closed row that holds what is empty
@@ -314,6 +316,17 @@ public enum Names {
     /// them; `OutlineFolding` and every review table use this name.
     public enum Fold {
         public static let empty = "Nothing to Free"
+    }
+
+    // MARK: - putting things back from the Trash (Undo's restore, as Activity lists it)
+
+    public enum Restore {
+        public static let restored = "Restored"
+        public static let item = "Item"
+        public static let items = "Items"
+        public static let nothing = "Nothing Restored"
+        /// The group a restore's screen lists what it put back under.
+        public static let putBack = "Put Back"
     }
 
     // MARK: - lookups by type

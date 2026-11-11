@@ -15,6 +15,11 @@ import SwiftUI
 ///
 /// Search, toolbar items and the inspector attach to the screen as usual; they
 /// belong to the window, so they go on the `DataScreen`, not inside it.
+///
+/// Placement: content that fills (a `List`, a `Table`) is unaffected. Content smaller than the
+/// screen is CENTRED, which is what an empty state (`ContentUnavailableView`, "No Audit Yet") needs
+/// and is why a screen never places its own; `padded: true` is for plain content with no insets
+/// of its own and puts it at the top left.
 struct DataScreen<Content: View>: View {
     let title: String
     var subtitle: String?
@@ -25,7 +30,7 @@ struct DataScreen<Content: View>: View {
     var body: some View {
         content
             .padding(padded ? .all : [])
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: padded ? .topLeading : .center)
             .navigationTitle(title)
             .navigationSubtitle(subtitle ?? "")
     }

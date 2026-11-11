@@ -22,7 +22,7 @@ import Foundation
     guard let script else { print("SKIP: cleanup.sh not found from the binary's location"); exit(0) }
     let repo = script.deletingLastPathComponent().deletingLastPathComponent()
 
-    let root = ProbeTemp.make("ma-probe-cleanup-parse")
+    let root = ProbeScratch.folder("ma-probe-cleanup-parse")
     let home = root.appending(path: "home"), tree = root.appending(path: "tree")
     for folder in ["storage-analyzer", "lib"] { try? fm.createDirectory(at: tree.appending(path: folder), withIntermediateDirectories: true) }
     try? fm.copyItem(at: script, to: tree.appending(path: "storage-analyzer/cleanup.sh"))
