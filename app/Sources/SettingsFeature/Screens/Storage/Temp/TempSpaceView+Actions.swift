@@ -47,7 +47,8 @@ extension TempSpaceView {
     }
 
     func adoptCurrentJob() {
-        job = jobs.latest { ($0.kind == .tempClean && $0.intent == .preview) || $0.kind == .eject }
+        // running, or recent: an audit from hours ago is not shown as "Audit complete"
+        job = jobs.adoptable { ($0.kind == .tempClean && $0.intent == .preview) || $0.kind == .eject }
     }
 
     /// The job ended well: read what it wrote. After an eject, check that the

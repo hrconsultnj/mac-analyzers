@@ -10,6 +10,19 @@ import os
 /// else. `back` and `forward` only move the cursor and apply a stored
 /// location; they cannot record, so there is no "time travelling" flag, no
 /// observer that notices a change after the fact, and no coalescing.
+/// A request addressed to one section's own screen, carried by a deep link:
+/// opaque to the shell, applied once by the screen that owns the section.
+struct SectionIntent: Hashable {
+    let section: SectionID
+    let payload: String
+    private let id = UUID()      // so the same link opened twice is two requests
+
+    init(section: SectionID, payload: String) {
+        self.section = section
+        self.payload = payload
+    }
+}
+
 @MainActor @Observable
 final class Navigator {
 
@@ -22,6 +35,8 @@ final class Navigator {
     private(set) var paths: [SectionID: [Route]]
     private(set) var history: [Location]
     private(set) var cursor: Int
+    /// The newest deep-link request not yet taken by its screen.
+    private(set) var pendingIntent: SectionIntent?
 
     private static let log = Logger(subsystem: "com.mac-analyzers.app", category: "nav")
 
@@ -84,6 +99,17 @@ final class Navigator {
         section = target.section
         paths[target.section] = target.path
         record()
+    }
+
+    // MARK: - one-shot requests to a section's screen
+
+    func setIntent(_ intent: SectionIntent) { pendingIntent = intent }
+
+    /// The payload waiting for `section`'s screen, once: taking it clears it.
+    func takeIntent(for section: SectionID) -> String? {
+        guard let intent = pendingIntent, intent.section == section else { return nil }
+        pendingIntent = nil
+        return intent.payload
     }
 
     // MARK: - mutators that do not record

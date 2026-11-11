@@ -2,23 +2,30 @@ import AnalyzersKit
 import Foundation
 
 /// A run inside one engine log, found again later. A route holds an
-/// identifier rather than the run, so this names the log, the run's header
-/// line and the run's index in the log (the parser's own `LogRun.id`, which
-/// does not shift when newer runs are appended). The header alone is not
-/// unique — two runs in the same minute can share one — so the index picks
-/// between them, and the header confirms it is still the same run.
+/// identifier rather than the run, so this names the log, the run's banner and
+/// which of the identical banners it is: the nth block with that exact banner,
+/// counting from the oldest. A position in the file would not do — it shifts
+/// whenever the log grows past the parser's window — and a banner alone is not
+/// unique, because two runs in the same minute can share one.
 struct RunReference: Hashable, Codable {
     let log: EngineLog
     let header: String
-    let index: Int
+    let ordinal: Int
 
-    init(log: EngineLog, header: String, index: Int) {
+    init(log: EngineLog, header: String, ordinal: Int) {
         self.log = log
         self.header = header
-        self.index = index
+        self.ordinal = ordinal
     }
 
-    private enum CodingKeys: String, CodingKey { case log, header, index }
+    /// The reference to a block of a newest-first run list.
+    init(log: EngineLog, run: LogRun, in runs: [LogRun]) {
+        let position = runs.firstIndex(of: run) ?? 0
+        self.init(log: log, header: run.header,
+                  ordinal: runs[(position + 1)...].filter { $0.header == run.header }.count)
+    }
+
+    private enum CodingKeys: String, CodingKey { case log, header, ordinal }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -29,21 +36,22 @@ struct RunReference: Hashable, Codable {
         }
         self.log = log
         header = try container.decode(String.self, forKey: .header)
-        index = try container.decode(Int.self, forKey: .index)
+        // a location saved before ordinals existed names the first run with that banner
+        ordinal = try container.decodeIfPresent(Int.self, forKey: .ordinal) ?? 0
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(log.rawValue, forKey: .log)
         try container.encode(header, forKey: .header)
-        try container.encode(index, forKey: .index)
+        try container.encode(ordinal, forKey: .ordinal)
     }
 
-    /// The run this refers to: the one with the saved index when its header
-    /// still matches, otherwise the first run with that header (the log has
-    /// moved on), otherwise nil.
+    /// The run this refers to in a newest-first list, or nil when the log has
+    /// moved on and it is gone.
     func resolve(in runs: [LogRun]) -> LogRun? {
-        runs.first { $0.id == index && $0.header == header }
-            ?? runs.first { $0.header == header }
+        runs.enumerated().first { position, run in
+            run.header == header && runs[(position + 1)...].filter { $0.header == header }.count == ordinal
+        }?.element
     }
 }

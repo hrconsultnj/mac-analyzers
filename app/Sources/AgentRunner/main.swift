@@ -7,7 +7,7 @@
 // signing identity), and this binary immediately BECOMES the engine script
 // via execv — the engine stays bash, only the doorway is compiled.
 import Foundation
-import AnalyzersKit
+@_spi(TestSupport) import AnalyzersKit
 
 let args = Array(CommandLine.arguments.dropFirst())
 
@@ -114,110 +114,25 @@ if args.first == "--probe-ledger-stress" {
     exit(lines.count <= JobLedger.lineCap ? 0 : 1)
 }
 
-// `agent-runner --probe-activity [--real]` prints Activity's rows as text.
-// Without --real it builds a scenario out of a throwaway script and synthetic
-// log blocks (nothing real is read or written): a run started through the
-// store, a scheduled run and a Terminal run in the same log, a run the index
-// recorded in an earlier session, a failure that never reached a log, and a
-// log with no runs. With --real it joins the real logs and the real index,
-// read-only, and starts nothing.
+// `agent-runner --probe-activity [--real]` prints Activity's sections as text;
+// `--probe-activity-ids` proves a row's id survives its log growing;
+// `--probe-failures` prints the failure sentences. See ActivityProbes.swift.
 if args.first == "--probe-activity" {
     await probeActivity(real: args.contains("--real"))
 }
-
-@MainActor func probeActivity(real: Bool) async -> Never {
-    func show(_ rows: [ActivityRow]) {
-        let stamp = DateFormatter()
-        stamp.dateFormat = "MM-dd HH:mm:ss"
-        func pad(_ text: String, _ width: Int) -> String {
-            text.count >= width ? String(text.prefix(width)) : text + String(repeating: " ", count: width - text.count)
-        }
-        print(pad("TASK", 20) + pad("STARTED", 16) + pad("DUR", 7) + pad("BY", 10) + pad("STATUS", 13) + pad("SOURCE", 18) + "RESULT")
-        for row in rows {
-            let source: String
-            switch row.source {
-            case .live: source = "store"
-            case .indexed: source = "index only"
-            case .logged(let log, _): source = "log \(log.rawValue)"
-            case .emptyLog: source = "empty log"
-            }
-            let duration = row.duration.map { String(format: "%.1fs", $0) } ?? "-"
-            print(pad(row.title, 20) + pad(row.started.map(stamp.string(from:)) ?? "-", 16) + pad(duration, 7)
-                  + pad(row.trigger.rawValue, 10) + pad(row.status.rawValue, 13) + pad(source, 18)
-                  + row.result + (row.needsReview ? "  [needs review]" : ""))
-        }
-        let ids = rows.map(\.id)
-        print("rows: \(rows.count), unique ids: \(Set(ids).count)")
-    }
-
-    if real {
-        let logs = EngineLog.allCases.map { ActivityJoin.LogRuns(log: $0, runs: LogParser.runs(for: $0)) }
-        let index = await JobLedger.standard.entries()
-        let rows = ActivityJoin.rows(live: [], index: index, logs: logs,
-                                     titleForKind: \.rawValue, titleForLog: \.rawValue)
-        show(rows)
-        exit(0)
-    }
-
-    // 1. a run started through the store, by a throwaway script
-    let dir = FileManager.default.temporaryDirectory.appending(path: "ma-probe-activity-\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: dir) }
-    let script = dir.appending(path: "fake-clean.sh")
-    try? """
-    #!/bin/bash
-    echo "memory auto-clean  |  DRY RUN  |  $(date '+%Y-%m-%d %H:%M:%S')"
-    echo "### Orphaned helpers"
-    echo "[DRY] pid=4242 fake-helper — 120 MB"
-    """.write(to: script, atomically: true, encoding: .utf8)
-    chmod(script.path, 0o755)
-    let ledger = JobLedger(url: dir.appending(path: "app-jobs.jsonl"))
-    let store = JobStore(ledger: ledger)
-    store.scriptOverride = script
-    let job = store.enqueue(JobRequest(kind: .memoryClean, intent: .preview), trigger: .user)
-    while !job.state.isFinished { try? await Task.sleep(for: .milliseconds(50)) }
-    try? await Task.sleep(for: .milliseconds(200))
-
-    func date(_ text: String) -> Date {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return formatter.date(from: text)!
-    }
-    // 2. an earlier session's run: only the index knows who started it
-    let earlier = "memory auto-clean  |  DRY RUN  |  2026-11-09 10:15:00"
-    await ledger.append(JobLedgerEntry(
-        id: UUID(), kind: .memoryClean, intent: .preview, trigger: "user",
-        start: date("2026-11-09 10:15:00"), end: date("2026-11-09 10:15:04"),
-        exit: 0, cancelled: false, runHeader: earlier))
-    // 3. a failure that died before logging anything
-    await ledger.append(JobLedgerEntry(
-        id: UUID(), kind: .tempClean, intent: .preview, trigger: "user",
-        start: date("2026-11-09 11:00:00"), end: date("2026-11-09 11:00:01"),
-        exit: 127, cancelled: false, runHeader: nil))
-
-    func block(_ id: Int, _ when: String) -> LogRun {
-        LogRun(id: id, header: "memory auto-clean  |  DRY RUN  |  \(when)",
-               lines: ["### Orphaned helpers", "[DRY] pid=1 x — 10 MB"])
-    }
-    let banner = job.runHeader ?? "(none)"
-    let memoryRuns = [
-        LogRun(id: 4, header: banner, lines: ["### Orphaned helpers", "[DRY] pid=4242 fake-helper — 120 MB"]),  // the store job's own block
-        block(3, "2026-11-10 03:30:20"),     // 20 s after the 03:30 slot
-        block(2, "2026-11-10 14:07:00"),     // nowhere near a slot
-        LogRun(id: 1, header: earlier, lines: ["### Orphaned helpers", "[DRY] pid=2 y — 40 MB"]),  // the index's run
-    ]
-    let logs = [
-        ActivityJoin.LogRuns(log: .memoryClean, runs: memoryRuns),
-        ActivityJoin.LogRuns(log: .persistence, runs: []),
-    ]
-    let slots: ActivityJoin.Slots = { log, day in
-        log == .memoryClean ? [Calendar.current.date(bySettingHour: 3, minute: 30, second: 0, of: day)!] : []
-    }
-    let rows = ActivityJoin.rows(live: [job.activitySnapshot], index: await ledger.entries(), logs: logs,
-                                 slots: slots, titleForKind: \.rawValue, titleForLog: \.rawValue)
-    print("store job banner: \(banner)")
-    show(rows)
-    exit(0)
+if args.first == "--probe-activity-ids" {
+    await probeActivityIDs()
+}
+if args.first == "--probe-failures" {
+    await probeFailures()
+}
+// `--probe-review-rules` shows what `apply(from:)` itself refuses; `--probe-quit`
+// shows what each choice of the quit dialog does to the store. See ReviewProbes.swift.
+if args.first == "--probe-review-rules" {
+    await probeReviewRules()
+}
+if args.first == "--probe-quit" {
+    await probeQuit()
 }
 
 // `agent-runner --probe-pid-recycle` proves a stop refuses a recycled pid.
@@ -263,6 +178,12 @@ if args.first == "--probe-job" {
     let store = JobStore(ledger: value(after: "--probe-ledger").map { JobLedger(url: URL(fileURLWithPath: $0)) }
                          ?? .standard)
     store.scriptOverride = script
+    // an apply built from a test script's preview: the script's banner is never in the
+    // real log, so mark the fixture as matched (the kernel refuses a preview whose own
+    // block was not found)
+    if script != nil, args.contains("--apply") {
+        store.outcomeOverride = { _, _ in JobOutcome(parsed: .none, run: nil, match: .exact) }
+    }
 
     if args.contains("--direct-apply") {
         let job = store.enqueue(JobRequest(kind: kind, intent: .apply), trigger: .user)

@@ -18,7 +18,20 @@ echo "→ refreshing the background agents…"
 ./storage-analyzer/storage-manage-agents.sh install
 
 echo "→ relaunching the menu-bar app…"
-pkill -x MacAnalyzersApp 2>/dev/null || true
+# Ask the app to quit the way a person would (so it can offer to stop or finish a
+# running cleanup and record it), wait a bounded time, and only then end it.
+if pgrep -x MacAnalyzersApp >/dev/null 2>&1; then
+  # Wait only if the request got through: when macOS refuses to let Terminal
+  # ask (the Automation permission), waiting a minute would achieve nothing.
+  if osascript -e 'tell application id "com.mac-analyzers.app" to quit' >/dev/null 2>&1; then
+    waited=0
+    while pgrep -x MacAnalyzersApp >/dev/null 2>&1 && [[ $waited -lt 60 ]]; do
+      sleep 1
+      waited=$((waited + 1))
+    done
+  fi
+  pkill -x MacAnalyzersApp 2>/dev/null || true
+fi
 sleep 1
 if [[ -d /Applications/MacAnalyzers.app ]]; then
   open -g /Applications/MacAnalyzers.app

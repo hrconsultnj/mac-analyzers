@@ -2,210 +2,185 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// Activity: every run, whoever started it — you, the schedule, the guard or
-/// Terminal. A table with scopes and search, and an inspector for the selected
-/// run. This is the screen the old Logs landing became: it still lists every
-/// log with its latest run, and a row still leads to that log's screen.
+/// Activity: everything that ran, whoever started it, as a history to read
+/// top to bottom — "Running now" first, then one collapsible section per day,
+/// then the tasks that have never run. A row is a run named for people; one
+/// click opens that run's own screen on the navigation stack.
 ///
 /// One job per file next to it:
-///   ActivityModel.swift           the rows (joined from the store, the index and the logs), scopes
-///   ActivityInspector.swift       live output and Stop, or the finished result
-///   JobScreen.swift               one job pushed from the toolbar, a notification or a link
+///   ActivityFilter.swift          scope, search and which days are open, for the session
+///   ActivityModel.swift           the rows (joined from the store, the index and the logs) and their sections
+///   ActivityRowView.swift         one row
+///   ActivityDaySection.swift      a day's header (collapsible, with its total) and its rows
+///   ActivityScopeToolbar.swift    the All / Running / Needs review / Failed control
+///   ActivityRow+Presentation.swift  glyph, time, and where a row leads
+///   ActivityInspector.swift       the run screen: outcome, Stop, live output, raw output
+///   JobScreen.swift, RunScreen.swift  the pushed screens for `Route.job` and `Route.run`
 ///   JobStatusToolbarItem.swift    the shell's status item
 ///   JobFinishNotifier.swift       the notification when a job ends behind a closed window
-///   AnalyzersKit/Activity/        the join itself, so it can be tested without a window
+///   AnalyzersKit/Activity/        the join, the day grouping and the outcome lists, so the probe can print them
 struct ActivityView: View {
 
     @Environment(JobStore.self) private var store
     @Environment(Navigator.self) private var navigator
     @State private var model = ActivityModel()
-    @State private var scope: ActivityScope = .all
-    @State private var query = ""
     @State private var selection: ActivityRow.ID?
-    @State private var sortOrder = [KeyPathComparator(\ActivityRow.startedSort, order: .reverse)]
-    @State private var showInspector = true
-
-    /// What the scope and search leave, in the user's sort. Sorting happens
-    /// here, when the rows or the sort change, and nowhere else.
-    private var visible: [ActivityRow] {
-        let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
-        return model.rows
-            .filter { scope.includes($0) }
-            .filter { needle.isEmpty || $0.title.lowercased().contains(needle) || $0.result.lowercased().contains(needle) }
-            .sorted(using: sortOrder)
-    }
-
-    private var selectedRow: ActivityRow? {
-        selection.flatMap { id in model.rows.first { $0.id == id } }
-    }
+    @Bindable private var filter = ActivityFilter.shared
 
     /// Changes only when a job moves between queued, running and finished.
     private var storeStamp: [JobStamp] { store.jobs.map { JobStamp($0) } }
 
     var body: some View {
-        Table(visible, selection: $selection, sortOrder: $sortOrder) {
-            TableColumn("Task", value: \.title) { row in
-                Label {
-                    HStack(spacing: Tokens.Space.s) {
-                        Text(row.title)
-                        if let intent = row.intent, intent != .run {
-                            BadgeCapsule(text: intent.title.uppercased(), color: row.tint)
-                        }
-                    }
-                } icon: {
-                    Image(systemName: row.symbol).foregroundStyle(row.tint)
+        let sections = model.sections(scope: filter.scope, query: filter.query)
+        let now = Date()
+        List(selection: $selection) {
+            if !sections.running.isEmpty {
+                Section("Running now") {
+                    ForEach(sections.running) { row in rowView(row, now: now) }
                 }
             }
-            TableColumn("Started", value: \.startedSort) { row in
-                Text(row.started.map { $0.formatted(.dateTime.month(.abbreviated).day().hour().minute()) } ?? "—")
-                    .foregroundStyle(.secondary)
-            }
-            TableColumn("Duration", value: \.durationSort) { row in
-                DurationCell(row: row)
-            }
-            TableColumn("Triggered by", value: \.triggerName) { row in
-                Text(row.trigger.rawValue).foregroundStyle(.secondary)
-            }
-            TableColumn("Result", value: \.result) { row in
-                HStack(spacing: Tokens.Space.s) {
-                    Text(row.result).lineLimit(1)
-                    if row.needsReview { BadgeCapsule(text: "REVIEW", color: .orange) }
+            ForEach(sections.days) { day in
+                ActivityDaySection(day: day, filter: filter, now: now) { row in
+                    rowView(row, now: now)
                 }
-                .help(row.result)
             }
-            TableColumn("Status", value: \.statusName) { row in
-                StatusCell(row: row)
-            }
-        }
-        .contextMenu(forSelectionType: ActivityRow.ID.self) { ids in
-            if let row = ids.first.flatMap(rowFor) { menu(for: row) }
-        } primaryAction: { ids in
-            if let row = ids.first.flatMap(rowFor) { open(row) }
-        }
-        .overlay {
-            if model.hasLoaded, visible.isEmpty {
-                ContentUnavailableView(scope == .all && query.isEmpty ? "Nothing has run yet" : "No matching runs",
-                                       systemImage: "list.bullet.rectangle",
-                                       description: Text(scope == .all && query.isEmpty
-                                                         ? "Cleanups, checks and reports appear here as they run."
-                                                         : "Try another scope or search."))
+            if !sections.neverRan.isEmpty {
+                Section("Hasn't run yet") {
+                    ForEach(sections.neverRan) { row in rowView(row, now: now) }
+                }
             }
         }
+        .listStyle(.inset)
+        .overlay { emptyState(sections) }
         .navigationTitle("Activity")
         .navigationSubtitle(subtitle)
-        .searchable(text: $query, prompt: "Search task or result")
-        .searchScopes($scope) {
-            ForEach(ActivityScope.allCases) { scope in Text(scope.title).tag(scope) }
+        .searchable(text: $filter.query, prompt: "Search runs and results")
+        .toolbar { ActivityScopeToolbar(scope: $filter.scope) }
+        .onKeyPress(.return) {
+            guard let row = selection.flatMap(rowFor) else { return .ignored }
+            open(row)
+            return .handled
         }
-        .inspector(isPresented: $showInspector) {
-            ActivityInspector(row: selectedRow, model: model)
-                .inspectorColumnWidth(min: 300, ideal: 380, max: 560)
+        .task {
+            applyPendingLink()
+            await model.refresh(store: store)
         }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button { Task { await model.refresh(store: store) } } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .help("Read the logs again")
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    ForEach(EngineLog.allCases) { log in
-                        Button { navigator.open(target: "log:\(log.rawValue)") } label: {
-                            Label(log.title, systemImage: log.symbol)
-                        }
-                    }
-                } label: {
-                    Label("Logs", systemImage: "doc.text.magnifyingglass")
-                }
-                .help("Open one log's own screen")
-            }
-            ToolbarItem(placement: .primaryAction) {
-                Button { showInspector.toggle() } label: {
-                    Label("Inspector", systemImage: "sidebar.trailing")
-                }
-                .help(showInspector ? "Hide the inspector" : "Show the inspector")
-            }
+        // a link opened while Activity is already showing
+        .onChange(of: navigator.pendingIntent) { applyPendingLink() }
+        // a review stops waiting at a known moment: look again then
+        .task(id: model.nextReviewExpiry) {
+            guard let expiry = model.nextReviewExpiry else { return }
+            try? await Task.sleep(for: .seconds(max(1, expiry.timeIntervalSinceNow + 1)))
+            await model.refresh(store: store)
         }
-        .task { await model.refresh(store: store) }
         .onChange(of: storeStamp) { Task { await model.refresh(store: store) } }
+    }
+
+    /// A deep link's scope, search or folded days, applied once.
+    private func applyPendingLink() {
+        guard let payload = navigator.takeIntent(for: OverviewGroup.activity),
+              let link = ActivityLink(payload: payload) else { return }
+        link.apply(to: filter)
     }
 
     // MARK: - rows
 
-    private func rowFor(_ id: ActivityRow.ID) -> ActivityRow? { model.rows.first { $0.id == id } }
-
-    private var subtitle: String {
-        let running = model.rows.filter(\.isRunning).count
-        let total = model.rows.filter { $0.status != .none }.count
-        return running > 0 ? "\(running) running · \(total) runs" : "\(total) runs"
+    private func rowView(_ row: ActivityRow, now: Date) -> some View {
+        ActivityRowView(row: row, now: now, liveLine: liveLine(row), onOpen: { open(row) },
+                        onReview: row.needsReview ? { review(row) } : nil,
+                        onStop: row.isRunning ? { stop(row) } : nil)
+            .tag(row.id)
+            .contextMenu { menu(for: row) }
     }
 
-    /// A row leads to its task's own screen: the log's pane for a log, the
-    /// owning screen for a report or a snapshot.
+    private func rowFor(_ id: ActivityRow.ID) -> ActivityRow? { model.rows.first { $0.id == id } }
+
+    private func job(for row: ActivityRow) -> Job? {
+        row.jobID.flatMap { id in store.jobs.first { $0.id == id } }
+    }
+
+    /// A running job's current step, read from the job itself so it moves while
+    /// the list's data does not.
+    private func liveLine(_ row: ActivityRow) -> String? {
+        guard row.status == .running, let job = job(for: row) else { return nil }
+        return job.step ?? row.line
+    }
+
+    /// A waiting preview's task screen, where it is reviewed and applied.
+    private func review(_ row: ActivityRow) {
+        if let target = row.reviewTarget { navigator.open(target: target) }
+    }
+
+    private func stop(_ row: ActivityRow) { job(for: row)?.cancel() }
+
+    /// A row leads to its own run screen; a task that has not run yet leads to
+    /// the task's screen.
     private func open(_ row: ActivityRow) {
-        if let target = row.ownerTarget {
+        if let route = row.route {
+            navigator.push(route)
+        } else if let target = row.ownerTarget {
             navigator.open(target: target)
-        } else if let id = row.jobID {
-            navigator.push(.job(id))
         }
     }
 
     @ViewBuilder private func menu(for row: ActivityRow) -> some View {
-        if let target = row.ownerTarget {
+        Button("Open") { open(row) }
+        if row.reviewTarget != nil {
+            if row.needsReview {
+                Button("Review") { review(row) }
+            } else if row.intent == .preview, row.findings > 0 {
+                Button("Preview Again") { review(row) }
+            }
+        }
+        if let target = row.ownerTarget, row.route != nil {
             Button("Open \(row.title)") { navigator.open(target: target) }
         }
-        if let id = row.jobID {
-            Button("Open Job Details") { navigator.push(.job(id)) }
-        }
-        if let url = row.log?.url {
-            Button("Show Raw Log") { GuardControl.openLog(url) }
-        }
-    }
-}
-
-// MARK: - cells
-
-/// Elapsed time. A running job's counts itself up (the system redraws the
-/// text), so the table's data is untouched while it runs.
-private struct DurationCell: View {
-    let row: ActivityRow
-
-    var body: some View {
-        Group {
-            if row.status == .running, let started = row.started {
-                Text(started, style: .timer)
-            } else if let duration = row.duration {
-                Text(Duration.seconds(duration).formatted(.time(pattern: duration >= 3600 ? .hourMinuteSecond : .minuteSecond)))
-            } else {
-                Text("—")
+        if row.route != nil {
+            Button("Copy Details") { ActivityDetails.copy(row, lines: lines(for: row)) }
+            Button("Show Raw Output") {
+                RawOutputRequest.ask(for: row.id)
+                open(row)
             }
         }
-        .monospacedDigit()
-        .foregroundStyle(.secondary)
+        if row.isRunning {
+            Divider()
+            Button("Stop", role: .destructive) { stop(row) }
+        }
     }
-}
 
-private struct StatusCell: View {
-    let row: ActivityRow
+    private func lines(for row: ActivityRow) -> [String] {
+        job(for: row)?.lines ?? model.lines(for: row)
+    }
 
-    var body: some View {
-        switch row.status {
-        case .running:
-            HStack(spacing: Tokens.Space.s) {
-                ProgressView().controlSize(.small)
-                Text("Running")
+    // MARK: - chrome
+
+    private var subtitle: String {
+        let running = model.rows.filter(\.isRunning).count
+        let review = model.rows.filter(\.needsReview).count
+        var parts: [String] = []
+        if running > 0 { parts.append("\(running) running") }
+        if review > 0 { parts.append("\(review) to review") }
+        return parts.isEmpty ? "Everything that has run" : parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder private func emptyState(_ sections: ActivitySections) -> some View {
+        if model.hasLoaded, sections.running.isEmpty, sections.days.isEmpty, sections.neverRan.isEmpty {
+            switch filter.scope {
+            case .all where filter.query.isEmpty:
+                ContentUnavailableView("Nothing has run yet", systemImage: "list.bullet.rectangle",
+                                       description: Text("Cleanups, checks and reports appear here as they run."))
+            case .running:
+                ContentUnavailableView("Nothing is running", systemImage: "play.circle",
+                                       description: Text("A cleanup or check that is running shows here, with a Stop button."))
+            case .needsReview:
+                ContentUnavailableView("Nothing is waiting for review", systemImage: "eye",
+                                       description: Text("A preview you ran in the last \(Int(JobStore.reviewWindow / 60)) minutes that found something shows here until you apply or discard it. Older ones stay in the list as what they found."))
+            case .failed:
+                ContentUnavailableView("Nothing has failed", systemImage: "checkmark.circle",
+                                       description: Text("Runs that could not finish are listed here, with the reason."))
+            default:
+                ContentUnavailableView.search(text: filter.query)
             }
-        case .queued:
-            Label("Queued", systemImage: "clock").foregroundStyle(.secondary)
-        case .done:
-            Label("Done", systemImage: "checkmark.circle.fill").foregroundStyle(Tokens.Status.safe.tint)
-        case .failed:
-            Label("Failed", systemImage: "exclamationmark.triangle.fill").foregroundStyle(Tokens.Status.caution.tint)
-        case .stopped:
-            Label("Stopped", systemImage: "stop.circle.fill").foregroundStyle(Tokens.Status.inert.tint)
-        case .none:
-            Text("—").foregroundStyle(.secondary)
         }
     }
 }

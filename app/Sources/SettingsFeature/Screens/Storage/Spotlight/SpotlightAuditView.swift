@@ -57,12 +57,17 @@ struct SpotlightAuditView: View {
                     Button("Run audit") { runAudit() }
                         .disabled(isBusy)
                         .help("Runs spotlight-audit.sh --dry-run and refreshes this pane. Changes nothing.")
-                    Button("Apply fences") { confirmingApply = true }
-                        .buttonStyle(.glassProminent)
-                        .disabled(isBusy || reviewedAudit == nil)
-                        .help(reviewedAudit == nil
-                              ? "Run the audit first — fences are applied from an audit you have just seen."
-                              : "Runs spotlight-audit.sh --apply — fences every unfenced dev directory found under the configured roots.")
+                    // redrawn once, when the audit stops being recent enough to apply from
+                    TimelineView(.explicit(jobs.latest(.spotlight, intents: [.preview])?.reviewExpiry.map { [$0] } ?? [])) { _ in
+                        Button("Apply fences") { confirmingApply = true }
+                            .buttonStyle(.glassProminent)
+                            .disabled(isBusy || reviewedAudit == nil)
+                            .help(reviewedAudit == nil
+                                  ? (reviewExpired
+                                     ? "The last audit is more than \(Int(JobStore.reviewWindow / 60)) minutes old. Run the audit again — fences are applied from an audit you have just seen."
+                                     : "Run the audit first — fences are applied from an audit you have just seen.")
+                                  : "Runs spotlight-audit.sh --apply — fences every unfenced dev directory found under the configured roots.")
+                    }
                     Button("Open in TextEdit") { GuardControl.openLog(AnalyzersPaths.spotlightAuditLog) }
                     Button {
                         Task { await load() }

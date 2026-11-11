@@ -4,8 +4,13 @@ public enum LogParser {
 
     /// Parse a log file into runs, newest first.
     public static func runs(for kind: EngineLog) -> [LogRun] {
-        guard let url = kind.url,
-              let handle = try? FileHandle(forReadingFrom: url) else { return [] }
+        kind.url.map { runs(at: $0) } ?? []
+    }
+
+    /// The same parse over any file, so a copy of a log can be read the way
+    /// the real one is (the id-stability probe does this).
+    public static func runs(at url: URL) -> [LogRun] {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return [] }
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0
         let window: UInt64 = 262_144

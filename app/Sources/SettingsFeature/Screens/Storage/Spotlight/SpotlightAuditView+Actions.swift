@@ -16,9 +16,18 @@ extension SpotlightAuditView {
     /// the store. The kernel builds an apply only from such a preview, so the
     /// button waits for one.
     var reviewedAudit: Job? {
-        guard let preview = jobs.latest(.spotlight, intents: [.preview]),
-              case .succeeded = preview.state else { return nil }
+        guard let preview = jobs.adoptable(kind: .spotlight, intents: [.preview]),
+              case .succeeded(let outcome) = preview.state, !reviewExpired else { return nil }
+        // an audit whose own block the log did not hold is not one that was just seen
+        if case .newestFallback = outcome.match { return nil }
         return preview
+    }
+
+    /// Whether the last audit is older than a review stays good.
+    var reviewExpired: Bool {
+        guard let preview = jobs.latest(.spotlight, intents: [.preview]),
+              let expiry = preview.reviewExpiry else { return false }
+        return Date() >= expiry
     }
 
     /// `--apply`: fences every unfenced dev directory under the configured
@@ -50,7 +59,7 @@ extension SpotlightAuditView {
     }
 
     func adoptCurrentJob() {
-        job = jobs.latest(.spotlight, intents: [.preview, .apply])
+        job = jobs.adoptable(kind: .spotlight, intents: [.preview, .apply])
     }
 
     // MARK: - load

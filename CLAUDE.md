@@ -137,14 +137,35 @@ through `config.local.sh` (never hardcoded).
   enqueues a job (`ActionRunner` is no longer called from a screen) and a
   converted screen finds its job again by kind on appear (`Shared/JobAdoption`).
   A cleaner apply goes only through `JobStore.apply(from:approved:)` with an
-  `ApprovedSet` — a list that cannot be written stops the apply. Activity
-  (`Screens/Activity/`) is a `Table` of every job plus every run in the engine
-  logs, joined with the job index in `AnalyzersKit/Activity/ActivityJoin` so a
-  run is listed once; the shell's `.status` toolbar item
-  (`JobStatusToolbarItem`, attached to the split view, never to a stack) and
-  the menu panel's `MenuJobsStrip` show the running job, and `job:<uuid>`
-  opens it (`Route.job`). `agent-runner --probe-activity [--real]` prints
-  Activity's rows; `--probe-pid-recycle` proves a stop refuses a recycled pid.
+  `ApprovedSet` — a list that cannot be written stops the apply. A finished
+  preview is adopted again by a screen only while it is recent (15 minutes) and
+  not dismissed (`JobStore.dismiss`), and Apply is never enabled past that.
+  Activity (`Screens/Activity/`) is a day-grouped `List` ("Running now", one
+  collapsible section per day, "Hasn't run yet") of every job plus every run in
+  the engine logs, joined with the job index in
+  `AnalyzersKit/Activity/ActivityJoin` so a run is listed once, with a row id
+  built from log + banner + ordinal (never a file position). A row pushes the
+  run's own screen (`Route.job(uuid)` for tracked runs, `Route.run(RunReference)`
+  for logged ones); who started an untracked run is inferred from the run's
+  own flags or its timing and is "Unknown" otherwise. "Needs review" means a
+  store preview finished within `JobStore.reviewWindow` and not dismissed — the
+  kernel's `apply(from:)` refuses anything older. Quitting with a job running
+  asks (Stop and Quit / Quit and Let It Finish / Cancel) in
+  `NotifierKit/AppDelegate+Quit.swift` (a quit macOS starts — logout, restart,
+  shutdown — never asks; in-app Install refuses while a job runs). The job
+  store's test hooks (`scriptOverride`, `outcomeOverride`, the clock, the schedule
+  reader) are `@_spi(TestSupport)`: only `AgentRunner` and `SnapshotRunner`
+  import that interface, `scripts/check.sh spi` fails if anything else does, and
+  it is a compile-time wall between our own targets, not a runtime one. For a
+  scheduled replay the store reads the installed plist's arguments itself. The shell's `.status`
+  toolbar item (`JobStatusToolbarItem`, attached to the split view, never to a
+  stack) and the menu panel's `MenuJobsStrip` show the running job, and
+  `job:<uuid>` opens it. Look at it headless with `SnapshotRunner jobs|activity:failed|
+  activity:review|activity:collapsed|activity:run:<log>|job:<uuid> out.png`
+  (`--fake-running`/`--fake-failed` start a throwaway test job). `agent-runner
+  --probe-activity [--real]` prints the sections, `--probe-activity-ids` proves
+  ids survive a log growing, `--probe-failures` prints the failure sentences, and
+  `--probe-pid-recycle` proves a stop refuses a recycled pid.
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;

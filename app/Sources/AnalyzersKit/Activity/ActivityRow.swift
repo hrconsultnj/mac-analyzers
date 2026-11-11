@@ -1,10 +1,10 @@
 import Foundation
 
-/// One line of Activity: a run, whoever started it. Plain data — the table
-/// shows it, the inspector explains it, and nothing here knows about views.
+/// One entry of Activity: a run, whoever started it. Plain data — the list
+/// shows it, the run screen explains it, and nothing here knows about views.
 public struct ActivityRow: Identifiable, Sendable, Hashable {
 
-    /// Where the row's facts came from. It decides what the inspector can do:
+    /// Where the row's facts came from. It decides what the run screen can do:
     /// only a live job has live output to follow and a Stop button.
     public enum Source: Sendable, Hashable {
         /// A job in the store: queued, running, or finished this session.
@@ -12,18 +12,25 @@ public struct ActivityRow: Identifiable, Sendable, Hashable {
         /// Only in the job index: a run the logs do not show (a failure before
         /// it logged, a stop, a report).
         case indexed(UUID)
-        /// A block of an engine log, with the log's own index for it.
-        case logged(EngineLog, runIndex: Int)
-        /// A log that has no run yet, listed so every log still has a row.
+        /// A block of an engine log. The header and its ordinal (the nth block
+        /// with that identical header, oldest first) name it for good: unlike a
+        /// position in the file, neither moves when the log grows.
+        case logged(EngineLog, header: String, ordinal: Int)
+        /// A log that has no run yet.
         case emptyLog(EngineLog)
+        /// A task that leaves no log the app reads (a report, a snapshot) and
+        /// has not run.
+        case neverRan(JobKind)
     }
 
-    /// Who started it.
+    /// Who started it. `unknown` is the honest answer when nothing in the run
+    /// says: it is never guessed as Terminal.
     public enum Trigger: String, Sendable, CaseIterable {
         case you = "You"
         case schedule = "Schedule"
         case guardian = "Guard"
         case terminal = "Terminal"
+        case unknown = "Unknown"
         case setup = "Setup"
         case update = "Update"
     }
@@ -34,7 +41,7 @@ public struct ActivityRow: Identifiable, Sendable, Hashable {
         case done = "Done"
         case failed = "Failed"
         case stopped = "Stopped"
-        /// An empty log's placeholder row.
+        /// A task with no run yet.
         case none = "No runs yet"
     }
 
@@ -43,23 +50,37 @@ public struct ActivityRow: Identifiable, Sendable, Hashable {
     /// The tracked job behind this row, whether it is still in the store, in
     /// the index, or both (a log block the index knows the starter of).
     public let jobID: UUID?
+    /// The task's own name ("Storage Clean"). The list adds the mode.
     public let title: String
     public let kind: JobKind?
     public let log: EngineLog?
     public let intent: JobIntent?
+    /// "Daily" or "Deep" for the storage cleaner; nil where a task has no flavours.
+    public let flavor: String?
     public let started: Date?
     public let finished: Date?
     public let trigger: Trigger
     public let status: Status
     /// "Freed 4.2 GB", or why it did not finish.
     public let result: String
+    /// What to say instead while a preview is waiting for a decision.
+    public let reviewResult: String?
     /// The banner line the run printed, when known.
     public let header: String?
-    /// A preview that found something and has not been followed by a newer run
-    /// of the same task.
+    /// A recent preview that found something and has not been followed by a
+    /// newer run of the same task.
     public internal(set) var needsReview: Bool
     /// Items found by a preview (what `needsReview` is derived from).
     public let findings: Int
+    /// Disk space this run gave back, and (separately) the memory of the
+    /// processes it closed; what a day's totals add up.
+    public let freedBytes: Int64
+    public let memoryBytes: Int64
+    public let closed: Int
+
+    /// What "the newest run of this task" is keyed on: the log a task writes,
+    /// or its kind where it writes none.
+    var taskKey: String { log?.rawValue ?? kind?.rawValue ?? id }
 
     public var isRunning: Bool { status == .running || status == .queued }
     public var isFailed: Bool { status == .failed }
@@ -70,8 +91,44 @@ public struct ActivityRow: Identifiable, Sendable, Hashable {
         return max(0, finished.timeIntervalSince(started))
     }
 
-    /// What a "needs review" grouping and "newest per task" are keyed on.
-    var taskKey: String { log?.rawValue ?? kind?.rawValue ?? id }
+    /// The product's name for the task with its mode where it matters:
+    /// "Caches & Builds — deep cleanup preview", "Reports — memory report".
+    /// Never a script name, banner or flag; `title` comes from the one name table.
+    public var displayTitle: String {
+        var mode: [String] = []
+        switch kind {
+        case .reclaim: mode.append("reclaim")
+        case .storageClean: if let flavor { mode.append("\(flavor.lowercased()) cleanup") }
+        case .memoryReport: mode.append("memory report")
+        case .storageReport: mode.append("storage report")
+        case .installAgents: mode.append("install background jobs")
+        case .uninstallAgents: mode.append("turn off background jobs")
+        case .eject: mode.append("eject disk image")
+        default: break
+        }
+        if let kind, kind.isCleaner {
+            let audit = kind == .spotlight || kind == .loginItems
+            switch intent {
+            case .preview: mode.append(audit ? "audit" : "preview")
+            case .apply: if audit { mode.append(kind == .spotlight ? "fencing" : "cleanup") }
+            default: break
+            }
+        }
+        return mode.isEmpty ? title : "\(title) — \(mode.joined(separator: " "))"
+    }
+
+    /// The line a person reads: the waiting-preview wording when a decision is due.
+    public var line: String { needsReview ? (reviewResult ?? result) : result }
+
+    /// Whether a person started a task or a program wrote an event: guard days,
+    /// crisis reports and startup changes are things that happened, not runs.
+    public var isEventLog: Bool {
+        guard let log else { return false }
+        switch log {
+        case .guardLog, .persistence, .forensics: return true
+        default: return false
+        }
+    }
 }
 
 /// A job in the store, as plain values. Built on the main actor from a `Job`
@@ -80,6 +137,7 @@ public struct LiveJobSnapshot: Sendable {
     public let id: UUID
     public let kind: JobKind
     public let intent: JobIntent
+    public let options: JobOptions
     public let trigger: JobTrigger
     public let status: ActivityRow.Status
     public let started: Date?
@@ -87,12 +145,13 @@ public struct LiveJobSnapshot: Sendable {
     public let runHeader: String?
     public let summary: ActivitySummary
 
-    public init(id: UUID, kind: JobKind, intent: JobIntent, trigger: JobTrigger,
-                status: ActivityRow.Status, started: Date?, finished: Date?,
+    public init(id: UUID, kind: JobKind, intent: JobIntent, options: JobOptions = JobOptions(),
+                trigger: JobTrigger, status: ActivityRow.Status, started: Date?, finished: Date?,
                 runHeader: String?, summary: ActivitySummary) {
         self.id = id
         self.kind = kind
         self.intent = intent
+        self.options = options
         self.trigger = trigger
         self.status = status
         self.started = started
@@ -115,7 +174,13 @@ public extension Job {
             summary = ActivitySummary(step ?? "Working…")
         case .succeeded(let outcome):
             status = .done
-            summary = ActivitySummary.of(outcome.parsed, kind: kind)
+            if case .newestFallback = outcome.match {
+                // This job's own block was not in the log: the newest block is somebody
+                // else's run, so none of its numbers are said here.
+                summary = ActivitySummary("Finished — this run's own results couldn't be found in the log")
+            } else {
+                summary = ActivitySummary.of(outcome.parsed, kind: kind)
+            }
         case .failed(let failure):
             status = .failed
             summary = ActivitySummary.of(failure: failure)
@@ -123,8 +188,8 @@ public extension Job {
             status = .stopped
             summary = ActivitySummary.of(cancelledPartial: partial)
         }
-        return LiveJobSnapshot(id: id, kind: kind, intent: intent, trigger: trigger, status: status,
-                               started: startedAt, finished: finishedAt, runHeader: runHeader,
-                               summary: summary)
+        return LiveJobSnapshot(id: id, kind: kind, intent: intent, options: request.options,
+                               trigger: trigger, status: status, started: startedAt,
+                               finished: finishedAt, runHeader: runHeader, summary: summary)
     }
 }

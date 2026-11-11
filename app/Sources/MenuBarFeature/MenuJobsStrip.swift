@@ -47,6 +47,7 @@ struct MenuJobsStrip: View {
                     .help("Open in Activity")
                     Button("Stop") { job.cancel() }
                         .controlSize(.small)
+                        .help("Stop this job and everything it started. Quitting Mac Analyzers asks whether to stop it or let it finish.")
                 }
             }
             .padding(8)

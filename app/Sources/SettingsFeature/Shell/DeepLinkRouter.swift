@@ -48,6 +48,9 @@ public enum DeepLinkRouter {
         switch resolve(target) {
         case .main(let location):
             navigator.open(location)
+        case .mainWithIntent(let location, let intent):
+            navigator.open(location)
+            navigator.setIntent(intent)
         case .preferences(let tab):
             // no Settings window yet: the interim row stands in for the tab
             navigator.open(PreferencesGroup.interimLocation(forTab: tab))

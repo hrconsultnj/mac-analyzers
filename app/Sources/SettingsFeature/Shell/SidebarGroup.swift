@@ -4,6 +4,10 @@ import SwiftUI
 /// Settings window (which does not exist yet — see `PreferencesGroup`).
 enum Resolution: Equatable {
     case main(Location)
+    /// A place in the main window plus a one-shot request for the section's own
+    /// screen to apply when it appears (a scope to choose, a search to type). The
+    /// shell never looks inside it.
+    case mainWithIntent(Location, SectionIntent)
     case preferences(tab: String)
     case unknown
 }

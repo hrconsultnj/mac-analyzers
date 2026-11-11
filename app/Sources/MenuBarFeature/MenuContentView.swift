@@ -14,11 +14,13 @@ import UIComponents
 public struct MenuContentView: View {
     @Environment(GuardLogStore.self) var store
     @Environment(JobStore.self) var jobs
+    @Environment(UpdateState.self) var updates
     @Environment(\.openWindow) var openWindow
     @State private var tab: Tab = .memory
     @AppStorage("monitorRefreshSeconds") var monitorRefresh = 15
     @State var latestVersion: String?
     @State var pauseError: String?
+    @State var runNowPlans: [String: RunNowPlan] = [:]
 
     enum Tab: String, CaseIterable {
         case memory = "Memory", monitor = "Monitor", storage = "Storage"
@@ -45,6 +47,9 @@ public struct MenuContentView: View {
             footer
         }
         .padding(12)
-        .onAppear { store.reload() }
+        .onAppear {
+            store.reload()
+            loadRunNowPlans()
+        }
     }
 }

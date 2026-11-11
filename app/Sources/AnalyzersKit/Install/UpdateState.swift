@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -26,6 +27,10 @@ public final class UpdateState {
     public private(set) var checkedAt: Date?
 
     public let installed: String
+
+    /// The app's job store, handed over once it exists: an install restarts the
+    /// app, so it must not start while a job runs.
+    public weak var jobs: JobStore?
 
     @ObservationIgnored private var loop: Task<Void, Never>?
     private static let cadence: Duration = .seconds(6 * 3600)
@@ -63,7 +68,28 @@ public final class UpdateState {
 
     /// Installs the available release.
     public func install() {
-        guard isAvailable, phase != .installing else { return }
+        guard isAvailable else { return }
+        requestInstall()
+    }
+
+    /// The one door every Install button goes through. It refuses while a job
+    /// runs or waits: updating relaunches the app, which would orphan the job (or
+    /// drop the waiting ones). The person is told, and can open the job.
+    public func requestInstall() {
+        guard phase != .installing else { return }
+        if let jobs, let job = jobs.running ?? jobs.queued.first {
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = "A cleanup or check is running."
+            alert.informativeText = "Updating restarts Mac Analyzers, which would interrupt it. Wait for it to finish, or stop it first, then install the update."
+            alert.addButton(withTitle: "Show It")
+            alert.addButton(withTitle: "OK")
+            NSApp.activate(ignoringOtherApps: true)
+            if alert.runModal() == .alertFirstButtonReturn {
+                SettingsOpener.open(target: "job:\(job.id.uuidString)")
+            }
+            return
+        }
         phase = .installing
         GuardControl.runUpgrade()
     }

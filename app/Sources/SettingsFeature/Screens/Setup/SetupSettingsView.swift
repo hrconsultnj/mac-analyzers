@@ -20,6 +20,9 @@ struct SetupSettingsView: View {
     @Environment(JobStore.self) var jobs
     @State var report: SetupReport?
     @State var working: String?
+    /// The install job this screen shows: the store's own, found again by kind
+    /// when the window is reopened mid-run.
+    @State var installJob: Job?
     @State var message: String?
     @State var messageIsError = false
 
@@ -28,6 +31,17 @@ struct SetupSettingsView: View {
                      caption: "What this Mac can actually do right now. Every line was checked, not assumed.") {
             if let report {
                 progress(report)
+                if let installJob, installJob.isActive {
+                    Section {
+                        HStack {
+                            ProgressView().controlSize(.small)
+                            Text(installJob.step ?? "Installing the background jobs…")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Stop") { installJob.cancel() }
+                        }
+                    }
+                }
                 if let message {
                     Section {
                         Label(message, systemImage: messageIsError
@@ -53,7 +67,10 @@ struct SetupSettingsView: View {
                 Section { Text("Checking this Mac…").foregroundStyle(.secondary) }
             }
         }
-        .task { await load() }
+        .task {
+            await adoptRunningInstall()
+            await load()
+        }
     }
 
     // MARK: - pieces

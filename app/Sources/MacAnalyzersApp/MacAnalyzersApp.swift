@@ -64,7 +64,11 @@ struct MenuBarLabelView: View {
         }
         // The label is alive for the app's whole life, so it starts the
         // release checks that every reader of `UpdateState` shares.
-        .task { updates.startChecking() }
+        .task {
+            updates.startChecking()
+            QuitGuard.jobs = jobs      // so quitting while a job runs can ask first
+            updates.jobs = jobs        // and installing an update cannot start under one
+        }
         .notifyWhenJobsFinish(jobs)
         .onReceive(NotificationCenter.default.publisher(
             for: NotifyChannel.openSettingsInternal)) { note in

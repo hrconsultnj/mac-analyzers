@@ -121,6 +121,42 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    // MARK: - when it fails
+
+    /// What to call this action in "Couldn't ___": the words the screens used
+    /// before jobs ("run the audit", "write the report"), so a failure reads
+    /// the same wherever it is shown.
+    public func failureVerb(_ intent: JobIntent, options: JobOptions) -> String {
+        switch (self, intent) {
+        case (.spotlight, .preview), (.tempClean, .preview): return "run the audit"
+        case (.spotlight, .apply): return "apply fences"
+        case (.eject, _):
+            let name = options.mountPoint.map { ($0 as NSString).lastPathComponent }
+            return "eject \(name.flatMap { $0.isEmpty ? nil : $0 } ?? "the disk image")"
+        case (.memoryReport, _), (.storageReport, _): return "write the report"
+        case (.networkSnapshot, _): return "take the snapshot"
+        case (.installAgents, _): return "install the background jobs"
+        case (.uninstallAgents, _): return "turn off the background jobs"
+        default:
+            switch intent {
+            case .preview: return "preview"
+            case .apply: return "apply"
+            case .run: return "run it"
+            }
+        }
+    }
+
+    /// The sentence for a script that ended with `exitCode`. A missing script
+    /// is the "cleaning script" for a cleaner and the app's own incomplete
+    /// copy for the two agent installers.
+    public func failureMessage(exitCode: Int32, intent: JobIntent, options: JobOptions) -> String {
+        let verb = failureVerb(intent, options: options)
+        if exitCode == 127, self == .installAgents || self == .uninstallAgents {
+            return "Couldn't \(verb): the app's copy of the analyzer scripts is incomplete."
+        }
+        return ExitExplanation.explain(exitCode: exitCode, verb: verb)
+    }
+
     // MARK: - approval
 
     /// The engine flag that narrows an apply to a reviewed list, for the kinds

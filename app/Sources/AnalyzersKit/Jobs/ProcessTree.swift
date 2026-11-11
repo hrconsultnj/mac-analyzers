@@ -109,6 +109,13 @@ public enum ProcessTree {
     /// with birth `expected`. Returns whether the signal was sent. `live`
     /// is how the current birth is read; tests replace it to simulate a pid
     /// that was recycled.
+    ///
+    /// Residual race: between the comparison and `kill` there is a window of a
+    /// few microseconds in which the process could exit and its pid be reused.
+    /// Closing it needs a pid file descriptor, which macOS does not offer; the
+    /// start-time check turns "any recycled pid in the grace period" (seconds)
+    /// into "a recycle inside two adjacent calls", and the uid check below
+    /// keeps even that from reaching another user's process.
     @discardableResult
     public static func signalIfSame(pid: Int32, expected: Birth, signal sig: Int32,
                                     live: (Int32) -> Birth? = { Birth.of($0) }) -> Bool {

@@ -130,6 +130,13 @@ public final class Job: Identifiable {
         state = final
     }
 
+    /// The index line for a job the app is leaving running: not finished, not
+    /// cancelled, no exit code, ending "now" as far as the app can tell.
+    func ledgerEntry(finishedNow: Bool) -> JobLedgerEntry {
+        JobLedgerEntry(id: id, kind: kind, intent: intent, trigger: trigger.ledgerLabel,
+                       start: startedAt, end: Date(), exit: nil, cancelled: false, runHeader: runHeader)
+    }
+
     var ledgerEntry: JobLedgerEntry {
         var wasCancelled = false
         if case .cancelled = state { wasCancelled = true }

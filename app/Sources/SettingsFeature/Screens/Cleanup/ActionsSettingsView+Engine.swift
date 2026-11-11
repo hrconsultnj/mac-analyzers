@@ -33,6 +33,10 @@ extension ActionsSettingsView {
             phase = .failed("There is no finished preview to apply. Preview again, then apply.")
             return
         }
+        guard !reviewExpired(preview) else {
+            phase = .failed("This review is more than \(Int(JobStore.reviewWindow / 60)) minutes old, so it can no longer be applied. Preview again to see what would be cleaned now.")
+            return
+        }
         lastOutput = ""
         applyJob = jobs.apply(from: preview, approved: approvedSet)
         syncFromJobs()
@@ -46,8 +50,10 @@ extension ActionsSettingsView {
     func adoptCurrentJobs() {
         let kind = cleaner.jobKind
         resetRuns()
-        previewJob = jobs.latest(kind, intents: [.preview])
-        let applied = jobs.latest(kind, intents: [.apply])
+        // only what is still running, or recent and not dismissed: a review comes
+        // back for fifteen minutes, never for as long as the app has been open
+        previewJob = jobs.adoptable(kind: kind, intents: [.preview])
+        let applied = jobs.adoptable(kind: kind, intents: [.apply])
         applyJob = newer(applied, than: previewJob) ? applied : nil
         if let shown = applyJob ?? previewJob {
             // the toggles must read what the job was started with
@@ -55,6 +61,12 @@ extension ActionsSettingsView {
             if cleaner == .tempClean { tempPermanent = shown.request.options.permanent }
         }
         syncFromJobs()
+    }
+
+    /// Whether a finished preview is past the point where it can be applied.
+    func reviewExpired(_ preview: Job?, at date: Date = Date()) -> Bool {
+        guard let expiry = preview?.reviewExpiry else { return false }
+        return date >= expiry
     }
 
     private func newer(_ job: Job?, than other: Job?) -> Bool {
@@ -75,6 +87,13 @@ extension ActionsSettingsView {
             phase = job.intent == .apply ? .applying : .previewing
 
         case .succeeded(let outcome):
+            // A review is never built from a fallback: if the log held no block of
+            // this job's own, the newest block belongs to another run.
+            if job.intent == .preview, case .newestFallback = outcome.match {
+                lastOutput = job.lines.joined(separator: "\n")
+                phase = .failed("Couldn't find this run's results in the log, so there is nothing reliable to review. Preview again.")
+                return
+            }
             switch outcome.parsed {
             case .reap(let run): reapRun = run
             case .storage(let run): storageRun = run
@@ -144,6 +163,8 @@ extension ActionsSettingsView {
     /// Discard, "New preview" and "Try again": forget this review. The jobs
     /// stay in the store and in Activity.
     func resetToIdle() {
+        jobs.dismiss(previewJob)
+        jobs.dismiss(applyJob)
         phase = .idle
         previewJob = nil
         applyJob = nil

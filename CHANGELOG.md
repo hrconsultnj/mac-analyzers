@@ -28,6 +28,24 @@ heading becomes its version and title.
   nothing is lost when the app updates.
 - The Update screen shows exactly which build you are running, not only the
   version number.
+- Cleanups and checks now run in the background with live progress. You can
+  close the window, watch them from the menu bar, stop them at any time, and
+  see everything that ran, whether you or the schedule started it, in the new
+  Activity screen. Activity lists each day's runs with what they freed or
+  found, and clicking one opens a page that says what it did.
+- When a cleanup or check finishes while the window is closed or not in front,
+  a notification tells you how it went and opens that run.
+- A cleanup that cannot record which items you approved now stops instead of
+  acting on everything. A review you left open for more than fifteen minutes,
+  or discarded, can no longer be applied; you are asked to preview again.
+- In Activity, "waiting for your review" now means a preview from the last
+  fifteen minutes that you can still apply. Older previews stay in the list as
+  what they found, nothing removed, with a button to preview again.
+- If you quit Mac Analyzers while a cleanup or check is running, it asks
+  whether to stop it or let it finish in the background. Either way the run
+  still appears in Activity with who started it. Restarting or logging out
+  with something running simply stops it, and installing an update waits until
+  it is done.
 - Fixed: the memory cleanup stopped before doing anything on Macs that only
   have the version of bash that comes with macOS — which is every Mac
   without Homebrew, and the app's own Preview button on any Mac. It now runs

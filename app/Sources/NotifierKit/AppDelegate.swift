@@ -11,6 +11,7 @@ import os
 ///   AppDelegate+Watchers.swift   new login items, new releases
 ///   AppDelegate+LoginItem.swift  registering the app as a login item
 ///   AppDelegate+FirstRun.swift   opening Setup on a new or broken Mac
+///   AppDelegate+Quit.swift       asking before a quit that would orphan a running job
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
 

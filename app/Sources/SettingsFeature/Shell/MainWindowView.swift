@@ -9,7 +9,7 @@ import AnalyzersKit
 ///   SectionRegistry.swift    the order of the sidebar groups
 ///   SidebarView.swift        the rows
 ///   HistoryToolbar.swift     back and forward
-///   Activity/JobStatusToolbarItem.swift   the running job, on every screen
+///   Screens/Activity/JobStatusToolbarItem.swift   the running job, on every screen
 ///   DeepLinkRouter.swift     target strings to locations
 ///   AppCommands.swift        the menu bar
 public struct MainWindowView: View {

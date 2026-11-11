@@ -109,35 +109,38 @@ extension MenuContentView {
             Spacer()
             Button("Run now") { runNow(label) }
                 .controlSize(.regular)
-                .disabled(scheduledArguments(for: label) == nil)
-                .help(scheduledArguments(for: label) == nil
-                      ? "This schedule isn't installed on this Mac"
-                      : "Same run the schedule does — it appears in Activity, and Stop ends it")
+                .disabled(runNowPlan(for: label).problem != nil)
+                .help(runNowPlan(for: label).problem
+                      ?? "Same run the schedule does — it appears in Activity, and Stop ends it")
         }
     }
 
     // MARK: - Run now
 
-    /// Starts the schedule's own run as a tracked job: the arguments are read
-    /// from the INSTALLED launchd plist, so it does exactly what the agent
-    /// does, no more. Triggered as `.schedule(label)`; the kernel refuses a
-    /// cleaner run by hand any other way.
-    private func runNow(_ label: String) {
-        guard let arguments = scheduledArguments(for: label) else { return }
-        jobs.enqueue(JobRequest(kind: .storageClean, intent: .run,
-                                options: JobOptions(scheduleArguments: arguments)),
-                     trigger: .schedule(label))
+    /// Whether Run now may run for one schedule, worked out once when the panel
+    /// appears (`MenuContentView.onAppear`), not on every redraw. The rule is the
+    /// store's (`JobStore.scheduleProblem`): the agent is installed, and its plist
+    /// names the script this app would run.
+    struct RunNowPlan {
+        /// Why Run now must not run, in words; nil when it may.
+        let problem: String?
     }
 
-    /// What the plist passes to the script: `ProgramArguments` after the script
-    /// path (the entry before it is the runner). nil when the agent is not installed.
-    private func scheduledArguments(for label: String) -> [String]? {
-        let plist = AnalyzersPaths.home.appending(path: "Library/LaunchAgents/\(label).plist")
-        guard let data = try? Data(contentsOf: plist),
-              let dict = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-              let program = dict["ProgramArguments"] as? [String],
-              let script = program.firstIndex(where: { $0.hasSuffix(".sh") })
-        else { return nil }
-        return Array(program[(script + 1)...])
+    func loadRunNowPlans() {
+        for label in [GuardControl.storageCleanLabel, GuardControl.storageDeepLabel] {
+            runNowPlans[label] = RunNowPlan(problem: jobs.scheduleProblem(label: label, kind: .storageClean))
+        }
+    }
+
+    func runNowPlan(for label: String) -> RunNowPlan {
+        runNowPlans[label] ?? RunNowPlan(problem: "Checking the schedule…")
+    }
+
+    /// Starts the schedule's own run as a tracked job. The store reads the
+    /// INSTALLED plist's arguments itself, so it does exactly what the agent
+    /// does; nothing is passed from here.
+    private func runNow(_ label: String) {
+        guard runNowPlan(for: label).problem == nil else { return }
+        jobs.enqueue(JobRequest(kind: .storageClean, intent: .run), trigger: .schedule(label))
     }
 }

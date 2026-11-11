@@ -17,6 +17,24 @@ extension JobStore {
     func latest(_ kind: JobKind, intents: Set<JobIntent>) -> Job? {
         latest { $0.kind == kind && intents.contains($0.intent) }
     }
+
+    /// What a screen may take back when it appears: a job still queued or
+    /// running, always; a finished one only while it is recent and nobody
+    /// dismissed it. Discard, New preview and Try again dismiss.
+    func adoptable(where matches: (Job) -> Bool, maxAge: TimeInterval = JobStore.reviewWindow,
+                   now: Date = Date()) -> Job? {
+        latest { job in
+            guard matches(job) else { return false }
+            if job.isActive { return true }
+            guard !dismissed.contains(job.id), let end = job.finishedAt else { return false }
+            return now.timeIntervalSince(end) <= maxAge
+        }
+    }
+
+    func adoptable(kind: JobKind, intents: Set<JobIntent>, maxAge: TimeInterval = JobStore.reviewWindow,
+                   now: Date = Date()) -> Job? {
+        adoptable(where: { $0.kind == kind && intents.contains($0.intent) }, maxAge: maxAge, now: now)
+    }
 }
 
 /// A job's place in its life, comparable so `onChange` can see a job move on.
@@ -44,6 +62,9 @@ struct JobStamp: Equatable {
 
 extension Job {
     var stamp: JobStamp { JobStamp(self) }
+
+    /// When a finished preview stops being something to apply; nil while it runs.
+    var reviewExpiry: Date? { finishedAt.map { $0.addingTimeInterval(JobStore.reviewWindow) } }
 
     /// Still queued or running.
     var isActive: Bool { !state.isFinished }

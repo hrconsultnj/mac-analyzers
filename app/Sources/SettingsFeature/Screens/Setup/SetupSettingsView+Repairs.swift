@@ -94,11 +94,29 @@ extension SetupSettingsView {
     }
 
     /// Runs both installers as one tracked job, so it shows in the toolbar and
-    /// Activity, can be stopped there, and finishes even if this window closes.
-    /// They are sudo-free by design — everything they touch is in the user's
-    /// own launchd domain.
+    /// Activity, can be stopped here or there, and finishes even if this window
+    /// closes. They are sudo-free by design — everything they touch is in the
+    /// user's own launchd domain.
     private func installAgents() async -> (ok: Bool, text: String) {
         let job = jobs.enqueue(JobRequest(kind: .installAgents, intent: .run), trigger: .user)
+        installJob = job
+        return await finishInstall(job)
+    }
+
+    /// The window was closed while the agents were being installed: show the
+    /// install still working, then say what is true once it ends.
+    func adoptRunningInstall() async {
+        guard let running = jobs.latest(.installAgents, intents: [.run]), running.isActive else { return }
+        installJob = running
+        working = "adopted"
+        defer { working = nil }
+        let outcome = await finishInstall(running)
+        messageIsError = !outcome.ok
+        message = outcome.text
+        await load()
+    }
+
+    private func finishInstall(_ job: Job) async -> (ok: Bool, text: String) {
         await job.waitUntilFinished()
         if case .cancelled = job.state {
             return (false, "Stopped. Some background jobs may already be installed — the list below shows which.")

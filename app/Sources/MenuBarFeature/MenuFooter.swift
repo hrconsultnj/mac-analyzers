@@ -18,7 +18,7 @@ extension MenuContentView {
             }
             if let latest = latestVersion,
                UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion) {
-                Button("Upgrade to v\(latest)") { GuardControl.runUpgrade() }
+                Button("Upgrade to v\(latest)") { updates.requestInstall() }
                     .buttonStyle(.borderedProminent)
                     .help("Runs upgrade.command in Terminal — pull, rebuild, relaunch; settings untouched")
             } else {

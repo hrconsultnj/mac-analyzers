@@ -5,25 +5,23 @@ import SwiftUI
 /// kernel knows what a kind runs; only this file knows what it is called.
 extension JobKind {
 
+    /// The product's name for what this kind works on — the same words as the
+    /// sidebar row that holds its screen. The mode ("deep cleanup", "preview")
+    /// is added where it is shown (`ActivityRow.displayTitle`).
     public var title: String {
         switch self {
-        case .memoryClean: "Memory Clean"
-        case .reclaim: "Memory Reclaim"
-        case .storageClean: "Storage Clean"
-        case .janitor: "Downloads Janitor"
-        case .tempClean: "Temp & Agents"
-        case .tmReclaim: "Time Machine Snapshots"
-        case .spotlight: "Spotlight Audit"
-        case .loginItems: "Login Items Audit"
+        case .memoryClean, .reclaim: "Memory Cleanup"
+        case .storageClean: "Caches & Builds"
+        case .janitor: "Downloads"
+        case .tempClean, .eject: "Temp & Agents"
+        case .tmReclaim: "Time Machine"
+        case .spotlight: "Spotlight"
+        case .loginItems: "Login & Startup Items"
         case .unusedApps: "Unused Apps"
         case .recordings: "Old Recordings"
-        case .networkSnapshot: "Network Snapshot"
-        case .memoryReport: "Memory Report"
-        case .storageReport: "Storage Report"
-        case .installAgents: "Install Background Agents"
-        case .uninstallAgents: "Turn Off Background Agents"
-        case .sudoersInstall: "Allow Snapshot Thinning"
-        case .eject: "Eject Disk Image"
+        case .networkSnapshot: "Network"
+        case .memoryReport, .storageReport: "Reports"
+        case .installAgents, .uninstallAgents, .sudoersInstall: "Setup"
         }
     }
 
