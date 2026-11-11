@@ -57,6 +57,16 @@ app_runs_on_its_own() {
       echo "Runs in the background: a launch entry belongs to it"; return 0
     fi
   done < <(launch_plist_files)
+  # the Login & Startup Items audit's own inventory (login-items.tsv), when it has run: its rows add what
+  # the plists above cannot show, the System Settings "Open at Login" items, and every entry whose program
+  # is inside the app. A stale file can only ADD a reason to keep an app, never remove one.
+  local inventory="${ANALYZERS_LOGIN_INVENTORY:-${HOME}/mac-analyzers/reports/storage/login-items.tsv}"
+  if [[ -f "$inventory" ]] && awk -F'\t' -v app="$app" '
+        /^#/ { next }
+        $5 == app || index($5, app "/") == 1 { found = 1; exit }
+        END { exit found ? 0 : 1 }' "$inventory"; then
+    echo "Runs in the background: it is in your Login & Startup Items"; return 0
+  fi
   # an app with no window of its own: a menu-bar tool, an input method, a background service
   for d in LSUIElement LSBackgroundOnly; do
     if _is_true "$(defaults read "$app/Contents/Info" "$d" 2>/dev/null)"; then

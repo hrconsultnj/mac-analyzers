@@ -9,9 +9,7 @@ import Foundation
 // index; nothing of the person's is read. Exit 1 when any case disagrees.
 
 @MainActor func probeStorageSetting() async -> Never {
-    let dir = FileManager.default.temporaryDirectory.appending(path: "ma-probe-storage-setting-\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: dir) }
+    let dir = ProbeTemp.make("ma-probe-storage-setting")
     let echo = dir.appending(path: "engine-stand-in.sh")
     try? "#!/bin/bash\necho \"stand-in engine  |  APPLY  |  $(date '+%Y-%m-%d %H:%M:%S')\"\necho \"args: $*\"\n"
         .write(to: echo, atomically: true, encoding: .utf8)
@@ -127,9 +125,7 @@ func probeDiskRunway() -> Never {
     expect(DiskRunway.forecast(falling.map { (day: $0.day, freeGiB: 40 + $0.day) }) == nil, "a rising trend gives none")
     // a stand-in storage log: 30 days of free space rising from 33 to 124 GiB, then one run that lost
     // 110 GiB in a day. The long trend is up; the recent slope is the honest answer.
-    let dir = FileManager.default.temporaryDirectory.appending(path: "ma-probe-runway-\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: dir) }
+    let dir = ProbeTemp.make("ma-probe-runway")
     let log = dir.appending(path: "auto-clean.log")
     var text = ""
     let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"

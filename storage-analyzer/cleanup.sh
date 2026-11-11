@@ -12,7 +12,7 @@
 # Recordings mode (opt-in; isolated — the cache/log groups are skipped),
 # prune old recording folders:
 #   ./cleanup.sh --recordings-older-than 90            # dry run
-#   ./cleanup.sh --recordings-older-than 90 --execute  # delete
+#   ./cleanup.sh --recordings-older-than 90 --execute  # move to the Trash
 #
 # GRANULAR per-app removal (opt-in; isolated from the cache/log groups above).
 # Sweeps an app's WHOLE footprint: bundle + Application Support, Caches,
@@ -46,7 +46,7 @@
 #     extension, menu-bar or background-only app), that has other apps inside it, that is not a
 #     plain folder in an install folder, or that macOS has no usable record for (no index
 #     entry, indexing off).
-# Removed apps and their files go to the Trash, with a receipt Undo can read.
+# Removed apps and their files, and removed recordings, go to the Trash, with a receipt Undo can read.
 #
 # Everything in the main groups is either a regenerable build/cache artifact
 # or a path YOU configured as deprecated in config.local.sh. Nothing here is
@@ -446,7 +446,12 @@ if [[ -n "$REC_DAYS" ]]; then
   REC_DIR="${ANALYZERS_RECORDINGS_DIR:-}"
   if [[ -n "$REC_DIR" && -d "$REC_DIR" ]]; then
     while IFS= read -r d; do
-      if approved "$d"; then reclaim "$d"; else echo "  [SKIP] not in approved set  ${d}"; fi
+      if ! approved "$d"; then echo "  [SKIP] not in approved set  ${d}"; continue; fi
+      if [[ "$DRY_RUN" -eq 1 ]]; then reclaim "$d"; else
+        # a person's own recordings go to the Trash, with a receipt Undo reads
+        kb=$(du -sk "$d" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"
+        if trash_item "$d" "$kb"; then TOTAL_KB=$((TOTAL_KB + kb)); else printf "  [FAILED]  %s\n" "$d"; fi
+      fi
     done < <(find "$REC_DIR" -mindepth 1 -maxdepth 1 -type d -mtime "+${REC_DAYS}" 2>/dev/null)
   else
     echo "  (ANALYZERS_RECORDINGS_DIR not set — skipping)"

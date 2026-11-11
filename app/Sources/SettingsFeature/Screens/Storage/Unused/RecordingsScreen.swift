@@ -13,13 +13,13 @@ struct RecordingsScreen: View {
             model: model, title: Names.Screen.oldRecordings, kind: .recordings, screenKey: "recordings",
             options: JobOptions(),
             parse: { UnusedReview.recordings(lines: $0.lines) },
-            applyTitle: "Remove",
+            applyTitle: "Move to Trash",
             confirmation: ReviewConfirmation(
-                verb: "Remove", destination: "permanently",
-                message: "These recording folders are older than 90 days.",
-                permanent: "They are deleted, not moved to the Trash, so this can't be undone."),
+                verb: "Move", destination: "to the Trash",
+                message: "These recording folders are older than 90 days. You can put them back from Undo, and the space returns when the Trash is emptied.",
+                permanent: nil, namesRows: "Recordings to move"),
             emptyText: "Looks through the folder you keep recordings in for ones older than 90 days. Nothing is removed until you review it.",
-            destination: Names.Review.deletedPermanently)
+            destination: Names.Review.goesToTrash)
             .onAppear { if let fixture { model.showFixture(fixture) } }
     }
 }

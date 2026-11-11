@@ -61,6 +61,9 @@ for sh in bash /bin/bash; do
     printf '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>test.%s</string>%s</dict></plist>' "$n" "$extra" > "$disc/apps/$n.app/Contents/Info.plist"
   }
   mkapp Old; mkapp Never; mkapp Recent; mkapp NoRecord; mkapp WithAgent; mkapp WithLoginItem; mkapp WithSysExt
+  mkapp OpenAtLogin
+  # the audit's inventory: an "Open at Login" item whose app is OpenAtLogin (System Settings items have no plist)
+  printf '#login-items-inventory\t1\tx\tdry-run\tid\nloginitem\tuser\tOpenAtLogin\t\t%s/apps/OpenAtLogin.app\tok\tenabled\t\t\n' "$disc" > "$disc/login-items.tsv"
   mkapp MenuBar '<key>LSUIElement</key><true/>'; mkapp Holder; mkdir -p "$disc/apps/Holder.app/Contents/Resources/Inner.app/Contents"
   mkdir -p "$disc/apps/WithLoginItem.app/Contents/Library/LoginItems/Helper.app" "$disc/apps/WithSysExt.app/Contents/Library/SystemExtensions/x.systemextension"
   # a launch agent whose program is inside WithAgent
@@ -80,7 +83,7 @@ esac
 STUB
   printf '#!/bin/bash\nif [[ -f "%s/index-off" ]]; then echo "/: Indexing disabled."; else echo "/: Indexing enabled."; fi\n' "$disc" > "$disc/stubs/mdutil"
   chmod +x "$disc/stubs/mdls" "$disc/stubs/mdutil"
-  dtree="$TMP/dtree-$k"; make_tree "$dtree"; printf 'ANALYZERS_APP_DIRS="%s/apps"\nANALYZERS_LAUNCH_DIRS="%s/launch"\n' "$disc" "$disc" > "$dtree/config.local.sh"
+  dtree="$TMP/dtree-$k"; make_tree "$dtree"; printf 'ANALYZERS_APP_DIRS="%s/apps"\nANALYZERS_LAUNCH_DIRS="%s/launch"\nANALYZERS_LOGIN_INVENTORY="%s/login-items.tsv"\n' "$disc" "$disc" "$disc" > "$dtree/config.local.sh"
   dscript="$dtree/storage-analyzer/cleanup.sh"
   dcleanup() { PATH="$disc/stubs:$PATH" HOME="$disc/home" "$sh" "$dscript" "$@" 2>&1; }
   out="$(dcleanup --stale-apps)"
@@ -88,7 +91,7 @@ STUB
   check "[$sh] an app last opened long ago, and one macOS knows but has no use of, are offered (not kept)" \
         "$([[ "$out" == *"[APP]     $disc/apps/Old.app"* && "$(rowfor Old)" != *"[KEEP]"* && "$(rowfor Never)" != *"[KEEP]"* && "$out" == *"[APP]     $disc/apps/Never.app"* ]] && echo ok || echo "wrong")"
   check "[$sh] an app opened recently is not even listed" "$([[ "$out" != *"Recent.app"* ]] && echo ok || echo listed)"
-  for pair in "WithAgent|launch entry" "WithLoginItem|login item" "WithSysExt|system extension" "MenuBar|menu bar" "Holder|Other apps live inside" "NoRecord|no record"; do
+  for pair in "WithAgent|launch entry" "WithLoginItem|login item" "WithSysExt|system extension" "OpenAtLogin|Login & Startup Items" "MenuBar|menu bar" "Holder|Other apps live inside" "NoRecord|no record"; do
     n="${pair%%|*}"; why="${pair#*|}"
     check "[$sh] $n is kept, with its reason ($why)" "$([[ "$(rowfor "$n")" == *"[KEEP]"*"$why"* ]] && echo ok || echo "$(rowfor "$n" | grep KEEP)")"
   done
@@ -148,7 +151,9 @@ STUB
   check "[$sh] a recordings preview has its own banner and log" \
         "$(grep -q '^cleanup | recordings | DRY RUN |' <<<"$out" && [[ -f "$home/mac-analyzers/reports/storage/cleanup-recordings.log" ]] && echo ok || echo "wrong")"
   printf '%s\n' "$home/Recordings/OldFixtureOne" > "$TMP/rec-$k"
-  cleanup --recordings-older-than 1 --execute --yes --only-paths "$TMP/rec-$k" >/dev/null
+  rout="$(cleanup --recordings-older-than 1 --execute --yes --only-paths "$TMP/rec-$k")"
+  check "[$sh] a removed recording is in the Trash, with a receipt Undo reads" \
+        "$([[ -d "$home/.Trash/OldFixtureOne" ]] && grep -q "^  \[TRASHED\] .*  $home/Recordings/OldFixtureOne  ->  $home/.Trash/OldFixtureOne\$" <<<"$rout" && echo ok || echo "$(grep TRASHED <<<"$rout")")"
   check "[$sh] a reviewed recordings apply removes the listed folder only" \
         "$([[ ! -e "$home/Recordings/OldFixtureOne" && -d "$home/Recordings/OldFixtureTwo" ]] && echo ok || echo "wrong")"
   : > "$TMP/rec-empty-$k"

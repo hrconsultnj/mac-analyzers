@@ -45,7 +45,8 @@ without an entry here — see `scripts/cut-release.sh`.
   it is listed but never offered. In Terminal, `cleanup.sh --stale-apps
   --execute` only removes a list you wrote yourself; apps found by their date
   are removed only from a review in the app. Old Recordings lists recording
-  folders older than 90 days by the month they were made.
+  folders older than 90 days by the month they were made; they go to the Trash
+  too, so Undo can bring them back.
 - Spotlight lists your developer folders by project with a checkbox to fence
   or unfence each one, and Fence and Unfence for a whole selection. Fence All
   names the folders it will fence and fences exactly those, not whatever a new

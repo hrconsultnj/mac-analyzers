@@ -10,9 +10,7 @@ import Foundation
 // The real engine is never started.
 
 @MainActor func probeStorageApply() async -> Never {
-    let dir = FileManager.default.temporaryDirectory.appending(path: "ma-probe-storage-apply-\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: dir) }
+    let dir = ProbeTemp.make("ma-probe-storage-apply")
 
     let echo = dir.appending(path: "engine-stand-in.sh")
     try? """

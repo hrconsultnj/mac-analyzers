@@ -49,6 +49,7 @@ public enum UndoLedger {
         (AnalyzersPaths.janitorLog, "Janitor"),
         (AnalyzersPaths.tempCleanLog, "Temp & Agents"),
         (AnalyzersPaths.storageReports.appending(path: "cleanup-apps.log"), "Unused Apps"),
+        (AnalyzersPaths.storageReports.appending(path: "cleanup-recordings.log"), "Old Recordings"),
     ]
 
     /// TRASHED receipts from every ledger, newest first within each, excluding

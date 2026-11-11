@@ -154,13 +154,14 @@ public enum UnusedReview {
         month.dateFormat = "MMMM yyyy"
         var rows: [StorageRow] = []
         for line in lines {
-            let isRun = line.hasPrefix("[DRY]"), isDone = results && line.hasPrefix("[DELETED]")
+            let isRun = line.hasPrefix("[DRY]"), isDone = results && (line.hasPrefix("[DELETED]") || line.hasPrefix("[TRASHED]"))
             guard isRun || isDone else { continue }
             let rest = String(line.drop(while: { $0 != "]" }).dropFirst()).trimmingCharacters(in: .whitespaces)
             guard let range = rest.range(of: #"^[\d.]+ [KMGT]?B\s+"#, options: .regularExpression),
                   let bytes = ByteSize.parse(String(rest[range]).trimmingCharacters(in: .whitespaces)) else { continue }
             var path = String(rest[range.upperBound...])
             if let label = path.range(of: "   (", options: .backwards), path.hasSuffix(")") { path = String(path[..<label.lowerBound]) }
+            if let arrow = path.range(of: "  ->  ") { path = String(path[..<arrow.lowerBound]) }     // a receipt: "path  ->  Trash path"
             let group = results ? Names.Unused.recordings : (info(path).map { month.string(from: $0) } ?? Names.Download.dateUnknown)
             rows.append(StorageRow(id: path, category: RecordingCategory.recordings.rawValue, group: group,
                                    title: (path as NSString).lastPathComponent,

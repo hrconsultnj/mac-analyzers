@@ -28,6 +28,9 @@ public enum DeepLinkRouter {
             .merging(StorageGroup.fixtureTargets) { _, storage in storage }
     }
 
+    /// Where a link lands, in words, for `SnapshotRunner --probe-links`; nothing else calls it.
+    public static func probeRouting(of target: String) -> String { String(describing: resolve(target)) }
+
     static func resolve(_ target: String) -> Resolution {
         let key = target.trimmingCharacters(in: .whitespacesAndNewlines)
         if let fixture = fixtureTargets[key] { return fixture }

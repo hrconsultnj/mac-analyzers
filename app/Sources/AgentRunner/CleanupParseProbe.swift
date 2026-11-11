@@ -22,8 +22,7 @@ import Foundation
     guard let script else { print("SKIP: cleanup.sh not found from the binary's location"); exit(0) }
     let repo = script.deletingLastPathComponent().deletingLastPathComponent()
 
-    let root = fm.temporaryDirectory.appending(path: "ma-probe-cleanup-\(UUID().uuidString)")
-    defer { try? fm.removeItem(at: root) }
+    let root = ProbeTemp.make("ma-probe-cleanup-parse")
     let home = root.appending(path: "home"), tree = root.appending(path: "tree")
     for folder in ["storage-analyzer", "lib"] { try? fm.createDirectory(at: tree.appending(path: folder), withIntermediateDirectories: true) }
     try? fm.copyItem(at: script, to: tree.appending(path: "storage-analyzer/cleanup.sh"))
@@ -141,6 +140,17 @@ import Foundation
     expect(results.rows.map(\.title) == ["Unused"] && results.rows.first?.detail?.hasPrefix(Names.Unused.removed) == true, "the apply is read as a Removed row: \(results.rows.map { "\($0.title): \($0.detail ?? "")" })")
     expect(fm.fileExists(atPath: found.appending(path: "home/.Trash/Unused.app").path) && !fm.fileExists(atPath: foundApps.appending(path: "Unused.app").path), "the removed app is in the Trash")
     expect(fm.fileExists(atPath: foundApps.appending(path: "Resident.app").path), "the kept app is still there")
+
+    // an old-recordings apply goes to the Trash, and is read as Removed rows keyed by the folder's own path
+    try? config.write(to: tree.appending(path: "config.local.sh"), atomically: true, encoding: .utf8)   // the recordings folder again
+    let recordingList = root.appending(path: "recording-list.txt")
+    let oldOne = home.appending(path: "Recordings/Old1").path
+    try? (oldOne + "\n").write(to: recordingList, atomically: true, encoding: .utf8)
+    let recordingApply = lines(run(["--recordings-older-than", "30", "--execute", "--yes", "--only-paths", recordingList.path]))
+    let recordingResults = UnusedReview.recordings(lines: recordingApply, results: true)
+    expect(recordingResults.rows.map(\.id) == [oldOne] && recordingResults.rows.first?.detail?.hasPrefix(Names.Unused.removed) == true,
+           "a recordings apply is read as one Removed row: \(recordingResults.rows.map { "\($0.id): \($0.detail ?? "")" })")
+    expect(fm.fileExists(atPath: home.appending(path: ".Trash/Old1").path) && !fm.fileExists(atPath: oldOne), "the recording is in the Trash")
 
     print("\(cases) checks, \(failures == 0 ? "the script's output and the screens' rows agree" : "\(failures) FAILED")")
     exit(failures == 0 ? 0 : 1)
