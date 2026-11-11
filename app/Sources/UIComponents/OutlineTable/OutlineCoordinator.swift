@@ -54,7 +54,9 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
         headerMenu = OutlineHeaderMenu(outline: outline)
         fitter = OutlineFitter(outline: outline, scrollView: scrollView)
         super.init()
-        fitter.mayChangeColumns = { [unowned self] in self.depth == 0 && !self.isApplying }
+        // weak, and nil when this table is gone: a fit queued for the next turn can outlive the table
+        // (a screen that replaces its table when a preview arrives), and must then do nothing
+        fitter.mayChangeColumns = { [weak self] in self.map { $0.depth == 0 && !$0.isApplying } }
         headerMenu.fitter = fitter
         updater = OutlineUpdater(coordinator: self)
         outline.dataSource = self
@@ -74,9 +76,9 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
         outline.autosaveExpandedItems = false
         outline.doubleAction = #selector(doubleClicked(_:))
         outline.target = self
-        outline.onPrimaryKey = { [unowned self] in self.primaryKey() }
-        outline.onSpaceKey = { [unowned self] in self.spaceKey() }
-        outline.menuProvider = { [unowned self] event in self.contextMenu(for: event) }
+        outline.onPrimaryKey = { [weak self] in self?.primaryKey() ?? false }
+        outline.onSpaceKey = { [weak self] in self?.spaceKey() ?? false }
+        outline.menuProvider = { [weak self] event in self?.contextMenu(for: event) }
         scrollView.documentView = outline
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true

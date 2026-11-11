@@ -23,40 +23,177 @@ public enum GuardControl {
         launchctl(["kickstart", "gui/\(getuid())/\(label)"])
     }
 
-    /// USER-initiated stop — a different contract from the guard's automatic
-    /// kills (which stay dev-tooling-only): the user may stop anything, same
-    /// as Activity Monitor. GUI apps get a graceful terminate (⌘Q semantics,
-    /// save dialogs still appear); everything else gets SIGTERM.
-    public static func stopProcess(_ proc: LiveProcess) {
-        if !proc.isDev,
-           let app = NSRunningApplication(processIdentifier: pid_t(proc.pid)) {
-            app.terminate()
-            return
-        }
-        kill(pid_t(proc.pid), SIGTERM)
+    /// What a stop did, in words a person can be told.
+    public enum StopResult: Equatable, Sendable {
+        case stopped
+        /// It had ended, or its start time changed (the pid was reused): left alone.
+        case gone
+        /// Not stopped on purpose, with the sentence to show.
+        case refused(String)
+
+        public var reached: Bool { self == .stopped }
     }
 
-    /// USER-initiated quit of a whole GROUP — "close Opera", not "end one of
-    /// its 30 processes". An app's main process gets the ⌘Q request and its
-    /// helpers leave with it (save prompts still appear); a tool's top-level
-    /// processes get the polite stop and take what they started with them.
-    /// Same contract as `stopProcess`: the user may stop their own things;
-    /// macOS's are never in scope (`QuitScope.unavailable`).
-    public static func quit(_ scope: CensusGroup.QuitScope) {
-        switch scope {
-        case .app(let mainPIDs):
-            for pid in mainPIDs {
-                if let app = NSRunningApplication(processIdentifier: pid_t(pid)) {
-                    app.terminate()
-                } else {
-                    kill(pid_t(pid), SIGTERM)
-                }
-            }
-        case .tools(let rootPIDs):
-            for pid in rootPIDs { kill(pid_t(pid), SIGTERM) }
-        case .unavailable:
-            break
+    /// USER-initiated stop — a different contract from the guard's automatic
+    /// kills (which stay dev-tooling-only): the user may stop their own things,
+    /// same as Activity Monitor. GUI apps get a graceful terminate (⌘Q semantics,
+    /// save dialogs still appear); everything else gets SIGTERM.
+    ///
+    /// Two guards run before anything is sent. A process that belongs to a live
+    /// coding session is refused (the same list the cleaners use), and the
+    /// process is re-checked against `identity`, the start time it had when it
+    /// was listed, so a recycled pid is refused. A process listed without an
+    /// identity cannot be checked, so it is refused too.
+    public static func stopProcess(_ proc: LiveProcess, identity: ProcessIdentity?) -> StopResult {
+        guard let identity, identity.pid == proc.pid else {
+            return .refused("\(proc.friendlyName) could not be checked before stopping, so it was left alone.")
         }
+        if let agent = CodingAgentHosts.liveSessionAgent(pid: proc.pid) {
+            return .refused("\(proc.friendlyName) is part of a live \(agent) session. Close the session there instead.")
+        }
+        guard identity.isStillRunning else { return .gone }
+        if !proc.isDev,
+           let app = NSRunningApplication(processIdentifier: pid_t(proc.pid)) {
+            return app.terminate() ? .stopped : .gone
+        }
+        guard CodingAgentHosts.isAvailable else { return .refused(CodingAgentHosts.unavailableSentence) }
+        // a process that hosts terminals ends every session in them when it ends
+        let hosted = CodingAgentHosts.sessionsBelow(pid: proc.pid)
+        if !hosted.isEmpty {
+            return .refused("\(proc.friendlyName) hosts \(ProgramReach.hostedText(hosted)). Close them there instead.")
+        }
+        return stop([identity]).count == 1 ? .stopped : .gone
+    }
+
+    /// Quit an app: its main process gets the ⌘Q request (save prompts still
+    /// appear) and its helpers leave with it. Each identity is re-checked first.
+    /// A polite quit, so it does not depend on the coding-agent list.
+    @discardableResult
+    public static func quitApp(_ identities: [ProcessIdentity]) -> [ProcessIdentity] {
+        identities.filter(quitApp)
+    }
+
+    /// USER-initiated SIGTERM of chosen processes, each only if it is still the
+    /// process that was shown. Refuses everything when the coding-agent list is
+    /// unavailable. For a program (a process and what it started) use `stopProgram`.
+    @discardableResult
+    public static func stop(_ identities: [ProcessIdentity]) -> [ProcessIdentity] {
+        guard CodingAgentHosts.isAvailable else { return [] }
+        return identities.filter {
+            ProcessTree.signalIfSame(pid: Int32($0.pid), expected: $0.birth, signal: SIGTERM)
+        }
+    }
+
+    /// What a program stop did.
+    public struct ProgramStop: Sendable {
+        public let asked: Int
+        public let stillRunning: [ProcessIdentity]
+        /// Nothing (more) was sent, and why.
+        public let refusal: String?
+        public var allEnded: Bool { refusal == nil && stillRunning.isEmpty }
+
+        static func refused(_ why: String, asked: Int = 0, stillRunning: [ProcessIdentity] = []) -> ProgramStop {
+            ProgramStop(asked: asked, stillRunning: stillRunning, refusal: why)
+        }
+    }
+
+    /// How long a program gets to shut down after the polite request.
+    public static let defaultGrace: Duration = .seconds(5)
+
+    /// STEP ONE of stopping a program, the polite one: everything in its reach is asked to
+    /// stop, deepest first, and Mac Analyzers waits. Nothing is ever killed here. What is
+    /// still running afterwards is returned for the person to decide about (`forceStopProgram`).
+    ///
+    /// The reach is worked out from the live process table (`ProgramReach`): the listed
+    /// members and what they started, never a terminal session or what is under one,
+    /// never an ancestor, and nothing at all if any of it is, sits under or sits above
+    /// a live coding session anywhere in its whole subtree. Each signal re-checks the
+    /// process's start time.
+    public static func askProgramToStop(_ listed: [ProcessIdentity], name: String = "This program",
+                                        grace: Duration = defaultGrace) async -> ProgramStop {
+        guard CodingAgentHosts.isAvailable else { return .refused(CodingAgentHosts.unavailableSentence) }
+        let members: [ProcessIdentity]
+        switch ProgramReach.compute(listed: listed, name: name) {
+        case .refused(let why): return .refused(why)
+        case .reach(let found): members = found
+        }
+        for member in members { signal(member, SIGTERM) }
+        let deadline = ContinuousClock.now + grace
+        while ContinuousClock.now < deadline, members.contains(where: \.isStillRunning) {
+            try? await Task.sleep(for: .milliseconds(150))
+        }
+        return ProgramStop(asked: members.count, stillRunning: members.filter(\.isStillRunning), refusal: nil)
+    }
+
+    /// STEP TWO, only after the person chose it: the processes that did not stop are
+    /// killed. Like Force Quit, it takes effect at once and the program cannot save or
+    /// shut down cleanly. Before the first signal the reach is computed again from what
+    /// is running now, with every rule (locks, sessions above and below, start times), so
+    /// a session that appeared in the meantime refuses it.
+    public static func forceStopProgram(_ stillRunning: [ProcessIdentity], name: String = "This program") async -> ProgramStop {
+        guard CodingAgentHosts.isAvailable else { return .refused(CodingAgentHosts.unavailableSentence) }
+        let members: [ProcessIdentity]
+        switch ProgramReach.compute(listed: stillRunning, name: name) {
+        case .refused(let why): return .refused(why, asked: stillRunning.count, stillRunning: stillRunning.filter(\.isStillRunning))
+        case .reach(let found): members = found
+        }
+        for member in members { signal(member, SIGKILL) }
+        try? await Task.sleep(for: .milliseconds(400))
+        return ProgramStop(asked: members.count, stillRunning: members.filter(\.isStillRunning), refusal: nil)
+    }
+
+    /// Test support: the refusal a Stop on these members would give, computed without sending anything.
+    @_spi(TestSupport) public static func reachRefusal(listed: [ProcessIdentity], name: String) -> String? {
+        if case .refused(let why) = ProgramReach.compute(listed: listed, name: name) { return why }
+        return nil
+    }
+
+    /// Test support: why this process's command line cannot be trusted yet (nil when it can).
+    @_spi(TestSupport) public static func commandLineDoubt(pid: Int32) -> String? {
+        CommandLineTrust.doubt(pid: pid)
+    }
+
+    /// Test support: the rule that judges a command line, on what was read.
+    @_spi(TestSupport) public static func commandLineJudgement(command: String?, parent: String?, age: TimeInterval) -> String? {
+        CommandLineTrust.judge(command: command, parent: parent, age: age)
+    }
+
+    /// Test support: whether a command line is a terminal session (an interactive shell).
+    @_spi(TestSupport) public static func isInteractiveShell(command: String) -> Bool {
+        ProgramReach.isInteractiveShell(command: command)
+    }
+
+    /// Test support: how many processes a Stop on these members would reach right now.
+    @_spi(TestSupport) public static func reachSize(listed: [ProcessIdentity], name: String) -> Int? {
+        if case .reach(let found) = ProgramReach.compute(listed: listed, name: name) { return found.count }
+        return nil
+    }
+
+    /// The one place a program stop sends a signal: to a process that is still
+    /// the one that was identified, and never to this process or its ancestors.
+    private static func signal(_ member: ProcessIdentity, _ signal: Int32) {
+        #if DEBUG
+        precondition(!ProgramReach.selfChain().contains(Int32(member.pid)),
+                     "a program stop must never signal Mac Analyzers or an ancestor of it")
+        #endif
+        ProcessTree.signalIfSame(pid: Int32(member.pid), expected: member.birth, signal: signal)
+    }
+
+    /// An app gets the ⌘Q request (save prompts still appear); anything that
+    /// is not a running application gets the polite stop. Never reaches a
+    /// process whose start time no longer matches.
+    private static func quitApp(_ identity: ProcessIdentity) -> Bool {
+        guard identity.isStillRunning else { return false }
+        if let app = NSRunningApplication(processIdentifier: pid_t(identity.pid)) {
+            return app.terminate()
+        }
+        // not a running app (a command-line tool inside an app's folder): the same rule as any process,
+        // which includes never ending something that hosts a live coding session
+        // (a ⌘Q to a real app is the person's own and only warned about; this is a SIGTERM, so it refuses what it cannot tell)
+        guard CodingAgentHosts.sessionsBelow(pid: identity.pid).isEmpty,
+              CodingAgentHosts.liveSessionAgent(pid: identity.pid) == nil,
+              ProgramReach.quitReach(roots: [Int32(identity.pid)]).doubt == nil else { return false }
+        return stop([identity]).count == 1
     }
 
     /// Relaunch just this app — the light alternative to a Mac restart: the
