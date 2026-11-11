@@ -15,13 +15,14 @@ public struct StringListEditor: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Tokens.Space.s) {
             Text(title).font(.subheadline.weight(.medium))
             List(selection: $selection) {
                 ForEach(items, id: \.self) { item in
                     Text(item).tag(item)
                 }
             }
+            // a list in a form needs a bound, or it takes the whole screen
             .frame(minHeight: 72, maxHeight: 110)
             .border(.separator)
             HStack {

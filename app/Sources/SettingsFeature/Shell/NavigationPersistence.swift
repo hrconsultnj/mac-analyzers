@@ -20,8 +20,13 @@ enum NavigationPersistence {
               let saved = try? JSONDecoder().decode(Location.self, from: data),
               SectionRegistry.contains(saved.section)
         else { return SectionRegistry.home }
-        // a job does not outlive the session that ran it
-        let path = saved.path.filter { if case .job = $0 { false } else { true } }
+        // a job does not outlive the session that ran it, nor does its raw output
+        let path = saved.path.filter {
+            switch $0 {
+            case .job, .overview(.raw(.job)): false
+            default: true
+            }
+        }
         return Location(saved.section, path: path)
     }
 }

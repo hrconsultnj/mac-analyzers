@@ -43,6 +43,13 @@ public final class UpdateState {
                                          localChanges: BuildInfo.current.localChanges)
     }
 
+    /// For `SnapshotRunner --update-state`: sets what the last check answered, so
+    /// each state of the version item can be rendered without the network.
+    @_spi(TestSupport) public func preset(latest: String?) {
+        self.latest = latest
+        checkedAt = Date()
+    }
+
     /// A newer release than the one installed exists.
     public var isAvailable: Bool {
         latest.map { UpdateChecker.isNewer($0, than: installed) } ?? false

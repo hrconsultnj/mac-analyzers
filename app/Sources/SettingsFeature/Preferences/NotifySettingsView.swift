@@ -28,7 +28,7 @@ struct NotifySettingsView: View {
                 Stepper("Fallback (alerter) auto-close: \(config.notify.timeoutSeconds) s",
                         value: $config.notify.timeoutSeconds, in: 30...600, step: 30)
                 Toggle(isOn: menuSparkline) {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text("Memory sparkline in the menu bar")
                         Text("Last 30 minutes of memory-in-use next to the chip icon.")
                             .font(.caption)
@@ -38,7 +38,7 @@ struct NotifySettingsView: View {
             }
 
             Section("Maintenance") {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
                     Button("Fix Notifications…") {
                         NotificationPoster.shared.reRequestPermission { permissionStatus = $0 }
                     }
@@ -49,13 +49,13 @@ struct NotifySettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
                     Button("Restart Mac Analyzers") { GuardControl.restartApp() }
                     Text("Relaunches only this menu-bar app — your other work, sessions, and the background agents keep running untouched.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
                     Button("Restart Memory Guard") { GuardControl.restartGuard() }
                     Text("Restarts the background watcher process so saved limits and lists apply immediately.")
                         .font(.caption)

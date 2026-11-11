@@ -200,6 +200,40 @@ through `config.local.sh` (never hardcoded).
   component looks the same in every state — render each state to prove it.
   A fixed size is allowed only where it is the actual job (an icon tile, a
   chart), with a comment saying so.
+- **Native does not mean plainer, and a fix must not take things away**
+  (owner, 2026-11-10: "the icons, they're gone … you guys are just
+  introducing regressions"). A control that names a kind of thing shows its
+  icon AND its title (`Label(title, systemImage:)`) — find the native way to
+  show both, never drop the icon to make the native control easy. Before
+  replacing a screen or a control, list what the old one showed (icons,
+  counts, colour, a state, a shortcut): the new one shows all of it, or the
+  change says what was removed and why. Compare before and after renders for
+  what disappeared, not only for what improved.
+- **Toolbars adapt by priority, the way Activity Monitor's does.** For each
+  screen decide what the person uses most there — it stays visible at every
+  window width — what is secondary and moves into the system's overflow
+  menu first, and let search collapse to its icon. Use toolbar placements,
+  `visibilityPriority`, the system overflow and `.searchable`; nothing is
+  ever clipped at the window edge. With the search field focused, one click
+  anywhere else must take focus away and do what was clicked.
+- **Categories are tabs, groups are rows that open — never one long list**
+  (owner, 2026-11-10, after a run's results came up as about 300 rows in one
+  flat list: "these should be tabs … just like the monitor … a cohesive and
+  consistent scenario to apply uniformly"). The app has one way of going
+  from many things to one, the same on every screen: the screen is a sidebar
+  item; its categories (different kinds of thing) are the shared scope tabs
+  with icon, title and count; inside a category, rows are grouped under the
+  real thing they belong to (a project, an app, a day) as one parent row
+  with its count and total that opens to its members; one thing is a row
+  whose detail is the inspector or its own screen. The row model carries
+  the category and the group as typed data — never recovered by splitting a
+  title — and every level says how much is in it. Biggest or newest first;
+  rows that are nothing (0 KB) fold into one closed row. One tabs control
+  for the whole app: no second segmented control, chips, cards or button
+  rows standing in for tabs. A filter (the same rows, fewer) is a toolbar
+  menu or a search token, not a tab; a screen with one kind of thing has no
+  tabs. A run's screen shows its results in the same categories and groups
+  as the task's own screen.
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;
