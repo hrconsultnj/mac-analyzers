@@ -234,6 +234,35 @@ through `config.local.sh` (never hardcoded).
   menu or a search token, not a tab; a screen with one kind of thing has no
   tabs. A run's screen shows its results in the same categories and groups
   as the task's own screen.
+- **One table for rows that open: `OutlineTable`** (2026-11-11, after
+  measuring every SwiftUI hierarchical control — `Table` with
+  `DisclosureTableRow`, `Table(children:)`, `List` with `OutlineGroup`,
+  `DisclosureGroup` rows or `Section(isExpanded:)` — logging AppKit's
+  "reentrant operation in its NSTableView delegate. This warning will become
+  an assert in the future." when all groups open or the rows are re-sorted
+  in place; a flat SwiftUI `Table` re-sorted in place logs it too; the
+  released app logged it on screen). Every table whose rows open to other
+  rows, and every sortable table, is an `OutlineTable`
+  (`UIComponents/OutlineTable/`): columns declared like `Table`, the caller
+  sorts its own rows, and selection, open groups (`RememberedExpansion`,
+  kept per screen), ticks and section headers are the screen's own
+  bindings; cells are SwiftUI or plain text. Inside the component the
+  system view is changed only from its updater and never while AppKit is
+  calling in, and every write back to a binding happens on the next main
+  turn — a change that breaks either rule is a defect even when no warning
+  shows. It uses the system's standard row height (automatic row heights
+  bring the warning back); a cell that needs more lines declares them.
+  `scripts/check.sh outline` runs the two changes that used to warn
+  (`scripts/outline-probe.sh` has the full set); its refusal of the SwiftUI
+  hierarchical controls is switched on when the last screen has moved, and
+  until then do not add a new one. A `List` is for a history whose rows
+  push a screen: it never gains more than 200 rows in one update (newest
+  200, then "Show Older"). A `DisclosureGroup` around ONE block of content
+  (raw output, details) is fine. Need something the component does not do?
+  Add it there — never a second grouped table. This is a deliberate
+  departure from "SwiftUI controls only" in the rule above: the system's
+  outline view is the platform's control for hierarchical data, wrapped
+  once.
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;

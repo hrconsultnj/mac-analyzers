@@ -153,7 +153,7 @@ struct ActivityInspector: View {
         } else if let slot = SectionRegistry.runResults(for: row) {
             slot(row)
         } else if let section = sections.first(where: { RunTab(section: $0) == current }) {
-            RunResultsDefault(section: section).id(section.id)
+            RunResultsDefault(section: section, screen: "run.\(row.kind?.rawValue ?? row.log?.rawValue ?? "other")").id(section.id)
         } else if outcome == nil {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {

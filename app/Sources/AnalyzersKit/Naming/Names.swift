@@ -166,6 +166,43 @@ public enum Names {
         public static let notFenced = "Not Fenced"
     }
 
+    // MARK: - table column titles
+
+    /// The title of a column in `OutlineTable`, so the same column is called
+    /// the same on every screen that has it.
+    public enum Column {
+        public static let name = "Name"
+        public static let size = "Size"
+        public static let memory = "Memory"
+        public static let cpu = "CPU"
+        public static let pid = "PID"
+        public static let whatItIs = "What It Is"
+        public static let finding = "Finding"
+        public static let state = "State"
+        public static let kind = "Kind"
+        public static let belongsTo = "Belongs To"
+        public static let administrator = "Administrator"
+        public static let total = "Total"
+        public static let downloaded = "Downloaded"
+        public static let uploaded = "Uploaded"
+        public static let share = "Share"
+        public static let running = "Running"
+        public static let items = "Items"
+        public static let removed = "Removed"
+
+        /// Every title above, for the check.
+        public static let all = [name, size, memory, cpu, pid, whatItIs, finding, state, kind, belongsTo,
+                                 administrator, total, downloaded, uploaded, share, running, items, removed]
+    }
+
+    // MARK: - the closed row that holds what is empty
+
+    /// The one closed row at the end of a level that folds the rows with nothing in
+    /// them; `OutlineFolding` and every review table use this name.
+    public enum Fold {
+        public static let empty = "Nothing to Free"
+    }
+
     // MARK: - lookups by type
 
     /// What a task is called: the screen that holds it.
@@ -207,10 +244,7 @@ public enum Names {
     public enum Review {
         public static let selectAll = "Select All"
         public static let selectNone = "Select None"
-        public static let nothingToFree = "Nothing to Free"
         public static let previewAgain = "Preview Again"
-        public static let nameColumn = "Name"
-        public static let sizeColumn = "Size"
     }
 
     public enum Raw {
@@ -253,10 +287,11 @@ public enum Names {
                  Temp.ready, Temp.tooRecent, Temp.inUse, Temp.protected, Temp.notYours, Temp.leftAlone,
                  Temp.sizedOnly, Temp.cleared, Temp.failed].map { ("Temp", $0) }
         rows += [Fence.fenced, Fence.notFenced].map { ("Fence", $0) }
+        rows += Column.all.map { ("Column", $0) }
+        rows += [("Fold", Fold.empty)]
         rows += JobKind.allCases.map { ("Task \($0.rawValue)", job($0)) }
         rows += EngineLog.allCases.map { ("Log \($0.rawValue)", log($0)) }
-        rows += [Review.selectAll, Review.selectNone, Review.nothingToFree, Review.previewAgain,
-                 Review.nameColumn, Review.sizeColumn].map { ("Review", $0) }
+        rows += [Review.selectAll, Review.selectNone, Review.previewAgain].map { ("Review", $0) }
         rows += [Raw.screen, Raw.searchPrompt, Raw.copy, Raw.noOutput, Raw.showAll, Raw.showOlder].map { ("Raw", $0) }
         rows += TokenWords.all.map { ("Token \($0.token)", $0.label) }
         return rows.map { (table: $0.0, name: $0.1) }

@@ -15,10 +15,13 @@ struct RunTab: RawRepresentable, Hashable, Sendable {
 /// into one closed row. The categories are the tabs in the toolbar (`RunTabsModifier`).
 struct RunResultsDefault: View {
     let section: ActivityOutcome.Section
+    /// Which groups are open is remembered per kind of task ("run.<kind>", the key its tabs use).
+    let screen: String
     @State private var session: ReviewSession
 
-    init(section: ActivityOutcome.Section) {
+    init(section: ActivityOutcome.Section, screen: String) {
         self.section = section
+        self.screen = screen
         let rows = section.items.map {
             ReviewRow(id: "\($0.id)", name: $0.title, detail: $0.detail, group: $0.group,
                       bytes: $0.bytes, valueText: $0.bytes == nil ? $0.trailing : nil)
@@ -28,7 +31,8 @@ struct RunResultsDefault: View {
 
     var body: some View {
         ReviewTable(session: session, readOnly: true,
-                    note: section.hidden > 0 ? "and \(section.hidden.formatted()) more, smaller ones, are in the raw output" : nil)
+                    note: section.hidden > 0 ? "and \(section.hidden.formatted()) more, smaller ones, are in the raw output" : nil,
+                    screen: screen)
     }
 }
 

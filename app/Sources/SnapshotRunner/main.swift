@@ -33,6 +33,8 @@ import SwiftUI
 import SettingsFeature
 
 let arguments = Array(CommandLine.arguments.dropFirst())
+// `--outline-probe <action> …` drives the shared OutlineTable headless (OutlineProbe.swift); it never renders a screen
+if arguments.first == "--outline-probe" { OutlineProbe.run(Array(arguments.dropFirst())) }
 // the example screens (`review:fixture`) can be linked only in this process
 await MainActor.run { DeepLinkRouter.installFixtures() }
 guard arguments.count >= 2 else {
