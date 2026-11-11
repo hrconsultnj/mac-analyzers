@@ -17,6 +17,12 @@ public struct JobOutcome: Sendable {
     public let run: LogRun?
     public let match: RunMatcher.Match
 
+    @_spi(TestSupport) public init(parsed: Parsed, run: LogRun?, match: RunMatcher.Match) {
+        self.parsed = parsed
+        self.run = run
+        self.match = match
+    }
+
     /// Set when the run shown is a guess, so a screen can say so.
     public var note: String? {
         switch match {

@@ -35,6 +35,11 @@ public enum ForensicsParser {
 
     public static func parse(fileAt path: String) -> ForensicsSnapshot? {
         guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+        return parse(text: text)
+    }
+
+    /// The same parse over text already read (Activity holds a snapshot's lines).
+    public static func parse(text: String) -> ForensicsSnapshot {
         var header = ""
         var pressure: Int?
         var swap: String?

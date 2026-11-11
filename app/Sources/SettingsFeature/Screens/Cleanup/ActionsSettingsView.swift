@@ -16,7 +16,7 @@ import UIComponents
 ///   ActionsSettingsView+TempReview.swift   review of Temp & Agents
 ///   ActionsSettingsView+Approval.swift     per-item selection and the approved set
 ///   ActionsSettingsView+History.swift      previous runs, parsed from the logs
-///   ActionsSettingsView+Engine.swift       preview, apply, read the run back
+///   ActionsSettingsView+Engine.swift       preview and apply as jobs, read the run back from the job
 ///   AnalyzersKit/Jobs/ExitExplanation.swift  exit code to sentence
 struct ActionsSettingsView: View {
 
@@ -29,9 +29,15 @@ struct ActionsSettingsView: View {
         case failed(String)
     }
 
+    @Environment(JobStore.self) var jobs
     @Binding var preselect: String?
     @State var cleaner: Cleaner = .memoryClean
     @State var phase: Phase = .idle
+    /// This cleaner's jobs: the store's own, found again by kind when the
+    /// window is reopened. The review is of `previewJob`; an apply can only be
+    /// built from it (`JobStore.apply(from:approved:)`), and `applyJob` is that apply.
+    @State var previewJob: Job?
+    @State var applyJob: Job?
     /// Rows the user unticked in the review. Stored as the *exclusion* set so
     /// a fresh preview starts with everything approved, which is what the
     /// preview→apply flow has always implied.
@@ -48,7 +54,7 @@ struct ActionsSettingsView: View {
     @State var lastOutput = ""
     /// Storage only: deep mode adds stale node_modules + TM snapshot report
     /// (the engine's --mode deep), vs daily's build-caches-only pass.
-    @State private var storageDeep = false
+    @State var storageDeep = false
     /// Temp only: delete instead of moving to the Trash (the engine's --permanent).
     @State var tempPermanent = false
 
@@ -109,12 +115,14 @@ struct ActionsSettingsView: View {
             historySection
         }
         .onChange(of: cleaner) {
-            resetToIdle()
+            adoptCurrentJobs()
             Task { await loadHistory() }
         }
         .onChange(of: preselect) { consumePreselect() }
+        .onChange(of: jobStamps) { syncFromJobs() }
         .task {
             consumePreselect()
+            adoptCurrentJobs()
             await loadHistory()
         }
         .confirmationDialog(applyPrompt, isPresented: $confirmingApply, titleVisibility: .visible) {
@@ -122,7 +130,7 @@ struct ActionsSettingsView: View {
                 if cleaner == .tempClean && tempPermanent {
                     confirmingPermanent = true
                 } else {
-                    Task { await apply() }
+                    apply()
                 }
             }
             Button("Cancel", role: .cancel) {}
@@ -138,7 +146,7 @@ struct ActionsSettingsView: View {
         }
         .alert("Delete permanently — this can't be undone", isPresented: $confirmingPermanent) {
             Button("Delete \(ByteSize.format(tempSelectedBytes))", role: .destructive) {
-                Task { await apply() }
+                apply()
             }
             Button("Cancel", role: .cancel) {}
         } message: {

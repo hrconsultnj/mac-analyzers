@@ -15,41 +15,35 @@ extension ActionsSettingsView {
                     lastRunText
                     Spacer()
                     Button("See what would be cleaned") {
-                        Task { await preview() }
+                        preview()
                     }
                     .buttonStyle(.glassProminent)
                 }
             case .previewing:
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Checking what could be cleaned — nothing is being changed yet…")
+                    Text(previewJob?.step ?? "Checking what could be cleaned — nothing is being changed yet…")
                         .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Stop") { previewJob?.cancel() }
                 }
             case .review:
-                HStack {
-                    Label(reviewHeadline, systemImage: "eye")
-                        .font(.callout.weight(.medium))
-                    Spacer()
-                    if cleaner.isStorageShaped || cleaner == .tempClean {
-                        Picker("", selection: $sortByName) {
-                            Text("Size").tag(false)
-                            Text("Name").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .controlSize(.small)
-                        .frame(width: 110)
+                // redrawn once, at the moment the review stops being good (the
+                // timeline only says WHEN to draw; the clock decides what to draw)
+                TimelineView(.explicit(previewJob?.reviewExpiry.map { [$0] } ?? [])) { _ in
+                    if reviewExpired(previewJob) {
+                        expiredReview
+                    } else {
+                        reviewRow
                     }
-                    Button("Discard") { resetToIdle() }
-                    Button(applyButtonTitle) { confirmingApply = true }
-                        .buttonStyle(.glassProminent)
-                        .disabled(!hasAnythingToApply)
                 }
             case .applying:
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Applying — receipts are being written to the log…")
+                    Text(applyJob?.step ?? "Applying — receipts are being written to the log…")
                         .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Stop") { applyJob?.cancel() }
                 }
             case .done(let summary):
                 HStack {
@@ -94,6 +88,42 @@ extension ActionsSettingsView {
                     }
                 }
             }
+        }
+    }
+
+    /// The review row while it can still be applied.
+    private var reviewRow: some View {
+        HStack {
+            Label(reviewHeadline, systemImage: "eye")
+                .font(.callout.weight(.medium))
+            Spacer()
+            if cleaner.isStorageShaped || cleaner == .tempClean {
+                Picker("", selection: $sortByName) {
+                    Text("Size").tag(false)
+                    Text("Name").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.small)
+                .frame(width: 110)
+            }
+            Button("Discard") { resetToIdle() }
+            Button(applyButtonTitle) { confirmingApply = true }
+                .buttonStyle(.glassProminent)
+                .disabled(!hasAnythingToApply)
+        }
+    }
+
+    /// A review left open past the window: it says so, and offers a new one.
+    private var expiredReview: some View {
+        HStack {
+            Label("This review is more than \(Int(JobStore.reviewWindow / 60)) minutes old, so it can no longer be applied. Preview again to see what would be cleaned now.",
+                  systemImage: "clock.badge.exclamationmark")
+                .font(.callout.weight(.medium))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button("New preview") { preview() }
+                .buttonStyle(.glassProminent)
         }
     }
 

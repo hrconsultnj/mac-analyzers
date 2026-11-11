@@ -14,22 +14,10 @@ extension Route {
             case .system(let route): SystemGroup.destination(for: route)
             case .history(let route): HistoryGroup.destination(for: route)
             case .app(let route): AppGroup.destination(for: route)
-            case .run(let run): RunDetailView(route: run)
-            case .job(let id): JobPlaceholderView(id: id)
+            case .run(let run): RunScreen(reference: run)
+            case .job(let id): JobScreen(id: id)
             }
         }
         .navigationBarBackButtonHidden(true)
-    }
-}
-
-/// Stand-in for a job's screen until Activity exists.
-private struct JobPlaceholderView: View {
-    let id: UUID
-
-    var body: some View {
-        ContentUnavailableView("Job details are coming",
-                               systemImage: "clock.arrow.circlepath",
-                               description: Text("Tracked jobs open here once Activity is available."))
-            .navigationTitle("Job")
     }
 }

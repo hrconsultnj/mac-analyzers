@@ -3,7 +3,7 @@ import Foundation
 /// The suite's logs: which engine log a screen is reading, and where its file
 /// lives. How each one looks (title, symbol, tint) is the presentation
 /// extension in SettingsFeature.
-public enum EngineLog: String, CaseIterable, Identifiable {
+public enum EngineLog: String, CaseIterable, Identifiable, Sendable {
     case guardLog, memoryClean, reclaim, storageClean, janitor, tempSpace, persistence,
          loginItems, spotlightAudit, forensics
     public var id: String { rawValue }

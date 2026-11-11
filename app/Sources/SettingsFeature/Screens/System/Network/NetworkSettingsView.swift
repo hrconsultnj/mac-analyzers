@@ -7,8 +7,13 @@ import UIComponents
 /// "who's been phoning home" ledger, not a live speed meter. Read-only.
 struct NetworkSettingsView: View {
 
+    @Environment(JobStore.self) private var jobs
     @State private var snapshot: NetworkSnapshot?
-    @State private var refreshing = false
+    /// The snapshot job this screen shows: the store's own, found again by
+    /// kind when the window is reopened mid-run.
+    @State private var job: Job?
+
+    private var refreshing: Bool { job?.isActive ?? false }
 
     var body: some View {
         PaneScaffold(symbol: "network", color: .purple, title: "Network",
@@ -21,16 +26,22 @@ struct NetworkSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button {
-                        Task { await refresh() }
-                    } label: {
-                        if refreshing {
-                            ProgressView().controlSize(.small)
-                        } else {
+                    if refreshing {
+                        ProgressView().controlSize(.small)
+                        Button("Stop") { job?.cancel() }
+                    } else {
+                        Button {
+                            refresh()
+                        } label: {
                             Label("Snapshot now", systemImage: "arrow.clockwise")
                         }
                     }
-                    .disabled(refreshing)
+                }
+                if let message = job?.failureMessage {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Tokens.Status.destructive.tint)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             if let snapshot {
@@ -57,10 +68,16 @@ struct NetworkSettingsView: View {
             }
         }
         .task {
+            job = jobs.latest(.networkSnapshot, intents: [.run])
             await awaitLoad({ NetworkParser.latest(fromLog: AnalyzersPaths.networkLog) }) {
                 snapshot = $0
-                if $0 == nil { Task { await refresh() } }
+                if $0 == nil, job?.isActive != true { refresh() }
             }
+        }
+        // when the snapshot job ends, read what it wrote
+        .onChange(of: job?.stamp) { _, stamp in
+            guard let stamp, stamp.stage == .succeeded else { return }
+            Task { await reload() }
         }
     }
 
@@ -101,12 +118,13 @@ struct NetworkSettingsView: View {
         .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.tile))
     }
 
-    private func refresh() async {
-        refreshing = true
-        _ = await ActionRunner.run(script: AnalyzersPaths.networkScript, args: [])
+    private func refresh() {
+        job = jobs.enqueue(JobRequest(kind: .networkSnapshot, intent: .run), trigger: .user)
+    }
+
+    private func reload() async {
         snapshot = await Task.detached(priority: .userInitiated) {
             NetworkParser.latest(fromLog: AnalyzersPaths.networkLog)
         }.value
-        refreshing = false
     }
 }

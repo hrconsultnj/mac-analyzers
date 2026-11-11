@@ -9,12 +9,14 @@ import AnalyzersKit
 ///   SectionRegistry.swift    the order of the sidebar groups
 ///   SidebarView.swift        the rows
 ///   HistoryToolbar.swift     back and forward
+///   Screens/Activity/JobStatusToolbarItem.swift   the running job, on every screen
 ///   DeepLinkRouter.swift     target strings to locations
 ///   AppCommands.swift        the menu bar
 public struct MainWindowView: View {
     /// Holds the navigator so it is built once, on first use, instead of on
     /// every re-creation of this view struct.
     @State private var session = Session()
+    @Environment(JobStore.self) private var jobs
     private var navigator: Navigator { session.navigator }
 
     public init() {}
@@ -28,7 +30,10 @@ public struct MainWindowView: View {
         // On the split view, not on the stack inside it: a toolbar attached
         // to a NavigationStack itself (rather than to something inside it) is
         // dropped, which left the window with no Back or Forward button at all.
-        .toolbar { HistoryToolbar(navigator: navigator) }
+        .toolbar {
+            HistoryToolbar(navigator: navigator)
+            JobStatusToolbarItem(store: jobs, navigator: navigator)
+        }
         .frame(minWidth: 780, minHeight: 620)
         .environment(navigator)
         .focusedSceneValue(\.navigator, navigator)

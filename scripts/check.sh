@@ -33,7 +33,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 ROOT="$(cd "$(dirname "$0")/.." && pwd)" || exit 2
 cd "$ROOT" || exit 2
 
-ALL="syntax lint secrets changelog tests workflows strays app"
+ALL="syntax lint secrets changelog tests workflows strays spi app"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ma-check.XXXXXX")" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -53,6 +53,7 @@ describe() {
     tests)     echo "every executable under memory-analyzer/tests/ and tests/ (macOS only; skipped, visibly, elsewhere)" ;;
     workflows) echo "actionlint on .github/workflows (optional: skipped, visibly, when not installed)" ;;
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root" ;;
+    spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
   esac
 }
@@ -238,6 +239,31 @@ check_strays() {
   return 0
 }
 
+# The job store's test hooks (`scriptOverride`, `outcomeOverride`, the clock and
+# schedule readers, `JobOutcome.init`) are `@_spi(TestSupport)`: only code that
+# writes `@_spi(TestSupport) import AnalyzersKit` can see them. That is a compile-time
+# wall between our own targets, not a runtime one (the symbols are still in the
+# binary). This check keeps the wall where it is: the attribute may appear in
+# AnalyzersKit (where the hooks are declared) and in the two targets that are
+# never part of the shipped app's behaviour — AgentRunner's probes and
+# SnapshotRunner's fixtures — and nowhere else.
+# MA_SPI_ROOT points the check at another copy of app/Sources (used to prove it fails).
+check_spi() {
+  local root="${MA_SPI_ROOT:-$ROOT/app/Sources}"
+  if [ ! -d "$root" ]; then DETAIL="skipped: no app/Sources"; return 2; fi
+  local hits
+  hits="$(cd "$root" && grep -rnE '@_spi[[:space:]]*\([[:space:]]*TestSupport[[:space:]]*\)' --include='*.swift' . 2>/dev/null \
+    | grep -v '^\./AnalyzersKit/' | grep -v '^\./AgentRunner/' | grep -v '^\./SnapshotRunner/' || true)"
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" >"$OUT"
+    echo "the test-only interface is used outside AnalyzersKit, AgentRunner and SnapshotRunner" >>"$OUT"
+    DETAIL="$(printf '%s\n' "$hits" | wc -l | tr -d ' ') use(s) of @_spi(TestSupport) in the app's own code"
+    return 1
+  fi
+  DETAIL="@_spi(TestSupport) stays in AnalyzersKit, AgentRunner and SnapshotRunner"
+  return 0
+}
+
 check_app() {
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
   if [ ! -f app/Package.swift ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
@@ -314,7 +340,7 @@ if [ -n "$range" ]; then
       case "$n" in
         syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
         changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
-        app) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
+        app|spi) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
         secrets|strays) selected="$selected $n" ;;
       esac
     done

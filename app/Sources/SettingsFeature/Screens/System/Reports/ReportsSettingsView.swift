@@ -23,10 +23,7 @@ struct ReportsSettingsView: View {
                 : "What is using your disk: the biggest folders, caches worth clearing, large and duplicate files, and how much is genuinely reclaimable."
         }
 
-        var script: URL {
-            self == .memory ? AnalyzersPaths.memoryAnalyzeScript
-                            : AnalyzersPaths.storageAnalyzeScript
-        }
+        var jobKind: JobKind { self == .memory ? .memoryReport : .storageReport }
 
         var latest: URL {
             self == .memory ? AnalyzersPaths.memoryLatestReport
@@ -39,11 +36,17 @@ struct ReportsSettingsView: View {
         }
     }
 
-    @State private var running: Kind?
-    @State private var error: String?
+    @Environment(JobStore.self) private var jobs
+    /// Each report's job: the store's own, found again by kind when the
+    /// window is reopened mid-run.
+    @State private var runs: [Kind: Job] = [:]
     @State private var body_: [Kind: String] = [:]
     @State private var stamps: [Kind: Date] = [:]
     @State private var showing: Kind?
+
+    private var running: Kind? { Kind.allCases.first { runs[$0]?.isActive ?? false } }
+    private var error: String? { Kind.allCases.lazy.compactMap { runs[$0]?.failureMessage }.first }
+    private var jobStamps: [JobStamp] { Kind.allCases.map { JobStamp(runs[$0]) } }
 
     var body: some View {
         PaneScaffold(symbol: "doc.text.magnifyingglass", color: .purple, title: "Reports",
@@ -73,8 +76,12 @@ struct ReportsSettingsView: View {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer(minLength: Tokens.Space.m)
+                            if running == kind {
+                                ProgressView().controlSize(.small)
+                                Button("Stop") { runs[kind]?.cancel() }
+                            }
                             Button(running == kind ? "Working…" : "Run") {
-                                Task { await run(kind) }
+                                run(kind)
                             }
                             .buttonStyle(.glassProminent)
                             .disabled(running != nil)
@@ -112,7 +119,17 @@ struct ReportsSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .task { await loadExisting() }
+        .task {
+            for kind in Kind.allCases { runs[kind] = jobs.latest(kind.jobKind, intents: [.run]) }
+            await loadExisting()
+        }
+        // when a report job ends, read what it wrote and show it
+        .onChange(of: jobStamps) { old, new in
+            for (kind, (before, after)) in zip(Kind.allCases, zip(old, new))
+            where before != after && after.stage == .succeeded {
+                Task { await finished(kind) }
+            }
+        }
     }
 
     private func loadExisting() async {
@@ -129,15 +146,11 @@ struct ReportsSettingsView: View {
         }
     }
 
-    private func run(_ kind: Kind) async {
-        running = kind
-        error = nil
-        defer { running = nil }
-        let result = await ActionRunner.run(script: kind.script, args: [])
-        guard result.exitCode == 0 else {
-            error = ExitExplanation.explain(exitCode: result.exitCode, verb: "write the report")
-            return
-        }
+    private func run(_ kind: Kind) {
+        runs[kind] = jobs.enqueue(JobRequest(kind: kind.jobKind, intent: .run), trigger: .user)
+    }
+
+    private func finished(_ kind: Kind) async {
         await LoadCoordinator.shared.invalidateAll()
         await loadExisting()
         showing = kind

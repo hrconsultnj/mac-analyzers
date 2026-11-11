@@ -19,9 +19,9 @@ public struct JobOptions: Sendable, Hashable, Codable {
     public var recordingsDays = 90
 
     /// A scheduled run replayed by hand ("Run now"): the arguments from the
-    /// installed launchd plist, after the script path. Only a job whose trigger
-    /// is `.schedule` may carry these (see `JobStore.refusal`), because they
-    /// usually include `--apply`.
+    /// installed launchd plist, after the script path. The store fills this in
+    /// itself from the plist for a `.schedule(label)` run, and ignores whatever a
+    /// caller put here: they usually include `--apply`.
     public var scheduleArguments: [String]?
 
     public init(deep: Bool = false, permanent: Bool = false, mountPoint: String? = nil,

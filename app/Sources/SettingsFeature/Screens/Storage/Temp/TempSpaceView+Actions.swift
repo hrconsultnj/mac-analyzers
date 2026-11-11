@@ -3,41 +3,63 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// Run audit, eject, open Actions, and loading the latest audit.
+/// Run audit and eject as jobs, open Actions, and loading the latest audit.
 extension TempSpaceView {
 
     // MARK: - actions
 
-    func runAudit() async {
-        runPhase = .running("Auditing /tmp, /var and agent folders — nothing is being changed…")
-        let result = await ActionRunner.run(script: AnalyzersPaths.tempCleanScript, args: ["--dry-run"])
-        guard result.exitCode == 0 else {
-            runPhase = .failed(ExitExplanation.explain(exitCode: result.exitCode, verb: "run the audit"))
-            return
-        }
-        runPhase = .done("Audit complete.")
-        await load(force: true)
+    /// The audit is a preview job of the temp cleaner — the same job the
+    /// Actions screen adopts, so a review can follow it directly.
+    func runAudit() {
+        job = jobs.enqueue(JobRequest(kind: .tempClean, intent: .preview), trigger: .user)
     }
 
     /// `--eject <mountpoint>`: the engine ejects dependents first (an image
     /// opened from inside this one), never forced, then re-audits — so the
     /// pane reloads into a run that already reflects the eject.
-    func eject(_ mount: TempMount) async {
+    func eject(_ mount: TempMount) {
         ejecting = nil
-        let name = (mount.mountPoint as NSString).lastPathComponent
-        runPhase = .running("Ejecting \(name)…")
-        let result = await ActionRunner.run(script: AnalyzersPaths.tempCleanScript,
-                                            args: ["--eject", mount.mountPoint])
-        guard result.exitCode == 0 else {
-            runPhase = .failed(ExitExplanation.explain(exitCode: result.exitCode, verb: "eject \(name)"))
-            return
+        ejectProblem = nil
+        job = jobs.enqueue(JobRequest(kind: .eject, intent: .run,
+                                      options: JobOptions(mountPoint: mount.mountPoint)),
+                           trigger: .user)
+    }
+
+    /// The line under the action row, read off the job.
+    var runPhase: RunPhase {
+        guard let job else { return .idle }
+        let image = job.request.options.mountPoint.map { ($0 as NSString).lastPathComponent } ?? "disk image"
+        switch job.state {
+        case .queued:
+            return .running("Waiting for the running job to finish…")
+        case .running:
+            return .running(job.kind == .eject
+                            ? "Ejecting \(image)…"
+                            : "Auditing /tmp, /var and agent folders — nothing is being changed…")
+        case .succeeded:
+            if job.kind == .eject { return ejectProblem.map { .failed($0) } ?? .done("Ejected \(image).") }
+            return .done("Audit complete.")
+        case .failed(let failure):
+            return .failed(failure.message)
+        case .cancelled:
+            return .idle
         }
+    }
+
+    func adoptCurrentJob() {
+        // running, or recent: an audit from hours ago is not shown as "Audit complete"
+        job = jobs.adoptable { ($0.kind == .tempClean && $0.intent == .preview) || $0.kind == .eject }
+    }
+
+    /// The job ended well: read what it wrote. After an eject, check that the
+    /// image really went — the script can succeed while something still reads it.
+    func jobSucceeded() async {
         await load(force: true)
-        let after = run?.mounts.first { $0.mountPoint == mount.mountPoint }
+        guard let job, job.kind == .eject, let mountPoint = job.request.options.mountPoint else { return }
+        let after = run?.mounts.first { $0.mountPoint == mountPoint }
         if after?.status == .ejectFailed {
-            runPhase = .failed("Couldn't eject \(name) — something is still reading from it. Close it there, then try again.")
-        } else {
-            runPhase = .done("Ejected \(name).")
+            let name = (mountPoint as NSString).lastPathComponent
+            ejectProblem = "Couldn't eject \(name) — something is still reading from it. Close it there, then try again."
         }
     }
 

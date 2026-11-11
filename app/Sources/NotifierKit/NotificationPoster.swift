@@ -112,6 +112,24 @@ public final class NotificationPoster: NSObject {
         }
     }
 
+    /// A job ended. Posted only when the main window is not the key window —
+    /// someone looking at it already sees the result in the status item. A click
+    /// opens `job:<uuid>` in Activity (the same pane-target path every
+    /// notification uses).
+    public func postJobFinished(id: UUID, task: String, result: String, failed: Bool) {
+        guard !Self.mainWindowIsKey else { return }
+        post(title: "Mac Analyzers",
+             subtitle: failed ? "\(task) didn't finish" : "\(task) finished",
+             message: result, sound: nil, logPath: nil,
+             paneTarget: "job:\(id.uuidString)")
+    }
+
+    /// The main window is on screen, in front, and the app is active.
+    private static var mainWindowIsKey: Bool {
+        guard NSApp.isActive, let key = NSApp.keyWindow else { return false }
+        return key.identifier?.rawValue.lowercased().contains("main") ?? false
+    }
+
     // MARK: - click handling helpers
 
     func openApp() {

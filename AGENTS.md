@@ -20,6 +20,10 @@ our own pushes, so never use `git push --no-verify`. A push starts no GitHub
 workflow; the workflows run the same script for pull requests only (Linux for
 what Linux can judge, a Mac runner for the engine tests and the app build).
 
+Warnings are defects: never hide, defer or suppress a compiler or shellcheck
+warning. Fix its cause from the current documentation; a suppression needs a
+comment saying why it is the right design there. New code adds none.
+
 Hard rules (from CONTRIBUTING.md, enforced in review):
 
 1. Analyzers are read-only; cleaners are dry-run unless `--apply`/`--execute`.
@@ -48,7 +52,10 @@ files — each group owns its section ids, rows, screens, routes and deep-link
 aliases, and `Shell/SectionRegistry.swift` only fixes the group order. Deep-link
 strings resolve in `Shell/DeepLinkRouter.swift`. Every log is a structured
 screen, TextEdit as escape hatch; menu rows live in MenuComponents.swift; the engine stays
-bash — the app is a control surface, never a reimplementation. Verify
+bash — the app is a control surface, never a reimplementation. Every engine
+action is a tracked job from the one `JobStore` the app owns (a cleaner apply
+only via `JobStore.apply(from:approved:)`); Activity lists every run, and the
+window toolbar and menu panel show the running job. Verify
 `cd app && swift build`, then `./app/build.sh` (rebuild + reinstall to
 /Applications) and relaunch. UI traps (v2.7.1): pane header stays INSIDE the
 Form; no `.scrollEdgeEffectStyle(.hard)` in the Settings window;

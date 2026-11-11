@@ -41,6 +41,8 @@ struct SettingsAnchorView: View {
 struct MenuBarLabelView: View {
     let killsToday: Int
     let history: PressureHistory
+    let updates: UpdateState
+    let jobs: JobStore
     @AppStorage("menuSparklineEnabled") private var sparklineEnabled = true
     @Environment(\.openWindow) private var openWindow
 
@@ -60,6 +62,14 @@ struct MenuBarLabelView: View {
                 Text("\(killsToday)")
             }
         }
+        // The label is alive for the app's whole life, so it starts the
+        // release checks that every reader of `UpdateState` shares.
+        .task {
+            updates.startChecking()
+            QuitGuard.jobs = jobs      // so quitting while a job runs can ask first
+            updates.jobs = jobs        // and installing an update cannot start under one
+        }
+        .notifyWhenJobsFinish(jobs)
         .onReceive(NotificationCenter.default.publisher(
             for: NotifyChannel.openSettingsInternal)) { note in
             SettingsOpener.markHandled(by: "menu-bar-label")
@@ -74,6 +84,10 @@ struct MacAnalyzersApp: App {
     @State private var store = GuardLogStore()
     @State private var config = ConfigStore()
     @State private var pressureHistory = PressureHistory()
+    /// The ONE job store and the ONE update state, owned here so a job outlives
+    /// every window and both scenes read the same ones. Screens never create their own.
+    @State private var jobs = JobStore()
+    @State private var updates = UpdateState()
 
     /// Brand chip glyph from Contents/Resources (hand-copied by build.sh —
     /// deliberately Bundle.main, not Bundle.module; see research on SPM
@@ -91,12 +105,15 @@ struct MacAnalyzersApp: App {
             MenuContentView()
                 .environment(store)
                 .environment(config)
+                .environment(jobs)
+                .environment(updates)
                 .frame(width: 420)
         } label: {
             // brand chip glyph as a TEMPLATE image (black+alpha, macOS tints
             // it for light/dark/translucency); SF-symbol fallback if missing.
             // The badge is the count of today's kills.
-            MenuBarLabelView(killsToday: store.killsToday, history: pressureHistory)
+            MenuBarLabelView(killsToday: store.killsToday, history: pressureHistory,
+                             updates: updates, jobs: jobs)
         }
         .menuBarExtraStyle(.window)
 
@@ -119,6 +136,8 @@ struct MacAnalyzersApp: App {
             MainWindowView()
                 .environment(store)
                 .environment(config)
+                .environment(jobs)
+                .environment(updates)
         }
         .windowToolbarStyle(.unified(showsTitle: true))
         .defaultSize(width: 1100, height: 720)

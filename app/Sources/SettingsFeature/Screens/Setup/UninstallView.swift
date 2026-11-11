@@ -9,10 +9,14 @@ import UIComponents
 struct UninstallView: View {
 
     @Environment(GuardLogStore.self) private var store
+    @Environment(JobStore.self) private var jobs
     @State private var busy = false
     @State private var result: String?
     @State private var failed = false
     @State private var confirming: Level?
+    /// The uninstall job this screen shows: the store's own, found again by
+    /// kind when the window is reopened mid-run.
+    @State private var job: Job?
 
     enum Level: String, Identifiable {
         case pause, background, everything
@@ -78,6 +82,17 @@ struct UninstallView: View {
                     }
                 }
             }
+            if let job, job.isActive {
+                Section {
+                    HStack {
+                        ProgressView().controlSize(.small)
+                        Text(job.step ?? "Turning off background protection…")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Stop") { job.cancel() }
+                    }
+                }
+            }
             Section {
                 Text("What stays either way: your reports and logs under ~/mac-analyzers/reports, and anything you configured. This app never deletes your data.")
                     .font(.caption)
@@ -96,6 +111,18 @@ struct UninstallView: View {
         } message: {
             Text(confirming?.confirmMessage ?? "")
         }
+        .task { await adoptRunning() }
+    }
+
+    /// The window was closed while the agents were being turned off: show it
+    /// still working, then say what is true once it ends.
+    private func adoptRunning() async {
+        guard let running = jobs.latest(.uninstallAgents, intents: [.run]), running.isActive else { return }
+        job = running
+        busy = true
+        defer { busy = false }
+        await running.waitUntilFinished()
+        await reportAgentsOff()
     }
 
     private func run(_ level: Level) async {
@@ -115,24 +142,17 @@ struct UninstallView: View {
             }
 
         case .background, .everything:
-            for script in [AnalyzersPaths.suiteRoot.appending(path: "memory-analyzer/memory-manage-agents.sh"),
-                           AnalyzersPaths.suiteRoot.appending(path: "storage-analyzer/storage-manage-agents.sh")]
-            where FileManager.default.isExecutableFile(atPath: script.path) {
-                _ = await ActionRunner.run(script: script, args: ["uninstall"])
+            let uninstall = jobs.enqueue(JobRequest(kind: .uninstallAgents, intent: .run), trigger: .user)
+            job = uninstall
+            await uninstall.waitUntilFinished()
+            if case .cancelled = uninstall.state {
+                result = "Stopped. Some background jobs may already be off — check the Setup screen."
+                failed = true
+                store.reload()
+                return
             }
             GuardControl.disableLoginItem()
-
-            // Prove it rather than claim it.
-            let status = await Task.detached(priority: .userInitiated) {
-                EngineStatus.probe()
-            }.value
-            let stillLoaded = (status.guardAgent == .loaded ? 1 : 0)
-                + status.cleanerAgents.values.filter { $0 == .loaded }.count
-            failed = stillLoaded > 0
-            result = stillLoaded == 0
-                ? "Background protection is off — no scheduled jobs remain loaded, and the app no longer opens at login."
-                : "\(stillLoaded) background job(s) are still loaded. Try again, or remove them in System Settings › General › Login Items."
-            store.reload()
+            await reportAgentsOff()
 
             if level == .everything, !failed {
                 NSWorkspace.shared.activateFileViewerSelecting([
@@ -141,5 +161,19 @@ struct UninstallView: View {
                 ])
             }
         }
+    }
+
+    /// Prove it rather than claim it: re-read the real engine state.
+    private func reportAgentsOff() async {
+        let status = await Task.detached(priority: .userInitiated) {
+            EngineStatus.probe()
+        }.value
+        let stillLoaded = (status.guardAgent == .loaded ? 1 : 0)
+            + status.cleanerAgents.values.filter { $0 == .loaded }.count
+        failed = stillLoaded > 0
+        result = stillLoaded == 0
+            ? "Background protection is off — no scheduled jobs remain loaded, and the app no longer opens at login."
+            : "\(stillLoaded) background job(s) are still loaded. Try again, or remove them in System Settings › General › Login Items."
+        store.reload()
     }
 }

@@ -65,6 +65,17 @@ through `config.local.sh` (never hardcoded).
   app. Both only call `scripts/check.sh` and only verify. After changing a
   workflow, prove it on a pull request (or start it by hand once it is on
   `main`) and watch it to the end: `gh run watch <id> --exit-status`.
+- **Warnings are defects, not noise.** A compiler or shellcheck warning says
+  the code uses something in a way its documentation does not intend —
+  usually because it was written from memory. Never hide, defer or
+  suppress one to get a build through: look up the current documentation
+  and fix the cause. A suppression (`@preconcurrency import`,
+  `nonisolated(unsafe)`, `@unchecked Sendable`, `# shellcheck disable=`)
+  needs a comment saying why it is the right design at that spot. New code
+  adds none — check with a CLEAN build (`swift build --build-path
+  <scratch>`), because an incremental build does not repeat warnings for
+  files it did not recompile. The existing ones are being taken to zero,
+  after which the build and `scripts/check.sh` refuse any.
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
   output. The one automated suite is `memory-analyzer/tests/`; otherwise the
   dry-run IS the test. For the app:
@@ -131,6 +142,41 @@ through `config.local.sh` (never hardcoded).
   built; cancel terminates the whole descendant tree; engine scripts are
   executed directly (their own `#!/usr/bin/env bash`) with the launchd
   plists' PATH — never forced through `/bin/bash`, which is 3.2.
+- Jobs on screen: `MacAnalyzersApp` owns the ONE `JobStore` and ONE
+  `UpdateState` and injects both into the main window and the menu-bar panel;
+  a screen never creates a store. Every button that starts an engine script
+  enqueues a job (`ActionRunner` is no longer called from a screen) and a
+  converted screen finds its job again by kind on appear (`Shared/JobAdoption`).
+  A cleaner apply goes only through `JobStore.apply(from:approved:)` with an
+  `ApprovedSet` — a list that cannot be written stops the apply. A finished
+  preview is adopted again by a screen only while it is recent (15 minutes) and
+  not dismissed (`JobStore.dismiss`), and Apply is never enabled past that.
+  Activity (`Screens/Activity/`) is a day-grouped `List` ("Running now", one
+  collapsible section per day, "Hasn't run yet") of every job plus every run in
+  the engine logs, joined with the job index in
+  `AnalyzersKit/Activity/ActivityJoin` so a run is listed once, with a row id
+  built from log + banner + ordinal (never a file position). A row pushes the
+  run's own screen (`Route.job(uuid)` for tracked runs, `Route.run(RunReference)`
+  for logged ones); who started an untracked run is inferred from the run's
+  own flags or its timing and is "Unknown" otherwise. "Needs review" means a
+  store preview finished within `JobStore.reviewWindow` and not dismissed — the
+  kernel's `apply(from:)` refuses anything older. Quitting with a job running
+  asks (Stop and Quit / Quit and Let It Finish / Cancel) in
+  `NotifierKit/AppDelegate+Quit.swift` (a quit macOS starts — logout, restart,
+  shutdown — never asks; in-app Install refuses while a job runs). The job
+  store's test hooks (`scriptOverride`, `outcomeOverride`, the clock, the schedule
+  reader) are `@_spi(TestSupport)`: only `AgentRunner` and `SnapshotRunner`
+  import that interface, `scripts/check.sh spi` fails if anything else does, and
+  it is a compile-time wall between our own targets, not a runtime one. For a
+  scheduled replay the store reads the installed plist's arguments itself. The shell's `.status`
+  toolbar item (`JobStatusToolbarItem`, attached to the split view, never to a
+  stack) and the menu panel's `MenuJobsStrip` show the running job, and
+  `job:<uuid>` opens it. Look at it headless with `SnapshotRunner jobs|activity:failed|
+  activity:review|activity:collapsed|activity:run:<log>|job:<uuid> out.png`
+  (`--fake-running`/`--fake-failed` start a throwaway test job). `agent-runner
+  --probe-activity [--real]` prints the sections, `--probe-activity-ids` proves
+  ids survive a log growing, `--probe-failures` prints the failure sentences, and
+  `--probe-pid-recycle` proves a stop refuses a recycled pid.
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;

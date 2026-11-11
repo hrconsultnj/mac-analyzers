@@ -14,10 +14,11 @@ import UIComponents
 ///   TempSpaceView+Overview.swift           Where the space is: free space, temp on disk, disk images, agent folders.
 ///   TempSpaceView+Mounts.swift             Mounted disk images, told apart from real disk use, with Eject.
 ///   TempSpaceView+Items.swift              The audited rows, grouped by where they live, with filter chips and Finder reveal.
-///   TempSpaceView+Actions.swift            Run audit, eject, open Actions, and loading the latest audit.
+///   TempSpaceView+Actions.swift            Run audit and eject as jobs, open Actions, and loading the latest audit.
 struct TempSpaceView: View {
 
     @Environment(Navigator.self) var navigator
+    @Environment(JobStore.self) var jobs
 
     enum Filter: String, CaseIterable {
         case ready = "Ready"
@@ -37,7 +38,11 @@ struct TempSpaceView: View {
 
     @State var run: TempCleanRun?
     @State var filter: Filter = .ready
-    @State var runPhase: RunPhase = .idle
+    /// The audit or eject this screen shows: the store's own job, found again
+    /// by kind when the window is reopened mid-run. `runPhase` is read off it.
+    @State var job: Job?
+    /// Set when an eject "succeeded" but the image is still mounted.
+    @State var ejectProblem: String?
     /// Sections showing every row rather than the biggest few.
     @State var expanded: Set<String> = []
     @State var ejecting: TempMount?
@@ -50,7 +55,7 @@ struct TempSpaceView: View {
             Section {
                 HStack {
                     Spacer(minLength: 8)
-                    Button("Run audit") { Task { await runAudit() } }
+                    Button("Run audit") { runAudit() }
                         .disabled(isBusy)
                         .help("Runs temp-clean.sh --dry-run and refreshes this pane. Changes nothing.")
                     Button("Review & clean…") { openActions() }
@@ -88,12 +93,19 @@ struct TempSpaceView: View {
                 }
             }
         }
-        .task { await load() }
+        .task {
+            adoptCurrentJob()
+            await load()
+        }
+        .onChange(of: job?.stamp) { _, stamp in
+            guard let stamp, stamp.stage == .succeeded else { return }
+            Task { await jobSucceeded() }
+        }
         .confirmationDialog(ejectPrompt, isPresented: Binding(
             get: { ejecting != nil }, set: { if !$0 { ejecting = nil } }),
                             titleVisibility: .visible) {
             Button("Eject") {
-                if let mount = ejecting { Task { await eject(mount) } }
+                if let mount = ejecting { eject(mount) }
             }
             Button("Cancel", role: .cancel) { ejecting = nil }
         } message: {
@@ -109,6 +121,9 @@ struct TempSpaceView: View {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.small)
                 Text(label).font(.caption).foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Button("Stop") { job?.cancel() }
+                    .controlSize(.small)
             }
         case .done(let summary):
             Label(summary, systemImage: "checkmark.circle.fill")

@@ -56,6 +56,23 @@ public enum ScheduleKit {
         AnalyzersPaths.home.appending(path: "Library/LaunchAgents/\(label).plist")
     }
 
+    /// What the INSTALLED plist passes to the script: `ProgramArguments` after
+    /// the script path (the entry before it is the runner). nil when the agent
+    /// is not installed.
+    public static func programArguments(for label: String) -> [String]? {
+        scriptAndArguments(for: label)?.arguments
+    }
+
+    /// The script path and arguments the installed plist runs.
+    public static func scriptAndArguments(for label: String) -> (script: String, arguments: [String])? {
+        guard let data = try? Data(contentsOf: plistURL(for: label)),
+              let dict = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              let program = dict["ProgramArguments"] as? [String],
+              let at = program.firstIndex(where: { $0.hasSuffix(".sh") })
+        else { return nil }
+        return (program[at], Array(program[(at + 1)...]))
+    }
+
     public static func schedule(for label: String) -> Schedule? {
         guard let data = try? Data(contentsOf: plistURL(for: label)),
               let dict = try? PropertyListSerialization.propertyList(from: data, format: nil)

@@ -28,8 +28,30 @@ heading becomes its version and title.
   nothing is lost when the app updates.
 - The Update screen shows exactly which build you are running, not only the
   version number.
+- Cleanups and checks now run in the background with live progress. You can
+  close the window, watch them from the menu bar, stop them at any time, and
+  see everything that ran, whether you or the schedule started it, in the new
+  Activity screen. Activity lists each day's runs with what they freed or
+  found, and clicking one opens a page that says what it did. A preview you
+  can still apply is marked as waiting for your review; older previews stay
+  in the list as what they found, with a button to preview again.
+- When a cleanup or check finishes while the window is closed or not in front,
+  a notification tells you how it went and opens that run.
+- A cleanup that cannot record which items you approved now stops instead of
+  acting on everything. A review you left open for more than fifteen minutes,
+  or discarded, can no longer be applied; you are asked to preview again.
+- If you quit Mac Analyzers while a cleanup or check is running, it asks
+  whether to stop it or let it finish in the background. Either way the run
+  still appears in Activity with who started it. Restarting or logging out
+  with something running simply stops it, and installing an update waits until
+  it is done.
 - Fixed: web-page processes belonging to Safari and other apps were listed
   under the name "com" in the menu-bar process list.
+- Fixed: updating Mac Analyzers could fail to restart the memory guard and
+  show "Bootstrap failed: 5: Input/output error". The guard could be left
+  switched off, or running its previous settings, until you next logged in.
+  Updating and Setup now wait for the old copy to stop before starting the
+  new one, and say plainly if a background job could not be started.
 - Fixed: when a cleanup moved several items with the same name to the Trash
   in the same second, a later one could take the place of an earlier one.
   Each now gets its own name.

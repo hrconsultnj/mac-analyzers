@@ -6,6 +6,8 @@ import UIComponents
 /// repo's upgrade.command (runs in Terminal so progress is visible).
 struct UpdateSettingsView: View {
 
+    @Environment(UpdateState.self) private var updates
+
     @State private var latest: String?
     @State private var checking = false
     @State private var notes: [ReleaseNote] = []
@@ -53,7 +55,7 @@ struct UpdateSettingsView: View {
                     }
                     .disabled(checking)
                     Spacer()
-                    Button("Install Update…") { GuardControl.runUpgrade() }
+                    Button("Install Update…") { updates.requestInstall() }
                         .buttonStyle(.glassProminent)
                         .disabled(!updateAvailable)
                 }

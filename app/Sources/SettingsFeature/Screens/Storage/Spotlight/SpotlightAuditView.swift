@@ -14,7 +14,7 @@ import UIComponents
 ///   SpotlightAuditView+Status.swift        Section 1: whether Spotlight indexing is on and how it is going.
 ///   SpotlightAuditView+Verdict.swift       Section 2: the stuck-versus-progressing verdict and the copyable manual commands.
 ///   SpotlightAuditView+Exposure.swift      Section 3: unfenced dev directories as a sized, filterable, fence-able list.
-///   SpotlightAuditView+Actions.swift       Run the audit, apply fences, and load the latest audit.
+///   SpotlightAuditView+Actions.swift       Run the audit and apply fences as jobs, and load the latest audit.
 struct SpotlightAuditView: View {
 
     enum Filter: String, CaseIterable {
@@ -35,10 +35,13 @@ struct SpotlightAuditView: View {
         case failed(String)
     }
 
+    @Environment(JobStore.self) var jobs
     @State var run: SpotlightAuditRun?
     @State var filter: Filter = .all
     @State var copiedCommand: String?
-    @State var runPhase: RunPhase = .idle
+    /// The audit or the fencing this screen shows: the store's own job, found
+    /// again by kind when the window is reopened mid-run. `runPhase` is read off it.
+    @State var job: Job?
     @State private var confirmingApply = false
     /// Bumped after a per-row fence/unfence so SwiftUI re-renders — the
     /// change itself is a bare FileManager side effect it has no other way
@@ -51,13 +54,20 @@ struct SpotlightAuditView: View {
             Section {
                 HStack {
                     Spacer(minLength: 8)
-                    Button("Run audit") { Task { await runAudit() } }
+                    Button("Run audit") { runAudit() }
                         .disabled(isBusy)
                         .help("Runs spotlight-audit.sh --dry-run and refreshes this pane. Changes nothing.")
-                    Button("Apply fences") { confirmingApply = true }
-                        .buttonStyle(.glassProminent)
-                        .disabled(isBusy)
-                        .help("Runs spotlight-audit.sh --apply — fences every unfenced dev directory found under the configured roots.")
+                    // redrawn once, when the audit stops being recent enough to apply from
+                    TimelineView(.explicit(jobs.latest(.spotlight, intents: [.preview])?.reviewExpiry.map { [$0] } ?? [])) { _ in
+                        Button("Apply fences") { confirmingApply = true }
+                            .buttonStyle(.glassProminent)
+                            .disabled(isBusy || reviewedAudit == nil)
+                            .help(reviewedAudit == nil
+                                  ? (reviewExpired
+                                     ? "The last audit is more than \(Int(JobStore.reviewWindow / 60)) minutes old. Run the audit again — fences are applied from an audit you have just seen."
+                                     : "Run the audit first — fences are applied from an audit you have just seen.")
+                                  : "Runs spotlight-audit.sh --apply — fences every unfenced dev directory found under the configured roots.")
+                    }
                     Button("Open in TextEdit") { GuardControl.openLog(AnalyzersPaths.spotlightAuditLog) }
                     Button {
                         Task { await load() }
@@ -72,6 +82,9 @@ struct SpotlightAuditView: View {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
                         Text(label).font(.caption).foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
+                        Button("Stop") { job?.cancel() }
+                            .controlSize(.small)
                     }
                 case .done(let summary):
                     Label(summary, systemImage: "checkmark.circle.fill")
@@ -106,10 +119,17 @@ struct SpotlightAuditView: View {
                 }
             }
         }
-        .task { await load() }
+        .task {
+            adoptCurrentJob()
+            await load()
+        }
+        .onChange(of: job?.stamp) { _, stamp in
+            guard let stamp, stamp.stage == .succeeded else { return }
+            Task { await load(force: true) }
+        }
         .confirmationDialog(applyPrompt, isPresented: $confirmingApply, titleVisibility: .visible) {
             Button("Apply fences", role: .destructive) {
-                Task { await applyFences() }
+                applyFences()
             }
             Button("Cancel", role: .cancel) {}
         } message: {

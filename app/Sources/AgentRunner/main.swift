@@ -7,7 +7,7 @@
 // signing identity), and this binary immediately BECOMES the engine script
 // via execv — the engine stays bash, only the doorway is compiled.
 import Foundation
-import AnalyzersKit
+@_spi(TestSupport) import AnalyzersKit
 
 let args = Array(CommandLine.arguments.dropFirst())
 
@@ -114,6 +114,50 @@ if args.first == "--probe-ledger-stress" {
     exit(lines.count <= JobLedger.lineCap ? 0 : 1)
 }
 
+// `agent-runner --probe-activity [--real]` prints Activity's sections as text;
+// `--probe-activity-ids` proves a row's id survives its log growing;
+// `--probe-failures` prints the failure sentences. See ActivityProbes.swift.
+if args.first == "--probe-activity" {
+    await probeActivity(real: args.contains("--real"))
+}
+if args.first == "--probe-activity-ids" {
+    await probeActivityIDs()
+}
+if args.first == "--probe-failures" {
+    await probeFailures()
+}
+// `--probe-review-rules` shows what `apply(from:)` itself refuses; `--probe-quit`
+// shows what each choice of the quit dialog does to the store. See ReviewProbes.swift.
+if args.first == "--probe-review-rules" {
+    await probeReviewRules()
+}
+if args.first == "--probe-quit" {
+    await probeQuit()
+}
+
+// `agent-runner --probe-pid-recycle` proves a stop refuses a recycled pid.
+// It starts a `sleep`, remembers its birth, then asks the signal path to act
+// twice: once with a birth one second off, which is what a recycled pid looks
+// like (it must refuse), and once with the birth it really has (it must signal).
+if args.first == "--probe-pid-recycle" {
+    let sleeper = Process()
+    sleeper.executableURL = URL(fileURLWithPath: "/bin/sleep")
+    sleeper.arguments = ["60"]
+    try? sleeper.run()
+    let pid = sleeper.processIdentifier
+    guard let birth = ProcessTree.Birth.of(pid) else { print("could not read birth"); exit(1) }
+    print("sleep pid \(pid) born \(birth.seconds).\(String(format: "%06d", birth.microseconds))")
+    let stale = ProcessTree.Birth(seconds: birth.seconds - 1, microseconds: birth.microseconds)
+    let refused = !ProcessTree.signalIfSame(pid: pid, expected: stale, signal: SIGKILL)
+    usleep(300_000)
+    let survived = sleeper.isRunning
+    print("SIGKILL with a birth one second off (pid recycled): \(refused ? "REFUSED" : "SENT") — still running: \(survived)")
+    let sent = ProcessTree.signalIfSame(pid: pid, expected: birth, signal: SIGKILL)
+    sleeper.waitUntilExit()
+    print("SIGKILL with the real birth: \(sent ? "SENT" : "REFUSED") — still running: \(sleeper.isRunning)")
+    exit(refused && survived && sent && !sleeper.isRunning ? 0 : 1)
+}
+
 if args.first == "--probe-job" {
     await probeJob(args)
 }
@@ -134,6 +178,12 @@ if args.first == "--probe-job" {
     let store = JobStore(ledger: value(after: "--probe-ledger").map { JobLedger(url: URL(fileURLWithPath: $0)) }
                          ?? .standard)
     store.scriptOverride = script
+    // an apply built from a test script's preview: the script's banner is never in the
+    // real log, so mark the fixture as matched (the kernel refuses a preview whose own
+    // block was not found)
+    if script != nil, args.contains("--apply") {
+        store.outcomeOverride = { _, _ in JobOutcome(parsed: .none, run: nil, match: .exact) }
+    }
 
     if args.contains("--direct-apply") {
         let job = store.enqueue(JobRequest(kind: kind, intent: .apply), trigger: .user)
