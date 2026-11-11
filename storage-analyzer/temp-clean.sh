@@ -633,8 +633,18 @@ ACTED_KB=0
 ACTED_N=0
 
 trash_dest() {
-  local name="$1" dest="${HOME}/.Trash/$1"
-  [[ -e "$dest" || -L "$dest" ]] && dest="${HOME}/.Trash/$(date +%s)-${name}"
+  local name="$1" dest="${HOME}/.Trash/$1" stamp n=1
+  if [[ -e "$dest" || -L "$dest" ]]; then
+    stamp="$(date +%s)"
+    dest="${HOME}/.Trash/${stamp}-${name}"
+    # Same name again within the same second: keep counting until the name
+    # is free. A move must never land on — and replace — something that is
+    # already in the Trash.
+    while [[ -e "$dest" || -L "$dest" ]]; do
+      n=$((n + 1))
+      dest="${HOME}/.Trash/${stamp}-${n}-${name}"
+    done
+  fi
   printf '%s' "$dest"
 }
 

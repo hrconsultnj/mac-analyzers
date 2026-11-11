@@ -65,6 +65,17 @@ through `config.local.sh` (never hardcoded).
   app. Both only call `scripts/check.sh` and only verify. After changing a
   workflow, prove it on a pull request (or start it by hand once it is on
   `main`) and watch it to the end: `gh run watch <id> --exit-status`.
+- **Warnings are defects, not noise.** A compiler or shellcheck warning says
+  the code uses something in a way its documentation does not intend —
+  usually because it was written from memory. Never hide, defer or
+  suppress one to get a build through: look up the current documentation
+  and fix the cause. A suppression (`@preconcurrency import`,
+  `nonisolated(unsafe)`, `@unchecked Sendable`, `# shellcheck disable=`)
+  needs a comment saying why it is the right design at that spot. New code
+  adds none — check with a CLEAN build (`swift build --build-path
+  <scratch>`), because an incremental build does not repeat warnings for
+  files it did not recompile. The existing ones are being taken to zero,
+  after which the build and `scripts/check.sh` refuse any.
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
   output. The one automated suite is `memory-analyzer/tests/`; otherwise the
   dry-run IS the test. For the app:
