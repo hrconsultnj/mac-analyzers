@@ -6,7 +6,7 @@ struct TimeMachineNode: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let detail: String?
-    /// "Thinned", "Couldn't Thin", or empty.
+    /// "Deleted", "Couldn't Delete", or empty.
     let status: String
     var children: [TimeMachineNode]?
 

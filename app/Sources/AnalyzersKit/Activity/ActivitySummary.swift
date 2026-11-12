@@ -120,7 +120,7 @@ public struct ActivitySummary: Sendable, Hashable {
         case .networkSnapshot: "Snapshot taken"
         case .installAgents: "Background jobs installed"
         case .uninstallAgents: "Background jobs turned off"
-        case .sudoersInstall: "Snapshot thinning allowed"
+        case .sudoersInstall: "Deleting snapshots allowed"
         case .eject: "Disk image ejected"
         default: "Done"
         }

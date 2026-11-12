@@ -254,11 +254,11 @@ public struct CacheReview: Sendable {
         if line.hasPrefix("thinned "), let range = line.range(of: #"\d+"#, options: .regularExpression) {
             let count = Int(line[range]) ?? 0
             return row("snapshots", Names.Prune.ran,
-                       "\(count) Time Machine local \(count == 1 ? "snapshot was" : "snapshots were") thinned. Your backups are not touched.")
+                       "\(count) Time Machine local \(count == 1 ? "snapshot was" : "snapshots were") deleted. Your backups are not touched.")
         }
         if line.contains("snapshot thin needs the tmutil-thin sudoers rule") {
             return row("snapshots", Names.Prune.couldNotRun,
-                       "Thinning needs a one-time permission. The space stays reclaimable until macOS frees it.")
+                       "Deleting local snapshots needs a one-time permission. The space stays reclaimable until macOS frees it.")
         }
         return nil
     }

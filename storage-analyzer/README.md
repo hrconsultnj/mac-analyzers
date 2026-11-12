@@ -123,13 +123,15 @@ The deep agent's `--prune-snapshots` needs a **scoped, passwordless** sudo rule 
 *only* `tmutil thinlocalsnapshots`. Without it, freed space stays "purgeable" until
 macOS auto-frees it. Install once (asks for your password, validates via `visudo`):
 ```bash
-./storage-manage-agents.sh sudoers-install      # installs /etc/sudoers.d/tmutil-thin
+./storage-manage-agents.sh sudoers-install      # installs /etc/sudoers.d/tmutil-thin-<your user ID>
 ./storage-manage-agents.sh sudoers-uninstall    # remove it
 ```
 Run these as yourself in a terminal. The Mac Analyzers app does not run this script: its
 "Allow…" button (Time Machine screen) installs the same one-line rule through the macOS
-administrator prompt with a fixed command built into the app, for your numeric user ID,
-and "Remove Permission…" on that screen removes it. Both routes write the rule for your numeric user ID (`#501`), never a name.
+administrator prompt with a fixed command built into the app, for your numeric user ID, in a file of
+your own account (`/etc/sudoers.d/tmutil-thin-<user ID>`), and "Remove Permission…" on that screen removes it.
+An older install by name left the single shared `/etc/sudoers.d/tmutil-thin`: `sudoers-install` and `sudoers-uninstall`
+remove it when its rule is for your account and leave it otherwise. Both routes write the rule for your numeric user ID (`#501`), never a name.
 The rule **cannot** delete real backups or run anything but that one command.
 
 ### Run auto-clean by hand

@@ -3,9 +3,9 @@ import AppKit
 import SwiftUI
 import UIComponents
 
-/// Time Machine: the local snapshots on this Mac, by day, and one action: thin them all, which releases the space
+/// Time Machine: the local snapshots on this Mac, by day, and one action: delete them all, which releases the space
 /// they hold (the "I freed 40 GB but the disk did not move" fix). The backups on the Time Machine disk are never
-/// touched. Preview looks (`tm-reclaim.sh --dry-run`); "Thin Snapshots…" asks, then applies THAT preview. Thinning
+/// touched. Preview looks (`tm-reclaim.sh --dry-run`); "Delete Snapshots…" asks, then applies THAT preview. Deleting
 /// needs a one-time permission, which the screen offers to install through the macOS administrator prompt.
 struct TimeMachineScreen: View {
     @State private var model = StorageReviewModel()
@@ -17,6 +17,8 @@ struct TimeMachineScreen: View {
     @State private var allowing = false
     /// Whether the rule file is on disk: only then is "Remove Permission…" offered.
     @State private var ruleThere = false
+    /// The old shared file from an earlier Terminal install is on disk.
+    @State private var legacyThere = false
     @State private var disk: TimeMachineDestination.Reach?
     @State private var permissionProblem: String?
     @State private var expansion = RememberedExpansion<String>(screen: "timemachine")
@@ -30,7 +32,7 @@ struct TimeMachineScreen: View {
 
     private static let parse: @Sendable (WholeRun.Block) -> StorageRows = { TimeMachineReview.build(lines: $0.lines).rows }
 
-    /// Whether a backup starts after thinning: the preview's own setting once there is one, else the person's pick.
+    /// Whether a backup starts after deleting: the preview's own setting once there is one, else the person's pick.
     private var backup: Bool { model.setting(kind: .tmReclaim, chosen: JobOptions(startBackup: chosenBackup ?? true)).startBackup }
     private var words: CleanWords { model.words(kind: .tmReclaim, chosen: JobOptions(startBackup: chosenBackup ?? true)) }
     private var snapshots: Int { model.rows?.rows.filter(\.isChoosable).count ?? 0 }
@@ -53,14 +55,14 @@ struct TimeMachineScreen: View {
     var body: some View {
         DataScreen(title: Names.Screen.timeMachine, subtitle: subtitle) {
             StoragePhaseContent(model: model, emptyTitle: "No Preview Yet",
-                                emptyText: "Looks at the local snapshots Time Machine keeps on this Mac, which hold space you have freed. Nothing is thinned until you review it.",
+                                emptyText: "Looks at the local snapshots Time Machine keeps on this Mac, which hold space you have freed. Nothing is deleted until you review it.",
                                 preview: preview) { content }
         }
         .toolbar { actions }
         .safeAreaBar(edge: .top, alignment: .leading, spacing: 0) { permissionBar }
         .onAppear {
             model.adopt(store, kind: .tmReclaim)
-            if let fixture { model.showFixture(fixture); allowed = !fixtureNeedsPermission; ruleThere = !fixtureNeedsPermission }
+            if let fixture { model.showFixture(fixture); allowed = !fixtureNeedsPermission; ruleThere = !fixtureNeedsPermission; legacyThere = false }
         }
         // sudo is asked, as this person, whether it would run the command: a rule left by an older version, or one
         // for another account, is "not allowed" here (listing runs nothing and asks for no password)
@@ -70,7 +72,7 @@ struct TimeMachineScreen: View {
             await model.load(kind: .tmReclaim, parse: Self.parse, reviewRow: { $0.reviewRow })
             await model.loadLastKnown(kind: .tmReclaim, parse: Self.parse, reviewRow: { $0.reviewRow })
         }
-        // the thinning ran: say how it went, then look again at what is left
+        // the deletion ran: say how it went, then look again at what is left
         .task(id: JobStamp(applied)) {
             guard let finished = applied else { return }
             switch finished.state {
@@ -86,14 +88,14 @@ struct TimeMachineScreen: View {
             }
         }
         .confirmationDialog("Delete \(snapshots) Local \(snapshots == 1 ? "Snapshot" : "Snapshots")?", isPresented: $asking, titleVisibility: .visible) {
-            Button(words.applyTitle, role: .destructive) { thin() }
+            Button(words.applyTitle, role: .destructive) { delete() }
         } message: {
             Text(CleanWords.timeMachine(backup: backup, disk: disk).message)
         }
         .alert("Permission Not Changed", isPresented: Binding(get: { permissionProblem != nil }, set: { if !$0 { permissionProblem = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(permissionProblem ?? "") }
-        .alert("Snapshots Not Thinned", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
+        .alert("Snapshots Not Deleted", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(problem ?? "") }
     }
@@ -132,9 +134,19 @@ struct TimeMachineScreen: View {
         .padding(.horizontal).padding(.vertical, 8)
     }
 
-    /// The permission, when it is missing: what it is for, and the one button that asks for it.
+    /// The permission, when it is missing: what it is for, and the one button that asks for it. When sudo says it is
+    /// allowed only because of the old shared file an earlier Terminal install left (nothing of this account's own),
+    /// the bar says so and gives the command that removes it: the app does not remove a file it did not write.
     @ViewBuilder private var permissionBar: some View {
-        if !allowed {
+        if allowed && !ruleThere && legacyThere {
+            VStack(alignment: .leading, spacing: 2) {
+                Label(Names.TimeMachine.earlierPermissionTitle, systemImage: "lock.open").font(.callout.weight(.medium))
+                Text(Names.TimeMachine.earlierPermissionDetail).font(.caption).foregroundStyle(.secondary)
+                Text(Names.TimeMachine.earlierPermissionCommand).font(.caption.monospaced()).textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal).padding(.vertical, 8)
+        } else if !allowed {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Label(Names.TimeMachine.permissionTitle, systemImage: "lock").font(.callout.weight(.medium))
@@ -162,10 +174,10 @@ struct TimeMachineScreen: View {
         }
         .toolbarRank(.primary)
         ToolbarItem {
-            Button { confirm() } label: { Label(Names.TimeMachine.thin, systemImage: "clock.arrow.2.circlepath") }
+            Button { confirm() } label: { Label(Names.TimeMachine.delete, systemImage: "clock.arrow.2.circlepath") }
                 .labelStyle(.titleAndIcon)
                 .disabled(!canThin)
-                .help(allowed ? "Thin every local snapshot, after you confirm" : "Allow thinning first")
+                .help(allowed ? "Delete every local snapshot, after you confirm" : "Allow deleting snapshots first")
         }
         .toolbarRank(.primary)
         ToolbarItem {
@@ -177,7 +189,7 @@ struct TimeMachineScreen: View {
                 }
             } label: { Label("Options", systemImage: "slider.horizontal.3") }
                 .labelStyle(.titleAndIcon)
-                .help("Whether a Time Machine backup starts after the snapshots are thinned")
+                .help("Whether a Time Machine backup starts after the snapshots are deleted")
         }
         .toolbarRank(.secondary)
         ToolbarItem {
@@ -211,8 +223,8 @@ struct TimeMachineScreen: View {
 
     private func preview() { model.startPreview(store, kind: .tmReclaim, options: JobOptions(startBackup: backup)) }
 
-    /// Applies the preview that is on screen, and no other: the thinning takes no list, so the review is the gate.
-    private func thin() {
+    /// Applies the preview that is on screen, and no other: deleting takes no list, so the review is the gate.
+    private func delete() {
         guard let job = model.job else { return }
         let run = store.apply(from: job, approved: .everything)
         if case .failed(let failure) = run.state { problem = failure.message } else { applied = run }
@@ -222,6 +234,7 @@ struct TimeMachineScreen: View {
     private func refreshPermission() async {
         allowed = await TimeMachinePermission.isAllowed()
         ruleThere = TimeMachinePermission.ruleFileExists()
+        legacyThere = TimeMachinePermission.legacyFileExists()
     }
 
     /// Reads whether the backup disk is connected (a read-only `tmutil` question), then asks.

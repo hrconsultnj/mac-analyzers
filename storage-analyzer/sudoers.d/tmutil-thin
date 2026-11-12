@@ -1,14 +1,16 @@
-# /etc/sudoers.d/tmutil-thin   (mode 0440, owner root:wheel)
+# The permission to delete Time Machine's local snapshots without a password: ONE rule for ONE exact command,
+# /usr/bin/tmutil thinlocalsnapshots / 999999999999 4 (deletes the local snapshots on this Mac and nothing else).
+# The arguments must match exactly, so this rule CANNOT:
+#   - delete backups on the Time Machine disk   (tmutil delete and the other verbs are not allowed)
+#   - turn Time Machine off                     (tmutil disable is not allowed)
+#   - run any other program or any other tmutil command line
+# It does let any program running as that account delete the local snapshots without asking. Local snapshots can be
+# the only copies of recent changes while the backup disk is not connected, and cannot be brought back.
 #
-# Lets the storage auto-clean agent reclaim Time Machine LOCAL-snapshot space
-# without a password — scoped to ONE EXACT command. This rule CANNOT:
-#   - delete real backups        (tmutil delete / destinationinfo not allowed)
-#   - disable Time Machine       (tmutil disable not allowed)
-#   - run any other binary       (only /usr/bin/tmutil thinlocalsnapshots, exact args)
-# Local snapshots are ephemeral (regenerate hourly; macOS auto-purges them under
-# disk pressure), so the blast radius is intentionally tiny.
+# __UID__ becomes "#<the account's numeric user ID>" when installed: a user ID, never a name, so no account name is
+# written into a file root reads. Each account has its own file, /etc/sudoers.d/tmutil-thin-<user ID>.
 #
-# __UID__ becomes "#<your numeric user ID>" when installed (a user ID, never a name: no account name is written
-# into a file root reads).
-# Install with:  ./manage-agents.sh sudoers-install   (validates via visudo first)
+# Install:  Mac Analyzers > Storage > Time Machine > Allow…   (the macOS administrator prompt), or in Terminal, as
+#           yourself:  ./storage-analyzer/storage-manage-agents.sh sudoers-install   (validates with visudo first)
+# Remove:   Time Machine > Options > Remove Permission…, or  ./storage-analyzer/storage-manage-agents.sh sudoers-uninstall
 __UID__ ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4

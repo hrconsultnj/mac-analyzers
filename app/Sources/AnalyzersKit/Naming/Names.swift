@@ -142,14 +142,17 @@ public enum Names {
     /// Time Machine: the words of its actions and its one-time permission.
     public enum TimeMachine {
         public static let allow = "Allow…"
-        public static let thin = "Thin Snapshots…"
+        public static let delete = "Delete Snapshots…"
         public static let startBackup = "Start a Backup Afterwards"
         public static let notAllowedYet = "Deleting snapshots isn't allowed yet. Click Allow… in the bar above first."
         public static let removePermission = "Remove Permission…"
-        public static let permissionTitle = "Thinning Needs a One-Time Permission"
+        public static let permissionTitle = "Deleting Snapshots Needs a One-Time Permission"
+        public static let earlierPermissionTitle = "An Earlier Permission Is in Effect"
+        public static let earlierPermissionDetail = "A permission set up from Terminal by an older version lets this account delete local snapshots without a password. To remove it, run this in Terminal:"
+        public static let earlierPermissionCommand = "sudo rm /etc/sudoers.d/tmutil-thin"
         public static let permissionDetail = "macOS asks for your administrator password once to allow one command: deleting local snapshots. Afterwards any program running on your account can do that without asking, and nothing else is allowed. You can remove the permission from this screen."
         public static let nothingToThin = "No Local Snapshots"
-        public static let nothingToThinDetail = "Time Machine keeps hourly snapshots on this Mac while it backs up. There are none right now, so there is nothing to thin."
+        public static let nothingToThinDetail = "Time Machine keeps hourly snapshots on this Mac while it backs up. There are none right now, so there is nothing to delete."
     }
 
     /// Unused Apps and Old Recordings: the groups and the words of what a finished run did.

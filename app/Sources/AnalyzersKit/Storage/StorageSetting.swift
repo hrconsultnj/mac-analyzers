@@ -65,7 +65,7 @@ public struct CleanWords: Equatable, Sendable {
     public static func caches(deep: Bool) -> CleanWords {
         CleanWords(applyTitle: "Remove", verb: "Remove", destination: "permanently",
                    message: deep
-                       ? "These are caches and builds that are made again the next time they are needed. A Deep cleanup also thins Time Machine's local snapshots, if that row is ticked."
+                       ? "These are caches and builds that are made again the next time they are needed. A Deep cleanup also deletes Time Machine's local snapshots, if that row is ticked."
                        : "These are caches and builds that are made again the next time they are needed.",
                    permanentWarning: "They are deleted, not moved to the Trash, so this can't be undone.")
     }

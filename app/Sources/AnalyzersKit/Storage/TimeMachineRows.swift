@@ -15,10 +15,10 @@ public struct TimeMachineReview: Sendable {
     /// "51Gi" as `df` printed it, before and after (after only for an apply).
     public let freeBefore: String?
     public let freeAfter: String?
-    /// The run could not thin because the permission is missing.
+    /// The run could not delete because the permission is missing.
     public let needsPermission: Bool
-    /// How many snapshots Apply would thin (the ones that are not the system's).
-    public let thinnable: Int
+    /// How many snapshots Apply would delete (the ones that are not the system's).
+    public let deletable: Int
 
     /// `now` and `calendar` are injected so a probe gets the same day names every day.
     public static func build(lines: [String], results: Bool = false, now: Date = Date(),
@@ -42,7 +42,7 @@ public struct TimeMachineReview: Sendable {
                 rows.append(StorageRow(id: String(line.dropFirst(9)), category: TimeMachineCategory.snapshots.rawValue, group: group,
                                        title: time.string(from: date),
                                        detail: results ? nil : "Local snapshot",
-                                       valueText: results ? (notDone ? "Couldn't Thin" : "Thinned") : nil))
+                                       valueText: results ? (notDone ? "Couldn't Delete" : "Deleted") : nil))
             } else if line.hasPrefix("OSSNAPSHOT ") {
                 // macOS's own update snapshots are not ours: shown, never offered
                 rows.append(StorageRow(id: String(line.dropFirst(11)), category: TimeMachineCategory.snapshots.rawValue,
@@ -54,6 +54,6 @@ public struct TimeMachineReview: Sendable {
         if results, let before, let after { facts.append("free space \(before) → \(after)") }
         else if let before { facts.append("free space \(before)") }
         return TimeMachineReview(rows: StorageRows(rows, facts: facts), freeBefore: before, freeAfter: after,
-                                 needsPermission: denied, thinnable: rows.filter(\.isChoosable).count)
+                                 needsPermission: denied, deletable: rows.filter(\.isChoosable).count)
     }
 }

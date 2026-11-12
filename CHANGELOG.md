@@ -17,12 +17,12 @@ without an entry here — see `scripts/cut-release.sh`.
 - A cleanup's setting now belongs to its preview. When you come back to a
   Deep Caches & Builds preview, or a Temp & Agents preview made with Delete
   Permanently, the screen shows that setting, asks the matching question
-  and applies exactly that; changing the menu puts the preview away. Thinning
+  and applies exactly that; changing the menu puts the preview away. Deleting
   Time Machine's local snapshots is now a row you can see and untick, instead
   of something a Deep Apply did on its own. Every screen also says, first in
   its subtitle, whether what is cleared goes to the Trash or is deleted for good.
 - A finished Caches & Builds cleanup says what each package cleanup, Docker
-  and the snapshot thinning did: ran, skipped because it wasn't ticked, or
+  and the snapshot deletion did: ran, skipped because it wasn't ticked, or
   couldn't run.
 - Temp & Agents names what it finds ("codemod", "Session Transcripts") and says
   why anything is left alone: "Left for Its Owner", "Conversation History",
@@ -36,7 +36,7 @@ without an entry here — see `scripts/cut-release.sh`.
   devices. They are listed under "Only in iCloud" with their real size, and the
   run's summary says how many were left.
 - Time Machine is a screen of its own under Storage. It lists the local
-  snapshots on this Mac by day, which hold space you have freed, and "Thin
+  snapshots on this Mac by day, which hold space you have freed, and "Delete
   Snapshots…" deletes them after you confirm, which releases that space. The
   confirmation says they can't be brought back and whether your backup disk is
   connected right now, because while it is away they can be the only copies of
@@ -45,8 +45,8 @@ without an entry here — see `scripts/cut-release.sh`.
   permission for exactly one command; the screen offers "Allow…", which shows the
   standard macOS administrator prompt and says that afterwards any program on
   your account can do that without asking. "Remove Permission…" in the Options
-  menu takes it away again. In Terminal, `tm-reclaim.sh` now looks first and
-  only thins with `--apply`.
+  menu takes it away again; each account on the Mac has its own permission.
+  In Terminal, `tm-reclaim.sh` now looks first and only acts with `--apply`.
 - Two new screens under Storage. Unused Apps finds the apps you have not
   opened for six months or more, grouped by how long ago, each with what goes
   with it: its Application Support, caches and preferences. Tick the apps to

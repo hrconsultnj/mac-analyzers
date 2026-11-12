@@ -11,42 +11,58 @@ import Foundation
     let uid: UInt32 = 501
 
     // ---- the root command: what it is made of ----
-    let rootCommand = TimeMachinePermission.installRootCommand(uid: uid)
+    guard let rootCommand = TimeMachinePermission.installRootCommand(uid: uid), let installScript = TimeMachinePermission.installAppleScript(uid: uid),
+          let removeCommand = TimeMachinePermission.removeRootCommand(uid: uid), let removeScript = TimeMachinePermission.removeAppleScript(uid: uid) else {
+        expect(false, "a valid user ID gets an install and a removal command"); return
+    }
+    let ruleFile = TimeMachinePermission.ruleFile(uid: uid)
     print("The root command the administrator prompt would run:\n  \(rootCommand)")
-    print("The AppleScript that shows it:\n  \(TimeMachinePermission.installAppleScript(uid: uid))")
-    print("The removal:\n  \(TimeMachinePermission.removeRootCommand)\n")
+    print("The AppleScript that shows it:\n  \(installScript)")
+    print("The removal:\n  \(removeCommand)\n")
     let allowedPrefixes = ["/usr/bin/", "/usr/sbin/", "/bin/", "/etc/sudoers.d/", "/private/var/root/"]
     func pathsIn(_ command: String) -> [String] {
         command.split(whereSeparator: { " ;{}".contains($0) }).map(String.init)
             .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "'\"")) }
             .filter { $0.hasPrefix("/") && $0 != "/" }   // a lone "/" is the volume argument inside the quoted rule text
     }
-    for command in [rootCommand, TimeMachinePermission.removeRootCommand] {
+    for command in [rootCommand, removeCommand] {
         let outside = pathsIn(command).filter { path in !allowedPrefixes.contains { path.hasPrefix($0) } }
         expect(outside.isEmpty, "every path in the root command is a system path or root's own folder; outside: \(outside)")
         expect(!command.contains("$") && !command.contains("`"), "no variable, substitution or backtick in the root command")
         expect(!command.contains(NSHomeDirectory()) && !command.contains(".app/") && !command.contains(".sh"), "no file under the home folder, in an app bundle, and no script of ours is named")
     }
     // the only byte that varies is a run of digits: the account's numeric user ID, inside single quotes
-    for other in [0, 1, 99_999, UInt32.max] {
-        let varied = TimeMachinePermission.installRootCommand(uid: other).replacingOccurrences(of: "#\(other) ", with: "#\(uid) ")
+    for other in [1, 99_999, UInt32.max] {
+        guard let command = TimeMachinePermission.installRootCommand(uid: other), let removal = TimeMachinePermission.removeRootCommand(uid: other) else { expect(false, "user ID \(other) gets commands"); continue }
+        let varied = command.replacingOccurrences(of: "#\(other) ", with: "#\(uid) ").replacingOccurrences(of: "tmutil-thin-\(other)", with: "tmutil-thin-\(uid)")
         expect(varied == rootCommand, "the command for user ID \(other) differs from the one for \(uid) only in the digits")
+        expect(removal.replacingOccurrences(of: "tmutil-thin-\(other)", with: "tmutil-thin-\(uid)") == removeCommand, "the removal for user ID \(other) differs only in the digits")
     }
+    // user ID 0 (the app running as root): no rule, no removal, and why
+    expect(TimeMachinePermission.installRootCommand(uid: 0) == nil && TimeMachinePermission.installAppleScript(uid: 0) == nil
+           && TimeMachinePermission.removeRootCommand(uid: 0) == nil && TimeMachinePermission.removeAppleScript(uid: 0) == nil, "as root (user ID 0) no rule is built and none is removed")
+    let rootOutcome = await TimeMachinePermission.allow(uid: 0), rootRevoke = await TimeMachinePermission.revoke(uid: 0)
+    expect(rootOutcome == .failed(TimeMachinePermission.rootRefusal) && rootRevoke == .failed(TimeMachinePermission.rootRefusal)
+           && TimeMachinePermission.rootRefusal.contains("running as the administrator"), "allow and revoke as root say why nothing happens, and show no prompt")
+    // one file per account
+    expect(ruleFile == "/etc/sudoers.d/tmutil-thin-501" && TimeMachinePermission.ruleFile(uid: 502) != ruleFile && !URL(fileURLWithPath: ruleFile).lastPathComponent.contains("."),
+           "each account has its own file, named by user ID with no dot (sudo skips names with a dot): \(ruleFile)")
+    expect(TimeMachinePermission.legacyRuleFile == "/etc/sudoers.d/tmutil-thin" && !rootCommand.contains("\(TimeMachinePermission.legacyRuleFile) ") && !rootCommand.hasSuffix(TimeMachinePermission.legacyRuleFile),
+           "the app's commands never touch the old shared file")
     var unquoted = rootCommand
     while let open = unquoted.firstIndex(of: "'"), let close = unquoted[unquoted.index(after: open)...].firstIndex(of: "'") { unquoted.removeSubrange(open...close) }
-    expect(!unquoted.contains("#") && !unquoted.contains("\(uid)"), "the rule line, with the user ID, appears only inside single quotes")
+    expect(!unquoted.contains("#") && !unquoted.replacingOccurrences(of: "tmutil-thin-\(uid)", with: "").contains("\(uid)"), "the rule line carries the user ID only inside single quotes; outside them it is only in the file name")
     expect(TimeMachinePermission.ruleLine(uid: uid) == "#501 ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4", "the rule names the user by number: \(TimeMachinePermission.ruleLine(uid: uid))")
     expect(rootCommand.contains("/usr/bin/install -S -m 0440 -o root -g wheel"), "the rule file is installed with -S, in one step")
     // a failing final check removes the rule just installed
-    expect(rootCommand.contains("&& { /usr/sbin/visudo -c || { /bin/rm -f /etc/sudoers.d/tmutil-thin ; /usr/bin/false ; } ; }"), "when the final visudo -c fails the new rule is removed again")
+    expect(rootCommand.contains("&& { /usr/sbin/visudo -c || { /bin/rm -f \(ruleFile) ; exit 3 ; } ; }"), "when the final visudo -c fails the new rule is removed again, and the command exits 3")
 
     // ---- the prompts say what is true ----
-    let installScript = TimeMachinePermission.installAppleScript(uid: uid)
     expect(installScript.contains("with prompt \"Mac Analyzers wants to allow one command") && installScript.hasSuffix("with administrator privileges"), "the install dialog says what is allowed")
     expect(TimeMachinePermission.installPrompt.contains("any program running on this account can do that without asking"), "the install dialog says any program on the account can use it")
     expect(TimeMachinePermission.installPrompt.contains("remove the permission from the Time Machine screen") && !TimeMachinePermission.installPrompt.contains("Setup"),
            "the install dialog promises the removal where it is (the Time Machine screen), not Setup")
-    expect(TimeMachinePermission.removeAppleScript.contains("with prompt \"Mac Analyzers wants to remove the permission") && TimeMachinePermission.removeAppleScript.contains("\"/bin/rm -f /etc/sudoers.d/tmutil-thin\""),
+    expect(removeScript.contains("with prompt \"Mac Analyzers wants to remove the permission") && removeScript.contains("\"/bin/rm -f \(ruleFile)\""),
            "the removal is one fixed command behind its own prompt")
     expect(Names.TimeMachine.permissionDetail.contains("any program running on your account") && Names.TimeMachine.permissionDetail.contains("remove the permission from this screen"),
            "the bar beside Allow… says what the permission lets any program do, and where to remove it")
@@ -119,11 +135,11 @@ import Foundation
         process.waitUntilExit()
         return process.terminationStatus
     }
-    func reset() { for url in [marker, etc.appending(path: "tmutil-thin"), rootDir.appending(path: ".mac-analyzers-tmutil-thin"), log] { try? fm.removeItem(at: url) } }
+    func reset() { for url in [marker, etc.appending(path: "tmutil-thin-\(uid)"), rootDir.appending(path: ".mac-analyzers-tmutil-thin"), log] { try? fm.removeItem(at: url) } }
 
     // the app's own processes, built by the code that runs them
     let installProcess = TimeMachinePermission.osascript(installScript)
-    let removeProcess = TimeMachinePermission.osascript(TimeMachinePermission.removeAppleScript)
+    let removeProcess = TimeMachinePermission.osascript(removeScript)
     for (what, process) in [("install", installProcess), ("remove", removeProcess)] {
         expect(process.environment == TimeMachinePermission.cleanEnvironment && process.environment?.keys.sorted() == ["LC_ALL", "PATH"],
                "the \(what) prompt's osascript is started with the app's own environment (PATH and LC_ALL), not the app's inherited one: \(String(describing: process.environment))")
@@ -136,25 +152,30 @@ import Foundation
     reset()
     let shellEnvironment = installProcess.environment ?? ProcessInfo.processInfo.environment
     let status = runSimulated(rootCommand, environment: shellEnvironment)
-    let installed = (try? String(contentsOf: etc.appending(path: "tmutil-thin"), encoding: .utf8)) ?? ""
+    let installed = (try? String(contentsOf: etc.appending(path: "tmutil-thin-\(uid)"), encoding: .utf8)) ?? ""
     expect(status == 0 && installed == "\(TimeMachinePermission.ruleLine(uid: uid))\n", "with the app's environment the install writes the app's own line and nothing else: \(installed.debugDescription)")
     expect(!fm.fileExists(atPath: marker.path), "an exported umask function, SHELLOPTS with PS4, BASH_ENV, ENV, IFS, CDPATH and a PATH of fakes reach nothing, and none of the clone's fake programs run")
     let logged = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
     expect(logged.contains("visudo -cf") && logged.contains("visudo -c\n") && logged.contains("install -S -m 0440 -o root -g wheel"), "visudo checked the file, installed it with -S, then checked the live configuration")
     expect(!fm.fileExists(atPath: rootDir.appending(path: ".mac-analyzers-tmutil-thin").path), "the scratch file is gone afterwards")
-    expect(runSimulated(TimeMachinePermission.removeRootCommand, environment: removeProcess.environment ?? [:]) == 0 && !fm.fileExists(atPath: etc.appending(path: "tmutil-thin").path) && !fm.fileExists(atPath: marker.path),
+    expect(runSimulated(removeCommand, environment: removeProcess.environment ?? [:]) == 0 && !fm.fileExists(atPath: etc.appending(path: "tmutil-thin-\(uid)").path) && !fm.fileExists(atPath: marker.path),
            "the removal removes the rule and nothing else")
     // a failing check stops the install and leaves nothing behind
     reset(); standIn("visudo", "#!/bin/bash\nexit 1\n")
     let refused = runSimulated(rootCommand, environment: shellEnvironment)
-    expect(refused != 0 && !fm.fileExists(atPath: etc.appending(path: "tmutil-thin").path) && !fm.fileExists(atPath: rootDir.appending(path: ".mac-analyzers-tmutil-thin").path),
+    expect(refused != 0 && !fm.fileExists(atPath: etc.appending(path: "tmutil-thin-\(uid)").path) && !fm.fileExists(atPath: rootDir.appending(path: ".mac-analyzers-tmutil-thin").path),
            "when visudo refuses the file nothing is installed and the scratch file is removed (status \(refused))")
     // the live check failing AFTER the install removes the new rule again
     reset(); workingStandIns()
     standIn("visudo", "#!/bin/bash\n[[ \"$1\" == -c ]] && exit 1\nexit 0\n")
     let rolledBack = runSimulated(rootCommand, environment: shellEnvironment)
-    expect(rolledBack != 0 && !fm.fileExists(atPath: etc.appending(path: "tmutil-thin").path) && !fm.fileExists(atPath: rootDir.appending(path: ".mac-analyzers-tmutil-thin").path),
-           "when the live sudoers check fails after the install, the rule just installed is removed again and the command fails (status \(rolledBack))")
+    expect(rolledBack == TimeMachinePermission.sudoersBrokenStatus && !fm.fileExists(atPath: etc.appending(path: "tmutil-thin-\(uid)").path) && !fm.fileExists(atPath: rootDir.appending(path: ".mac-analyzers-tmutil-thin").path),
+           "when the live sudoers check fails after the install, the rule just installed is removed again and the command exits \(TimeMachinePermission.sudoersBrokenStatus) (status \(rolledBack))")
+    // and the screen says what that means
+    let said = TimeMachinePermission.installFailureText("0:60: execution error: /etc/sudoers.d/x: syntax error near line 3 (3)")
+    expect(said.contains("error in another file") && said.contains("nothing of ours was left in place") && said.contains("syntax error near line 3") && !said.contains("(3)"),
+           "a status 3 is explained as an error in another file, with nothing of ours left, and sudo's own words: \(said)")
+    expect(TimeMachinePermission.installFailureText("execution error: User canceled. (-128)") == "execution error: User canceled. (-128)", "another failure is passed on as it is")
     for name in hostileEnvironment.keys { unsetenv(name) }
 
     // ---- every other program of this path: the environment each gets ----
@@ -179,6 +200,7 @@ import Foundation
         ("our command passwordless in a list of commands", administrator + "    (root) NOPASSWD: /usr/bin/foo, \(thin), /usr/bin/bar\n", true),
         ("passwordless ALL for root: it works without our rule too", administrator + "    (ALL : ALL) NOPASSWD: ALL\n", true),
         ("our command passwordless but as another user", administrator + "    (operator) NOPASSWD: \(thin)\n", false),
+        ("a denied item that carries the sticky NOPASSWD of ALL before it", administrator + "    (ALL) NOPASSWD: ALL, !\(thin)\n", false),
         ("our command denied after", administrator + "    (root) NOPASSWD: \(thin)\n    (root) !\(thin)\n", false),
         ("nothing listed", "Sorry, user x may not run sudo on host.\n", false),
         ("empty", "", false),

@@ -5,7 +5,7 @@ import Foundation
 // `tmutil`, `sudo` and `df` that only log what they were asked (nothing real is read or changed, no snapshot,
 // backup or permission is ever touched), and checks that what it printed is what the Time Machine screen reads:
 // the banner is a banner, the block is found whole in its own log, the snapshots become rows by day with the
-// system's own kept apart, an apply is read as Thinned with the free space before and after, a refused thinning
+// system's own kept apart, an apply is read as Deleted with the free space before and after, a refused deletion
 // is read as needing permission. It also proves what the app SENDS (preview and apply arguments, with and without
 // the backup) against a stand-in engine, and what the permission prompt would run, as text that is only printed.
 // Exit 1 when anything differs.
@@ -58,12 +58,12 @@ import Foundation
     let banner = preview.lines.compactMap { RunMatcher.banner(in: $0) }.first
     expect(banner?.hasPrefix("tm-reclaim | DRY RUN | backup=on | ") == true, "the preview has a banner: \(banner ?? "none")")
     let review = TimeMachineReview.build(lines: preview.lines, now: now)
-    expect(review.thinnable == 2, "two local snapshots can be thinned, got \(review.thinnable)")
+    expect(review.deletable == 2, "two local snapshots can be deleted, got \(review.deletable)")
     expect(review.rows.rows.filter { !$0.isChoosable }.map(\.group) == [Names.Temp.managedByMacOS], "macOS's own snapshot is kept apart: \(review.rows.rows.map { "\($0.group ?? "-"):\($0.title)" })")
     expect(Set(review.rows.rows.filter(\.isChoosable).compactMap(\.group)).contains("Today") && review.rows.rows.filter(\.isChoosable).count == 2, "snapshots are grouped by day, today first: \(review.rows.rows.compactMap(\.group))")
     expect(review.freeBefore == "51Gi", "free space before is read: \(review.freeBefore ?? "nil")")
     if let banner, case .block(let block) = WholeRun.find(banner: banner, in: log) {
-        expect(TimeMachineReview.build(lines: block.lines, now: now).thinnable == 2, "the block found in the log by its banner gives the same snapshots")
+        expect(TimeMachineReview.build(lines: block.lines, now: now).deletable == 2, "the block found in the log by its banner gives the same snapshots")
     } else { expect(false, "the block was not found in tm-reclaim.log by its banner") }
     expect(calledLines().allSatisfy { $0.hasPrefix("tmutil listlocalsnapshots") } && calledLines().count == 1, "a preview only listed the snapshots: \(calledLines())")
 
@@ -72,7 +72,7 @@ import Foundation
     let applied = run(["--apply", "--no-backup"])
     let after = TimeMachineReview.build(lines: applied.lines, results: true, now: now)
     expect(applied.status == 0 && after.freeAfter == "60Gi" && after.rows.facts.first == "free space 51Gi → 60Gi", "an apply is read with the free space before and after: \(after.rows.facts)")
-    expect(after.rows.rows.filter(\.isChoosable).allSatisfy { $0.valueText == "Thinned" }, "each snapshot reads Thinned")
+    expect(after.rows.rows.filter(\.isChoosable).allSatisfy { $0.valueText == "Deleted" }, "each snapshot reads Deleted")
     expect(calledLines().filter { $0.hasPrefix("sudo") } == ["sudo -n /usr/bin/tmutil thinlocalsnapshots / 999999999999 4"], "exactly one whitelisted thin call: \(calledLines())")
     expect(!calledLines().contains { $0.contains("startbackup") }, "--no-backup starts no backup")
 
@@ -80,8 +80,8 @@ import Foundation
     try? fm.removeItem(at: calls); try? "x".write(to: deny, atomically: true, encoding: .utf8)
     let refused = run(["--apply"])
     let denied = TimeMachineReview.build(lines: refused.lines, results: true, now: now)
-    expect(refused.status == 3 && denied.needsPermission, "a refused thinning exits 3 and is read as needing permission (exit \(refused.status))")
-    expect(denied.rows.rows.filter(\.isChoosable).allSatisfy { $0.valueText == "Couldn't Thin" }, "each snapshot reads Couldn't Thin")
+    expect(refused.status == 3 && denied.needsPermission, "a refused deletion exits 3 and is read as needing permission (exit \(refused.status))")
+    expect(denied.rows.rows.filter(\.isChoosable).allSatisfy { $0.valueText == "Couldn't Delete" }, "each snapshot reads Couldn't Delete")
     expect(!calledLines().contains { $0.contains("startbackup") }, "no backup starts when thinning was refused")
     try? fm.removeItem(at: deny)
 
