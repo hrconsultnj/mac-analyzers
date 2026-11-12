@@ -1,10 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Applied ONLY to hardened-runtime builds (scripts/package.sh, when a
-  Developer ID identity is used). The one protection the app needs lifted:
-  it asks other apps to quit, which under the hardened runtime is denied
+  Applied to every copy of the app (app/sign-app.sh signs all of them with the
+  hardened runtime: the local install, the ad-hoc download, the Developer ID
+  download), on the app and on both helpers. The one protection the app needs
+  lifted: it asks other apps to quit by running osascript (and the scheduled jobs
+  the agent-runner starts do the same), which under the hardened runtime is denied
   without this — silently, with no prompt.
+  Deliberately NOT here: allow-dyld-environment-variables and
+  disable-library-validation. Without them macOS ignores DYLD_* variables and
+  refuses a library the app was not signed with, which is the point (a program
+  on the same account cannot make the app load its code). The app loads only
+  system libraries and has no embedded frameworks, so it needs neither; add
+  neither without reading the hardened-runtime research in tasks-plans/research/app.
 -->
 <plist version="1.0">
 <dict>

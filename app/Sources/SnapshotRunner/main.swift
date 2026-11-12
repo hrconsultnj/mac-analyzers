@@ -154,6 +154,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        SnapshotScratch.arm(scratch)     // removed however this ends (a stop signal included)
         // A snapshot must never run the real engine, whatever screen it opens: a
         // screen that starts a job when it appears (Network, with no snapshot yet)
         // would otherwise write the owner's logs. Every job this store runs is a

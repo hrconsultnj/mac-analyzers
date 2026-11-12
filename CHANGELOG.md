@@ -7,6 +7,11 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
+- Mac Analyzers now runs with macOS's hardened runtime, on a copy you build
+  yourself as well as on a download. Another program on your account can no
+  longer make the app load code of its own choosing. Nothing changes in how
+  you use the app; the first time you open the new version, macOS may ask
+  again for a permission you gave before.
 - Caches & Builds, Downloads and Temp & Agents are rebuilt. Each is one screen:
   Preview in the toolbar, then what it found as tabs for the kinds of thing
   (Projects, App Caches and Developer Tools; documents, images and

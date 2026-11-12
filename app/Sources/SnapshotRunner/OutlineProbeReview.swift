@@ -26,8 +26,7 @@ final class ReviewRig {
 
     init(acting: Bool = false, readOnly: Bool = false, unlistable: Bool = false) {
         probe = ReviewFixtureProbe(acting: acting, readOnly: readOnly, unlistable: unlistable)
-        let scratch = FileManager.default.temporaryDirectory.appending(path: "ma-review-probe-\(getpid())", directoryHint: .isDirectory)
-        try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        let scratch = SnapshotScratch.folder("ma-review-probe")
         let jobs = JobStore(ledger: JobLedger(url: scratch.appending(path: "jobs.jsonl")))
         harness = ProbeHarness(probe.view.environment(jobs), size: NSSize(width: 760, height: 640))
         outline = harness.outline
