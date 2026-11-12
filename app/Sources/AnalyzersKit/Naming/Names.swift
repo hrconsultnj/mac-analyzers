@@ -41,6 +41,7 @@ public enum Names {
         public static let timeMachine = "Time Machine"
         public static let spotlight = "Spotlight"
         public static let unusedApps = "Unused Apps"
+        public static let oldRecordings = "Old Recordings"
         public static let network = "Network"
         public static let loginItems = "Login & Startup Items"
         public static let reports = "Reports"
@@ -95,6 +96,156 @@ public enum Names {
         /// The family list in Monitor groups apps and tools together.
         public static let appsAndServices = "Apps & Services"
         public static let singleProcesses = "Single Processes"
+    }
+
+    // MARK: - storage: what a reclaimable thing is called
+
+    /// Kinds of build cache and package folder, as the review lists them.
+    public enum Cache {
+        public static let nextBuild = "Next.js Build Cache"
+        public static let turbo = "Turborepo Cache"
+        public static let buildOutput = "Build Output"
+        public static let vite = "Vite Cache"
+        public static let svelteKit = "SvelteKit Cache"
+        public static let nuxt = "Nuxt Cache"
+        public static let parcel = "Parcel Cache"
+        public static let nodePackages = "Node.js Packages"
+        public static let vendored = "Vendored Code"
+        public static let pythonCache = "Python Cache"
+        public static let pythonEnvironment = "Python Environment"
+        public static let rustBuild = "Rust Build Output"
+        public static let other = "Cache Folder"
+        /// The two sweeps a cleanup can make.
+        public static let daily = "Daily"
+        public static let deep = "Deep"
+    }
+
+    /// What a file in Downloads or Screenshots is, and how long it has sat there.
+    public enum Download {
+        public static let onlyInICloud = "Only in iCloud"
+        public static let documents = "Documents"
+        public static let images = "Images"
+        public static let archives = "Archives"
+        public static let installers = "Installers & Disk Images"
+        public static let video = "Video"
+        public static let audio = "Audio"
+        public static let folders = "Folders"
+        public static let screenshots = "Screenshots"
+        public static let other = "Other Files"
+        public static let underThreeMonths = "Under 3 Months"
+        public static let threeToSixMonths = "3 to 6 Months"
+        public static let sixToTwelveMonths = "6 to 12 Months"
+        public static let overAYear = "Over a Year"
+        public static let dateUnknown = "Date Unknown"
+    }
+
+    /// Time Machine: the words of its actions and its one-time permission.
+    public enum TimeMachine {
+        public static let allow = "Allow…"
+        public static let delete = "Delete Snapshots…"
+        public static let startBackup = "Start a Backup Afterwards"
+        public static let notAllowedYet = "Deleting snapshots isn't allowed yet. Click Allow… in the bar above first."
+        public static let removePermission = "Remove Permission…"
+        public static let permissionTitle = "Deleting Snapshots Needs a One-Time Permission"
+        public static let earlierPermissionTitle = "An Earlier Permission File Exists"
+        public static let earlierPermissionDetail = "A permission file from an older install in Terminal is on this Mac, and it may be what allows this account to delete local snapshots without a password. Mac Analyzers cannot read it. This command, run in Terminal, removes it if it is this account's and leaves it alone otherwise:"
+        public static let permissionDetail = "macOS asks for your administrator password once to allow one command: deleting local snapshots. Afterwards any program running on your account can do that without asking, and nothing else is allowed. You can remove the permission from this screen."
+        public static let nothingToThin = "No Local Snapshots"
+        public static let nothingToThinDetail = "Time Machine keeps hourly snapshots on this Mac while it backs up. There are none right now, so there is nothing to delete."
+    }
+
+    /// Unused Apps and Old Recordings: the groups and the words of what a finished run did.
+    public enum Unused {
+        public static let neverOpened = "Never Opened"
+        public static let noRecord = "No Record of Use"
+        public static let removed = "Removed"
+        public static let movedToTrash = "Moved to Trash"
+        public static let couldNotMove = "Couldn't Move"
+        public static let leftInPlace = "Left in Place"
+        public static let couldNotRemove = "Couldn't Remove"
+        public static let runningKept = "Running: quit it first, then preview again. It is left alone."
+        public static let recordings = "Old Recordings"
+    }
+
+    /// Where an item found in temp and agent folders lives, and the verdict on it.
+    public enum Temp {
+        public static let tempFolder = "Temp Folder"
+        public static let yourTempFolder = "Your Temp Folder"
+        public static let sharedTempFolder = "Shared Temp Folder"
+        public static let claudeCode = "Claude Code"
+        public static let codex = "Codex"
+        public static let claudeApp = "Claude App"
+        public static let nodeTools = "Node Tool Caches"
+        public static let otherTools = "Other AI Tools"
+        public static let managedByMacOS = "Managed by macOS"
+    }
+
+    /// Why a row is shown but left alone, in the words the review's kept rows use.
+    public enum Kept {
+        public static let leftForOwner = "Left for Its Owner"
+        public static let conversationHistory = "Conversation History"
+        public static let keepList = "On Your Keep List"
+        public static let currentVersion = "Current Version"
+        /// A file kept only in iCloud: its row says what it is and that nothing is freed here.
+        public static let onlyInICloud = "Only in iCloud: not downloaded to this Mac, so nothing is freed here. No cleanup moves it, because that would remove it from iCloud and your other devices once the Trash is emptied."
+    }
+
+    /// The categories (tabs) of each Storage screen, and what groups the rows in them.
+    public enum StorageTab {
+        public static let projects = "Projects"
+        public static let appCaches = "App Caches"
+        public static let developerTools = "Developer Tools"
+        public static let documents = "Documents"
+        public static let images = "Images"
+        public static let screenshots = "Screenshots"
+        public static let archivesAndInstallers = "Archives & Installers"
+        public static let media = "Media"
+        public static let foldersAndOther = "Folders & Other"
+        public static let temporaryFiles = "Temporary Files"
+        public static let codingAgents = "Coding Agents"
+        public static let diskImages = "Disk Images"
+        public static let packageManagers = "Package Managers"
+        public static let xcodeSimulators = "Xcode Simulators"
+        public static let docker = "Docker"
+        public static let toolCaches = "Tool Caches"
+        public static let timeMachine = "Time Machine"
+        public static let apps = "Apps"
+        public static let oldRecordings = "Old Recordings"
+    }
+
+    /// The cleanups that are not files: each is a reviewed row.
+    public enum Prune {
+        public static let pnpm = "pnpm Store"
+        public static let npm = "npm Cache"
+        public static let brew = "Homebrew Downloads"
+        public static let simulators = "Unused Simulators"
+        public static let docker = "Docker Cleanup"
+        public static let snapshots = "Time Machine Snapshots"
+        /// What a finished run did with each.
+        public static let ran = "Ran"
+        public static let started = "Started"
+        public static let skipped = "Skipped"
+        public static let couldNotRun = "Couldn't Run"
+    }
+
+    /// Developer-tool caches the deep cleanup can empty.
+    public enum ToolCacheName {
+        public static let pip = "pip Cache"
+        public static let uv = "uv Cache"
+        public static let cargo = "Cargo Registry Cache"
+        public static let gradle = "Gradle Caches"
+        public static let derivedData = "Xcode DerivedData"
+        public static let bun = "Bun Install Cache"
+        public static let cipd = "CIPD Cache"
+        public static let goModules = "Go Module Cache"
+        public static let androidSnapshots = "Android Emulator Snapshots"
+        public static let aerials = "Aerial Wallpapers"
+    }
+
+    /// Whether Spotlight is kept out of a folder.
+    public enum Fence {
+        public static let fenced = "Fenced"
+        public static let notFenced = "Not Fenced"
     }
 
     // MARK: - System: Login & Startup Items, Network, Reports
@@ -164,6 +315,8 @@ public enum Names {
         public static let running = "Running"
         public static let items = "Items"
         public static let removed = "Removed"
+        public static let lastUsed = "Last Used"
+        public static let fenced = "Fenced"
         public static let when = "When"
         public static let whatHappened = "What Happened"
         public static let project = "Project"
@@ -171,7 +324,8 @@ public enum Names {
 
         /// Every title above, for the check.
         public static let all = [name, size, memory, cpu, pid, whatItIs, finding, state, kind, belongsTo,
-                                 administrator, total, downloaded, uploaded, share, running, items, removed, when, whatHappened, project, memoryFreed]
+                                 administrator, total, downloaded, uploaded, share, running, items, removed,
+                                 lastUsed, fenced, when, whatHappened, project, memoryFreed]
     }
 
     // MARK: - the closed row that holds what is empty
@@ -195,6 +349,17 @@ public enum Names {
 
     // MARK: - lookups by type
 
+    /// The screen a receipt ledger belongs to, by the source name `UndoLedger.ledgers` gives it.
+    public static func screen(forLedgerSource source: String) -> String {
+        switch source {
+        case "Janitor": Screen.downloads
+        case "Temp & Agents": Screen.tempAndAgents
+        case "Unused Apps": Screen.unusedApps
+        case "Old Recordings": Screen.oldRecordings
+        default: source
+        }
+    }
+
     /// What a task is called: the screen that holds it.
     public static func job(_ kind: JobKind) -> String {
         switch kind {
@@ -206,7 +371,7 @@ public enum Names {
         case .spotlight: Screen.spotlight
         case .loginItems: Screen.loginItems
         case .unusedApps: Screen.unusedApps
-        case .recordings: "Old Recordings"
+        case .recordings: Screen.oldRecordings
         case .networkSnapshot: Screen.network
         case .memoryReport, .storageReport: Screen.reports
         case .installAgents, .uninstallAgents, .sudoersInstall: Screen.setup
@@ -225,6 +390,9 @@ public enum Names {
         case .persistence: startupChanges
         case .loginItems: Screen.loginItems
         case .spotlightAudit: Screen.spotlight
+        case .cleanupApps: Screen.unusedApps
+        case .tmReclaim: Screen.timeMachine
+        case .cleanupRecordings: Screen.oldRecordings
         case .forensics: crisisReports
         }
     }
@@ -235,6 +403,15 @@ public enum Names {
         public static let selectAll = "Select All"
         public static let selectNone = "Select None"
         public static let previewAgain = "Preview Again"
+        public static let preview = "Preview"
+        public static let stop = "Stop"
+        public static let history = "History"
+        public static let showRawOutput = "Show Raw Output"
+        /// Where a cleanup puts what it clears, said on every state of its screen.
+        public static let goesToTrash = "Goes to the Trash"
+        public static let deletedPermanently = "Deleted Permanently"
+        public static let copyDiagnostics = "Copy Diagnostics"
+        public static let discard = "Discard"
         public static let showInFinder = "Show in Finder"
         public static let copyPath = "Copy Path"
         public static let copyPaths = "Copy Paths"
@@ -352,7 +529,7 @@ public enum Names {
             .map { ("Group", $0) }
         rows += [Screen.overview, Screen.activity, Screen.setup, Screen.monitor, Screen.memoryGuard,
                  Screen.memoryCleanup, Screen.disk, Screen.cachesAndBuilds, Screen.downloads,
-                 Screen.tempAndAgents, Screen.timeMachine, Screen.spotlight, Screen.unusedApps,
+                 Screen.tempAndAgents, Screen.timeMachine, Screen.spotlight, Screen.unusedApps, Screen.oldRecordings,
                  Screen.network, Screen.loginItems, Screen.reports, Screen.trends, Screen.undo,
                  Screen.memorySettings, Screen.storageSettings, Screen.notifications, Screen.schedule,
                  Screen.updates, Screen.howItWorks, Screen.support, Screen.turnOff, Screen.actions]
@@ -369,11 +546,33 @@ public enum Names {
         rows += [Scope.all, Scope.running, Scope.needsReview, Scope.failed].map { ("Scope", $0) }
         rows += [Category.apps, Category.tools, Category.system, Category.appsAndServices,
                  Category.singleProcesses].map { ("Category", $0) }
+        rows += [Cache.nextBuild, Cache.turbo, Cache.buildOutput, Cache.vite, Cache.svelteKit, Cache.nuxt,
+                 Cache.parcel, Cache.nodePackages, Cache.vendored, Cache.pythonCache, Cache.pythonEnvironment,
+                 Cache.rustBuild, Cache.other, Cache.daily, Cache.deep].map { ("Cache", $0) }
+        rows += [Download.documents, Download.images, Download.archives, Download.installers, Download.video,
+                 Download.audio, Download.folders, Download.screenshots, Download.other,
+                 Download.underThreeMonths, Download.threeToSixMonths, Download.sixToTwelveMonths,
+                 Download.overAYear, Download.dateUnknown].map { ("Download", $0) }
+        rows += [Temp.tempFolder, Temp.yourTempFolder, Temp.sharedTempFolder, Temp.claudeCode, Temp.codex,
+                 Temp.claudeApp, Temp.nodeTools, Temp.otherTools, Temp.managedByMacOS].map { ("Temp", $0) }
+        rows += [Kept.leftForOwner, Kept.conversationHistory, Kept.keepList, Kept.currentVersion]
+            .map { ("Kept", $0) }
+        rows += [StorageTab.projects, StorageTab.appCaches, StorageTab.developerTools, StorageTab.documents,
+                 StorageTab.images, StorageTab.screenshots, StorageTab.archivesAndInstallers, StorageTab.media,
+                 StorageTab.foldersAndOther, StorageTab.temporaryFiles, StorageTab.codingAgents,
+                 StorageTab.diskImages, StorageTab.packageManagers, StorageTab.xcodeSimulators,
+                 StorageTab.docker, StorageTab.toolCaches].map { ("Storage tab", $0) }
+        rows += [Prune.pnpm, Prune.npm, Prune.brew, Prune.simulators, Prune.docker].map { ("Prune", $0) }
+        rows += [ToolCacheName.pip, ToolCacheName.uv, ToolCacheName.cargo, ToolCacheName.gradle,
+                 ToolCacheName.derivedData, ToolCacheName.bun, ToolCacheName.cipd, ToolCacheName.goModules,
+                 ToolCacheName.androidSnapshots, ToolCacheName.aerials].map { ("Tool cache", $0) }
+        rows += [Fence.fenced, Fence.notFenced].map { ("Fence", $0) }
         rows += Column.all.map { ("Column", $0) }
         rows += [("Fold", Fold.empty)]
         rows += JobKind.allCases.map { ("Task \($0.rawValue)", job($0)) }
         rows += EngineLog.allCases.map { ("Log \($0.rawValue)", log($0)) }
-        rows += [Review.selectAll, Review.selectNone, Review.previewAgain, Review.showInFinder, Review.copyPath, Review.copyPaths].map { ("Review", $0) }
+        rows += [Review.selectAll, Review.selectNone, Review.previewAgain, Review.preview, Review.stop, Review.history,
+                 Review.showRawOutput, Review.showInFinder, Review.copyPath, Review.copyPaths].map { ("Review", $0) }
         rows += [Raw.screen, Raw.searchPrompt, Raw.copy, Raw.noOutput, Raw.showAll, Raw.showOlder].map { ("Raw", $0) }
         rows += [Monitor.everything, Monitor.tools, Monitor.lens, Monitor.lensMemory, Monitor.lensEnergy, Monitor.lensDisk,
                  Monitor.name, Monitor.whatItIs, Monitor.memory, Monitor.cpu, Monitor.pid, Monitor.energy, Monitor.read,

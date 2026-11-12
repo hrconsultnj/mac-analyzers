@@ -58,9 +58,8 @@ struct ReviewTableBody: View {
                     .width(min: 72, ideal: 96, max: 140)
             }
         }
-        // rows the cleanup leaves alone are drawn dimmed; they can still be selected, so the
-        // reason beside them can be read
-        .rowEnabled { !$0.isKept }
+        // rows the cleanup leaves alone keep a readable name and reason; only their tick and icon are dimmed
+        // (the tick is unavailable on its own, the icon in `ReviewNameCell`), so the reason can be read
         if let rowMenu {
             table = table.contextMenu { ids in rowMenu.items(rowsFor(ids)) }
         }
@@ -127,7 +126,6 @@ struct ReviewTableBody: View {
 /// column, beside the arrow that opens a group, so it is not drawn here.
 struct ReviewNameCell: View {
     let node: ReviewNode
-    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         Label {
@@ -136,13 +134,14 @@ struct ReviewNameCell: View {
                 Text(node.title).lineLimit(1)
                 if let detail = node.detail {
                     Text(detail).font(.caption).lineLimit(1).truncationMode(.middle)
-                        .foregroundStyle(isEnabled ? Color.secondary : Color(nsColor: .disabledControlTextColor))
+                        .foregroundStyle(.secondary)
                 }
             }
         } icon: {
             if let path = node.iconPath {
                 // a file's own icon is a picture of a fixed size, not a control
                 Image(nsImage: ReviewIcons.image(path)).resizable().scaledToFit().frame(width: 20, height: 20)
+                    .opacity(node.isKept ? 0.45 : 1)
             } else if node.isGroup {
                 Image(systemName: "folder")
             }

@@ -117,6 +117,7 @@ for tool in mdfind launchctl; do printf '#!/bin/sh\nexit 0\n' > "$STUBS/$tool"; 
 cat > "$STUBS/osascript" <<'STUB'
 #!/bin/bash
 echo "osascript $*" >> "$STUB_LOG"
+[[ -n "${STUB_OSA_FAIL:-}" && "$*" == *"to get {name, path}"* ]] && exit 1     # System Events not scriptable here
 case "$*" in
   *"login item whose path"*) echo "${STUB_DELETE_COUNT:-1}"; exit 0 ;;
   *repeat*) printf 'GoodApp\t/System/Applications/Calculator.app\nDeadApp\t/Applications/ZZNoSuchApp-fixture.app\nEv"il\t/Applications/ZZNoSuchEvil-fixture.app\n' ;;
@@ -235,4 +236,33 @@ plist "$TMP/h2/Library/LaunchAgents/com.zz.tab.plist" "$(printf 'com.zz.tab\tx')
 out="$(run --apply)"
 exists "$TMP/h2/Library/LaunchAgents/com.zz.tab.plist"; check "an item with a tab in its label is kept" 0 $?
 grep -q 'a tab or line break' <<<"$out"; check "and is listed as skipped with the reason" 0 $?
+
+# ---- the inventory's header says whether the login items could be read ----------------
+fresh
+inv="$TMP/h2/mac-analyzers/reports/storage/login-items.tsv"
+out="$(run --dry-run)"
+head="$(head -n 1 "$inv")"
+IFS=$'\t' read -r h_tag h_ver h_date h_mode h_id h_logins <<< "$head"
+[[ "$h_tag" == "#login-items-inventory" && "$h_ver" == 2 && "$h_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9:]{8}$ && "$h_mode" == dry-run && -n "$h_id" && "$h_logins" == "logins=read" ]] && r=0 || r=1
+check "the header is version 2 with the run's date, mode, id and logins=read when System Events answered" 0 $r
+fresh
+out="$(STUB_OSA_FAIL=1 run --dry-run)"
+IFS=$'\t' read -r h_tag h_ver h_date h_mode h_id h_logins <<< "$(head -n 1 "$inv")"
+r=0; [[ "$h_logins" == "logins=unreadable" ]] || r=1
+check "when System Events could not be read the header says logins=unreadable" 0 $r
+grep -q 'System Events not scriptable here' <<<"$out"; check "and the log still says so" 0 $?
+r=0; [[ "$(wc -l < "$inv" | tr -d ' ')" -ge 1 && "$h_ver" == 2 ]] || r=1
+check "the unreadable inventory is still a version 2 file (the other rows are real)" 0 $r
+
+# ---- the launch inventory library is missing: the audit stops, it does not guess (exit 78, before anything is read or changed) ----
+fresh
+NOLIB="$TMP/nolib"; mkdir -p "$NOLIB/storage-analyzer" "$NOLIB/lib"
+cp "$SCRIPT" "$NOLIB/storage-analyzer/login-items-audit.sh"
+for f in "$HERE"/../lib/*.sh; do [[ "${f##*/}" == launch-items.sh ]] || cp "$f" "$NOLIB/lib/"; done
+out="$(HOME="$TMP/h2" PATH="$STUBS:$PATH" "$BASH" "$NOLIB/storage-analyzer/login-items-audit.sh" --apply 2>&1)"; rc=$?
+check "a missing lib/launch-items.sh stops the audit (exit 78)" 78 "$rc"
+grep -q 'FATAL: lib/launch-items.sh is missing' <<<"$out"; check "and says which file is missing" 0 $?
+exists "$A"; ra=$?; exists "$B"; rb=$?
+check "and removes nothing (a kept)" 0 $ra
+check "and removes nothing (b kept)" 0 $rb
 exit $fail

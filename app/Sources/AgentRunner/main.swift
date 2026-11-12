@@ -186,6 +186,36 @@ if args.first == "--probe-activity-ids" {
 if args.first == "--probe-failures" {
     await probeFailures()
 }
+// `--probe-storage <caches|downloads|temp|spotlight|disk> [--log <file>]` prints the rows a
+// Storage screen would list, from the newest preview in the real logs. See
+// StorageProbes.swift.
+if args.first == "--probe-storage" {
+    probeStorage(args.count > 1 ? args[1] : "",
+                 logOverride: args.firstIndex(of: "--log").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil })
+}
+// `--probe-storage-apply` proves a tick in a Storage review becomes exactly the
+// `--only-paths` file the engine gets, against a test script. See StorageApplyProbe.swift.
+if args.first == "--probe-storage-apply" {
+    await probeStorageApply()
+}
+// `--probe-storage-setting` judges itself: what a Storage screen shows, asks and sends for every
+// pairing of a preview's setting and the screen's own. See StorageSettingProbe.swift.
+if args.first == "--probe-storage-setting" {
+    await probeStorageSetting()
+}
+if args.first == "--probe-disk-runway" {
+    probeDiskRunway()
+}
+// `--probe-cleanup-parse` runs the real cleanup.sh as a dry run in a throwaway HOME and checks the screens' rows
+// agree with what it printed. See CleanupParseProbe.swift.
+// `--probe-tm` runs the real tm-reclaim.sh against stand-in tmutil/sudo/df and checks what the Time Machine screen
+// reads and what the app sends. See TimeMachineProbe.swift.
+if args.first == "--probe-tm" {
+    await probeTimeMachine()
+}
+if args.first == "--probe-cleanup-parse" {
+    await probeCleanupParse()
+}
 // `--probe-run-matcher` proves how a job's own block is found in a log (very large
 // runs, identical banners, a growing log) against stand-in logs. See RunMatcherProbes.swift.
 if args.first == "--probe-run-matcher" {
@@ -194,6 +224,10 @@ if args.first == "--probe-run-matcher" {
 // `--probe-activity-log <file>` prints Activity's summary of the newest runs in a storage log file.
 if args.first == "--probe-activity-log", args.count > 1 {
     probeActivityLog(args[1])
+}
+// `--probe-fence` proves the Spotlight fence marker's rules on folders it makes itself. See FenceProbe.swift.
+if args.first == "--probe-fence" {
+    probeFence()
 }
 // `--probe-review-rules` shows what `apply(from:)` itself refuses; `--probe-quit`
 // shows what each choice of the quit dialog does to the store. See ReviewProbes.swift.

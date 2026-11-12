@@ -1,6 +1,6 @@
 # Storage Toolkit — command reference
 
-The disk suite, in `~/mac-analyzers/storage-analyzer/`. **Everything that deletes files is dry-run / read-only by default** — nothing deletes until you add `--execute` (or `--apply`). (`tm-reclaim.sh` acts immediately because it touches no files — only ephemeral local snapshots.)
+The disk suite, in `~/mac-analyzers/storage-analyzer/`. **Everything that deletes files is dry-run / read-only by default** — nothing deletes until you add `--execute` (or `--apply`). (`tm-reclaim.sh` also looks first and acts only with `--apply`; it touches no files, only ephemeral local snapshots.)
 
 ```bash
 cd ~/mac-analyzers/storage-analyzer    # run the ./ commands below from here
@@ -14,7 +14,7 @@ cd ~/mac-analyzers/storage-analyzer    # run the ./ commands below from here
 | `login-items-audit.sh` | Find + remove login items/agents whose app was uninstalled | dry-run |
 | `spotlight-audit.sh` | Spotlight status, stuck-vs-progressing verdict, dev-dir index fencing | dry-run |
 | `temp-clean.sh` | /tmp, /var and AI-agent leftovers (Claude Code, Codex, npx MCP servers) — mount-aware, reviewed | dry-run (Trash; `--permanent` opt-in) |
-| `tm-reclaim.sh` | Release snapshot-pinned space NOW + start a fresh TM backup | acts (no files touched) |
+| `tm-reclaim.sh` | Release snapshot-pinned space NOW + start a fresh TM backup | dry-run by default; `--apply` acts (no files touched) |
 | `storage-manage-agents.sh` | Install / remove the scheduled LaunchAgents | — |
 
 ---
@@ -59,10 +59,10 @@ list near the top of `cleanup.sh` to add/remove candidates.
 
 ### …make a big cleanup actually free space, then re-protect with a backup
 ```bash
-./tm-reclaim.sh              # thin+delete local TM snapshots, start fresh backup
-./tm-reclaim.sh --wait       # same, but block until the backup finishes
-./tm-reclaim.sh --no-backup  # reclaim only
-./tm-reclaim.sh --dry-run    # inspect, change nothing
+./tm-reclaim.sh              # inspect, change nothing (same as --dry-run)
+./tm-reclaim.sh --apply      # thin local TM snapshots, start fresh backup
+./tm-reclaim.sh --apply --wait       # same, but block until the backup finishes
+./tm-reclaim.sh --apply --no-backup  # reclaim only
 ```
 Run this **after** a `cleanup.sh --execute` session: local snapshots pin the
 blocks you just deleted, so `df` doesn't move until they're released. The fresh
@@ -123,9 +123,15 @@ The deep agent's `--prune-snapshots` needs a **scoped, passwordless** sudo rule 
 *only* `tmutil thinlocalsnapshots`. Without it, freed space stays "purgeable" until
 macOS auto-frees it. Install once (asks for your password, validates via `visudo`):
 ```bash
-./storage-manage-agents.sh sudoers-install      # installs /etc/sudoers.d/tmutil-thin
+./storage-manage-agents.sh sudoers-install      # installs /etc/sudoers.d/tmutil-thin-<your user ID>
 ./storage-manage-agents.sh sudoers-uninstall    # remove it
 ```
+Run these as yourself in a terminal. The Mac Analyzers app does not run this script: its
+"Allow…" button (Time Machine screen) installs the same one-line rule through the macOS
+administrator prompt with a fixed command built into the app, for your numeric user ID, in a file of
+your own account (`/etc/sudoers.d/tmutil-thin-<user ID>`), and "Remove Permission…" on that screen removes it.
+An older install by name left the single shared `/etc/sudoers.d/tmutil-thin`: `sudoers-install` and `sudoers-uninstall`
+remove it when its rule is for your account and leave it otherwise. Both routes write the rule for your numeric user ID (`#501`), never a name.
 The rule **cannot** delete real backups or run anything but that one command.
 
 ### Run auto-clean by hand
@@ -187,7 +193,7 @@ A **Time Machine local snapshot** is pinning the freed blocks (shows as
 "purgeable"). macOS auto-purges under pressure; the deep agent now thins them
 automatically (once the sudoers rule is installed). To force it by hand:
 ```bash
-./tm-reclaim.sh                # release now + fresh backup (preferred)
+./tm-reclaim.sh --apply        # release now + fresh backup (preferred)
 sudo tmutil thinlocalsnapshots / 999999999999 4     # raw one-liner equivalent
 ```
 

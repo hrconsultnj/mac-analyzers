@@ -49,7 +49,7 @@ struct ScheduleSettingsView: View {
                         Stepper("every \(deepDays) day\(deepDays == 1 ? "" : "s")",
                                 value: $deepDays, in: 1...14)
                     }
-                    Text("Adds downloaded code for projects you haven't touched lately (node_modules), Docker prune, and Time Machine snapshot thinning. Measured from load or the last run.")
+                    Text("Adds downloaded code for projects you haven't touched lately (node_modules), Docker prune, and deleting Time Machine local snapshots. Measured from load or the last run.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -31,7 +31,10 @@
 #                                     # itself and intersects them with the file, so a
 #                                     # stale list can only shrink what is removed.
 #
-# Besides the log, every run writes login-items.tsv next to it: ONE line per item
+# Besides the log, every run writes login-items.tsv next to it. Its first line is the header:
+#   #login-items-inventory <TAB> 2 <TAB> run date <TAB> dry-run|apply <TAB> run id <TAB> logins=read|unreadable
+# (version 2; logins=unreadable when System Events could not list the System Settings login items, so the file
+# says nothing about which apps open at login). Then ONE line per item
 # the audit looked at (fine ones too), with this script's own verdict. The app
 # reads that file; it never re-derives a verdict. Columns (tab separated):
 #   kind     agent | daemon | helper | loginitem
@@ -112,6 +115,12 @@ RUN_ID="$$-$RANDOM"
 RUN_STAMP="$RUN_DATE  (run $RUN_ID)"
 ORPHANS_USER=0; ORPHANS_SYS=0; REMOVED=0
 SUDO_CMDS=""
+
+# plist_target and the rest of the launch inventory are shared with cleanup.sh's discovery of unused apps
+if ! source "$(dirname "$0")/../lib/launch-items.sh" 2>/dev/null; then
+  echo "FATAL: lib/launch-items.sh is missing — the audit cannot read launch entries." >&2
+  exit 78
+fi
 
 # ---------- the inventory the app reads (see the header) ----------
 INV_FILE="${LOG_DIR}/login-items.tsv"
@@ -206,15 +215,6 @@ approved() {
   [[ -z "$ONLY_FILE" ]] && return 0
   grep -Fxq -- "$1" "$ONLY_FILE" || return 1
   printf '%s\n' "$1" >> "$MATCHED_TMP"
-}
-
-# target of a launchd plist: Program, else ProgramArguments[0]; also
-# BundleProgram (relative to the app) via AssociatedBundleIdentifiers apps.
-plist_target() {
-  local p="$1" t
-  t=$(plutil -extract Program raw -o - "$p" 2>/dev/null)
-  [[ -z "$t" ]] && t=$(plutil -extract ProgramArguments.0 raw -o - "$p" 2>/dev/null)
-  echo "$t"
 }
 
 # does any APP from this vendor prefix still exist? Helpers/daemons outlive
@@ -400,7 +400,13 @@ done
 
 log ""
 log "### 4. System Settings 'Open at Login' items"
-osascript -e 'tell application "System Events" to get {name, path} of every login item' >/dev/null 2>&1 || log "  (System Events not scriptable here — check manually)"
+# Whether the login items could be READ is recorded in the inventory's header: an inventory without them says nothing
+# about the apps that open at login, and the Unused Apps screen must not treat those apps as checked.
+LOGINS_STATE="read"
+osascript -e 'tell application "System Events" to get {name, path} of every login item' >/dev/null 2>&1 || {
+  LOGINS_STATE="unreadable"
+  log "  (System Events not scriptable here — check manually)"
+}
 while IFS=$'\t' read -r nm pth; do
   [[ -z "${nm:-}" ]] && continue
   li_reason=""
@@ -469,7 +475,7 @@ fi
 
 # publish the inventory in one move, so the app never reads half of it
 {
-  printf '#login-items-inventory\t1\t%s\t%s\t%s\n' "$RUN_DATE" "$([[ $DRY_RUN -eq 1 ]] && echo dry-run || echo apply)" "$RUN_ID"
+  printf '#login-items-inventory\t2\t%s\t%s\t%s\tlogins=%s\n' "$RUN_DATE" "$([[ $DRY_RUN -eq 1 ]] && echo dry-run || echo apply)" "$RUN_ID" "$LOGINS_STATE"
   cat "$INV_TMP"
 } > "${INV_FILE}.new" && mv -f "${INV_FILE}.new" "$INV_FILE"
 

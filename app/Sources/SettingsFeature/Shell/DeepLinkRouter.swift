@@ -25,7 +25,11 @@ public enum DeepLinkRouter {
     public static func installFixtures(changelog: URL? = nil) {
         ReleaseNote.useDevelopmentFile(changelog)
         fixtureTargets = ["review:fixture": .main(Location(OverviewGroup.activity, path: [.overview(.reviewFixture)]))]
+            .merging(StorageGroup.fixtureTargets) { _, storage in storage }
     }
+
+    /// Where a link lands, in words, for `SnapshotRunner --probe-links`; nothing else calls it.
+    public static func probeRouting(of target: String) -> String { String(describing: resolve(target)) }
 
     static func resolve(_ target: String) -> Resolution {
         let key = target.trimmingCharacters(in: .whitespacesAndNewlines)

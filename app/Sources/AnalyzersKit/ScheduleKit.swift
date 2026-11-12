@@ -28,7 +28,7 @@ public enum ScheduleKit {
             detail: "Stale build caches only"),
         Job(label: "com.mac-analyzers.storage-autoclean.deep",
             displayName: "Storage deep clean",
-            detail: "+ node_modules of idle repos; package-manager caches (npm's whole cache, pnpm's unreferenced only); ALL unused Docker images (starts Docker if needed, then quits it); thins Time Machine local snapshots"),
+            detail: "+ node_modules of idle repos; package-manager caches (npm's whole cache, pnpm's unreferenced only); ALL unused Docker images (starts Docker if needed, then quits it); deletes Time Machine local snapshots"),
     ]
 
     /// Human sentence for the INSTALLED schedule — never a hardcoded time.

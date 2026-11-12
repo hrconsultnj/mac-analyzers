@@ -229,6 +229,12 @@ if [[ -n "${ONLY_PATHS}" ]]; then
   approved_list_load "${ONLY_PATHS}"
 fi
 
+# prune_result <command> <exit status>: says how a prune command ended, so a finished run can tell
+# "ran" from "failed" (a line "running: …" only says it started)
+prune_result() {
+  if [[ "$2" -eq 0 ]]; then log "  done: $1"; else log "  failed: $1 (exit $2)"; fi
+}
+
 # reclaim <path>  — size-aware, dry-run-aware, accumulates TOTAL_KB
 reclaim() {
   local p="$1"
@@ -378,7 +384,7 @@ docker_maint() {
   else
     log "  ${RUNTIME_APP} already running — pruning, will leave it running."
   fi
-  log "  running: docker system prune -f"; docker system prune -f >>"$LOG_FILE" 2>&1 || true
+  log "  running: docker system prune -f"; rc=0; docker system prune -f >>"$LOG_FILE" 2>&1 || rc=$?; prune_result "docker system prune -f" "$rc"
   if [[ "$DOCKER_IMAGES" -eq 1 ]]; then
     log "  running: docker image prune -a -f (all unused images)"; docker image prune -a -f >>"$LOG_FILE" 2>&1 || true
   fi
@@ -767,7 +773,9 @@ if [[ "$MODE" == "deep" ]]; then
       fi
     done < <(find "$root" -type d -name node_modules -prune 2>/dev/null)
   done
-  log "  (kept node_modules for $(grep -c . "$ACTIVE_LIST" 2>/dev/null || echo 0) active repos)"
+  # grep -c prints 0 AND exits 1 when nothing matches, so `|| echo 0` printed it twice
+  active_repos="$(grep -c . "$ACTIVE_LIST" 2>/dev/null || true)"
+  log "  (kept node_modules for ${active_repos:-0} active repos)"
 fi
 
 # ---------- 3. Package-manager caches (deep mode only; uses tool prune) ----------
@@ -778,12 +786,12 @@ if [[ "$MODE" == "deep" ]]; then
     # file into the cwd and dies with EROFS, so prune from $HOME.
     if [[ "$DRY_RUN" -eq 1 ]]; then log "  [DRY]     prune:pnpm  Unused packages in the pnpm store (size not known until it runs)"
     elif ! command_approved prune:pnpm; then log "  [SKIP]    prune:pnpm  not in the reviewed list"
-    else log "  running: pnpm store prune"; (cd "$HOME" && pnpm store prune) >>"$LOG_FILE" 2>&1 || true; fi
+    else log "  running: pnpm store prune"; rc=0; (cd "$HOME" && pnpm store prune) >>"$LOG_FILE" 2>&1 || rc=$?; prune_result "pnpm store prune" "$rc"; fi
   fi
   if command -v npm >/dev/null 2>&1; then
     if [[ "$DRY_RUN" -eq 1 ]]; then log "  [DRY]     prune:npm  The whole npm cache, which downloads again when needed (size not known until it runs)"
     elif ! command_approved prune:npm; then log "  [SKIP]    prune:npm  not in the reviewed list"
-    else log "  running: npm cache clean --force"; npm cache clean --force >>"$LOG_FILE" 2>&1 || true; fi
+    else log "  running: npm cache clean --force"; rc=0; npm cache clean --force >>"$LOG_FILE" 2>&1 || rc=$?; prune_result "npm cache clean --force" "$rc"; fi
   fi
 fi
 
@@ -832,7 +840,8 @@ if [[ -n "$TOOL_CACHES" ]]; then
       log "  [SKIP]    prune:brew  not in the reviewed list"
     else
       log "  running: brew cleanup --prune=all -s"
-      HOMEBREW_NO_AUTO_UPDATE=1 brew cleanup --prune=all -s >>"$LOG_FILE" 2>&1 || true
+      rc=0; HOMEBREW_NO_AUTO_UPDATE=1 brew cleanup --prune=all -s >>"$LOG_FILE" 2>&1 || rc=$?
+      prune_result "brew cleanup --prune=all -s" "$rc"
     fi
   fi
 
@@ -843,6 +852,8 @@ if [[ -n "$TOOL_CACHES" ]]; then
     # names in ANALYZERS_APPCACHE_KEEP (regex alternatives), and anything
     # written in the last hour — that app is using it right now.
     if enabled appcaches; then
+      # its own group heading: the app reads the group as the category of these rows
+      group "3c. App caches (each app's folder in ~/Library/Caches)"
       # dotslash: its downloaded executables carry macOS provenance
       # protection — another process can't delete them, so don't try nightly
       keep='com\.apple\..*|Claude.*|com\.anthropic\..*|claude-cli-nodejs|ms-playwright|CloudKit|FamilyCircle|familycircled|GeoServices|Homebrew|pip|dotslash'
@@ -856,6 +867,7 @@ if [[ -n "$TOOL_CACHES" ]]; then
         [[ -n "$(find "$p" -mmin -60 -print -quit 2>/dev/null)" ]] && continue
         reclaim "$p"
       done
+      group "3d. More tool caches"
     fi
 
     if enabled gomod && command -v go >/dev/null 2>&1; then
@@ -893,7 +905,8 @@ if [[ -n "$TOOL_CACHES" ]]; then
           log "  [SKIP]    prune:simulators  not in the reviewed list"
         else
           log "  running: xcrun simctl delete unavailable"
-          xcrun simctl delete unavailable >>"$LOG_FILE" 2>&1 || true
+          rc=0; xcrun simctl delete unavailable >>"$LOG_FILE" 2>&1 || rc=$?
+          prune_result "xcrun simctl delete unavailable" "$rc"
         fi
       fi
     fi
@@ -937,7 +950,13 @@ if [[ "$MODE" == "deep" ]]; then
     snap_count="$(printf '%s\n' "$snaps" | grep -c . )"
     if [[ "$snap_count" -eq 0 ]]; then
       log "  No local snapshots present. Nothing to do."
-    elif [[ "$PRUNE_SNAPSHOTS" -eq 1 && "$DRY_RUN" -eq 0 ]]; then
+    elif [[ "$PRUNE_SNAPSHOTS" -eq 1 && "$DRY_RUN" -eq 1 ]]; then
+      # a reviewed row like the other prunes: the app shows it, and an apply with a
+      # reviewed list thins only when this key is in it
+      log "  [DRY]     prune:snapshots  ${snap_count} Time Machine local snapshot(s) are thinned to realize the space freed above (your backups are not touched)"
+    elif [[ "$PRUNE_SNAPSHOTS" -eq 1 ]] && ! command_approved prune:snapshots; then
+      log "  [SKIP]    prune:snapshots  not in the reviewed list"
+    elif [[ "$PRUNE_SNAPSHOTS" -eq 1 ]]; then
       # ONLY the exact whitelisted command runs here — cannot delete real backups.
       # shellcheck disable=SC2024  # the log is the user's own file; only tmutil needs root
       if sudo -n /usr/bin/tmutil thinlocalsnapshots / 999999999999 4 >>"$LOG_FILE" 2>&1; then

@@ -140,7 +140,7 @@ public enum UndoHistory {
     public static func entries(now: Date = Date()) -> [UndoEntry] {
         let dates = receiptDates()
         let trashed: [UndoEntry] = UndoLedger.trashedItems().map { item in
-            let by = item.source == "Janitor" ? Names.Screen.downloads : Names.Screen.tempAndAgents
+            let by = Names.screen(forLedgerSource: item.source)
             let size = ByteSize.parse(item.sizeText) ?? 0
             return UndoEntry(
                 id: "trashed:" + item.id, source: .trashed(item), scope: .trashed,
@@ -217,7 +217,7 @@ public enum UndoHistory {
     /// lists it, newest run winning.
     static func receiptDates() -> [String: (date: Date, run: String)] {
         var dates: [String: (date: Date, run: String)] = [:]
-        for log in [EngineLog.janitor, .tempSpace] {
+        for log in [EngineLog.janitor, .tempSpace, .cleanupApps, .cleanupRecordings] {
             for run in LogParser.allRuns(for: log).reversed() {   // oldest first, so the newest wins
                 guard let date = TrendTotals.runDate(run.header) else { continue }
                 for line in run.lines where line.hasPrefix("[TRASHED]") {

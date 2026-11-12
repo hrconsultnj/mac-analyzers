@@ -60,7 +60,8 @@ approved() {
 # The reviewed list is read once (lib/approved-list.sh): a `grep` per item made a
 # 6,000-item apply take minutes. A list that cannot be checked stops the run.
 if [[ -n "${ONLY_PATHS}" ]]; then
-  if ! source "${SUITE_DIR}/lib/approved-list.sh" 2>/dev/null; then
+  # look for the file first: under `set -e` a failed `source` ended the run with exit 1 and no words
+  if [[ ! -f "${SUITE_DIR}/lib/approved-list.sh" ]] || ! source "${SUITE_DIR}/lib/approved-list.sh" 2>/dev/null; then
     echo "FATAL: lib/approved-list.sh is missing — refusing to run with a reviewed list it cannot check." >&2
     exit 78
   fi
@@ -95,6 +96,18 @@ human() {
   }'
 }
 
+# A file that exists only in iCloud (macOS keeps its name and size, not its content, on this Mac):
+# prints its real size in KB; prints nothing for anything else. `du` says 0 for these, so a
+# preview would call them empty; they are listed on a line of their own instead.
+cloud_only_kb() {
+  [[ -f "$1" && ! -L "$1" ]] || return 0
+  local info
+  info="$(stat -f '%Sf %z' "$1" 2>/dev/null)" || return 0
+  case "${info%% *}" in
+    *dataless*) echo $(( (${info##* } + 1023) / 1024 )) ;;
+  esac
+}
+
 keep_match() {
   local name="$1"
   [[ -z "${KEEP}" ]] && return 1
@@ -109,6 +122,7 @@ keep_match() {
 
 TOTAL_KB=0
 COUNT=0
+CLOUD_COUNT=0
 
 # A name in the Trash that nothing else has: the plain name, else
 # <epoch>-<name>, else <epoch>-<n>-<name>, counting until it is free
@@ -136,7 +150,7 @@ sweep() {
   else
     find_args+=(-maxdepth 1)
   fi
-  local item name kb size dest moved _try tid
+  local item name kb size dest moved _try cloud_kb tid
   while IFS= read -r -d '' item; do
     # A name with a line break cannot be written on one log line or named safely in a
     # reviewed list, so it is left alone and said so (it used to stop the whole run).
@@ -158,6 +172,16 @@ sweep() {
     kb="$(du -sk "${item}" 2>/dev/null | cut -f1 || true)"
     [[ -z "${kb}" ]] && kb=0
     size="$(human "${kb}")"
+    # A file that exists only in iCloud is never moved, by any run (preview, scheduled or reviewed):
+    # moving it frees nothing on this Mac, and once the Trash is emptied it is gone from iCloud and
+    # from every other device. It is listed so it can be seen, and left where it is.
+    cloud_kb=""
+    [[ "${kb}" -eq 0 ]] && cloud_kb="$(cloud_only_kb "${item}")"
+    if [[ -n "${cloud_kb}" ]]; then
+      log "[CLOUD] $(human "${cloud_kb}")  ${item}"
+      CLOUD_COUNT=$((CLOUD_COUNT + 1))
+      continue
+    fi
     if [[ "${DRY_RUN}" -eq 1 ]]; then
       log "[DRY] ${size}  ${item}"
     else
@@ -208,4 +232,7 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   log "DRY RUN — would move ${COUNT} item(s), ${TOTAL_H}, to the Trash. Re-run with --apply."
 else
   log "DONE — moved ${COUNT} item(s), ${TOTAL_H}, to the Trash (recoverable)."
+fi
+if [[ "${CLOUD_COUNT}" -gt 0 ]]; then
+  log "LEFT — ${CLOUD_COUNT} file(s) that exist only in iCloud were left where they are: moving one frees nothing on this Mac and removes it from iCloud and your other devices once the Trash is emptied."
 fi

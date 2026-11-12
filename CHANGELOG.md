@@ -12,6 +12,95 @@ without an entry here — see `scripts/cut-release.sh`.
   longer make the app load code of its own choosing. Nothing changes in how
   you use the app; the first time you open the new version, macOS may ask
   again for a permission you gave before.
+- Caches & Builds, Downloads and Temp & Agents are rebuilt. Each is one screen:
+  Preview in the toolbar, then what it found as tabs for the kinds of thing
+  (Projects, App Caches and Developer Tools; documents, images and
+  screenshots; temporary files and your coding agents' folders), grouped under
+  the project, app or agent they belong to, with a count and a total on every
+  group. Tick what to clear, then Apply. The banner and the list of log lines
+  are gone, and every earlier run is one click away under History.
+- A cleanup's setting now belongs to its preview. When you come back to a
+  Deep Caches & Builds preview, or a Temp & Agents preview made with Delete
+  Permanently, the screen shows that setting, asks the matching question
+  and applies exactly that; changing the menu puts the preview away. Deleting
+  Time Machine's local snapshots is now a row you can see and untick, instead
+  of something a Deep Apply did on its own. Every screen also says, first in
+  its subtitle, whether what is cleared goes to the Trash or is deleted for good.
+- A finished Caches & Builds cleanup says what each package cleanup, Docker
+  and the snapshot deletion did: ran, skipped because it wasn't ticked, or
+  couldn't run.
+- Temp & Agents names what it finds ("codemod", "Session Transcripts") and says
+  why anything is left alone: "Left for Its Owner", "Conversation History",
+  "On Your Keep List". It also says what is not on your disk (files inside
+  mounted disk images) and which coding agents are running.
+- Files that exist only in iCloud (a screenshot or document that macOS keeps in
+  the cloud and has not downloaded to this Mac) are no longer shown as empty
+  files under "Nothing to Free", and no cleanup moves them any more, not even
+  the scheduled one. Moving one to the Trash frees nothing on this Mac, and
+  once the Trash is emptied it is gone from iCloud and from your other
+  devices. They are listed under "Only in iCloud" with their real size, and the
+  run's summary says how many were left.
+- Time Machine is a screen of its own under Storage. It lists the local
+  snapshots on this Mac by day, which hold space you have freed, and "Delete
+  Snapshots…" deletes them after you confirm, which releases that space. The
+  confirmation says they can't be brought back and whether your backup disk is
+  connected right now, because while it is away they can be the only copies of
+  your latest changes. Backups on the Time Machine disk are never touched, and a
+  new backup can start afterwards. Deleting snapshots needs a one-time
+  permission for exactly one command; the screen offers "Allow…", which shows the
+  standard macOS administrator prompt and says that afterwards any program on
+  your account can do that without asking. "Remove Permission…" in the Options
+  menu takes it away again; each account on the Mac has its own permission.
+  In Terminal, `tm-reclaim.sh` now looks first and only acts with `--apply`.
+- Two new screens under Storage. Unused Apps finds the apps you have not
+  opened for six months or more, grouped by how long ago, each with what goes
+  with it: its Application Support, caches and preferences. Tick the apps to
+  remove and they go to the Trash with their files, so Undo can bring them
+  back; each app opens to every file that goes with it, with its size, and the
+  confirmation names every app. Only files that belong to the app by its own
+  identity are taken: a folder that merely carries its name (Electron), a
+  group container named for the app that it does not declare, or one that
+  another app shares, wherever that other app is installed (in a folder, or
+  inside another app, at any depth, its XPC services and extensions included),
+  is shown and left in place; when some app's settings, a folder, an app folder
+  you configured that is not there, or a link to a folder cannot be read, no
+  group container is taken at all and the screen says what it could not read.
+  Shared containers are checked against the apps in your Applications folders
+  only. An app that
+  macOS has no record of, that runs in the background (a login item, launch
+  agent, helper or system extension, a menu-bar tool, or something started
+  through `open`), that is running, that holds another app which is in use
+  on its own (opened recently, running, or started by something), or that
+  you cannot move without an administrator is listed but never offered. Apps
+  inside an app (an updater, a helper) are part of it and go with it; the row
+  says how many, at every level, and that their own settings and data stay. The
+  screen says what that check reads (launch entries and the commands and scripts
+  in them that open an app, your Login Items, what is inside the app) and what it
+  cannot see. Which apps open at login is read from the Login & Startup Items
+  check, so it must have run today and have been able to read your Login Items
+  (otherwise the screen says to run it from the app; Login & Startup Items says
+  the same when it could not list them); if the app cannot be moved,
+  none of its files are touched. In Terminal, `cleanup.sh --stale-apps
+  --execute` only removes a list you wrote yourself; apps found by their date
+  are removed only from a review in the app. Old Recordings lists recording
+  folders older than 90 days by the month they were made; they go to the Trash
+  too (a recording on another disk goes to that disk's own Trash), so Undo can
+  bring them back from either one (if that disk is not connected, Undo says to
+  connect it). A folder with a part that cannot be read is
+  kept, because something in it may be recent.
+- Spotlight lists your developer folders by project with a checkbox to fence
+  or unfence each one, and Fence and Unfence for a whole selection. Fence All
+  names the folders it will fence and fences exactly those, not whatever a new
+  scan would find. A fence is one empty file, and nothing else is changed.
+- Disk shows your capacity, how long the free space will last at the rate it
+  has been falling, and what each cleanup could free and how old that figure
+  is. The "full in" forecast never appeared before; it now reads every
+  Caches & Builds run's figure, not only the newest few. When there is no
+  forecast it says why, and after a sharp fall in free space it says what
+  happened instead of predicting; when only the newest figure is far below the
+  others it says so and asks you to preview again. A nearly full disk is shown in red.
+- A finished cleanup's own screen shows what it did in the same tabs and groups
+  as the screen it came from.
 - When a memory cleanup refuses to run because part of Mac Analyzers is
   missing, the app now says so and tells you to update or reinstall. It used
   to tell you to check your protected-apps list, which had nothing to do

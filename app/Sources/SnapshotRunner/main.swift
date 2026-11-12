@@ -37,6 +37,32 @@ import SettingsFeature
 let arguments = Array(CommandLine.arguments.dropFirst())
 // `--outline-probe <action> …` drives the shared OutlineTable headless (OutlineProbe.swift); it never renders a screen
 if arguments.first == "--outline-probe" { OutlineProbe.run(Array(arguments.dropFirst())) }
+// `--probe-links`: every link that used to open an old Storage screen or the five-cleaner picker lands on a
+// current screen (never on nothing, never on a view that no longer exists); exit 1 when one does not.
+if arguments.first == "--probe-links" {
+    let storage = ["actions:storageClean": "caches", "actions:janitor": "downloads", "actions:tempClean": "temp",
+                   "log:storageClean": "caches", "log:janitor": "downloads", "log:tempSpace": "temp",
+                   "log:spotlightAudit": "spotlight", "log:cleanupApps": "unused", "log:cleanupRecordings": "recordings",
+                   "caches": "caches", "downloads": "downloads", "temp": "temp", "spotlight": "spotlight",
+                   "unused": "unused", "recordings": "recordings", "disk": "disk",
+                   "disk:capacity": "disk", "disk:caches": "caches", "disk:downloads": "downloads", "disk:temp": "temp",
+                   "caches:projects": "caches", "caches:appCaches": "caches", "caches:developerTools": "caches"]
+    var failures = 0
+    for (target, section) in storage.sorted(by: { $0.key < $1.key }) {
+        let landed = DeepLinkRouter.probeRouting(of: target)
+        let ok = landed.contains("\"\(section)\"") && !landed.contains("unknown")
+        if !ok { failures += 1 }
+        print("\(ok ? "PASS" : "FAIL")  \(target) → \(section): \(landed.prefix(110))")
+    }
+    for target in ["actions", "actions:memoryClean", "actions:reclaim"] {
+        let landed = DeepLinkRouter.probeRouting(of: target)
+        let ok = !landed.contains("unknown") && !landed.contains("storage")
+        if !ok { failures += 1 }
+        print("\(ok ? "PASS" : "FAIL")  \(target) → a Memory screen: \(landed.prefix(110))")
+    }
+    print(failures == 0 ? "\nno link reaches an old screen" : "\n\(failures) FAILED")
+    exit(failures == 0 ? 0 : 1)
+}
 // A screen render starts from the target it was given, with nothing remembered from an earlier run
 // (the saved location, the chosen tab, the opened groups): clear this tool's own defaults domain,
 // never the app's. Only for a render: the probes above keep their own state per process, and

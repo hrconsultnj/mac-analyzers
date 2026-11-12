@@ -5,8 +5,9 @@
 #   ./storage-manage-agents.sh install     # validate, copy to ~/Library/LaunchAgents, load
 #   ./storage-manage-agents.sh uninstall   # unload + remove
 #   ./storage-manage-agents.sh status      # show whether they're loaded + next run
-#   ./storage-manage-agents.sh sudoers-install    # install the scoped tmutil-thin NOPASSWD rule (asks for your password)
-#   ./storage-manage-agents.sh sudoers-uninstall  # remove that rule
+#   ./storage-manage-agents.sh sudoers-install    # install your account's scoped tmutil NOPASSWD rule (asks for your password; run as yourself)
+#   ./storage-manage-agents.sh sudoers-status     # exit 0 when a rule file is installed (yours, or the old shared one)
+#   ./storage-manage-agents.sh sudoers-uninstall  # remove your account's rule (and the old shared one when it is yours)
 #
 # Installing schedules UNATTENDED deletion (daily build caches; deep node_modules
 # every 3 days). Review a dry run first:  ./storage-auto-clean.sh --mode deep
@@ -18,7 +19,28 @@ DEST="${HOME}/Library/LaunchAgents"
 AGENTS=( com.mac-analyzers.storage-autoclean.daily com.mac-analyzers.storage-autoclean.deep )
 DOMAIN="gui/$(id -u)"
 SUDOERS_SRC="${HERE}/sudoers.d/tmutil-thin"
-SUDOERS_DEST="/etc/sudoers.d/tmutil-thin"
+SUDOERS_DIR="/etc/sudoers.d"
+# One file per account, named by user ID (no dot in the name: sudo skips files whose names contain one), the same
+# name the app uses. SUDOERS_OLD is the single shared file earlier versions wrote, by account name.
+SUDOERS_DEST="${SUDOERS_DIR}/tmutil-thin-$(id -u)"
+SUDOERS_OLD="${SUDOERS_DIR}/tmutil-thin"
+
+# rule_after_first_field: a rule line without its first field, white space normalised to single spaces.
+rule_after_first_field() { awk '{ $1 = ""; sub(/^ +/, ""); print }'; }
+
+# old_rule_is_mine: true when the old shared file holds exactly one rule, it is for THIS account (by name or by user
+# ID), AND everything after that first field is exactly the template's rule (white space aside). A rule someone
+# widened or edited (another command, extra arguments, ALL) is not ours to remove, even for this account. Reading
+# the file takes your own sudo (it is root-only).
+old_rule_is_mine() {
+  local rules first expected
+  rules="$(sudo cat "${SUDOERS_OLD}" 2>/dev/null | grep -v -E '^[[:space:]]*(#([^0-9]|$)|$)')" || return 1
+  [[ "$(printf '%s\n' "${rules}" | grep -c .)" -eq 1 ]] || return 1
+  first="$(printf '%s\n' "${rules}" | awk '{print $1}')"
+  [[ "${first}" == "#$(id -u)" || "${first}" == "$(id -un)" ]] || return 1
+  expected="$(grep -v -E '^[[:space:]]*(#|$)' "${SUDOERS_SRC}" | head -1 | rule_after_first_field)"
+  [[ -n "${expected}" && "$(printf '%s\n' "${rules}" | rule_after_first_field)" == "${expected}" ]]
+}
 
 # reload_agent: unload, wait until launchd has really let go, load, retry.
 # The inline version is only for a copy of this script without lib/ beside it.
@@ -101,7 +123,23 @@ case "$cmd" in
       fi
     done
     ;;
+  sudoers-status)
+    # readable without root: /etc/sudoers.d can be searched by anyone, so the files' existence can be seen
+    found=1
+    if [[ -e "${SUDOERS_DEST}" ]]; then echo "installed: ${SUDOERS_DEST}"; found=0; fi
+    if [[ -e "${SUDOERS_OLD}" ]]; then echo "earlier shared file: ${SUDOERS_OLD} (set up by an older version; sudoers-uninstall removes it when it is yours)"; found=0; fi
+    [[ ${found} -eq 0 ]] && exit 0
+    echo "not installed"; exit 1
+    ;;
   sudoers-install)
+    # For a person at a terminal, who runs it themselves with their OWN sudo. The Mac Analyzers app does not run this
+    # script as root: its "Allow…" button installs the same rule with a fixed command built into the app, so nothing
+    # a user account can write (this script, the template) is ever executed or read as root.
+    if [[ "$(id -u)" -eq 0 ]]; then
+      echo "‼ run this as yourself, not as root or with sudo: it asks for your password itself and writes the rule for you."
+      exit 2
+    fi
+    TARGET_USER="$(id -un)"
     # sudo must be able to PROMPT for your password — needs a real terminal.
     if ! sudo -v; then
       echo ""
@@ -109,29 +147,54 @@ case "$cmd" in
       echo "  not via Claude's '!' prefix — that has no TTY for the password prompt."
       exit 1
     fi
-    # Substitute the current username (sudoers rules are per-user), then
+    # The rule is written for your numeric user ID ("#501"), the same form the app writes: no account name ever
+    # reaches the file, so a name that sudoers reads as a keyword or an alias (ALL, CWD, FOOBAR) cannot arise. Then
     # validate syntax FIRST (a malformed sudoers file breaks ALL sudo).
+    TARGET_UID="$(id -u)"
     SUDOERS_TMP="$(mktemp)"
-    sed "s/^__USERNAME__ /$(id -un) /" "${SUDOERS_SRC}" > "${SUDOERS_TMP}"
+    sed "s/^__UID__ /#${TARGET_UID} /" "${SUDOERS_SRC}" > "${SUDOERS_TMP}"
     if ! sudo visudo -cf "${SUDOERS_TMP}"; then
       echo "   sudoers file FAILED visudo syntax check — NOT installing."; rm -f "${SUDOERS_TMP}"; exit 1
     fi
-    sudo install -m 0440 -o root -g wheel "${SUDOERS_TMP}" "${SUDOERS_DEST}" \
-      && echo "✓ installed ${SUDOERS_DEST} (user: $(id -un))"
+    if ! sudo install -m 0440 -o root -g wheel "${SUDOERS_TMP}" "${SUDOERS_DEST}"; then
+      echo "   could not install ${SUDOERS_DEST}."; rm -f "${SUDOERS_TMP}"; exit 1
+    fi
+    echo "✓ installed ${SUDOERS_DEST} (user: ${TARGET_USER})"
     rm -f "${SUDOERS_TMP}"
-    sudo visudo -c >/dev/null && echo "✓ live sudoers healthy"
-    if sudo -n /usr/bin/tmutil thinlocalsnapshots / 999999999999 4 >/dev/null 2>&1; then
-      echo "✓ passwordless thin verified — the deep agent will now reclaim snapshot space automatically."
+    if ! sudo visudo -c >/dev/null; then
+      echo "‼ sudo's settings have an error (another file in ${SUDOERS_DIR}); removing the rule just installed."
+      sudo rm -f "${SUDOERS_DEST}"; exit 1
+    fi
+    echo "✓ live sudoers healthy"
+    # Ask sudo whether the rule allows the command: it LISTS, it does not run it, so nothing is thinned to find out.
+    if sudo -n -l /usr/bin/tmutil thinlocalsnapshots / 999999999999 4 >/dev/null 2>&1; then
+      echo "✓ snapshot thinning is allowed without a password for ${TARGET_USER}."
     else
-      echo "⚠ rule installed but the no-password test didn't pass; inspect ${SUDOERS_DEST}."
+      echo "⚠ rule installed but sudo does not list the command as allowed; inspect ${SUDOERS_DEST}."
+      exit 1
+    fi
+    # The old shared file (name form) is replaced by this one: removed only when its rule is for this same account.
+    if [[ -e "${SUDOERS_OLD}" ]]; then
+      if old_rule_is_mine; then
+        sudo rm -f "${SUDOERS_OLD}" && echo "✓ removed the old shared file ${SUDOERS_OLD} (it was your account's; this file replaces it)."
+      else
+        echo "(left ${SUDOERS_OLD} in place: its rule is not exactly this suite's rule for your account, or it could not be read.)"
+      fi
     fi
     ;;
   sudoers-uninstall)
+    removed=1
     if [[ -e "${SUDOERS_DEST}" ]]; then
-      sudo rm -f "${SUDOERS_DEST}" && echo "Removed ${SUDOERS_DEST}"
-    else
-      echo "(not installed)"
+      sudo rm -f "${SUDOERS_DEST}" && echo "Removed ${SUDOERS_DEST}" && removed=0
     fi
+    if [[ -e "${SUDOERS_OLD}" ]]; then
+      if old_rule_is_mine; then
+        sudo rm -f "${SUDOERS_OLD}" && echo "Removed ${SUDOERS_OLD} (the old shared file, your account's)" && removed=0
+      else
+        echo "(left ${SUDOERS_OLD} in place: its rule is not exactly this suite's rule for your account, or it could not be read. To remove it anyway: sudo rm ${SUDOERS_OLD})"
+      fi
+    fi
+    [[ ${removed} -eq 0 ]] || echo "(not installed)"
     ;;
-  *) echo "usage: $0 {install|uninstall|status|sudoers-install|sudoers-uninstall}"; exit 2 ;;
+  *) echo "usage: $0 {install|uninstall|status|sudoers-install|sudoers-status|sudoers-uninstall}"; exit 2 ;;
 esac

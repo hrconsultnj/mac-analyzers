@@ -84,6 +84,87 @@ run_case() { # label shell
   check "[$label] nothing reported as failed" "$([[ "$(grep -c '^\[FAILED\]' "$TMP/$label.out")" -eq 0 ]] && echo ok || echo failures)"
 }
 
+# a copy of the script whose lib/approved-list.sh is missing must say so and stop (exit 78), not exit 1 silently
+missing_case() { # label shell
+  local label="$1" sh="$2" home="$TMP/home-$1" tree="$TMP/tree-nolib-$1"
+  mkdir -p "$home/Downloads" "$tree/storage-analyzer" "$tree/lib"
+  cp "$SCRIPT" "$tree/storage-analyzer/downloads-janitor.sh"
+  printf 'notify() { :; }\n' > "$tree/lib/notify.sh"
+  printf 'x' > "$home/Downloads/one.pdf"; touch -t 202001010000 "$home/Downloads/one.pdf"
+  printf '%s\n' "$home/Downloads/one.pdf" > "$TMP/list-$1"
+  HOME="$home" "$sh" "$tree/storage-analyzer/downloads-janitor.sh" --apply --only-paths "$TMP/list-$1" > "$TMP/$label.out" 2>&1
+  local rc=$?
+  check "[$label] list reader missing: exit 78 with the reason, nothing moved" \
+        "$([[ $rc -eq 78 && -e "$home/Downloads/one.pdf" ]] && grep -q 'FATAL: lib/approved-list.sh is missing' "$TMP/$label.out" && echo ok || echo "exit $rc")"
+}
+
+# a file kept only in iCloud: du says 0, so a preview lists it on its own [CLOUD] line with its real size,
+# and a normal file is still [DRY]. A stand-in `stat` plays the iCloud flags for a file named like
+# cloud-only-*; every other call goes to the real stat. A preview moves nothing.
+cloud_case() { # label shell
+  local label="$1" sh="$2" home="$TMP/home-$1" stubs="$TMP/stubs-$1"
+  mkdir -p "$home/Downloads" "$stubs"
+  printf 'x' > "$home/Downloads/cloud-only-1.png"
+  printf 'y' > "$home/Downloads/normal.pdf"
+  touch -t 202001010000 "$home/Downloads/cloud-only-1.png" "$home/Downloads/normal.pdf"
+  printf '#!/bin/bash\nfor a in "$@"; do [[ "$a" == *cloud-only-* ]] && { echo "compressed,dataless 26818"; exit 0; }; done\nexec /usr/bin/stat "$@"\n' > "$stubs/stat"
+  # du reports no blocks for such a file, as it does for a real one
+  printf '#!/bin/bash\nfor a in "$@"; do [[ "$a" == *cloud-only-* ]] && { printf "0\\t%%s\\n" "$a"; exit 0; }; done\nexec /usr/bin/du "$@"\n' > "$stubs/du"
+  chmod +x "$stubs/stat" "$stubs/du"
+  PATH="$stubs:$PATH" HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" > "$TMP/$label.out" 2>&1
+  check "[$label] an iCloud-only file is listed as [CLOUD] with its real size" \
+        "$(grep -q '^\[CLOUD\] 27 KB  .*cloud-only-1.png' "$TMP/$label.out" && echo ok || grep 'cloud-only' "$TMP/$label.out")"
+  check "[$label] a normal file is still [DRY]" "$(grep -q '^\[DRY\] .*normal.pdf' "$TMP/$label.out" && echo ok || echo "no [DRY] row")"
+  check "[$label] a preview moves nothing" "$([[ -e "$home/Downloads/cloud-only-1.png" && -e "$home/Downloads/normal.pdf" ]] && echo ok || echo moved)"
+}
+
+# no run moves an iCloud-only file: not the scheduled one (no list), not a reviewed list that names it, and a
+# file that has become local since the preview is an ordinary file again (moved only when listed or scheduled)
+cloud_apply_cases() { # label shell
+  local label="$1" sh="$2" home stubs="$TMP/stubs-apply-$1"
+  mkdir -p "$stubs"
+  printf '#!/bin/bash\nfor a in "$@"; do [[ "$a" == *cloud-only-* ]] && { echo "compressed,dataless 26818"; exit 0; }; done\nexec /usr/bin/stat "$@"\n' > "$stubs/stat"
+  printf '#!/bin/bash\nfor a in "$@"; do [[ "$a" == *cloud-only-* ]] && { printf "0\\t%%s\\n" "$a"; exit 0; }; done\nexec /usr/bin/du "$@"\n' > "$stubs/du"
+  chmod +x "$stubs/stat" "$stubs/du"
+  fresh() { # name
+    home="$TMP/home-$label-$1"; mkdir -p "$home/Downloads" "$home/.Trash"
+    printf 'x' > "$home/Downloads/cloud-only-1.png"; printf 'y' > "$home/Downloads/normal.pdf"
+    touch -t 202001010000 "$home/Downloads/cloud-only-1.png" "$home/Downloads/normal.pdf"
+  }
+  # 1. the scheduled run: no list
+  fresh sched
+  PATH="$stubs:$PATH" HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" --apply > "$TMP/$label-sched.out" 2>&1
+  check "[$label] a scheduled run (no list) leaves the iCloud-only file and moves the normal one" \
+        "$([[ -e "$home/Downloads/cloud-only-1.png" && ! -e "$home/Downloads/normal.pdf" && -e "$home/.Trash/normal.pdf" ]] && echo ok || echo "cloud kept: $([[ -e "$home/Downloads/cloud-only-1.png" ]] && echo y || echo n)")"
+  check "[$label] the run's summary says how many were left and why" \
+        "$(grep -q '^LEFT — 1 file(s) that exist only in iCloud were left' "$TMP/$label-sched.out" && echo ok || echo "no LEFT line")"
+  check "[$label] a scheduled run lists it as [CLOUD], never as trashed" \
+        "$(grep -q '^\[CLOUD\] .*cloud-only-1.png' "$TMP/$label-sched.out" && ! grep -q 'TRASHED.*cloud-only' "$TMP/$label-sched.out" && echo ok || echo "wrong lines")"
+  # 2. a reviewed list that names it anyway
+  fresh listed
+  printf '%s\n%s\n' "$home/Downloads/cloud-only-1.png" "$home/Downloads/normal.pdf" > "$TMP/list-$label-listed"
+  PATH="$stubs:$PATH" HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" --apply --only-paths "$TMP/list-$label-listed" > "$TMP/$label-listed.out" 2>&1
+  check "[$label] a reviewed list that names the iCloud-only file still does not move it" \
+        "$([[ -e "$home/Downloads/cloud-only-1.png" && -e "$home/.Trash/normal.pdf" ]] && echo ok || echo moved)"
+  # 3. it became a local file between the preview and the apply: no longer cloud-only (no stand-in), so it is an
+  #    ordinary file; not on the reviewed list it stays, on a scheduled run it is moved
+  fresh local
+  printf '%s\n' "$home/Downloads/normal.pdf" > "$TMP/list-$label-local"
+  HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" --apply --only-paths "$TMP/list-$label-local" > "$TMP/$label-local.out" 2>&1
+  check "[$label] a file that became local is not moved by a list that never named it" \
+        "$([[ -e "$home/Downloads/cloud-only-1.png" && -e "$home/.Trash/normal.pdf" ]] && echo ok || echo moved)"
+  fresh local2
+  HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" --apply > "$TMP/$label-local2.out" 2>&1
+  check "[$label] a file that became local is an ordinary file again for the scheduled run" \
+        "$([[ ! -e "$home/Downloads/cloud-only-1.png" ]] && echo ok || echo "still there")"
+}
+
 run_case bash bash
 run_case old /bin/bash
+cloud_case cloud-bash bash
+cloud_apply_cases capply-bash bash
+cloud_case cloud-old /bin/bash
+cloud_apply_cases capply-old /bin/bash
+missing_case nolib-bash bash
+missing_case nolib-old /bin/bash
 exit $fail

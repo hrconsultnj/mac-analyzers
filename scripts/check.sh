@@ -344,7 +344,7 @@ check_snapshot() {
 # would fail. Add a probe to PROBES when it has an exit status worth trusting.
 # --probe-stop-targets is not here: it needs a shell outside the system folders, detaches itself, starts
 # processes and takes about a minute, so it is run by hand (and by the person reviewing a stop path).
-PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-login-removal --probe-undo-fixture --probe-panel-stop"
+PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-login-removal --probe-storage-setting --probe-disk-runway --probe-fence --probe-cleanup-parse --probe-undo-fixture --probe-panel-stop --probe-tm"
 check_probes() {
   local app="$ROOT/app"
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
@@ -419,10 +419,10 @@ check_names() {
 # each in a fresh process, counting the warning), so a change to the component
 # that makes it warn fails here.
 #
-# The second half refuses the SwiftUI controls in app/Sources. It is OFF
-# (`OUTLINE_REFUSE_SWIFTUI_HIERARCHY=0`) because every existing screen still uses
-# them; the LAST migration step, when the last screen has moved, sets it to 1.
-OUTLINE_REFUSE_SWIFTUI_HIERARCHY=0
+# The second half refuses the SwiftUI controls in app/Sources. It is ON: the
+# last screen that used one has moved. A `DisclosureGroup` around ONE block of
+# content is allowed and carries the marker as a comment line of its own directly above it.
+OUTLINE_REFUSE_SWIFTUI_HIERARCHY=1
 check_outline() {
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
   if [ ! -x scripts/outline-probe.sh ]; then DETAIL="skipped: no scripts/outline-probe.sh"; return 2; fi
@@ -435,19 +435,8 @@ check_outline() {
   DETAIL="$(tail -n 1 "$TMP/outline.out")"
   if [ "$OUTLINE_REFUSE_SWIFTUI_HIERARCHY" = "1" ]; then
     local marker='// one disclosed block, not rows'
-    # whole words only (OutlineTable( is not Table( ), outside the component, and never a comment line
-    local comment='^[^:]+:[0-9]+:[[:space:]]*//'
-    {
-      grep -rnE '(^|[^A-Za-z])(DisclosureTableRow|OutlineGroup)([^A-Za-z]|$)|Section\(isExpanded:' --include='*.swift' app/Sources \
-        | grep -v '^app/Sources/UIComponents/OutlineTable/' | grep -vE "$comment"
-      grep -rnE '(^|[^A-Za-z])Table\(.*children:' --include='*.swift' app/Sources \
-        | grep -v '^app/Sources/UIComponents/OutlineTable/' | grep -vE "$comment"
-      grep -rn -B1 'DisclosureGroup' --include='*.swift' app/Sources \
-        | grep -vE "$comment" \
-        | awk -v marker="$marker" '
-            /DisclosureGroup/ && !/^--$/ { line = $0; if (index(line, marker) == 0 && index(prev, marker) == 0) print line }
-            { prev = $0 }'
-    } >"$OUT" 2>/dev/null
+    # the scan is scripts/outline-refuse.sh (its header lists what is refused; tests/outline-refuse-test.sh plants each form)
+    scripts/outline-refuse.sh app/Sources >"$OUT" 2>&1
     if [ -s "$OUT" ]; then
       DETAIL="SwiftUI hierarchical controls in app/Sources — use OutlineTable (a DisclosureGroup around ONE block of content carries: $marker)"
       return 1

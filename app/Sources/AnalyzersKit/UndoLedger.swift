@@ -31,6 +31,8 @@ public struct TrashedItem: Identifiable, Sendable {
         case parentRedirected
         /// The receipt names a place that is not inside the Trash, or a path with `..`.
         case unsafePath
+        /// The item is in another disk's own Trash and that disk is not connected right now.
+        case diskNotConnected
     }
 
     public let originalPath: String
@@ -74,6 +76,21 @@ public struct TrashedItem: Identifiable, Sendable {
     }
 }
 
+/// What the system says about volumes and owners, so a test can stand in for it: which volume a path is on, who
+/// owns it, and which user the person is.
+@_spi(TestSupport) public struct UndoVolumes: Sendable {
+    public var device: @Sendable (String) -> UInt64?
+    public var owner: @Sendable (String) -> UInt32?
+    public var uid: UInt32
+    public init(device: @escaping @Sendable (String) -> UInt64?, owner: @escaping @Sendable (String) -> UInt32?, uid: UInt32) {
+        self.device = device; self.owner = owner; self.uid = uid
+    }
+    public static let system = UndoVolumes(
+        device: { path in var info = stat(); return stat(path, &info) == 0 ? UInt64(info.st_dev) : nil },
+        owner: { path in var info = stat(); return stat(path, &info) == 0 ? info.st_uid : nil },
+        uid: getuid())
+}
+
 public enum UndoLedger {
 
     public static var trashDir: URL {
@@ -87,7 +104,9 @@ public enum UndoLedger {
     /// Every receipt log that records Trash moves, and the name shown for it.
     public static var ledgers: [(url: URL, source: String)] {
         [(AnalyzersPaths.janitorLog, "Janitor"),
-         (AnalyzersPaths.tempCleanLog, "Temp & Agents")]
+         (AnalyzersPaths.tempCleanLog, "Temp & Agents"),
+         (AnalyzersPaths.storageReports.appending(path: "cleanup-apps.log"), "Unused Apps"),
+         (AnalyzersPaths.storageReports.appending(path: "cleanup-recordings.log"), "Old Recordings")]
     }
 
     /// TRASHED receipts from every ledger, newest first within each, excluding
@@ -98,12 +117,18 @@ public enum UndoLedger {
 
     @_spi(TestSupport) public static func trashedItems(in ledger: URL, source: String,
                                                        trash: URL = UndoLedger.trashDir) -> [TrashedItem] {
-        guard let text = try? String(contentsOf: ledger, encoding: .utf8) else { return [] }
+        trashedItems(in: ledger, source: source, trash: trash, volumes: .system)
+    }
+
+    @_spi(TestSupport) public static func trashedItems(in ledger: URL, source: String, trash: URL,
+                                                       volumes: UndoVolumes) -> [TrashedItem] {
+        // read the BYTES and cut them into lines like every other log reader: a line that is not valid UTF-8 (a file
+        // name can hold any byte) costs that line, never the whole log
+        guard let data = try? Data(contentsOf: ledger) else { return [] }
         struct Receipt { let path: String; let dest: String?; let size: String; let id: String?; let date: Date? }
         var trashed: [Receipt] = []
         var runDate: Date?
-        for line in text.split(separator: "\n") {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+        for trimmed in LogLines.lines(in: data) {
             if trimmed.hasPrefix("[RESTORED]") {
                 // a RESTORED line answers the latest TRASHED line for that path before it,
                 // and no other (the same path can be trashed again later)
@@ -128,7 +153,7 @@ public enum UndoLedger {
             TrashedItem(originalPath: entry.path, ledger: ledger, source: source, trashPath: entry.dest,
                         sizeText: entry.size,
                         restorability: evaluate(original: entry.path, trashPath: entry.dest, identity: entry.id,
-                                                receiptDate: entry.date, trash: trash),
+                                                receiptDate: entry.date, trash: trash, volumes: volumes),
                         identity: entry.id, receiptDate: entry.date)
         }
     }
@@ -138,11 +163,15 @@ public enum UndoLedger {
     /// Whether `original` can be put back from `trashPath` right now. Used when
     /// the list is built AND again when Restore is clicked.
     static func evaluate(original: String, trashPath: String?, identity: String?, receiptDate: Date?,
-                         trash: URL = UndoLedger.trashDir) -> TrashedItem.Restorability {
+                         trash: URL = UndoLedger.trashDir, volumes: UndoVolumes = .system) -> TrashedItem.Restorability {
         let fm = FileManager.default
         guard original.hasPrefix("/"), !hasDotDot(original) else { return .unsafePath }
         guard let trashPath else { return .destinationUnknown }
-        guard isInside(trashPath, trash: trash) else { return .unsafePath }
+        guard isInside(trashPath, trash: trash) || isOtherDiskTrash(trashPath, original: original, volumes: volumes) else {
+            // a Trash path of the shape <disk>/.Trashes/<your id>/<name> whose disk is not there: say so, it is not a danger
+            if let mount = otherDiskMount(of: trashPath, uid: volumes.uid), !fm.fileExists(atPath: mount) { return .diskNotConnected }
+            return .unsafePath
+        }
         guard (try? fm.attributesOfItem(atPath: trashPath)) != nil else { return .trashCopyGone }
 
         // is it the thing the cleaner put there?
@@ -195,6 +224,39 @@ public enum UndoLedger {
         return parent == root && !name.isEmpty && name != "." && name != ".."
     }
 
+    /// A recording on another disk goes to THAT disk's own Trash (`<mount>/.Trashes/<uid>`), because a move across
+    /// volumes would copy. Undo accepts such a path only when ALL of this holds: it is directly inside
+    /// `<mount>/.Trashes/<the person's user ID>`; no link is on the way; `<mount>` is a volume of its own; the
+    /// Trash folder is on that volume, is the person's, and is on the same volume as the ORIGINAL's folder (so it is
+    /// the Trash of the disk the item came from, not another disk's or a planted folder); and the item's
+    /// identity is then verified as for any other receipt.
+    static func isOtherDiskTrash(_ path: String, original: String, volumes: UndoVolumes) -> Bool {
+        guard path.hasPrefix("/"), !hasDotDot(path) else { return false }
+        let parts = path.split(separator: "/").map(String.init)
+        guard parts.count >= 3, let name = parts.last, !name.isEmpty, name != "." else { return false }
+        guard parts[parts.count - 2] == String(volumes.uid), parts[parts.count - 3] == ".Trashes" else { return false }
+        let trashFolder = "/" + parts.dropLast().joined(separator: "/")
+        let mount = parts.count == 3 ? "/" : "/" + parts.dropLast(3).joined(separator: "/")
+        guard resolvesToItself(trashFolder) else { return false }
+        let originalFolder = (original as NSString).deletingLastPathComponent
+        guard let trashDevice = volumes.device(trashFolder), let mountDevice = volumes.device(mount),
+              let originalDevice = volumes.device(originalFolder),
+              trashDevice == mountDevice, trashDevice == originalDevice,
+              volumes.owner(trashFolder) == volumes.uid else { return false }
+        if mount != "/" {
+            guard let above = volumes.device((mount as NSString).deletingLastPathComponent), above != mountDevice else { return false }
+        }
+        return true
+    }
+
+    /// The disk a path in `<disk>/.Trashes/<uid>/<name>` names; nil for any other shape.
+    static func otherDiskMount(of path: String, uid: UInt32) -> String? {
+        guard path.hasPrefix("/"), !hasDotDot(path) else { return nil }
+        let parts = path.split(separator: "/").map(String.init)
+        guard parts.count >= 4, parts[parts.count - 2] == String(uid), parts[parts.count - 3] == ".Trashes" else { return nil }
+        return "/" + parts.dropLast(3).joined(separator: "/")
+    }
+
     public enum RestoreError: Error, LocalizedError, Equatable {
         case notRestorable(TrashedItem.Restorability)
         case moveFailed(String)
@@ -219,6 +281,7 @@ public enum UndoLedger {
         case .parentGone: "the folder it came from no longer exists."
         case .parentRedirected: "a folder on the way has been replaced by a link, so it would land somewhere else."
         case .unsafePath: "the receipt names a location the app will not move files to or from."
+        case .diskNotConnected: "the disk it is in is not connected right now. Connect it, then try again."
         }
     }
 
@@ -249,10 +312,15 @@ public enum UndoLedger {
     /// per log for the whole action.
     @discardableResult
     public static func restore(_ item: TrashedItem, trash: URL = UndoLedger.trashDir) throws -> Restored {
+        try restore(item, trash: trash, volumes: .system)
+    }
+
+    @discardableResult
+    @_spi(TestSupport) public static func restore(_ item: TrashedItem, trash: URL, volumes: UndoVolumes) throws -> Restored {
         var lines: [String] = []
         let members: Int
         do {
-            members = try perform(item, trash: trash, lines: &lines)
+            members = try perform(item, trash: trash, volumes: volumes, lines: &lines)
         } catch {
             if !lines.isEmpty { appendBlock(lines, to: item.ledger) }   // members that could not be put back
             throw error
@@ -276,6 +344,11 @@ public enum UndoLedger {
     /// writes a block in each cleaner's log). `titles` names an item in a failure message.
     public static func restore(_ items: [TrashedItem], titles: [String]? = nil,
                                trash: URL = UndoLedger.trashDir) -> RestoreOutcome {
+        restore(items, titles: titles, trash: trash, volumes: .system)
+    }
+
+    @_spi(TestSupport) public static func restore(_ items: [TrashedItem], titles: [String]? = nil,
+                                                  trash: URL, volumes: UndoVolumes) -> RestoreOutcome {
         var outcome = RestoreOutcome()
         var order: [URL] = []
         var lines: [URL: [String]] = [:]
@@ -283,7 +356,7 @@ public enum UndoLedger {
         for (index, item) in items.enumerated() {
             var itemLines: [String] = []
             do {
-                _ = try perform(item, trash: trash, lines: &itemLines)
+                _ = try perform(item, trash: trash, volumes: volumes, lines: &itemLines)
                 outcome.restored += 1
                 restoredIn[item.ledger, default: 0] += 1
             } catch {
@@ -302,9 +375,9 @@ public enum UndoLedger {
 
     /// The move itself. `lines` gets the receipt lines of what was done (also when it throws,
     /// for members a rollback could not put back). Returns how many things moved.
-    private static func perform(_ item: TrashedItem, trash: URL, lines receiptLines: inout [String]) throws -> Int {
+    private static func perform(_ item: TrashedItem, trash: URL, volumes: UndoVolumes, lines receiptLines: inout [String]) throws -> Int {
         let state = evaluate(original: item.originalPath, trashPath: item.trashPath, identity: item.identity,
-                             receiptDate: item.receiptDate, trash: trash)
+                             receiptDate: item.receiptDate, trash: trash, volumes: volumes)
         guard state == .restorable, let trashPath = item.trashPath else { throw RestoreError.notRestorable(state) }
         let fm = FileManager.default
         var moved: [(from: String, to: String)] = []

@@ -130,8 +130,8 @@ public enum ActivityJoin {
     public static func readRuns(for log: EngineLog) -> [LogRun] {
         guard log == .forensics else { return LogParser.runs(for: log, includingRestores: true) }
         return AnalyzersPaths.allForensics().prefix(10).enumerated().compactMap { position, url in
-            guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-            let lines = LogLines.lines(in: text)
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            let lines = LogLines.lines(in: data)
             // the report names its own moment; that stamp, not the file's mtime, keeps the id fixed
             let stamp = lines.first.flatMap(headerDate).map { stampFormat.string(from: $0) }
                 ?? url.deletingPathExtension().lastPathComponent
@@ -344,6 +344,9 @@ public enum ActivityJoin {
         case .tempSpace: .tempClean
         case .spotlightAudit: .spotlight
         case .loginItems: .loginItems
+        case .cleanupApps: .unusedApps
+        case .tmReclaim: .tmReclaim
+        case .cleanupRecordings: .recordings
         case .guardLog, .persistence, .forensics: nil
         }
     }

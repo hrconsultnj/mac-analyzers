@@ -13,6 +13,9 @@ struct ReviewConfirmation {
     var message: String
     /// A second sentence for a delete that cannot be undone; nil when the first is enough.
     var permanent: String?
+    /// When set ("Apps to remove"), the dialog's message also names what is ticked, each group once ("Apps to
+    /// remove: A, B, and C."): for a review whose rows a person should see by name before agreeing.
+    var namesRows: String?
 }
 
 /// The review before a cleanup, as a table: a tick per row, rows grouped under the
@@ -254,6 +257,14 @@ struct ReviewTable: View {
                                      acting: offer.acting.count, alsoActs: alsoActs, kept: offer.keptCount)
     }
 
+    /// What the dialog calls the ticked rows: their group's name when they have one (an app, whose files are rows
+    /// of their own), else the row's own name; each once, in review order.
+    private static func namesOfWhatIsAsked(_ rows: [ReviewRow]) -> [String] {
+        var seen: [String] = []
+        for row in rows { let name = row.group ?? row.name; if !seen.contains(name) { seen.append(name) } }
+        return seen
+    }
+
     /// Opens the confirmation with the set that is on offer NOW; Apply sends exactly that.
     private func openConfirmation() {
         notice = nil
@@ -267,7 +278,8 @@ struct ReviewTable: View {
                 verb: confirmation.verb, destination: confirmation.destination, count: now.rows.count,
                 bytes: now.hasSizes ? now.bytes : nil, alsoActs: alsoActs, actingNames: names),
             countText: now.countText,
-            actingLine: alsoActs.flatMap { ReviewWording.fullActingLine(alsoActs: $0, names: names) })
+            actingLine: alsoActs.flatMap { ReviewWording.fullActingLine(alsoActs: $0, names: names) }
+                ?? confirmation.namesRows.map { "\($0): \(ReviewWording.fullNames(Self.namesOfWhatIsAsked(now.rows)))." })
         asking = true
     }
 
