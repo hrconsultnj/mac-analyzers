@@ -25,9 +25,7 @@ public enum LogParser {
         // and decode leniently.
         if start > 0, let newline = data.firstIndex(of: 10) { data = data[data.index(after: newline)...] }
         let text = String(decoding: data, as: UTF8.self)
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: true)
-            .map { String($0).trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        let lines = LogLines.lines(in: data)
 
         return text.contains("====") ? runBlocks(lines, includingRestores: includingRestores) : dayGroups(lines)
     }

@@ -112,7 +112,6 @@ public enum WholeRun {
         var totalRead = 0
         var pending = Data()
         var tail: [String] = []
-        var first = true
         while true {
             let take = min(step, start)
             start -= take
@@ -121,7 +120,9 @@ public enum WholeRun {
             totalRead += chunk.count
 
             // whole lines only: drop the cut-off first line unless this reaches the start of the file, and a last
-            // line a writer had not finished (only the end of the file has one)
+            // line a writer had not finished. That rule applies on EVERY pass: while the newest bytes hold no newline
+            // (an unfinished line longer than a chunk) the cut waits until a later pass has read one; once a newline
+            // is in hand the region ends with it and nothing more is cut.
             let region = chunk + pending
             var from = region.startIndex
             var dropped = 0
@@ -131,18 +132,9 @@ public enum WholeRun {
             }
             pending = Data(region[region.startIndex..<from])
             var upto = region.endIndex
-            if first, region.last != 10, let lastNewline = region.lastIndex(of: 10) { upto = region.index(after: lastNewline) }
-            first = false
+            if region.last != 10, let lastNewline = region.lastIndex(of: 10) { upto = region.index(after: lastNewline) }
 
-            let text = String(decoding: region[from..<max(from, upto)], as: UTF8.self)
-            var lines: [String] = []
-            var offsets: [UInt64] = []
-            var position = start + UInt64(dropped)
-            for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
-                let trimmed = raw.trimmingCharacters(in: .whitespaces)
-                if !trimmed.isEmpty { lines.append(trimmed); offsets.append(position) }
-                position += UInt64(raw.utf8.count) + 1
-            }
+            let (lines, offsets) = LogLines.lines(in: Data(region[from..<max(from, upto)]), base: start + UInt64(dropped))
             let banners = lines.indices.filter { RunMatcher.banner(in: lines[$0]) != nil }
             if let index = pick(lines, banners) {
                 // a banner is only trusted when the whole block after it is in hand, which it is: what was read

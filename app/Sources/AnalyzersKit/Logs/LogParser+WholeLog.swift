@@ -19,8 +19,7 @@ extension LogParser {
               let text = String(data: data, encoding: .utf8) else { return [] }
         guard text.contains("====") else { return runs(for: kind) }
 
-        let all = text.split(separator: "\n", omittingEmptySubsequences: true)
-            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let all = LogLines.lines(in: data)
         // a restore's block is taken out first, so the rest parses exactly as it would without it
         let (lines, restores) = RestoreBlock.split(all)
         var blocks: [[String]] = []
