@@ -56,10 +56,11 @@ STUB
   cat > "$S/codesign" <<STUB
 #!/bin/bash
 app=""; for a in "\$@"; do app="\$a"; done
-n="\${app##*/}"; n="\${n%.app}"; n="\${n%.APP}"; n="\${n%.appex}"
+n="\${app##*/}"; n="\${n%.app}"; n="\${n%.APP}"; n="\${n%.appex}"; n="\${n%.xpc}"; n="\${n%.systemextension}"; n="\${n%.dext}"
 [[ -f "$W/ent/\$n.xml" ]] && { cat "$W/ent/\$n.xml"; exit 0; }
 [[ -f "$W/ent/\$n.hang" ]] && { echo \$\$ >> "$W/hang.pids"; exec sleep 60; }        # a codesign that never answers
 [[ -f "$W/ent/\$n.die" ]] && kill -9 "\$(ps -o ppid= -p \$PPID | tr -d ' ')"   # a read whose whole job is killed before it writes its file
+[[ -f "$W/ent/\$n.stub" ]] && { echo "\$app: bundle format unrecognized, invalid, or unsuitable" >&2; exit 1; }   # a folder that only looks like a bundle
 [[ -f "$W/ent/\$n.unreadable" ]] && { echo "\$app: permission denied" >&2; exit 1; }
 echo "\$app: code object is not signed at all" >&2; exit 1
 STUB
@@ -218,6 +219,42 @@ for SH in bash /bin/bash; do
   check "[$sh] U4 an index with a read that never finished is not trusted: no container is taken, and the run says so" \
         "$([[ "$(paths_of "$(block GroupA "$out")")" != *"Group Containers"* && "$out" == *"[CONTAINERS-KEPT]"* ]] && echo ok || echo "$out" | tail -5)"
 
+  # ---------------------------------------------------------------- S1i: every kind of bundle that can declare a group (V1)
+  world s1i
+  L="$W/home/Library"; G="$L/Group Containers"
+  mkapp GroupA com.g.a; groups TEAM.xpc.group TEAM.deepxpc.group TEAM.sysext.group TEAM.dext.group TEAM.only.a > "$W/ent/GroupA.xml"
+  mkapp Host com.g.host; nested "$W/apps/Host.app/Contents/XPCServices/Svc.xpc" com.g.svc; groups TEAM.xpc.group > "$W/ent/Svc.xml"
+  nested "$W/apps/Host.app/Contents/Frameworks/Y.framework/Versions/A/XPCServices/Deep.xpc" com.g.deep; groups TEAM.deepxpc.group > "$W/ent/Deep.xml"
+  nested "$W/apps/Host.app/Contents/Library/SystemExtensions/Ext.systemextension" com.g.ext; groups TEAM.sysext.group > "$W/ent/Ext.xml"
+  nested "$W/apps/Host.app/Contents/Library/SystemExtensions/Drv.dext" com.g.drv; groups TEAM.dext.group > "$W/ent/Drv.xml"
+  for g in TEAM.xpc.group TEAM.deepxpc.group TEAM.sysext.group TEAM.dext.group TEAM.only.a; do mkdir -p "$G/$g"; printf x > "$G/$g/d"; done
+  out="$(run --list-app "$W/apps/GroupA.app")"; mine="$(block GroupA "$out")"
+  for g in "TEAM.xpc.group|an XPC service in another app" "TEAM.deepxpc.group|an XPC service deep inside a framework" "TEAM.sysext.group|a system extension of another app" "TEAM.dext.group|a driver extension of another app"; do
+    check "[$sh] V1 a group shared with ${g#*|} is left in place" "$([[ "$mine" == *"[LEFT]"*"${g%%|*}"*"another app shares"* && "$(paths_of "$mine")" != *"${g%%|*}"* ]] && echo ok || echo "$mine")"
+  done
+  check "[$sh] V1 nothing was missed, so a group nobody else declares is still the app's" "$([[ "$(paths_of "$mine")" == *"TEAM.only.a"* && "$out" != *"[CONTAINERS-KEPT]"* ]] && echo ok || echo "$mine")"
+  # a folder that only looks like a bundle (Xcode's SDKs hold .xpc stubs with no executable) holds no code: it is not "unreadable"
+  nested "$W/apps/Host.app/Contents/XPCServices/Stub.xpc" com.g.stub; : > "$W/ent/Stub.stub"
+  out="$(run --list-app "$W/apps/GroupA.app")"
+  check "[$sh] V1 a stub that only looks like a bundle does not switch container removal off" "$([[ "$out" != *"[CONTAINERS-KEPT]"* && "$(paths_of "$(block GroupA "$out")")" == *"TEAM.only.a"* ]] && echo ok || echo "$out" | tail -4)"
+  # an XPC service does not own an app's name
+  mkdir -p "$L/Application Support/GroupA"; printf x > "$L/Application Support/GroupA/d"
+  nested "$W/apps/Host.app/Contents/XPCServices/GroupA.xpc" com.g.namesake
+  out="$(run --stale-apps)"          # reviewed (the name check only applies then)
+  check "[$sh] V1 a folder named for the app is still taken when the only other thing with that name is an XPC service" "$([[ "$(paths_of "$(block GroupA "$out")")" == *"Application Support/GroupA"* ]] && echo ok || echo "$(block GroupA "$out")")"
+
+  # a configured app folder that is not there: the apps on it cannot be seen, so sharing is unknown
+  world s1j
+  L="$W/home/Library"; G="$L/Group Containers"
+  mkapp GroupA com.g.a; groups TEAM.only.a > "$W/ent/GroupA.xml"; mkdir -p "$G/TEAM.only.a"; printf x > "$G/TEAM.only.a/d"
+  printf 'ANALYZERS_APP_DIRS="%s/apps:%s/unplugged-disk/Applications"\nANALYZERS_LAUNCH_DIRS="%s/launch"\nANALYZERS_LOGIN_INVENTORY="%s/inventory.tsv"\n' "$W" "$W" "$W" "$W" > "$W/tree/config.local.sh"
+  out="$(run --list-app "$W/apps/GroupA.app")"; mine="$(block GroupA "$out")"
+  check "[$sh] V1 an app folder that is configured but not there: no container is taken, and the run names the folder" \
+        "$([[ "$(paths_of "$mine")" != *"Group Containers"* && "$out" == *"[CONTAINERS-KEPT]"*"an app folder that is configured is not there: $W/unplugged-disk/Applications"* ]] && echo ok || echo "$out" | tail -5)"
+  mkdir -p "$W/unplugged-disk/Applications"
+  out="$(run --list-app "$W/apps/GroupA.app")"
+  check "[$sh] V1 and once the folder is there, the container is taken again" "$([[ "$(paths_of "$(block GroupA "$out")")" == *"TEAM.only.a"* && "$out" != *"[CONTAINERS-KEPT]"* ]] && echo ok || echo "$out" | tail -4)"
+
   # ---------------------------------------------------------------- S2: an app that cannot be moved
   world s2; EXTRA_CONFIG=""
   mkdir -p "$W/locked"; mkapp VendorApp com.vendor.app          # a normal app so the install folder is not empty
@@ -344,6 +381,21 @@ for SH in bash /bin/bash; do
   check "[$sh] U7 an app with a login-item helper registered inside is still kept" "$([[ "$(block LoginHelper1 "$out")" == *"[KEEP]"*"registers a login item"* ]] && echo ok || block LoginHelper1 "$out")"
   check "[$sh] U7 of $total apps $offered are offered and $kept kept (with the updater rule: 7 and 6)" "$([[ $offered -eq 7 && $kept -eq 6 ]] && echo ok || echo "$offered/$kept")"
   mv "$S/pgrep" "$S/pgrep.off"; printf '#!/bin/bash\nexit 1\n' > "$S/pgrep"; chmod +x "$S/pgrep"
+
+  # V3: every level is counted, and what belongs to the apps inside stays
+  world s4e
+  nested() { mkdir -p "$1/Contents"; printf '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>%s</string></dict></plist>' "$2" > "$1/Contents/Info.plist"; }
+  mkapp SuiteTwo com.suite.two
+  nested "$W/apps/SuiteTwo.app/Contents/Applications/Middle.app" com.suite.mid
+  nested "$W/apps/SuiteTwo.app/Contents/Applications/Middle.app/Contents/Applications/Deepest.app" com.suite.inner
+  mkdir -p "$W/home/Library/Application Support/com.suite.inner" "$W/home/Library/Application Support/com.suite.two"; printf x > "$W/home/Library/Application Support/com.suite.inner/d"; printf x > "$W/home/Library/Application Support/com.suite.two/d"
+  out="$(run --stale-apps)"
+  check "[$sh] V3 the contains line counts every level and says the inner apps' own files stay" \
+        "$([[ "$(block SuiteTwo "$out")" == *"contains: 2 other app(s) inside it, removed with it: Middle.app; Deepest.app (their own settings and data are left in place)"* ]] && echo ok || block SuiteTwo "$out")"
+  paths_of "$(block SuiteTwo "$out")" > "$W/list"
+  run --stale-apps --execute --yes --only-paths "$W/list" > /dev/null
+  check "[$sh] V3 the suite and its own data go; the inner app's own Application Support stays where it was" \
+        "$([[ ! -e "$W/apps/SuiteTwo.app" && ! -e "$W/home/Library/Application Support/com.suite.two" && -e "$W/home/Library/Application Support/com.suite.inner/d" ]] && in_trash SuiteTwo.app && echo ok || echo "wrong")"
 
   # ---------------------------------------------------------------- S4b: login items need a recent inventory
   world s4b

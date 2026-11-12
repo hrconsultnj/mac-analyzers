@@ -214,10 +214,21 @@ nested_app_paths() {  # app
   find "$1/Contents" \( -type d -o -type l \) -iname '*.app' -prune -print 2>/dev/null
 }
 
-# the names of the apps inside this one, "; " apart, and how many (for the line the review shows)
+# every app inside this one at every level (an app inside an app inside an app too), one path per line
+nested_app_paths_all() {  # app
+  local n list
+  list="$(nested_app_paths "$1")"
+  while IFS= read -r n; do
+    [[ -n "$n" ]] || continue
+    printf '%s\n' "$n"
+    nested_app_paths_all "$n"
+  done <<< "$list"
+}
+
+# the names of the apps inside this one at every level, "; " apart, and how many (for the line the review shows)
 nested_app_names() {  # app -> prints "N<TAB>name; name"
   local n count=0 names="" list
-  list="$(nested_app_paths "$1")"
+  list="$(nested_app_paths_all "$1")"
   while IFS= read -r n; do
     [[ -n "$n" ]] || continue
     count=$((count + 1)); names="${names:+$names; }${n##*/}"

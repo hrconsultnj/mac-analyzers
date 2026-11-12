@@ -235,7 +235,10 @@ app_groups_checked() {
   pkill -P "$wpid" 2>/dev/null; kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null
   xml="$(cat "$xmlf" 2>/dev/null)"
   if [[ $rc -ne 0 ]]; then
-    if grep -q "not signed at all" "$errf" 2>/dev/null; then rc=0; else rc=3; fi
+    # "not signed at all": no entitlements. "bundle format unrecognized, invalid, or unsuitable": a folder that only looks
+    # like a bundle (no Info.plist, no executable; Xcode's SDKs hold such .xpc stubs): there is no code in it to declare
+    # anything. Any other failure is unknown.
+    if grep -q -e "not signed at all" -e "bundle format unrecognized, invalid, or unsuitable" "$errf" 2>/dev/null; then rc=0; else rc=3; fi
     rm -f "$errf" "$xmlf"; [[ $rc -eq 0 ]] && return 0; return 3
   fi
   rm -f "$errf" "$xmlf"
@@ -252,10 +255,17 @@ app_groups_checked() {
 # the app names)
 app_groups() { app_groups_checked "$1" || true; }
 
-# Every app bundle (and app extension, *.appex, which can use a group too) under the app folders, AT ANY DEPTH, and
-# the ones inside bundles at any depth, nested apps inside nested apps too; found once per run. Every way a bundle
-# can sit where this walk would not see it is either walked or recorded in INDEX_PROBLEMS, and then "shared
-# elsewhere" is unknown:
+# Every bundle that can declare an application group (Apple: "main executables packaged in bundled structures, app
+# extensions, App Clips, and XPC Services", and system extensions are bundle main executables too): *.app, *.appex,
+# *.xpc, *.systemextension and *.dext, under the app folders AT ANY DEPTH and inside bundles at any depth, nested ones
+# inside nested ones too; found once per run. Every way a bundle can sit where this walk would not see it is either
+# walked or recorded in INDEX_PROBLEMS, and then "shared elsewhere" is unknown:
+#   code that cannot declare one and is not read: frameworks, plug-ins (.plugin, .bundle, .qlgenerator, .mdimporter,
+#   .prefPane: they run with their host's entitlements), and BARE helper executables (a tool in Contents/Helpers or
+#   Contents/Library/LaunchServices is not a bundle; it cannot be listed without reading every executable, and a
+#   `group.` group needs a profile a bare tool cannot carry). Basis: tasks-plans/research/app/app-group-entitlement-carriers-2026-11-12.md
+#   a configured app folder that is not there (an unplugged disk): a problem; none could be walked at all: a problem
+#   a bundle with no Contents (a flat or wrapped one): searched itself
 #   a linked folder in an app folder (never followed: it can point anywhere, a loop, the whole disk): a problem
 #   a folder or bundle that could not be read (a find error): a problem
 #   an app folder that is itself a link: followed (find -H), it is the folder the person named
@@ -264,11 +274,12 @@ app_groups() { app_groups_checked "$1" || true; }
 #   walked anyway): not followed; links inside bundles stay inside them
 INDEX_PROBLEMS=()
 ALL_BUNDLES=(); ALL_BUNDLES_DONE=0
-_is_bundle_name() { case "$(printf '%s' "${1##*/}" | tr '[:upper:]' '[:lower:]')" in *.app|*.appex) return 0 ;; esac; return 1; }
+_is_bundle_name() { case "$(printf '%s' "${1##*/}" | tr '[:upper:]' '[:lower:]')" in *.app|*.appex|*.xpc|*.systemextension|*.dext) return 0 ;; esac; return 1; }
+_is_app_name() { case "$(printf '%s' "${1##*/}" | tr '[:upper:]' '[:lower:]')" in *.app) return 0 ;; esac; return 1; }
 list_all_app_bundles() {
   [[ "$ALL_BUNDLES_DONE" -eq 1 ]] && return 0
   ALL_BUNDLES_DONE=1
-  local dirs dir b n errf out line level
+  local dirs dir b n errf out line level walked=0
   local -a contents=()
   errf="$(mktemp "${TMPDIR:-/tmp}/cleanup-find.XXXXXX")" || { INDEX_PROBLEMS+=( "a list of the installed apps could not be made" ); return 0; }
   out="$(mktemp "${TMPDIR:-/tmp}/cleanup-find.XXXXXX")" || { rm -f "$errf"; INDEX_PROBLEMS+=( "a list of the installed apps could not be made" ); return 0; }
@@ -276,29 +287,37 @@ list_all_app_bundles() {
   # The lists go through files, not process substitutions: bash 3.2 (the one macOS ships) crashes every later
   # command, and hangs, when process substitutions run in a loop over a few hundred bundles inside a function.
   for dir in "${dirs[@]}"; do
-    [[ -d "$dir" ]] || continue
-    find -H "$dir" \( \( \( -type d -o -type l \) \( -iname '*.app' -o -iname '*.appex' \) -prune -print0 \) -o \( -type l -print0 \) \) > "$out" 2>>"$errf"
+    if [[ ! -d "$dir" ]]; then
+      # a folder the person named that is not there now (an unplugged disk, a removed folder) holds apps nobody can
+      # see; the default ~/Applications is allowed to be absent
+      [[ -n "${ANALYZERS_APP_DIRS:-}" ]] && INDEX_PROBLEMS+=( "an app folder that is configured is not there: $dir" )
+      continue
+    fi
+    walked=$((walked + 1))
+    find -H "$dir" \( \( \( -type d -o -type l \) \( -iname '*.app' -o -iname '*.appex' -o -iname '*.xpc' -o -iname '*.systemextension' -o -iname '*.dext' \) -prune -print0 \) -o \( -type l -print0 \) \) > "$out" 2>>"$errf"
     while IFS= read -r -d '' b; do
       if _is_bundle_name "$b"; then
         ALL_BUNDLES+=( "$b" )
-        [[ -d "$b/Contents" ]] && contents+=( "$b/Contents" )
+        if [[ -d "$b/Contents" ]]; then contents+=( "$b/Contents" ); elif [[ -d "$b" ]]; then contents+=( "$b" ); fi   # a bundle with no Contents: search it itself
       elif [[ -d "$b" ]]; then
         INDEX_PROBLEMS+=( "a link to a folder inside an app folder is not followed: $b" )
       fi
     done < "$out"
   done
-  # the apps inside bundles, level by level (an app inside an app inside an app), each level one find over every Contents
+  [[ $walked -gt 0 ]] || INDEX_PROBLEMS+=( "no app folder could be walked" )
+  # the bundles INSIDE bundles, level by level (an app inside an app inside an app), each level one find over every
+  # Contents folder
   level=0
   while [[ ${#contents[@]} -gt 0 && $level -lt 12 ]]; do
     level=$((level + 1))
-    find "${contents[@]}" \( -type d -o -type l \) \( -iname '*.app' -o -iname '*.appex' \) -prune -print0 > "$out" 2>>"$errf"
+    find "${contents[@]}" -mindepth 1 \( -type d -o -type l \) \( -iname '*.app' -o -iname '*.appex' -o -iname '*.xpc' -o -iname '*.systemextension' -o -iname '*.dext' \) -prune -print0 > "$out" 2>>"$errf"
     contents=()
     while IFS= read -r -d '' n; do
       ALL_BUNDLES+=( "$n" )
-      [[ -d "$n/Contents" ]] && contents+=( "$n/Contents" )
+      if [[ -d "$n/Contents" ]]; then contents+=( "$n/Contents" ); elif [[ -d "$n" ]]; then contents+=( "$n" ); fi
     done < "$out"
   done
-  [[ ${#contents[@]} -eq 0 ]] || INDEX_PROBLEMS+=( "apps nested more than twelve levels deep were not read" )
+  [[ ${#contents[@]} -eq 0 ]] || INDEX_PROBLEMS+=( "bundles nested more than twelve levels deep were not read" )
   if [[ -s "$errf" ]]; then
     line="$(head -n 1 "$errf" | cut -c1-200)"
     INDEX_PROBLEMS+=( "a folder could not be searched: ${line}" )
@@ -308,7 +327,7 @@ list_all_app_bundles() {
 }
 
 # One line per (group, app) for every bundle, then "!UNREADABLE<TAB>bundle" for each whose entitlements could not be
-# read (or not within the time limit). Built once per run, eight codesign reads at a time. Every read leaves its own
+# read (or not within the time limit). Built once per run, sixteen codesign reads at a time. Every read leaves its own
 # file, so a read that was killed before it wrote one is noticed: the index is then not trusted.
 GROUP_INDEX=""; GROUP_INDEX_COMPLETE=1
 _index_one() {  # bundle outfile
@@ -328,7 +347,7 @@ build_group_index() {
   for b in ${ALL_BUNDLES[@]+"${ALL_BUNDLES[@]}"}; do
     _index_one "$b" "$tmpd/$i" &
     i=$((i + 1))
-    [[ $((i % 8)) -eq 0 ]] && wait
+    [[ $((i % 16)) -eq 0 ]] && wait
   done
   wait
   made="$(find "$tmpd" -type f 2>/dev/null | wc -l | tr -d ' ')"
@@ -375,6 +394,7 @@ name_is_ours() {  # app name
   [[ ${#INDEX_PROBLEMS[@]} -eq 0 ]] || return 1
   for other in ${ALL_BUNDLES[@]+"${ALL_BUNDLES[@]}"}; do
     [[ "$other" != "$app" && "$other" != "$app"/* ]] || continue
+    _is_app_name "$other" || continue        # an XPC service or an extension does not own an app's name
     base="${other##*/}"; base="${base%.app}"
     lbase="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')"
     case "$lbase" in "$lname"|"$lname "*|"$lname-"*|"$lname."*) return 1 ;; esac
@@ -500,7 +520,7 @@ purge_app() {
   # shellcheck source=../lib/launch-items.sh
   if [[ -f "$LAUNCH_LIB" ]] && source "$LAUNCH_LIB" 2>/dev/null; then
     IFS=$'\t' read -r nested_count nested_names <<< "$(nested_app_names "$app")"
-    [[ "${nested_count:-0}" -gt 0 ]] && printf "  contains: %s other app(s) inside it, removed with it: %s\n" "$nested_count" "$nested_names"
+    [[ "${nested_count:-0}" -gt 0 ]] && printf "  contains: %s other app(s) inside it, removed with it: %s (their own settings and data are left in place)\n" "$nested_count" "$nested_names"
   fi
   collect_app_footprint "$app" "$bid" "$name" "$PURGE_KEEPCHECK"
   for p in "${APP_PATHS[@]}"; do

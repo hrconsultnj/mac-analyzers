@@ -83,7 +83,8 @@ case "\$app" in
 esac
 STUB
   printf '#!/bin/bash\nif [[ -f "%s/index-off" ]]; then echo "/: Indexing disabled."; else echo "/: Indexing enabled."; fi\n' "$disc" > "$disc/stubs/mdutil"
-  chmod +x "$disc/stubs/mdls" "$disc/stubs/mdutil"
+  printf '#!/bin/bash\nexit 1\n' > "$disc/stubs/pgrep"        # nothing is running, whatever the real machine has
+  chmod +x "$disc/stubs/mdls" "$disc/stubs/mdutil" "$disc/stubs/pgrep"
   dtree="$TMP/dtree-$k"; make_tree "$dtree"; printf 'ANALYZERS_APP_DIRS="%s/apps"\nANALYZERS_LAUNCH_DIRS="%s/launch"\nANALYZERS_LOGIN_INVENTORY="%s/login-items.tsv"\n' "$disc" "$disc" "$disc" > "$dtree/config.local.sh"
   dscript="$dtree/storage-analyzer/cleanup.sh"
   dcleanup() { PATH="$disc/stubs:$PATH" HOME="$disc/home" "$sh" "$dscript" "$@" 2>&1; }

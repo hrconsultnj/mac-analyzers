@@ -48,7 +48,7 @@ public enum UnusedReview {
     /// The last audit ran but could not list the System Settings login items.
     public static let loginUnreadableNote = "The last Login & Startup Items check could not read your Login Items, so which apps open at login can't be checked yet. Run that check from Mac Analyzers, where macOS can ask for permission, then preview again."
     /// What the "does it start on its own" check reads, and what it cannot see: said once, so a person can weigh a row.
-    public static let checkLimitsNote = "Whether an app starts on its own is read from your launch entries and the commands and scripts in them that open it, your Login Items, and what is inside the app. It cannot see a script that builds the app's name from parts, Shortcuts, Automator, cron, or another program that opens the app only when it needs it."
+    public static let checkLimitsNote = "Whether an app starts on its own is read from your launch entries and the commands and scripts in them that open it, your Login Items, and what is inside the app. It cannot see a script that builds the app's name from parts, Shortcuts, Automator, cron, or another program that opens the app only when it needs it. Containers shared with another app are checked against the apps in your Applications folders; an app kept somewhere else (Downloads, a build folder) is not seen."
     /// Why no shared container was taken, when something could not be read: the engine's `[CONTAINERS-KEPT]` line.
     public static func containersKeptNote(_ causes: String) -> String {
         "Something could not be read, so no container another app might share is taken (\(causes)). Fix that and preview again."
@@ -141,7 +141,7 @@ public enum UnusedReview {
                 let isBundle = item.path == app.path || index == 0
                 rows.append(StorageRow(id: item.path, category: UnusedAppCategory.apps.rawValue, group: app.name,
                                        title: isBundle ? app.name : Self.title(of: item.path, app: app),
-                                       detail: isBundle ? "\(opened) · \(StorageLog.short(item.path))" + (app.nestedCount > 0 ? " · Contains \(app.nestedCount) other \(app.nestedCount == 1 ? "app" : "apps")" : "") : StorageLog.short(item.path),
+                                       detail: isBundle ? "\(opened) · \(StorageLog.short(item.path))" + (app.nestedCount > 0 ? " · Contains \(app.nestedCount) other \(app.nestedCount == 1 ? "app" : "apps"), whose own files stay" : "") : StorageLog.short(item.path),
                                        bytes: item.bytes, iconPath: isBundle ? item.path : nil))
             }
             for item in app.left {

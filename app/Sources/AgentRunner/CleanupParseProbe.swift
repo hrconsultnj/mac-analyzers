@@ -144,6 +144,8 @@ import Foundation
            "an app macOS has no record of is a kept row: \(row("Unknown")?.keptReason ?? "offered")")
     expect(Set(findings.rows.filter { $0.keptReason == nil }.compactMap(\.group)) == ["Unused"], "only the unused app (and its files) can be ticked")
     expect(findings.notes.contains(UnusedReview.checkLimitsNote), "the screen says once what the check reads and what it cannot see")
+    expect(UnusedReview.checkLimitsNote.contains("checked against the apps in your Applications folders") && UnusedReview.checkLimitsNote.contains("not seen"),
+           "and that shared containers are checked against the app folders only")
     for (why, expected) in [("Which apps open at login can't be checked yet: run Login & Startup Items first, then preview again", UnusedReview.loginCheckNote),
                             ("Which apps open at login can't be checked yet: the last Login & Startup Items check could not read your Login Items. Run it from the Mac Analyzers app", UnusedReview.loginUnreadableNote)] {
         let kept = UnusedReview.apps(lines: ["### APP: X   (bundle: com.x)", "[APP]     /p/X.app", "last launched (Spotlight): 2024-01-02", "[KEEP]    \(why)", ""])
@@ -154,7 +156,7 @@ import Foundation
                                                "[DRY]        10 KB  /p/Y.app", "TOTAL — 1 items"])
     expect(withNested.notes.contains { $0.contains("Hang.app could not be read") && $0.contains("no container another app might share is taken") },
            "the engine's [CONTAINERS-KEPT] line becomes one sentence over the table, naming what could not be read: \(withNested.notes)")
-    expect(withNested.rows.first?.detail?.contains("Contains 2 other apps") == true, "an app that holds other apps says how many go with it: \(withNested.rows.first?.detail ?? "none")")
+    expect(withNested.rows.first?.detail?.contains("Contains 2 other apps, whose own files stay") == true, "an app that holds other apps says how many go with it, and that their own files stay: \(withNested.rows.first?.detail ?? "none")")
     // the Login & Startup Items screen reads the same header field (the Apps tab says when the login items were not read)
     let readHeader = "#login-items-inventory\t2\t2026-11-11 10:00:00\tdry-run\tid1\tlogins=read\n"
     expect(StartupInventory.parse(readHeader)?.loginItemsUnreadable == false, "a header with logins=read: the login items were read")

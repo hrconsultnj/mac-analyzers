@@ -61,16 +61,19 @@ without an entry here — see `scripts/cut-release.sh`.
   identity are taken: a folder that merely carries its name (Electron), a
   group container named for the app that it does not declare, or one that
   another app shares, wherever that other app is installed (in a folder, or
-  inside another app, at any depth), is shown and left in place; when some
-  app's settings, or a folder, or a link to a folder cannot be read, no group
-  container is taken at all and the screen says what it could not read. An app that
+  inside another app, at any depth, its XPC services and extensions included),
+  is shown and left in place; when some app's settings, a folder, an app folder
+  you configured that is not there, or a link to a folder cannot be read, no
+  group container is taken at all and the screen says what it could not read.
+  Shared containers are checked against the apps in your Applications folders
+  only. An app that
   macOS has no record of, that runs in the background (a login item, launch
   agent, helper or system extension, a menu-bar tool, or something started
   through `open`), that is running, that holds another app which is in use
   on its own (opened recently, running, or started by something), or that
   you cannot move without an administrator is listed but never offered. Apps
   inside an app (an updater, a helper) are part of it and go with it; the row
-  says how many. The
+  says how many, at every level, and that their own settings and data stay. The
   screen says what that check reads (launch entries and the commands and scripts
   in them that open an app, your Login Items, what is inside the app) and what it
   cannot see. Which apps open at login is read from the Login & Startup Items
