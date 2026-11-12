@@ -136,13 +136,13 @@ struct TimeMachineScreen: View {
 
     /// The permission, when it is missing: what it is for, and the one button that asks for it. When sudo says it is
     /// allowed only because of the old shared file an earlier Terminal install left (nothing of this account's own),
-    /// the bar says so and gives the command that removes it: the app does not remove a file it did not write.
+    /// the bar says so and gives the command that checks the file and removes it if it is this account's: the app cannot read the file and does not remove one it did not write.
     @ViewBuilder private var permissionBar: some View {
         if allowed && !ruleThere && legacyThere {
             VStack(alignment: .leading, spacing: 2) {
                 Label(Names.TimeMachine.earlierPermissionTitle, systemImage: "lock.open").font(.callout.weight(.medium))
                 Text(Names.TimeMachine.earlierPermissionDetail).font(.caption).foregroundStyle(.secondary)
-                Text(Names.TimeMachine.earlierPermissionCommand).font(.caption.monospaced()).textSelection(.enabled)
+                Text(TimeMachinePermission.uninstallCommand()).font(.caption.monospaced()).textSelection(.enabled)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal).padding(.vertical, 8)

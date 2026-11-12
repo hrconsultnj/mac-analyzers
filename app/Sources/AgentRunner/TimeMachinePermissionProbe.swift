@@ -67,6 +67,14 @@ import Foundation
     expect(Names.TimeMachine.permissionDetail.contains("any program running on your account") && Names.TimeMachine.permissionDetail.contains("remove the permission from this screen"),
            "the bar beside Allow… says what the permission lets any program do, and where to remove it")
 
+    // ---- the command the "earlier permission" bar shows ----
+    let plain = TimeMachinePermission.uninstallCommand(suiteRoot: URL(fileURLWithPath: "/Users/someone/mac-analyzers"))
+    expect(plain == "'/Users/someone/mac-analyzers/storage-analyzer/storage-manage-agents.sh' sudoers-uninstall", "the bar's command is the suite's own sudoers-uninstall, with the real path: \(plain)")
+    let odd = TimeMachinePermission.uninstallCommand(suiteRoot: URL(fileURLWithPath: "/Applications/Mac Analyzers's.app/Contents/Resources/engine"))
+    expect(odd.hasPrefix("'/Applications/Mac Analyzers'\\''s.app/") && odd.hasSuffix("storage-manage-agents.sh' sudoers-uninstall"), "a path with a space and a quote is quoted for a shell: \(odd)")
+    expect(!plain.contains("sudo rm") && !Names.TimeMachine.earlierPermissionDetail.contains("sudo rm") && Names.TimeMachine.earlierPermissionDetail.contains("if it is this account's"),
+           "the bar does not give a command that removes without checking, and says the removal happens only if the file is this account's")
+
     // ---- the template and the engine ----
     let template = (try? String(contentsOf: repo.appending(path: "storage-analyzer/sudoers.d/tmutil-thin"), encoding: .utf8)) ?? ""
     let active = template.split(separator: "\n").map(String.init).filter { !$0.hasPrefix("#") && !$0.trimmingCharacters(in: .whitespaces).isEmpty }

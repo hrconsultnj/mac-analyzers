@@ -110,6 +110,15 @@ public enum TimeMachinePermission {
     /// allowed is `isAllowed`. Another account's file, or the old shared one, never counts.
     public static func ruleFileExists(uid: UInt32 = getuid()) -> Bool { FileManager.default.fileExists(atPath: ruleFile(uid: uid)) }
 
+    /// The command that removes the old shared file, for a person to run in Terminal: the suite's own
+    /// `sudoers-uninstall`, which checks that the file's rule is this account's before it removes anything. The path
+    /// is the one this copy of the suite really has (the clone, or the copy inside the app when there is no clone),
+    /// quoted for a shell.
+    public static func uninstallCommand(suiteRoot: URL = AnalyzersPaths.suiteRoot) -> String {
+        let script = suiteRoot.appending(path: "storage-analyzer/storage-manage-agents.sh").path
+        return "'" + script.replacingOccurrences(of: "'", with: "'\\''") + "' sudoers-uninstall"
+    }
+
     /// Whether the old shared file (`legacyRuleFile`) is on disk.
     public static func legacyFileExists() -> Bool { FileManager.default.fileExists(atPath: legacyRuleFile) }
 

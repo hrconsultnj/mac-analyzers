@@ -25,14 +25,21 @@ SUDOERS_DIR="/etc/sudoers.d"
 SUDOERS_DEST="${SUDOERS_DIR}/tmutil-thin-$(id -u)"
 SUDOERS_OLD="${SUDOERS_DIR}/tmutil-thin"
 
-# old_rule_is_mine: true when the old shared file holds exactly one rule and it is for THIS account, by name or by
-# user ID. Reading it takes your own sudo (it is root-only). A file for another account is not yours to remove.
+# rule_after_first_field: a rule line without its first field, white space normalised to single spaces.
+rule_after_first_field() { awk '{ $1 = ""; sub(/^ +/, ""); print }'; }
+
+# old_rule_is_mine: true when the old shared file holds exactly one rule, it is for THIS account (by name or by user
+# ID), AND everything after that first field is exactly the template's rule (white space aside). A rule someone
+# widened or edited (another command, extra arguments, ALL) is not ours to remove, even for this account. Reading
+# the file takes your own sudo (it is root-only).
 old_rule_is_mine() {
-  local rules first
+  local rules first expected
   rules="$(sudo cat "${SUDOERS_OLD}" 2>/dev/null | grep -v -E '^[[:space:]]*(#([^0-9]|$)|$)')" || return 1
   [[ "$(printf '%s\n' "${rules}" | grep -c .)" -eq 1 ]] || return 1
   first="$(printf '%s\n' "${rules}" | awk '{print $1}')"
-  [[ "${first}" == "#$(id -u)" || "${first}" == "$(id -un)" ]]
+  [[ "${first}" == "#$(id -u)" || "${first}" == "$(id -un)" ]] || return 1
+  expected="$(grep -v -E '^[[:space:]]*(#|$)' "${SUDOERS_SRC}" | head -1 | rule_after_first_field)"
+  [[ -n "${expected}" && "$(printf '%s\n' "${rules}" | rule_after_first_field)" == "${expected}" ]]
 }
 
 # reload_agent: unload, wait until launchd has really let go, load, retry.
@@ -171,7 +178,7 @@ case "$cmd" in
       if old_rule_is_mine; then
         sudo rm -f "${SUDOERS_OLD}" && echo "✓ removed the old shared file ${SUDOERS_OLD} (it was your account's; this file replaces it)."
       else
-        echo "(left ${SUDOERS_OLD} in place: its rule is not for your account, or it could not be read.)"
+        echo "(left ${SUDOERS_OLD} in place: its rule is not exactly this suite's rule for your account, or it could not be read.)"
       fi
     fi
     ;;
@@ -184,7 +191,7 @@ case "$cmd" in
       if old_rule_is_mine; then
         sudo rm -f "${SUDOERS_OLD}" && echo "Removed ${SUDOERS_OLD} (the old shared file, your account's)" && removed=0
       else
-        echo "(left ${SUDOERS_OLD} in place: its rule is not for your account, or it could not be read. To remove it anyway: sudo rm ${SUDOERS_OLD})"
+        echo "(left ${SUDOERS_OLD} in place: its rule is not exactly this suite's rule for your account, or it could not be read. To remove it anyway: sudo rm ${SUDOERS_OLD})"
       fi
     fi
     [[ ${removed} -eq 0 ]] || echo "(not installed)"

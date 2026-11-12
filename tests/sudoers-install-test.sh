@@ -140,6 +140,25 @@ for sh in bash /bin/bash; do
   clean; printf 'alice %s\n' "$RULE" > "$OLD"
   out="$(run "$sh" 501 bob sudoers-install)"; rc=$?
   check "[$sh] old file for ANOTHER account: left in place, said so, the new file still written" "$([[ $rc -eq 0 && -f "$OLD" && -f "$(file_for 501)" && "$out" == *"left $ETC/tmutil-thin in place"* ]] && echo ok || echo "exit $rc: $(ls "$ETC"): $out")"
+  # the same account, but not the suite's rule: widened, a different command, extra arguments, white space aside it is fine
+  clean; printf 'bob ALL=(ALL) NOPASSWD: ALL\n' > "$OLD"
+  out="$(run "$sh" 501 bob sudoers-install)"
+  check "[$sh] old file for this account but a widened rule (ALL): left in place, and said why" "$([[ -f "$OLD" && -f "$(file_for 501)" && "$out" == *"not exactly this suite's rule"* ]] && echo ok || echo "$(ls "$ETC"): $out")"
+  clean; printf 'bob ALL=(root) NOPASSWD: /usr/bin/tmutil deletelocalsnapshots 2026-01-01\n' > "$OLD"
+  run "$sh" 501 bob sudoers-install > /dev/null
+  check "[$sh] old file for this account but a different command: left in place" "$([[ -f "$OLD" ]] && echo ok || echo removed)"
+  clean; printf 'bob %s extra\n' "$RULE" > "$OLD"
+  run "$sh" 501 bob sudoers-install > /dev/null
+  check "[$sh] old file with the suite's rule plus extra arguments: left in place" "$([[ -f "$OLD" ]] && echo ok || echo removed)"
+  clean; printf 'bob ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999\n' > "$OLD"
+  run "$sh" 501 bob sudoers-install > /dev/null
+  check "[$sh] old file with fewer arguments: left in place" "$([[ -f "$OLD" ]] && echo ok || echo removed)"
+  clean; printf 'bob   ALL=(root)\tNOPASSWD:   /usr/bin/tmutil   thinlocalsnapshots / 999999999999   4  \n' > "$OLD"
+  run "$sh" 501 bob sudoers-install > /dev/null
+  check "[$sh] old file with the suite's rule and only white space different: removed" "$([[ ! -e "$OLD" ]] && echo ok || echo left)"
+  clean; printf 'bob ALL=(ALL) NOPASSWD: ALL\n' > "$OLD"; : > "$(file_for 501)"
+  out="$(run "$sh" 501 bob sudoers-uninstall)"
+  check "[$sh] sudoers-uninstall leaves a widened old rule too, with the command to remove it by hand" "$([[ -f "$OLD" && ! -e "$(file_for 501)" && "$out" == *"not exactly this suite's rule"* && "$out" == *"sudo rm $ETC/tmutil-thin"* ]] && echo ok || echo "$out")"
   # more than one rule in it: not touched
   clean; printf 'bob %s\nalice %s\n' "$RULE" "$RULE" > "$OLD"
   out="$(run "$sh" 501 bob sudoers-install)"
