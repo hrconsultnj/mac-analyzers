@@ -29,7 +29,9 @@ import Foundation
 
     // stand-ins: tmutil lists three snapshots (two TM, one macOS) and logs; sudo logs and obeys a deny file; df counts
     let stamp = DateFormatter(); stamp.locale = Locale(identifier: "en_US_POSIX"); stamp.dateFormat = "yyyy-MM-dd-HHmmss"
-    let now = Date()
+    // the probe's clock is noon of the current day, so "an hour ago" is today at any hour the probe runs
+    // (read off the wall clock it was yesterday between midnight and one, and the day names were wrong)
+    let now = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date()) ?? Date()
     let today = stamp.string(from: now.addingTimeInterval(-3_600)), earlier = stamp.string(from: now.addingTimeInterval(-3 * 86_400))
     let calls = root.appending(path: "calls.log"), deny = root.appending(path: "deny"), counter = root.appending(path: "df-count")
     func write(_ name: String, _ body: String) { let url = stubs.appending(path: name); try? body.write(to: url, atomically: true, encoding: .utf8); chmod(url.path, 0o755) }
