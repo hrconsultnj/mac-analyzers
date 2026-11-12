@@ -35,7 +35,7 @@ make_home() { # dir: two fixture apps with a footprint each, two old recording f
   find "$h/Recordings" -exec touch -t 202001010000 {} +
 }
 write_config() { # tree home
-  printf '#login-items-inventory\t1\tx\tdry-run\tid\n' > "$2/inventory.tsv"      # the audit ran today
+  printf '#login-items-inventory\t2\t%s\tdry-run\tid\tlogins=read\n' "$(date '+%Y-%m-%d %H:%M:%S')" > "$2/inventory.tsv"      # the audit ran today
   printf 'ANALYZERS_STALE_APPS=( "%s/Applications/FixtureOne.app" "%s/Applications/FixtureTwo.app" )\nANALYZERS_RECORDINGS_DIR="%s/Recordings"\nANALYZERS_LOGIN_INVENTORY="%s/inventory.tsv"\n' "$2" "$2" "$2" "$2" > "$1/config.local.sh"
 }
 
@@ -64,7 +64,7 @@ for sh in bash /bin/bash; do
   mkapp Old; mkapp Never; mkapp Recent; mkapp NoRecord; mkapp WithAgent; mkapp WithLoginItem; mkapp WithSysExt
   mkapp OpenAtLogin
   # the audit's inventory: an "Open at Login" item whose app is OpenAtLogin (System Settings items have no plist)
-  printf '#login-items-inventory\t1\tx\tdry-run\tid\nloginitem\tuser\tOpenAtLogin\t\t%s/apps/OpenAtLogin.app\tok\tenabled\t\t\n' "$disc" > "$disc/login-items.tsv"
+  printf '#login-items-inventory\t2\t%s\tdry-run\tid\tlogins=read\nloginitem\tuser\tOpenAtLogin\t\t%s/apps/OpenAtLogin.app\tok\tenabled\t\t\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$disc" > "$disc/login-items.tsv"
   mkapp MenuBar '<key>LSUIElement</key><true/>'; mkapp Holder; mkdir -p "$disc/apps/Holder.app/Contents/Resources/Inner.app/Contents"
   mkdir -p "$disc/apps/WithLoginItem.app/Contents/Library/LoginItems/Helper.app" "$disc/apps/WithSysExt.app/Contents/Library/SystemExtensions/x.systemextension"
   # a launch agent whose program is inside WithAgent

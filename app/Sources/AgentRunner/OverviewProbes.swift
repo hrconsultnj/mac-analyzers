@@ -546,6 +546,59 @@ func probeUndoFixture(_ args: [String]) {
           RestoreBlock.isRestore(header: RestoreBlock.banner(at: now)) && !RestoreBlock.isRestore(header: " input: x | restore from Undo | APPLY")
           && !RestoreBlock.isRestore(header: "2026-11-11 05:12 | restore from Undo | APPLY"))
 
+    // 18. a recording sent to another disk's own Trash can be put back, and only from the right place
+    let me = getuid()
+    // paths are written out in one plain form (no doubled slash from a temp folder named with a trailing one): the fake
+    // volumes below compare strings
+    let workPath = (work.path as NSString).standardizingPath
+    let volB = workPath + "/volB"
+    let volC = workPath + "/volC"        // a second disk, whose Trash folder belongs to somebody else
+    let volD = workPath + "/volD"        // a third disk, whose .Trashes is a link
+    let onDisk: @Sendable (String, String) -> Bool = { path, disk in path == disk || path.hasPrefix(disk + "/") }
+    let volumes = UndoVolumes(device: { path in onDisk(path, volB) ? 99 : onDisk(path, volC) ? 98 : onDisk(path, volD) ? 97 : 1 },
+                              owner: { path in path.hasPrefix(volC) ? me + 1 : me }, uid: me)
+    func receiptFor(_ original: String, _ dest: String) -> TrashedItem? {
+        let url = ledger("disk-\(UUID().uuidString.prefix(6)).log", [banner(now), "[TRASHED] 1 KB  \(original)  ->  \(dest)\(id(dest))"])
+        return UndoLedger.trashedItems(in: url, source: "Old Recordings", trash: trash, volumes: volumes).first
+    }
+    func staged(_ trashFolder: String, name: String, original: String) -> String {
+        touch(trashFolder + "/" + name, "a recording")
+        try? fm.createDirectory(atPath: (original as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        return trashFolder + "/" + name
+    }
+    let recOriginal = volB + "/Rec/Meeting"
+    let ownTrash = volB + "/.Trashes/\(me)"
+    let dest18 = staged(ownTrash, name: "Meeting", original: recOriginal)
+    check("a recording in its own disk's Trash (<mount>/.Trashes/<your id>) lists as restorable", receiptFor(recOriginal, dest18)?.restorability == .restorable,
+          "\(String(describing: receiptFor(recOriginal, dest18)?.restorability))")
+    let otherUser = volB + "/.Trashes/\(me + 1)"
+    let destOther = staged(otherUser, name: "Meeting", original: recOriginal)
+    check("another user's .Trashes/<other id> is refused", receiptFor(recOriginal, destOther)?.restorability == .unsafePath)
+    let homeOriginal = workPath + "/homeRec/Meeting"
+    let destWrongDisk = staged(ownTrash, name: "Wrong", original: homeOriginal)
+    check("a .Trashes path on a disk the original is NOT on is refused", receiptFor(homeOriginal, destWrongDisk)?.restorability == .unsafePath)
+    let realFolder = volD + "/elsewhere/\(me)"
+    try? fm.createDirectory(atPath: realFolder, withIntermediateDirectories: true)
+    try? fm.createDirectory(atPath: volD + "/Rec", withIntermediateDirectories: true)
+    try? fm.createSymbolicLink(atPath: volD + "/.Trashes", withDestinationPath: volD + "/elsewhere")
+    touch(realFolder + "/Meeting", "through a link")
+    check("a link in the Trash path (.Trashes itself a link) is refused", receiptFor(volD + "/Rec/Meeting", volD + "/.Trashes/\(me)/Meeting")?.restorability == .unsafePath)
+    let plainFolder = workPath + "/plainMount"
+    let destPlanted = staged(plainFolder + "/.Trashes/\(me)", name: "Meeting", original: workPath + "/plainRec/Meeting")
+    check("a .Trashes folder that is not at the root of a disk is refused", receiptFor(workPath + "/plainRec/Meeting", destPlanted)?.restorability == .unsafePath)
+    let destForeign = staged(volC + "/.Trashes/\(me)", name: "Meeting", original: volC + "/Rec/Meeting")
+    check("a Trash folder that is not owned by the person is refused", receiptFor(volC + "/Rec/Meeting", destForeign)?.restorability == .unsafePath)
+    let swapLog = ledger("disk-swap.log", [banner(now), "[TRASHED] 1 KB  \(recOriginal)  ->  \(dest18)\(id(dest18))"])
+    try? fm.removeItem(atPath: dest18); touch(dest18, "the person's own later file")
+    check("the identity is still verified: a later item with the same name in that Trash is refused",
+          UndoLedger.trashedItems(in: swapLog, source: "Old Recordings", trash: trash, volumes: volumes).first?.restorability == .notTheSameItem)
+    try? fm.removeItem(atPath: dest18); touch(dest18, "the recording")
+    var putBack = false
+    if let item = receiptFor(recOriginal, dest18) {
+        putBack = (try? UndoLedger.restore(item, trash: trash, volumes: volumes)) != nil && fm.fileExists(atPath: recOriginal) && !fm.fileExists(atPath: dest18)
+    }
+    check("Restore puts it back from that Trash", putBack)
+
     print(failures == 0 ? "all \(step) checks passed" : "\(failures) of \(step) checks FAILED")
     exit(failures == 0 ? 0 : 1)
 }

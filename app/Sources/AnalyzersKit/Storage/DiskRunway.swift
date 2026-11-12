@@ -19,7 +19,10 @@ public struct DiskRunway: Sendable, Equatable {
     }
 
     public var text: String {
-        daysToFull < 1 ? "under a day" : daysToFull > 42 ? "~\(Int((daysToFull / 7).rounded())) weeks" : "~\(Int(daysToFull.rounded())) days"
+        if daysToFull < 1 { return "under a day" }
+        if daysToFull > 42 { return "~\(Int((daysToFull / 7).rounded())) weeks" }
+        let days = Int(daysToFull.rounded())
+        return "~\(days) \(days == 1 ? "day" : "days")"
     }
     public var isUrgent: Bool { daysToFull < 30 }
 
@@ -84,6 +87,11 @@ public struct DiskRunway: Sendable, Equatable {
         if let fall = confirmedFall(points) {
             return (nil, "Free space fell from about \(Int(fall.before.rounded())) GB to \(Int(fall.now.rounded())) GB between two cleanups, and the latest two figures agree. A forecast from the earlier days would be wrong, so none is shown. Clearing space is the answer for now.")
         }
+        // The newest figure far below the usual of the others (a fall seen once, or one that partly recovered): whatever
+        // else is found, "steady or rising" would be false, so that is what is said instead
+        let others = points.dropLast().map(\.freeGiB).sorted()
+        let usual = others[others.count / 2]
+        let newestFarBelow = (points.last?.freeGiB ?? usual) < usual * 0.5 && usual - (points.last?.freeGiB ?? usual) >= 10
         // one low NEWEST reading is not believed until a second one agrees: the forecast is made without it
         if points.count >= 3 {
             let last = points[points.count - 1], before = points[points.count - 2]
@@ -121,6 +129,9 @@ public struct DiskRunway: Sendable, Equatable {
             }
         }
         if let found = result(points, "Worked out from \(points.count) cleanups' free-space figures over \(span) days.") { return found }
+        if newestFarBelow {
+            return (nil, "The newest figure is far below the others, so no forecast is made from it yet. Preview again to confirm.")
+        }
         return (nil, steady)
     }
 

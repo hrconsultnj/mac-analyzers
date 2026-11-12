@@ -135,6 +135,15 @@ func probeDiskRunway() -> Never {
     expect(recovered.runway == nil && !recovered.reason.contains("fell"), "a fall followed by recovery raises no alarm: \(recovered.runway.map { "\($0.daysToFull)" } ?? recovered.reason)")
     let recoveredAfterCleanups = DiskRunway.outlook(shape([85, 100, 115, 130, 128, 130, 13, 13, 74]))
     expect(recoveredAfterCleanups.runway == nil && !recoveredAfterCleanups.reason.contains("fell"), "13 GB then 74 GB after cleanups is no alarm: \(recoveredAfterCleanups.reason)")
+    // a fast fall seen in ONE reading so far, and one that partly recovered, are not "steady or rising"
+    for (what, values) in [("one low reading so far", [120, 120, 120, 120, 120, 120, 120, 120, 120, 4]), ("a fall that partly recovered", [120, 120, 120, 120, 120, 120, 10, 40])] as [(String, [Double])] {
+        let far = DiskRunway.outlook(shape(values))
+        expect(far.runway == nil && far.reason.contains("newest figure is far below the others") && far.reason.contains("Preview again to confirm") && !far.reason.contains("steady or rising"),
+               "\(what) says the newest figure is far below the others and to preview again: \(far.reason)")
+    }
+    expect(DiskRunway.outlook(shape([120, 120, 120, 120, 120, 120, 120, 120, 120, 120])).reason.contains("steady or rising"), "a flat disk is still steady")
+    expect(DiskRunway(daysToFull: 1.2, points: 5).text == "~1 day" && DiskRunway(daysToFull: 2.4, points: 5).text == "~2 days" && DiskRunway(daysToFull: 0.4, points: 5).text == "under a day",
+           "one day is singular: \(DiskRunway(daysToFull: 1.2, points: 5).text)")
     let plunge = DiskRunway.outlook(shape([120, 122, 119, 121, 120, 118, 60, 13]))
     expect(plunge.runway == nil && plunge.reason.contains("fell from about 118 GB to 13 GB"), "a plunge in two steps is told as a fall: \(plunge.reason)")
     expect(DiskRunway.forecast(Array(falling.prefix(4))) == nil, "fewer than five points give none")

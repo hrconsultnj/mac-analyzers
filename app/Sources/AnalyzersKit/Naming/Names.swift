@@ -161,7 +161,7 @@ public enum Names {
         public static let removed = "Removed"
         public static let movedToTrash = "Moved to Trash"
         public static let couldNotMove = "Couldn't Move"
-        public static let leftInPlace = "Left in place"
+        public static let leftInPlace = "Left in Place"
         public static let couldNotRemove = "Couldn't Remove"
         public static let runningKept = "Running: quit it first, then preview again. It is left alone."
         public static let recordings = "Old Recordings"

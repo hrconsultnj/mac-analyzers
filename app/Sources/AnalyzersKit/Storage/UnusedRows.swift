@@ -43,6 +43,10 @@ public enum UnusedReview {
     // MARK: - apps
 
     /// The sentence over the table when the script could not check which apps open at login.
+    /// The last audit ran but could not list the System Settings login items.
+    public static let loginUnreadableNote = "The last Login & Startup Items check could not read your Login Items, so which apps open at login can't be checked yet. Run that check from Mac Analyzers, where macOS can ask for permission, then preview again."
+    /// What the "does it start on its own" check reads, and what it cannot see: said once, so a person can weigh a row.
+    public static let checkLimitsNote = "Whether an app starts on its own is read from your launch entries and the commands and scripts in them that open it, your Login Items, and what is inside the app. It cannot see a script that builds the app's name from parts, Shortcuts, Automator, cron, or another program that opens the app only when it needs it."
     public static let loginCheckNote = "Which apps open at login can only be read from the Login & Startup Items check, and it has not run today. Run it, then preview again."
 
     /// The apps of a whole `cleanup.sh --stale-apps` block. Each app is a group of rows: the app itself and every
@@ -111,7 +115,10 @@ public enum UnusedReview {
             }
             let opened = app.lastOpened.map { "Last opened \(Self.date($0))" } ?? (app.keepReason == nil ? "Not opened since it was installed" : "No record of use")
             if let keep = app.keepReason ?? (app.isRunning ? Names.Unused.runningKept : nil) {
-                if keep.hasPrefix("Which apps open at login can't be checked") && !notes.contains(loginCheckNote) { notes.append(loginCheckNote) }
+                if keep.hasPrefix("Which apps open at login can't be checked") {
+                    let note = keep.contains("could not read your Login Items") ? loginUnreadableNote : loginCheckNote
+                    if !notes.contains(note) { notes.append(note) }
+                }
                 rows.append(StorageRow(id: app.path, category: UnusedAppCategory.apps.rawValue, group: app.name, title: app.name,
                                        detail: opened, bytes: nil, valueText: "Kept", iconPath: app.path, keptReason: keep))
                 continue
@@ -129,6 +136,7 @@ public enum UnusedReview {
                                        keptReason: "\(Names.Unused.leftInPlace): \(item.why)"))
             }
         }
+        if !results && !rows.isEmpty { notes.append(checkLimitsNote) }
         return StorageRows(rows, notes: notes)
     }
 

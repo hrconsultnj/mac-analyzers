@@ -54,7 +54,8 @@ import Foundation
         }
     }
     let inventory = root.appending(path: "inventory.tsv")           // the Login & Startup Items audit "ran today"
-    try? "#login-items-inventory\t1\tx\tdry-run\tid\n".write(to: inventory, atomically: true, encoding: .utf8)
+    let ranAt = { () -> String in let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd HH:mm:ss"; return f.string(from: Date()) }()
+    try? "#login-items-inventory\t2\t\(ranAt)\tdry-run\tid\tlogins=read\n".write(to: inventory, atomically: true, encoding: .utf8)
     let config = "ANALYZERS_STALE_APPS=( \(appPaths.map { "\"\($0)\"" }.joined(separator: " ")) )\nANALYZERS_RECORDINGS_DIR=\"\(home.path)/Recordings\"\nANALYZERS_LOGIN_INVENTORY=\"\(inventory.path)\"\nANALYZERS_LAUNCH_DIRS=\"\(root.path)/no-launch\"\n"
     try? config.write(to: tree.appending(path: "config.local.sh"), atomically: true, encoding: .utf8)
 
@@ -142,6 +143,13 @@ import Foundation
     expect(row("Unknown")?.keptReason?.contains("no record") == true && row("Unknown")?.bytes == nil,
            "an app macOS has no record of is a kept row: \(row("Unknown")?.keptReason ?? "offered")")
     expect(Set(findings.rows.filter { $0.keptReason == nil }.compactMap(\.group)) == ["Unused"], "only the unused app (and its files) can be ticked")
+    expect(findings.notes.contains(UnusedReview.checkLimitsNote), "the screen says once what the check reads and what it cannot see")
+    for (why, expected) in [("Which apps open at login can't be checked yet: run Login & Startup Items first, then preview again", UnusedReview.loginCheckNote),
+                            ("Which apps open at login can't be checked yet: the last Login & Startup Items check could not read your Login Items. Run it from the Mac Analyzers app", UnusedReview.loginUnreadableNote)] {
+        let kept = UnusedReview.apps(lines: ["### APP: X   (bundle: com.x)", "[APP]     /p/X.app", "last launched (Spotlight): 2024-01-02", "[KEEP]    \(why)", ""])
+        expect(kept.notes.contains(expected) && kept.notes.count == 2 && kept.notes.contains(UnusedReview.checkLimitsNote), "the reason \"\(why.prefix(60))…\" puts its own sentence over the table")
+    }
+    expect(UnusedReview.loginUnreadableNote.contains("can ask for permission") && Names.Unused.leftInPlace == "Left in Place", "the unreadable note says what to do, and 'Left in Place' is in title style")
     expect(findings.rows.contains { $0.id == unusedSupport.path && ($0.bytes ?? 0) > 200_000 }, "the unused app's files are rows with sizes")
     let refused = runFound(["--stale-apps", "--execute", "--yes"])
     expect(refused.status == 78 && fm.fileExists(atPath: foundApps.appending(path: "Unused.app").path), "found apps with no reviewed list: exit \(refused.status), nothing removed")

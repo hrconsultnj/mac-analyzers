@@ -219,51 +219,120 @@ resolve_app_path() {
 # Names that many programs share: a folder called this is not proof it belongs to the app of the same name.
 SHARED_RUNTIME_NAMES="electron python java code docker steam unity google chromium chrome mozilla firefox microsoft adobe jetbrains node npm flutter qt wine android xcode apple"
 
-# The app groups the app's OWN entitlements declare, one per line; nothing when they cannot be read
-# (an unsigned app, codesign failing): a group container is only ever taken for a group the app names.
-app_groups() {
-  local app="$1" xml
-  xml="$(codesign -d --entitlements - --xml "$app" 2>/dev/null)" || return 0
+# The app groups the app's OWN entitlements declare, one per line. Return 0 when the entitlements were read (an
+# app with none, or one that is not signed at all, declares no group); 3 when they could not be read (codesign
+# failed for another reason): then "which groups does this app declare" is UNKNOWN, not "none".
+app_groups_checked() {
+  local app="$1" xml errf rc
+  errf="$(mktemp "${TMPDIR:-/tmp}/cleanup-codesign.XXXXXX")" || return 3
+  xml="$(codesign -d --entitlements - --xml "$app" 2>"$errf")"; rc=$?
+  if [[ $rc -ne 0 ]]; then
+    if grep -q "not signed at all" "$errf" 2>/dev/null; then rc=0; else rc=3; fi
+    rm -f "$errf"; [[ $rc -eq 0 ]] && return 0; return 3
+  fi
+  rm -f "$errf"
   [[ -n "$xml" ]] || return 0
   # (plutil cannot name this key: its path syntax splits at the dots) read the <string>s of the key's array
   printf '%s' "$xml" | awk 'BEGIN { RS = "<" }
     /^key>com\.apple\.security\.application-groups/ { f = 1; next }
     f && /^\/array>/ { exit }
     f && /^string>/ { sub(/^string>/, ""); gsub(/[[:space:]]+$/, ""); print }'
+  return 0
 }
 
-# Is this group also declared by ANOTHER installed app? (the index of every app's groups is built once per run)
-GROUP_INDEX=""
-group_shared_elsewhere() {  # app group
-  local app="$1" group="$2" dirs dir other g
-  if [[ -z "$GROUP_INDEX" ]]; then
-    GROUP_INDEX="$(mktemp "${TMPDIR:-/tmp}/cleanup-groups.XXXXXX")"
-    trap 'rm -f "$GROUP_INDEX"' EXIT
-    IFS=: read -r -a dirs <<< "${ANALYZERS_APP_DIRS:-/Applications:${HOME_DIR}/Applications}"
-    for dir in "${dirs[@]}"; do
-      for other in "$dir"/*.app; do
-        [[ -d "$other" ]] || continue
-        while IFS= read -r g; do [[ -n "$g" ]] && printf '%s\t%s\n' "$g" "$other" >> "$GROUP_INDEX"; done < <(app_groups "$other")
-      done
-    done
+# the groups the app declares; nothing when they cannot be read (a group container is only ever taken for a group
+# the app names)
+app_groups() { app_groups_checked "$1" || true; }
+
+# Every app bundle under the app folders, AT ANY DEPTH (a vendor's suite folder, Utilities, Setapp) and the apps
+# inside bundles (login-item and helper apps), found once per run. ALL_BUNDLES_COMPLETE=0 when a folder could not
+# be read: then the list is not known to be everything.
+ALL_BUNDLES=(); ALL_BUNDLES_DONE=0; ALL_BUNDLES_COMPLETE=1
+list_all_app_bundles() {
+  [[ "$ALL_BUNDLES_DONE" -eq 1 ]] && return 0
+  ALL_BUNDLES_DONE=1
+  local dirs dir b n errf out
+  local -a contents=()
+  errf="$(mktemp "${TMPDIR:-/tmp}/cleanup-find.XXXXXX")" || { ALL_BUNDLES_COMPLETE=0; return 0; }
+  out="$(mktemp "${TMPDIR:-/tmp}/cleanup-find.XXXXXX")" || { rm -f "$errf"; ALL_BUNDLES_COMPLETE=0; return 0; }
+  IFS=: read -r -a dirs <<< "${ANALYZERS_APP_DIRS:-/Applications:${HOME_DIR}/Applications}"
+  # The lists go through files, not process substitutions: bash 3.2 (the one macOS ships) crashes every later
+  # command, and hangs, when process substitutions run in a loop over a few hundred bundles inside a function.
+  for dir in "${dirs[@]}"; do
+    [[ -d "$dir" ]] || continue
+    find "$dir" \( -type d -o -type l \) -name '*.app' -prune -print0 > "$out" 2>>"$errf"
+    while IFS= read -r -d '' b; do
+      ALL_BUNDLES+=( "$b" )
+      [[ -d "$b/Contents" ]] && contents+=( "$b/Contents" )
+    done < "$out"
+  done
+  # the apps INSIDE bundles (login-item and helper apps), one find over every bundle's Contents
+  if [[ ${#contents[@]} -gt 0 ]]; then
+    find "${contents[@]}" -maxdepth 5 \( -type d -o -type l \) -name '*.app' -prune -print0 > "$out" 2>>"$errf"
+    while IFS= read -r -d '' n; do ALL_BUNDLES+=( "$n" ); done < "$out"
   fi
-  awk -F'\t' -v g="$group" -v a="$app" '$1 == g && $2 != a { found = 1; exit } END { exit found ? 0 : 1 }' "$GROUP_INDEX"
+  [[ -s "$errf" ]] && ALL_BUNDLES_COMPLETE=0
+  rm -f "$errf" "$out"
+  return 0
+}
+
+# One line per (group, app) for every bundle, then "!UNREADABLE<TAB>bundle" for each whose entitlements could not be
+# read. Built once per run, eight codesign reads at a time.
+GROUP_INDEX=""; GROUP_INDEX_COMPLETE=1
+_index_one() {  # bundle outfile
+  local b="$1" out="$2" g groups rc
+  groups="$(app_groups_checked "$b")"; rc=$?
+  if [[ $rc -ne 0 ]]; then printf '!UNREADABLE\t%s\n' "$b" > "$out"; return 0; fi
+  : > "$out"
+  while IFS= read -r g; do [[ -n "$g" ]] && printf '%s\t%s\n' "$g" "$b" >> "$out"; done <<< "$groups"
+  return 0
+}
+build_group_index() {
+  local tmpd i=0 b
+  GROUP_INDEX="$(mktemp "${TMPDIR:-/tmp}/cleanup-groups.XXXXXX")"
+  tmpd="$(mktemp -d "${TMPDIR:-/tmp}/cleanup-groups.XXXXXX")"
+  trap 'rm -f "$GROUP_INDEX" "${REC_ERR:-}"' EXIT
+  list_all_app_bundles
+  [[ "$ALL_BUNDLES_COMPLETE" -eq 1 ]] || GROUP_INDEX_COMPLETE=0
+  for b in ${ALL_BUNDLES[@]+"${ALL_BUNDLES[@]}"}; do
+    _index_one "$b" "$tmpd/$i" &
+    i=$((i + 1))
+    [[ $((i % 8)) -eq 0 ]] && wait
+  done
+  wait
+  [[ $i -gt 0 ]] && cat "$tmpd"/* >> "$GROUP_INDEX" 2>/dev/null
+  rm -rf "$tmpd"
+  grep -q '^!UNREADABLE' "$GROUP_INDEX" 2>/dev/null && GROUP_INDEX_COMPLETE=0
+  return 0
+}
+
+# Is this group also declared by ANOTHER installed app (any depth, helpers inside other bundles included; the
+# app's own helpers do not count)? 0 = yes; 1 = no; 2 = unknown, because some app's entitlements or a folder could
+# not be read, so it cannot be said that nobody else uses the group.
+group_shared_elsewhere() {  # app group
+  local app="$1" group="$2"
+  [[ -n "$GROUP_INDEX" ]] || build_group_index
+  if awk -F'\t' -v g="$group" -v a="$app" '$1 == g && $2 != a && index($2, a "/") != 1 { found = 1; exit } END { exit found ? 0 : 1 }' "$GROUP_INDEX"; then
+    return 0
+  fi
+  [[ "$GROUP_INDEX_COMPLETE" -eq 1 ]] && return 1
+  return 2
 }
 
 # May a folder be taken because it carries the app's NAME? Only when no other installed app could own that
 # name (the same name, or a longer one that begins with it) and the name is not a runtime name many programs use.
 name_is_ours() {  # app name
-  local app="$1" lname w dirs dir other base lbase
+  local app="$1" lname w other base lbase
   lname="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
   for w in $SHARED_RUNTIME_NAMES; do [[ "$lname" == "$w" ]] && return 1; done
-  IFS=: read -r -a dirs <<< "${ANALYZERS_APP_DIRS:-/Applications:${HOME_DIR}/Applications}"
-  for dir in "${dirs[@]}"; do
-    for other in "$dir"/*.app; do
-      [[ -d "$other" && "$other" != "$app" ]] || continue
-      base="${other##*/}"; base="${base%.app}"
-      lbase="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')"
-      case "$lbase" in "$lname"|"$lname "*|"$lname-"*|"$lname."*) return 1 ;; esac
-    done
+  list_all_app_bundles
+  # a folder that could not be searched may hold an app that owns the name: then nobody can say the name is the app's alone
+  [[ "$ALL_BUNDLES_COMPLETE" -eq 1 ]] || return 1
+  for other in ${ALL_BUNDLES[@]+"${ALL_BUNDLES[@]}"}; do
+    [[ "$other" != "$app" && "$other" != "$app"/* ]] || continue
+    base="${other##*/}"; base="${base%.app}"
+    lbase="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')"
+    case "$lbase" in "$lname"|"$lname "*|"$lname-"*|"$lname."*) return 1 ;; esac
   done
   return 0
 }
@@ -311,14 +380,26 @@ collect_app_footprint() {
     rest="${f##*/}"; rest="${rest#"${bid}".}"
     [[ "$rest" =~ ^[0-9A-Fa-f-]{36}\.plist$ ]] && cand+=( "$f" )
   done
+  local declared=" " status
   for g in $(app_groups "$app"); do
+    declared="${declared}${g} "
     f="${HOME_DIR}/Library/Group Containers/${g}"
     [[ -e "$f" ]] || continue
-    if group_shared_elsewhere "$app" "$g"; then
-      APP_LEFT+=( "$f" ); APP_LEFT_WHY+=( "another app shares this group container" )
-    else
-      cand+=( "$f" )
-    fi
+    group_shared_elsewhere "$app" "$g"; status=$?
+    case "$status" in
+      0) APP_LEFT+=( "$f" ); APP_LEFT_WHY+=( "another app shares this group container" ) ;;
+      2) APP_LEFT+=( "$f" ); APP_LEFT_WHY+=( "some app's settings could not be read, so it cannot be said that no other app shares this group container" ) ;;
+      *) cand+=( "$f" ) ;;
+    esac
+  done
+  # a group container named for the app that its entitlements do not name (an unsigned app, or entitlements that
+  # cannot be read): nothing proves it is the app's, so it is shown as left in place, never taken
+  for f in "${HOME_DIR}/Library/Group Containers/group.${bid}" "${HOME_DIR}/Library/Group Containers/"??????????".${bid}"; do
+    [[ -e "$f" ]] || continue
+    g="${f##*/}"
+    case "$declared" in *" ${g} "*) continue ;; esac
+    [[ "${g%".${bid}"}" == group || "${g%".${bid}"}" =~ ^[A-Z0-9]{10}$ ]] || continue
+    APP_LEFT+=( "$f" ); APP_LEFT_WHY+=( "its name matches the app, but the app does not declare it, so nothing shows it is the app's" )
   done
   for p in "${cand[@]}"; do [[ -e "$p" ]] && APP_PATHS+=( "$p" ); done
   return 0
@@ -433,13 +514,23 @@ move_failure_reason() {
   else echo "it could not be moved (is it in use?)"; fi
 }
 
-# Is the Login & Startup Items audit's inventory (login-items.tsv) recent enough to trust? Younger than a day.
-# Login items set in System Settings leave no file in the app and no launch entry; only this inventory knows them.
-inventory_is_fresh() {
-  local inv="${ANALYZERS_LOGIN_INVENTORY:-${HOME_DIR}/mac-analyzers/reports/storage/login-items.tsv}" age
-  [[ -f "$inv" ]] || return 1
-  age=$(( $(date +%s) - $(stat -f %m "$inv" 2>/dev/null || echo 0) ))
-  [[ "$age" -lt 86400 ]]
+# Can the Login & Startup Items audit's inventory (login-items.tsv) be trusted? Login items set in System Settings
+# leave no file in the app and no launch entry; only this inventory knows them. Prints one word:
+#   ok          a real inventory (header "#login-items-inventory", version 2), run today (the date is read from the
+#               header, never from the file's time), not dated in the future, and the audit could READ the login items
+#   unreadable  a real, recent inventory from a run that could not read them (System Events was not scriptable)
+#   missing     none, empty, not an inventory, an unknown version, a date that cannot be read, in the future, or
+#               older than a day
+inventory_state() {
+  local inv="${ANALYZERS_LOGIN_INVENTORY:-${HOME_DIR}/mac-analyzers/reports/storage/login-items.tsv}" head tag ver date logins ts now
+  [[ -s "$inv" ]] || { echo missing; return; }
+  head="$(head -n 1 "$inv" 2>/dev/null)"
+  IFS=$'\t' read -r tag ver date _ _ logins <<< "$head"
+  [[ "${tag:-}" == "#login-items-inventory" && "${ver:-}" == "2" ]] || { echo missing; return; }
+  ts="$(date -j -f "%Y-%m-%d %H:%M:%S" "${date:-}" +%s 2>/dev/null)" || { echo missing; return; }
+  now="$(date +%s)"
+  [[ "$ts" -le "$now" && $((now - ts)) -lt 86400 ]] || { echo missing; return; }
+  [[ "${logins:-}" == "logins=read" ]] && echo ok || echo unreadable
 }
 
 # Why an app must not be offered for removal when it is reviewed (the app's own screen, or a found app);
@@ -460,9 +551,11 @@ app_keep_reason() {
   else
     echo "The launch inventory (lib/launch-items.sh) is missing, so every app is kept"; return
   fi
-  if ! inventory_is_fresh; then
-    echo "Which apps open at login can't be checked yet: run Login & Startup Items first, then preview again"; return
-  fi
+  case "$(inventory_state)" in
+    ok) : ;;
+    unreadable) echo "Which apps open at login can't be checked yet: the last Login & Startup Items check could not read your Login Items. Run it from the Mac Analyzers app, where macOS can ask for permission, then preview again"; return ;;
+    *) echo "Which apps open at login can't be checked yet: run Login & Startup Items first, then preview again"; return ;;
+  esac
   [[ "$PURGE_DISCOVERED" -eq 1 ]] || return 0      # an app the person named is theirs to remove once these checks pass
   # found by a date: a usable date, or a usable index that knows the app but has no use of it
   lu=$(mdls -name kMDItemLastUsedDate -raw "$app" 2>/dev/null)
@@ -586,12 +679,20 @@ fi
 if [[ -n "$REC_DAYS" ]]; then
   group "Recordings older than ${REC_DAYS} days  (cache/log groups skipped)"
   REC_DIR="${ANALYZERS_RECORDINGS_DIR:-}"
+  REC_ERR="$(mktemp "${TMPDIR:-/tmp}/cleanup-rec.XXXXXX")"
+  trap 'rm -f "${REC_ERR:-}"' EXIT
   if [[ -n "$REC_DIR" && -d "$REC_DIR" ]]; then
     while IFS= read -r d; do
       # old means NOTHING inside was written for REC_DAYS days: a folder's own date changes only when its direct
       # entries do, so new recordings one level down would make a busy folder look old
-      [[ -z "$(find "$d" -mtime "-${REC_DAYS}" -print -quit 2>/dev/null)" ]] || continue
+      newest="$(find "$d" -mtime "-${REC_DAYS}" -print -quit 2>"$REC_ERR")"; find_rc=$?
+      [[ -z "$newest" ]] || continue
       kb=$(du -sk "$d" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"
+      # something inside could not be searched (an unreadable subfolder): a newer file may be in there, so it cannot be told
+      if [[ "$find_rc" -ne 0 || -s "$REC_ERR" ]]; then
+        printf "  %-9s %10s  %s  —  %s\n" "[KEEP]" "$(human "$kb")" "$d" "part of it could not be read, so it cannot be told whether anything in it is recent"
+        continue
+      fi
       if ! approved "$d"; then echo "  [SKIP] not in approved set  ${d}"; continue; fi
       # a recording on another disk goes to THAT disk's Trash; a disk with none keeps it, with the reason
       if ! trash_dir_for "$d" >/dev/null; then
@@ -609,7 +710,7 @@ if [[ -n "$REC_DAYS" ]]; then
   echo ""
   echo "=================================================================="
   echo " Recordings total identified: $(human "$TOTAL_KB")"
-  [[ "$DRY_RUN" -eq 1 ]] && echo " DRY RUN. Re-run with --execute to delete."
+  [[ "$DRY_RUN" -eq 1 ]] && echo " DRY RUN. Re-run with --execute to move them to the Trash."
   echo "=================================================================="
   exit 0
 fi
