@@ -102,8 +102,12 @@ through `config.local.sh` (never hardcoded).
   tiles/pane headers) · `MacAnalyzersApp` (thin shell) · `NotifierCLI` (the
   bundled `notify` shim) · `AgentRunner` (the compiled launchd entry point —
   `execv`s the engine script for BTM attribution).
-- Every form screen renders inside `PaneScaffold`
-  (`SettingsFeature/Shared/PaneScaffold.swift`). The main window is
+- A screen of settings (a `Form`: the Preferences panes, How It Works,
+  Support) renders inside `PaneScaffold`
+  (`SettingsFeature/Shared/PaneScaffold.swift`); a screen that shows data (a
+  table, a list, a review) is a `DataScreen`
+  (`SettingsFeature/Shared/DataScreen.swift`), which fills the window, carries
+  the title and subtitle, and centres an empty state. The main window is
   `SettingsFeature/Shell/`: `MainWindowView` over one `Navigator` (selection,
   a path per section, ONE back/forward history recorded only in its four
   mutators `select` / `push` / `setPath` / `open`); the sidebar is a plain
@@ -115,12 +119,15 @@ through `config.local.sh` (never hardcoded).
   `open(target: "log:guardLog")`), never by posting a notification.
   `Shell/DeepLinkRouter.swift` resolves every target string (the URL scheme,
   `--pane` and the in-process `com.mac-analyzers.open-pane` notification all
-  land there). Every log gets a
-  STRUCTURED pane (chips/cards/tables — see `GuardLogView`, `LoginItemsView`,
-  `ReapLogView`, `ForensicsDetailView`) with
-  "Open in TextEdit" as the raw escape hatch; menu rows/components live in
-  `MenuBarFeature/MenuComponents.swift`. The engine stays bash — the app is a
-  control surface over the scripts + launchd, never a reimplementation.
+  land there). No screen shows a log as text: what a task found or did is
+  rows (a table, tabs, groups that open: see the levels rule below), read
+  from the log by a parser in `AnalyzersKit`. The text a run printed is one
+  level down, inside the app, as the shared raw-output screen
+  (`Screens/Shared/RawOutput/RawOutputScreen.swift`, "Show Raw Output":
+  search, copy, the exact lines); nothing opens another app to show output.
+  Menu rows and components live in `MenuBarFeature/MenuComponents.swift`.
+  The engine stays bash — the app is a control surface over the scripts +
+  launchd, never a reimplementation.
 - Every Storage task is one screen (`Screens/Storage/`): Preview, the
   preview's rows as tabs and groups in the shared review table, one Apply
   through `JobStore.apply(from:approved:)`, History and Show Raw Output; a
