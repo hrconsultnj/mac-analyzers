@@ -131,7 +131,7 @@ public struct OverviewModel: Sendable {
                  value: input.disk.map { "\($0.freeText) free" } ?? "—",
                  caption: input.runwayText.map { "Full in \($0) at the current pace" }
                      ?? input.disk.map { "\($0.usedText) of \($0.totalText) used" } ?? Names.Screen.disk,
-                 tone: diskTone, target: "disk"),
+                 tone: diskTone, target: "disk:capacity"),
         ]
 
         var items: [Attention] = []
@@ -160,12 +160,12 @@ public struct OverviewModel: Sendable {
             items.append(Attention(id: "reclaimable", symbol: "sparkles",
                                    title: "\(ByteSize.format(input.reclaimableBytes)) can be reclaimed",
                                    detail: "From the latest check. Nothing is deleted until you review it.", tone: .neutral,
-                                   action: .open(target: "caches")))
+                                   action: .open(target: "caches:projects")))
         }
         if input.runwayUrgent, let runway = input.runwayText {
             items.append(Attention(id: "runway", symbol: "chart.line.downtrend.xyaxis",
                                    title: "Disk full in \(runway) at the current pace",
-                                   detail: "Based on your own cleanup history.", tone: .bad, action: .open(target: "disk")))
+                                   detail: "Based on your own cleanup history.", tone: .bad, action: .open(target: "disk:capacity")))
         }
         attention = items
 

@@ -11,19 +11,19 @@ extension OverviewView {
         OverviewBox(title: Names.Group.storage, symbol: "internaldrive") {
             if let disk = store.disk {
                 OverviewValueRow(label: "Free Space", value: "\(disk.freeText) of \(disk.totalText)",
-                                 action: { navigator.open(target: "disk") })
+                                 action: { navigator.open(target: "disk:capacity") })
                 ProgressView(value: disk.usedFraction)
                     .tint(disk.usedFraction > 0.9 ? .red : disk.usedFraction > 0.75 ? .orange : .accentColor)
                     .accessibilityLabel("Disk used")
             }
             if let runway, runway.urgent {
-                OverviewValueRow(label: "Full In", value: runway.text, action: { navigator.open(target: "disk") })
+                OverviewValueRow(label: "Full In", value: runway.text, action: { navigator.open(target: "disk:capacity") })
             }
             if let week {
                 // only while the newest cleanup run was a preview; after an apply there is nothing to show
                 if let reclaimable = week.latestReclaimableBytes {
                     OverviewValueRow(label: "Can Be Reclaimed", value: ByteSize.format(reclaimable),
-                                     action: { navigator.open(target: "caches") },
+                                     action: { navigator.open(target: "caches:projects") },
                                      caption: "From the latest preview. Nothing is deleted until you review it.")
                 }
                 OverviewValueRow(label: "Removed This Week", value: ByteSize.format(week.storageFreedBytes),

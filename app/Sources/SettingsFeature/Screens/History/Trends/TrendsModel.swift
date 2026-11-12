@@ -47,12 +47,28 @@ struct MemoryFreedEntry: Identifiable {
     var id: String { name }
 }
 
-/// Deleted storage items in the window for one project, sized and sorted.
+/// One thing a cleanup removed, named the way the Storage screens name it (`StorageNaming`).
+struct RemovedItem: Identifiable {
+    let id: String
+    let title: String
+    let sizeBytes: Int64
+}
+
+/// Deleted storage items in the window for one project (or app, or tool: what `StorageNaming` groups them under),
+/// sized and sorted.
 struct DiskReclaimedGroup: Identifiable {
     let project: String
-    let items: [StoragePathItem]
+    let items: [RemovedItem]
     let totalBytes: Int64
     var id: String { project }
+}
+
+/// What the latest check found it could reclaim, one row per thing, named and grouped by `StorageNaming`.
+struct ReclaimableItem: Identifiable {
+    let id: String
+    let title: String
+    let group: String
+    let sizeBytes: Int64
 }
 
 /// One process's full guard timeline in the window, plus the header stats
@@ -253,17 +269,22 @@ enum TrendsModel {
             let parsed = StorageCleanParser.parse(runHeader: run.header, lines: run.lines)
             deleted.append(contentsOf: parsed.items.filter { $0.status == .deleted })
         }
-        return Dictionary(grouping: deleted, by: \.project).map { project, items in
-            DiskReclaimedGroup(project: project,
-                               items: items.sorted { $0.sizeBytes > $1.sizeBytes },
-                               totalBytes: items.reduce(Int64(0)) { $0 + $1.sizeBytes })
+        let named = deleted.map { (name: StorageNaming.name(forPath: $0.path), item: $0) }
+        return Dictionary(grouping: named, by: { $0.name.group }).map { group, members in
+            let items = members.map { RemovedItem(id: $0.item.id, title: $0.name.title, sizeBytes: $0.item.sizeBytes) }
+            return DiskReclaimedGroup(project: group,
+                                      items: items.sorted { $0.sizeBytes > $1.sizeBytes },
+                                      totalBytes: items.reduce(Int64(0)) { $0 + $1.sizeBytes })
         }.sorted { $0.totalBytes > $1.totalBytes }
     }
 
     /// The latest storage run's dry-run findings — "reclaimable right now"
     /// is always the most recent scan, independent of the selected period.
-    static func reclaimableNow() -> [StoragePathItem] {
-        TrendTotals.latestPreview()?.items ?? []
+    static func reclaimableNow() -> [ReclaimableItem] {
+        (TrendTotals.latestPreview()?.items ?? []).map {
+            let name = StorageNaming.name(forPath: $0.path)
+            return ReclaimableItem(id: $0.id, title: name.title, group: name.group, sizeBytes: $0.sizeBytes)
+        }
     }
 
     /// One process's full guard timeline in the window, across every event

@@ -54,6 +54,17 @@ if arguments.first == "--probe-links" {
         if !ok { failures += 1 }
         print("\(ok ? "PASS" : "FAIL")  \(target) → \(section): \(landed.prefix(110))")
     }
+    // every link Overview and the menu-bar panel send (Overview track): each must land on its screen
+    let overview = ["disk:capacity": "disk", "caches:projects": "caches", "monitor": "monitor", "monitor:select:Opera": "monitor",
+                    "trends": "trends", "trends:storage": "trends", "trends:memory": "trends", "undo": "undo",
+                    "undo:servers": "undo", "undo:opened": "undo", "logs": "activity", "schedule": "prefsSchedule",
+                    "update": "updates", "log:guardLog": "memoryGuard", "setup": "setup"]
+    for (target, section) in overview.sorted(by: { $0.key < $1.key }) {
+        let landed = DeepLinkRouter.probeRouting(of: target)
+        let ok = landed.contains("\"\(section)\"") && !landed.contains("unknown")
+        if !ok { failures += 1 }
+        print("\(ok ? "PASS" : "FAIL")  \(target) → \(section): \(landed.prefix(110))")
+    }
     for target in ["actions", "actions:memoryClean", "actions:reclaim"] {
         let landed = DeepLinkRouter.probeRouting(of: target)
         let ok = !landed.contains("unknown") && !landed.contains("storage")
