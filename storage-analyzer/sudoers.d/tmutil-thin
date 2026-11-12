@@ -8,5 +8,7 @@
 # Local snapshots are ephemeral (regenerate hourly; macOS auto-purges them under
 # disk pressure), so the blast radius is intentionally tiny.
 #
+# __UID__ becomes "#<your numeric user ID>" when installed (a user ID, never a name: no account name is written
+# into a file root reads).
 # Install with:  ./manage-agents.sh sudoers-install   (validates via visudo first)
-__USERNAME__ ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4
+__UID__ ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4

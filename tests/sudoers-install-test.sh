@@ -65,6 +65,8 @@ run() { # shell uid user args... -> output; status in $RC (via the caller's $?)
   : > "$STUB_LOG"
   PATH="$S:$PATH" "$sh" "$TREE/storage-analyzer/storage-manage-agents.sh" "$@" 2>&1 < /dev/null
 }
+# the one rule the script wrote: a line that starts with "#" and a user ID (the template's comments start "# ")
+active_rule() { grep -E '^#[0-9]+ ' "$DEST"; }
 line_no() { grep -n "$1" "$TMP/calls" | head -1 | cut -d: -f1; }
 
 for sh in bash /bin/bash; do
@@ -80,8 +82,14 @@ for sh in bash /bin/bash; do
   out="$(run "$sh" 501 bob sudoers-install)"; rc=$?
   check "[$sh] as yourself: sudo -v, then sudo for the check and the install" \
         "$([[ $rc -eq 0 && "$(grep -c '^sudo -v$' "$TMP/calls")" -eq 1 && "$(grep -c '^sudo visudo -cf' "$TMP/calls")" -eq 1 && "$(grep -c '^sudo install ' "$TMP/calls")" -eq 1 ]] && echo ok || echo "exit $rc: $(grep '^sudo' "$TMP/calls" | tr '\n' ';')")"
-  check "[$sh] the rule is for you and is the one scoped command; nobody else, never root" \
-        "$([[ "$(cat "$DEST")" == *"bob ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4"* && "$(grep -c '^root ' "$DEST")" -eq 0 ]] && echo ok || cat "$DEST")"
+  check "[$sh] the rule is for your numeric user ID and is the one scoped command; no name, never root" \
+        "$([[ "$(active_rule)" == "#501 ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4" && "$(grep -c 'bob\|^root ' "$DEST")" -eq 0 ]] && echo ok || active_rule)"
+  for odd in ALL FOOBAR CWD; do
+    rm -f "$DEST"; out="$(run "$sh" 502 "$odd" sudoers-install)"
+    check "[$sh] an account named $odd gets a rule for #502 and its name is never written" \
+          "$([[ "$(active_rule)" == "#502 ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4" && "$(grep -vE '^(# |#$|#[0-9]+ )' "$DEST" | grep -c .)" -eq 0 && "$(grep -c "$odd" <<< "$(active_rule | cut -d' ' -f1)")" -eq 0 ]] && echo ok || active_rule)"
+  done
+  rm -f "$DEST"; run "$sh" 501 bob sudoers-install > /dev/null
   check "[$sh] visudo -cf validates the file BEFORE it is installed" \
         "$([[ "$(line_no 'visudo -cf')" -lt "$(line_no 'install -m')" ]] && echo ok || tr '\n' ';' < "$TMP/calls")"
   check "[$sh] the check is by LISTING (sudo -n -l ...); tmutil is never called" \
@@ -110,7 +118,17 @@ done
 T="$HERE/../storage-analyzer/sudoers.d/tmutil-thin"
 active="$(grep -v '^[[:space:]]*#' "$T" | grep -v '^[[:space:]]*$')"
 check "template holds exactly one rule" "$([[ "$(printf '%s\n' "$active" | wc -l | tr -d ' ')" -eq 1 ]] && echo ok || echo "$active")"
-check "template rule is the exact command" "$([[ "$active" == "__USERNAME__ ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4" ]] && echo ok || echo "$active")"
+check "template rule is the exact command, for the __UID__ placeholder" "$([[ "$active" == "__UID__ ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4" ]] && echo ok || echo "$active")"
 check "template rule has no wildcard" "$([[ "$active" != *'*'* ]] && echo ok || echo wildcard)"
 check "script has no --for-user" "$(grep -q -- '--for-user' "$SCRIPT" && echo "still there" || echo ok)"
+# the real visudo, on scratch files only (-cf checks a file and installs nothing; no password, nothing under /etc)
+if [[ -x /usr/sbin/visudo ]]; then
+  V="$TMP/visudo-scratch"; mkdir -p "$V"
+  rule() { printf '%s ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4\n' "$1" > "$V/rule"; /usr/sbin/visudo -cf "$V/rule" > "$V/out" 2>&1; echo $?; }
+  check "visudo -cf accepts the rule written for a user ID (#501)" "$([[ "$(rule '#501')" == 0 ]] && echo ok || cat "$V/out")"
+  # what a NAME would have meant (the reason no name is written): ALL is every user, an all-capitals name is an alias, a keyword is a syntax error
+  echo "INFO  visudo on this Mac: ALL exit $(rule ALL), FOOBAR exit $(rule FOOBAR), CWD exit $(rule CWD) (no name is written any more)"
+else
+  echo "SKIP  /usr/sbin/visudo not found: the #501 syntax check was not run"
+fi
 exit $fail

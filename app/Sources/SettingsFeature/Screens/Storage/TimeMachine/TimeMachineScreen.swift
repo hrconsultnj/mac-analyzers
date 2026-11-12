@@ -15,6 +15,10 @@ struct TimeMachineScreen: View {
     @State private var applied: Job?
     @State private var problem: String?
     @State private var allowing = false
+    /// Whether the rule file is on disk: only then is "Remove Permission…" offered.
+    @State private var ruleThere = false
+    @State private var disk: TimeMachineDestination.Reach?
+    @State private var permissionProblem: String?
     @State private var expansion = RememberedExpansion<String>(screen: "timemachine")
     @State private var selection: Set<String> = []
     @Environment(JobStore.self) private var store
@@ -56,11 +60,11 @@ struct TimeMachineScreen: View {
         .safeAreaBar(edge: .top, alignment: .leading, spacing: 0) { permissionBar }
         .onAppear {
             model.adopt(store, kind: .tmReclaim)
-            if let fixture { model.showFixture(fixture); allowed = !fixtureNeedsPermission }
+            if let fixture { model.showFixture(fixture); allowed = !fixtureNeedsPermission; ruleThere = !fixtureNeedsPermission }
         }
         // sudo is asked, as this person, whether it would run the command: a rule left by an older version, or one
         // for another account, is "not allowed" here (listing runs nothing and asks for no password)
-        .task { if fixture == nil { allowed = await TimeMachinePermission.isAllowed() } }
+        .task { if fixture == nil { await refreshPermission() } }
         .task(id: JobStamp(model.job)) {
             model.refreshPhase()
             await model.load(kind: .tmReclaim, parse: Self.parse, reviewRow: { $0.reviewRow })
@@ -71,16 +75,24 @@ struct TimeMachineScreen: View {
             guard let finished = applied else { return }
             switch finished.state {
             case .succeeded: applied = nil; model.startPreview(store, kind: .tmReclaim, options: JobOptions(startBackup: backup))
-            case .failed(let failure): applied = nil; problem = failure.message
+            case .failed(let failure):
+                applied = nil
+                // not allowed (exit 3), or no longer allowed: say so plainly and offer Allow… again; ask sudo again either way
+                await refreshPermission()
+                if failure.exitCode == 3 { allowed = false }
+                problem = allowed ? failure.message : Names.TimeMachine.notAllowedYet
             case .cancelled: applied = nil
             default: break
             }
         }
-        .confirmationDialog("Thin \(snapshots) Local \(snapshots == 1 ? "Snapshot" : "Snapshots")?", isPresented: $asking, titleVisibility: .visible) {
+        .confirmationDialog("Delete \(snapshots) Local \(snapshots == 1 ? "Snapshot" : "Snapshots")?", isPresented: $asking, titleVisibility: .visible) {
             Button(words.applyTitle, role: .destructive) { thin() }
         } message: {
-            Text(words.message)
+            Text(CleanWords.timeMachine(backup: backup, disk: disk).message)
         }
+        .alert("Permission Not Changed", isPresented: Binding(get: { permissionProblem != nil }, set: { if !$0 { permissionProblem = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(permissionProblem ?? "") }
         .alert("Snapshots Not Thinned", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(problem ?? "") }
@@ -150,7 +162,7 @@ struct TimeMachineScreen: View {
         }
         .toolbarRank(.primary)
         ToolbarItem {
-            Button { asking = true } label: { Label(Names.TimeMachine.thin, systemImage: "clock.arrow.2.circlepath") }
+            Button { confirm() } label: { Label(Names.TimeMachine.thin, systemImage: "clock.arrow.2.circlepath") }
                 .labelStyle(.titleAndIcon)
                 .disabled(!canThin)
                 .help(allowed ? "Thin every local snapshot, after you confirm" : "Allow thinning first")
@@ -159,6 +171,10 @@ struct TimeMachineScreen: View {
         ToolbarItem {
             Menu {
                 Toggle(Names.TimeMachine.startBackup, isOn: backupBinding)
+                if ruleThere {
+                    Divider()
+                    Button { remove() } label: { Label(Names.TimeMachine.removePermission, systemImage: "lock.slash") }
+                }
             } label: { Label("Options", systemImage: "slider.horizontal.3") }
                 .labelStyle(.titleAndIcon)
                 .help("Whether a Time Machine backup starts after the snapshots are thinned")
@@ -202,13 +218,35 @@ struct TimeMachineScreen: View {
         if case .failed(let failure) = run.state { problem = failure.message } else { applied = run }
     }
 
+    /// Reads what the screen shows about the permission: sudo is asked (listing only), and the rule file is looked for.
+    private func refreshPermission() async {
+        allowed = await TimeMachinePermission.isAllowed()
+        ruleThere = TimeMachinePermission.ruleFileExists()
+    }
+
+    /// Reads whether the backup disk is connected (a read-only `tmutil` question), then asks.
+    private func confirm() {
+        Task {
+            disk = fixture == nil ? await TimeMachineDestination.current() : .notConnected
+            asking = true
+        }
+    }
+
     private func allow() {
         allowing = true
         Task {
-            let outcome = await TimeMachinePermission.allow(user: NSUserName())
+            let outcome = await TimeMachinePermission.allow()
             allowing = false
-            allowed = await TimeMachinePermission.isAllowed()
-            if case .failed(let why) = outcome { problem = why }
+            await refreshPermission()
+            if case .failed(let why) = outcome { permissionProblem = why }
+        }
+    }
+
+    private func remove() {
+        Task {
+            let outcome = await TimeMachinePermission.revoke()
+            await refreshPermission()
+            if case .failed(let why) = outcome { permissionProblem = why }
         }
     }
 }

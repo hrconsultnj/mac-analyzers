@@ -80,12 +80,25 @@ public struct CleanWords: Equatable, Sendable {
                          permanentWarning: nil)
     }
 
-    /// Thin the local snapshots: the whole list at once, backups on the Time Machine disk never touched.
-    public static func timeMachine(backup: Bool) -> CleanWords {
-        CleanWords(applyTitle: "Thin Snapshots", verb: "Thin", destination: "now",
-                   message: "Every local snapshot on this Mac is thinned, which releases the space they hold. Your backups on the Time Machine disk are never touched."
-                       + (backup ? " A new backup starts afterwards." : ""),
+    /// Delete the local snapshots: what it does in plain words. The sentence about the backup disk is chosen by the
+    /// screen from what `tmutil destinationinfo` says (`diskSentence`), never left out.
+    public static func timeMachine(backup: Bool, disk: TimeMachineDestination.Reach? = nil) -> CleanWords {
+        CleanWords(applyTitle: "Delete Snapshots", verb: "Delete", destination: "now",
+                   message: "Deletes the local snapshots Time Machine keeps on this Mac, which releases the space they hold. They can't be brought back. "
+                       + diskSentence(disk) + " Backups on the Time Machine disk aren't touched."
+                       + (backup ? " A backup starts afterwards, unless you turn off Start a Backup Afterwards in Options." : ""),
                    permanentWarning: nil)
+    }
+
+    /// Why the local snapshots may matter: they are the only copies of changes since the last backup while the
+    /// backup disk is away.
+    public static func diskSentence(_ disk: TimeMachineDestination.Reach?) -> String {
+        switch disk {
+        case .connected: "Your backup disk is connected."
+        case .notConnected: "Your backup disk isn't connected right now, so these snapshots are the only copies of changes since your last backup."
+        case .notSetUp: "No backup disk is set up, so these snapshots are the only copies of recent versions of your files."
+        case .unknown, nil: "While your backup disk isn't connected, local snapshots are the only copies of changes since your last backup."
+        }
     }
 
     public static func words(kind: JobKind, setting: JobOptions) -> CleanWords? {

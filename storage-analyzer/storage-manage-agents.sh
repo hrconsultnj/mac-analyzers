@@ -123,10 +123,12 @@ case "$cmd" in
       echo "  not via Claude's '!' prefix — that has no TTY for the password prompt."
       exit 1
     fi
-    # Substitute your user name (sudoers rules are per-user), then validate syntax
-    # FIRST (a malformed sudoers file breaks ALL sudo).
+    # The rule is written for your numeric user ID ("#501"), the same form the app writes: no account name ever
+    # reaches the file, so a name that sudoers reads as a keyword or an alias (ALL, CWD, FOOBAR) cannot arise. Then
+    # validate syntax FIRST (a malformed sudoers file breaks ALL sudo).
+    TARGET_UID="$(id -u)"
     SUDOERS_TMP="$(mktemp)"
-    sed "s/^__USERNAME__ /${TARGET_USER} /" "${SUDOERS_SRC}" > "${SUDOERS_TMP}"
+    sed "s/^__UID__ /#${TARGET_UID} /" "${SUDOERS_SRC}" > "${SUDOERS_TMP}"
     if ! sudo visudo -cf "${SUDOERS_TMP}"; then
       echo "   sudoers file FAILED visudo syntax check — NOT installing."; rm -f "${SUDOERS_TMP}"; exit 1
     fi
