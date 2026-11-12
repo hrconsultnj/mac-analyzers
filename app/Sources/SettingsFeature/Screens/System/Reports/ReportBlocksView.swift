@@ -27,6 +27,7 @@ struct ReportBlocksView: View {
             LazyVStack(alignment: .leading, spacing: 12) {
                 ForEach(Array(preface.enumerated()), id: \.offset) { _, block in view(for: block) }
                 ForEach(sections) { section in
+                    // one disclosed block, not rows: a report section, in a scroll view (no list)
                     DisclosureGroup(isExpanded: Binding(get: { expanded.contains(section.id) },
                                                         set: { if $0 { expanded.insert(section.id) } else { expanded.remove(section.id) } })) {
                         VStack(alignment: .leading, spacing: 12) {

@@ -101,7 +101,6 @@ struct NetworkView: View {
                     Text(model.isTaking ? "Reading what each program has sent and received."
                                         : "Take a snapshot to see which programs have been using the network.")
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)   // centred in the window, as the running state is
             } else {
                 NetworkTable(groups: groups, selection: $selection, expansion: expansion, onShowInFinder: reveal)
                     .safeAreaInset(edge: .top, spacing: 0) { totalsBar }

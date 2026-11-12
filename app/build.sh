@@ -150,14 +150,19 @@ cp MenuBarIcon.png "$APP/Contents/Resources/MenuBarIcon.png"
 
 # prefer a real Apple Development identity (Team ID → BTM attribution, stable
 # TCC identity across rebuilds); ad-hoc fallback keeps zero-setup builds working
-IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
-  | grep -o '"Apple Development: [^"]*"' | head -1 | tr -d '"')"
+# MA_SIGN_ADHOC=1 signs ad-hoc without looking at the keychain at all (tests and CI).
+# Either way the copy is signed with the hardened runtime by sign-app.sh.
+IDENTITY=""
+if [[ "${MA_SIGN_ADHOC:-0}" != "1" ]]; then
+  IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+    | grep -o '"Apple Development: [^"]*"' | head -1 | tr -d '"')"
+fi
 if [[ -n "$IDENTITY" ]]; then
-  codesign --force --deep --sign "$IDENTITY" "$APP"
-  echo "built + signed: $(pwd)/$APP  [$IDENTITY]"
+  ./sign-app.sh "$APP" "$IDENTITY"
+  echo "built + signed: $(pwd)/$APP  [$IDENTITY, hardened runtime]"
 else
-  codesign --force --deep --sign - "$APP"
-  echo "built + signed: $(pwd)/$APP  [ad-hoc — add an Apple Development cert for BTM attribution]"
+  ./sign-app.sh "$APP" -
+  echo "built + signed: $(pwd)/$APP  [ad-hoc, hardened runtime — add an Apple Development cert for BTM attribution]"
 fi
 
 # replace_install <built bundle> <installed path> — swap the installed app for

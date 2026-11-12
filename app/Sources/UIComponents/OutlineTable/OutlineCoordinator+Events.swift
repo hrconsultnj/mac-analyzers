@@ -155,8 +155,9 @@ extension OutlineCoordinator {
     func scheduleFlush() {
         guard !flushIsQueued else { return }
         flushIsQueued = true
-        DispatchQueue.main.async { [self] in
-            MainActor.assumeIsolated { flush() }
+        DispatchQueue.main.async { [weak self] in
+            // a table that is gone (or was never kept) delivers nothing to the caller's bindings
+            MainActor.assumeIsolated { self?.flush() }
         }
     }
 
@@ -165,6 +166,7 @@ extension OutlineCoordinator {
     /// to change (no echo loop).
     private func flush() {
         flushIsQueued = false
+        guard !isGone else { pending = OutlinePending(); return }
         let delivered = pending
         pending = OutlinePending()
         if !delivered.opened.isEmpty || !delivered.closed.isEmpty {

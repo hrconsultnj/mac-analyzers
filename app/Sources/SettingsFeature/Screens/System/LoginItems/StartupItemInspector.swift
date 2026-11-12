@@ -33,7 +33,10 @@ struct StartupItemInspector: View {
             }
             if let command = item.fixCommand {
                 Section("To Remove It") {
-                    Text("This needs an administrator. Run it yourself in Terminal if you decide to remove it.")
+                    // a command is also shown for a possible leftover in the person's own folder, which needs no password
+                    Text(item.needsAdministrator
+                         ? "Run it yourself in Terminal if you decide to remove it. The file is in a folder that belongs to the system, so removing it asks for an administrator's password."
+                         : "Run it yourself in Terminal if you decide to remove it. The file is in your own folder, so no administrator is needed.")
                         .foregroundStyle(.secondary)
                     Text(command).font(.callout.monospaced()).textSelection(.enabled)
                     Button("Copy Command") {

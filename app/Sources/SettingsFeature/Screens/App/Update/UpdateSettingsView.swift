@@ -65,6 +65,7 @@ struct UpdateSettingsView: View {
             if !notes.isEmpty {
                 Section("What's New") {
                     ForEach(Array(notes.enumerated()), id: \.element.id) { index, note in
+                        // one disclosed block, not rows: a release's notes open as one body
                         DisclosureGroup(isExpanded: expansion(of: note, isNewest: index == 0)) {
                             ReleaseNoteBody(note: note)
                         } label: {

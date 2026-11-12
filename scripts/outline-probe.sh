@@ -172,7 +172,7 @@ plain() { # plain <label> <probe args…>
 review() {
   local name
   echo "REVIEW — the real ReviewTable, driven"
-  for name in ticks sameTurn updateChoosable acting only readonly unlistable menu; do
+  for name in ticks sameTurn updateChoosable acting only readonly unlistable menu sort; do
     run_probe "review:$name"
     echo "case=review:$name warnings=$WARN outside=$OUTSIDE exit=$RC"
     say_out
@@ -290,9 +290,19 @@ check() {
   # under the main window's toolbar the first row stays below the header, also after the screen's
   # own updates (a row arriving, a re-sort)
   local embedding
-  for embedding in bare line inset; do
+  for embedding in bare line inset bar; do
     run_probe "toolbar:$embedding"
     echo "toolbar:$embedding warnings=$WARN outside=$OUTSIDE exit=$RC"
+    say_out
+    total=$((total + WARN + OUTSIDE))
+    clean || fail
+  done
+  # work queued for the next turn when a screen replaces its table: nothing crashes and nothing is written to
+  # the caller's bindings. One process per case: a crash is the failure and must not hide the other cases.
+  local lifetime
+  for lifetime in fit selection expansion sort window; do
+    run_probe "lifetime:$lifetime"
+    echo "lifetime:$lifetime warnings=$WARN outside=$OUTSIDE exit=$RC"
     say_out
     total=$((total + WARN + OUTSIDE))
     clean || fail
@@ -303,12 +313,21 @@ check() {
   say_out
   total=$((total + WARN + OUTSIDE))
   clean || fail
+  # the real review table, driven: every case, because a case nobody runs goes stale unnoticed (two did, and a
+  # third passed with its checks skipped, when a group of kept rows began to start closed)
+  local name
+  for name in ticks sameTurn updateChoosable acting only readonly unlistable menu sort; do
+    run_probe "review:$name"
+    echo "review:$name warnings=$WARN outside=$OUTSIDE exit=$RC"
+    total=$((total + WARN + OUTSIDE))
+    clean || { say_out; fail; }
+  done
   # first appearance, repeated: the timing of a window's first layout is not deterministic
   run_probe "toolbar:first" 25
   echo "toolbar:first warnings=$WARN outside=$OUTSIDE exit=$RC ($(grep -ac '^PASS' "$TMP/out") passes)"
   total=$((total + WARN + OUTSIDE))
   clean || { say_out; fail; }
-  echo "open all and re-sort, text and hosted, a table with lines, and the first row below the header under a toolbar: warnings=$total"
+  echo "open all and re-sort, text and hosted, a table with lines, the review table driven, and the first row below the header under a toolbar: warnings=$total"
 }
 
 # Which build a number came from is printed with it: the checks run on the debug build (what

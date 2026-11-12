@@ -7,6 +7,11 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
+- Mac Analyzers now runs with macOS's hardened runtime, on a copy you build
+  yourself as well as on a download. Another program on your account can no
+  longer make the app load code of its own choosing. Nothing changes in how
+  you use the app; the first time you open the new version, macOS may ask
+  again for a permission you gave before.
 - When a memory cleanup refuses to run because part of Mac Analyzers is
   missing, the app now says so and tells you to update or reinstall. It used
   to tell you to check your protected-apps list, which had nothing to do
