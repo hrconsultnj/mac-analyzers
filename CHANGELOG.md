@@ -133,6 +133,13 @@ without an entry here — see `scripts/cut-release.sh`.
 - Undo is grouped by day and by cleanup. Restore puts an item back only when
   it is still the one that was moved to the Trash, and says why when it
   cannot. A second tab lists the dev servers the guard stopped.
+- After this update, something an earlier cleanup moved to the Trash can be
+  put back from Undo only when Mac Analyzers can tell it is still the same
+  item it moved. When it can't, the item stays in the Trash, and Finder's Put
+  Back still works for it.
+- Undo groups an app removed by Unused Apps with its files, so you can put the
+  whole app back or one file at a time, and it says which disk a recording was
+  on.
 - Putting items back from Undo now shows up in Activity as its own entry,
   "Restored 3 Items", started by you, with the list of what came back. It no
   longer gets mixed into the cleanup it came from, so that cleanup's numbers,

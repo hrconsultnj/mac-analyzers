@@ -22,8 +22,11 @@ struct UndoNode: Identifiable {
             UndoNode(id: day.id, kind: .day(day), children: day.runs.map { run in
                 // a run that crosses midnight is two groups: the id says which day's
                 let runID = "run:\(day.id)|\(run.id)"
-                return UndoNode(id: runID, kind: .run(run), children: run.children.map {
-                    UndoNode(id: "item:\(runID)|\($0.id)", kind: .item($0), children: nil)
+                return UndoNode(id: runID, kind: .run(run), children: run.children.map { child in
+                    let itemID = "item:\(runID)|\(child.id)"
+                    // an app opens to its bundle and files
+                    return UndoNode(id: itemID, kind: .item(child), children: child.isApp
+                        ? child.files.map { UndoNode(id: "file:\(itemID)|\($0.id)", kind: .item($0), children: nil) } : nil)
                 })
             })
         }

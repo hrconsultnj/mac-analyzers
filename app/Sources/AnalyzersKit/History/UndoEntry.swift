@@ -13,6 +13,9 @@ public struct UndoEntry: Identifiable, Sendable {
     public enum Source: Sendable {
         case trashed(TrashedItem)
         case stopped(GuardEvent)
+
+        /// Where a trashed item came from.
+        var trashedPath: String? { if case .trashed(let item) = self { item.originalPath } else { nil } }
     }
 
     public let id: String
@@ -31,6 +34,9 @@ public struct UndoEntry: Identifiable, Sendable {
     /// Level 3: the cleanup run this was moved by ("temp-space|<banner>"), or the
     /// guard's stops of one day. Entries with the same run belong to one parent row.
     public let runID: String
+    /// The app this went with, when the run was Unused Apps: the app's bundle path, from the `[APP]` line
+    /// that opened the app's section of the run's block. The bundle itself and each of its files carry it.
+    public var appPath: String? = nil
     /// What happened to this one, without the run's repeated details: its size.
     public var detail: String { sizeBytes > 0 ? ByteSize.format(sizeBytes) : "" }
 
@@ -63,17 +69,28 @@ public struct UndoRun: Identifiable, Sendable {
         public let outcome: String
         public let bytes: Int64
         public let entries: [UndoEntry]
+        /// For an app: its bundle and each of its files, one row each; empty for everything else.
+        public var files: [Child] = []
+        public var isApp: Bool { !files.isEmpty }
         public var restorable: [UndoEntry] { entries.filter(\.isRestorable) }
     }
 
     public var children: [Child] {
         var order: [String] = []
         var byTitle: [String: [UndoEntry]] = [:]
+        var apps: [String: [UndoEntry]] = [:]
+        var appOrder: [String] = []
         for entry in entries {
+            // an app's bundle and files go under the app, not among the run's other rows
+            if let app = entry.appPath {
+                if apps[app] == nil { appOrder.append(app) }
+                apps[app, default: []].append(entry)
+                continue
+            }
             if byTitle[entry.title] == nil { order.append(entry.title) }
             byTitle[entry.title, default: []].append(entry)
         }
-        return order.map { title in
+        let plain: [Child] = order.map { title in
             let group = byTitle[title]!
             let bytes = group.reduce(Int64(0)) { $0 + $1.sizeBytes }
             if group.count == 1 {
@@ -84,6 +101,34 @@ public struct UndoRun: Identifiable, Sendable {
                              + (bytes > 0 ? " · \(ByteSize.format(bytes))" : ""),
                          bytes: bytes, entries: group)
         }
+        return appOrder.map { app in appChild(path: app, entries: apps[app]!) } + plain
+    }
+
+    /// One app: its bundle first, then its files; the row says what it still holds.
+    private func appChild(path: String, entries members: [UndoEntry]) -> Child {
+        let name = Self.appName(path)
+        let bundle = members.first { $0.source.trashedPath == path }
+        let files = members.filter { $0.source.trashedPath != path }
+        let bytes = members.reduce(Int64(0)) { $0 + $1.sizeBytes }
+        let size = bytes > 0 ? " · \(ByteSize.format(bytes))" : ""
+        let count = ActivitySummary.plural(files.count, "file", "files")
+        let said: String
+        switch (bundle != nil, files.isEmpty) {
+        case (true, true): said = "The app only\(size)"
+        case (true, false): said = "The app and \(count)\(size)"
+        // the app was put back (or its receipt is gone); what remains is its files
+        case (false, _): said = "The app itself is back; \(count) still in the Trash\(size)"
+        }
+        let rows = ([bundle].compactMap { $0 } + files.sorted { $0.sizeBytes > $1.sizeBytes }).map {
+            Child(id: $0.id, title: $0.title, outcome: $0.detail, bytes: $0.sizeBytes, entries: [$0])
+        }
+        return Child(id: "\(id)|app|\(path)", title: name, outcome: said, bytes: bytes, entries: members, files: rows)
+    }
+
+    /// "Foo" from "/Applications/Foo.app".
+    static func appName(_ path: String) -> String {
+        let last = (path as NSString).lastPathComponent
+        return last.hasSuffix(".app") ? String(last.dropLast(4)) : last
     }
 
     /// Said once on the run when nothing in it can be brought back.
@@ -139,18 +184,7 @@ public enum UndoHistory {
     /// Everything the Undo screen lists, newest first.
     public static func entries(now: Date = Date()) -> [UndoEntry] {
         let dates = receiptDates()
-        let trashed: [UndoEntry] = UndoLedger.trashedItems().map { item in
-            let by = Names.screen(forLedgerSource: item.source)
-            let size = ByteSize.parse(item.sizeText) ?? 0
-            return UndoEntry(
-                id: "trashed:" + item.id, source: .trashed(item), scope: .trashed,
-                title: title(for: item),
-                outcome: "Moved to the Trash by \(by) · \(item.sizeText)"
-                    + (item.restorability == .trashCopyGone ? " — the Trash has since been emptied" : ""),
-                when: dates[item.originalPath]?.date, by: by,
-                restore: restore(for: item.restorability), sizeBytes: size,
-                runID: dates[item.originalPath]?.run ?? "undated:" + item.ledger.lastPathComponent)
-        }
+        let trashed = trashedEntries(UndoLedger.trashedItems(), dates: dates)
         let stopped: [UndoEntry] = GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog, within: 90 * 86_400)
             .filter(\.isKill).map { event in
                 var outcome = "Stopped by \(Names.Screen.memoryGuard)"
@@ -162,6 +196,29 @@ public enum UndoHistory {
                                  runID: "guard:" + String(Int(Calendar.current.startOfDay(for: event.date).timeIntervalSince1970)))
             }
         return (trashed + stopped).sorted { ($0.when ?? .distantPast) > ($1.when ?? .distantPast) }
+    }
+
+    /// Test support: the Trash entries of ONE receipt log, built exactly as the screen builds them.
+    @_spi(TestSupport) public static func trashedEntries(ledger: URL, source: String, trash: URL) -> [UndoEntry] {
+        let dates = receiptDates(runs: LogParser.runs(at: ledger), log: ledger.lastPathComponent)
+        return trashedEntries(UndoLedger.trashedItems(in: ledger, source: source, trash: trash), dates: dates)
+    }
+
+    private static func trashedEntries(_ items: [TrashedItem], dates: [String: (date: Date, run: String, app: String?)]) -> [UndoEntry] {
+        items.map { item in
+            let by = Names.screen(forLedgerSource: item.source)
+            let size = ByteSize.parse(item.sizeText) ?? 0
+            let app = dates[item.originalPath]?.app
+            return UndoEntry(
+                id: "trashed:" + item.id, source: .trashed(item), scope: .trashed,
+                title: title(for: item, appPath: app),
+                outcome: "Moved to the Trash by \(by) · \(item.sizeText)" + diskNote(item)
+                    + (item.restorability == .trashCopyGone ? " — the Trash has since been emptied" : ""),
+                when: dates[item.originalPath]?.date, by: by,
+                restore: restore(for: item.restorability), sizeBytes: size,
+                runID: dates[item.originalPath]?.run ?? "undated:" + item.ledger.lastPathComponent,
+                appPath: app)
+        }
     }
 
     public static func days(_ entries: [UndoEntry], calendar: Calendar = .current) -> [UndoDay] {
@@ -182,8 +239,12 @@ public enum UndoHistory {
 
     /// A name a person would use for what was moved: a family token reads as
     /// "<name> files", a path as its last component.
-    static func title(for item: TrashedItem) -> String {
-        guard item.isGroup else { return item.basename }
+    static func title(for item: TrashedItem, appPath: String? = nil) -> String {
+        // an app's bundle is the app; a recording is its file's own name
+        if let appPath, item.originalPath == appPath { return UndoRun.appName(appPath) }
+        if item.source == "Old Recordings" { return item.basename }
+        // everything else is named by the one function the Storage screens use
+        guard item.isGroup else { return StorageNaming.name(forPath: item.originalPath).title }
         // "<dir>/<family>*": the siblings that went to the Trash together
         var family = item.basename.replacingOccurrences(of: "…", with: "")
             .replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "")
@@ -195,6 +256,13 @@ public enum UndoHistory {
         // "(small files)" is the same in every folder, and a folder like "T" means
         // nothing to a person: one name, folded into one row per run
         return family.lowercased() == "small files" ? "Small temporary files" : title
+    }
+
+    /// " · on Backup" for an item that is in another disk's own Trash.
+    static func diskNote(_ item: TrashedItem) -> String {
+        let parts = (item.trashPath ?? "").split(separator: "/")
+        guard parts.count > 2, parts[0] == "Volumes" else { return "" }
+        return " · on \(parts[1])"
     }
 
     static func restore(for state: TrashedItem.Restorability) -> UndoEntry.Restore {
@@ -215,17 +283,32 @@ public enum UndoHistory {
 
     /// When each trashed path was moved: the start of the run whose receipt
     /// lists it, newest run winning.
-    static func receiptDates() -> [String: (date: Date, run: String)] {
-        var dates: [String: (date: Date, run: String)] = [:]
+    static func receiptDates() -> [String: (date: Date, run: String, app: String?)] {
+        var dates: [String: (date: Date, run: String, app: String?)] = [:]
         for log in [EngineLog.janitor, .tempSpace, .cleanupApps, .cleanupRecordings] {
-            for run in LogParser.allRuns(for: log).reversed() {   // oldest first, so the newest wins
-                guard let date = TrendTotals.runDate(run.header) else { continue }
-                for line in run.lines where line.hasPrefix("[TRASHED]") {
-                    guard let range = line.range(of: "  ") else { continue }
-                    let rest = String(line[range.upperBound...])
-                    let original = rest.components(separatedBy: "  ->  ")[0].trimmingCharacters(in: .whitespaces)
-                    if original.hasPrefix("/") { dates[original] = (date, log.rawValue + "|" + run.header) }
+            dates.merge(receiptDates(runs: LogParser.allRuns(for: log), log: log.rawValue)) { _, newer in newer }
+        }
+        return dates
+    }
+
+    /// The receipts of one log's runs: when each path was moved, by which run, and for Unused Apps with which app.
+    static func receiptDates(runs: [LogRun], log: String) -> [String: (date: Date, run: String, app: String?)] {
+        var dates: [String: (date: Date, run: String, app: String?)] = [:]
+        for run in runs.reversed() {   // oldest first, so the newest wins
+            guard let date = TrendTotals.runDate(run.header) else { continue }
+            // Unused Apps writes `[APP] <bundle path>` and then, for that app, the receipt of the bundle and one
+            // for each of its files; the next `[APP]` opens the next app. That order is what ties a file to its app.
+            var app: String?
+            for line in run.lines {
+                if line.hasPrefix("[APP]") {
+                    let path = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                    app = path.hasPrefix("/") ? path : nil
+                    continue
                 }
+                guard line.hasPrefix("[TRASHED]"), let range = line.range(of: "  ") else { continue }
+                let rest = String(line[range.upperBound...])
+                let original = ReceiptIdentity.split(rest).text.components(separatedBy: "  ->  ")[0].trimmingCharacters(in: .whitespaces)
+                if original.hasPrefix("/") { dates[original] = (date, log + "|" + run.header, app) }
             }
         }
         return dates

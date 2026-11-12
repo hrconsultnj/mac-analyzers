@@ -530,6 +530,57 @@ func probeUndoFixture(_ args: [String]) {
     let temp1 = LogParser.runs(at: logR).last.map { TempCleanParser.parse(runHeader: $0.header, lines: $0.lines).items.count } ?? -1
     check("the run before the restore still parses to its own one item", temp1 == 1, "\(temp1) items")
 
+    // 19. an app removed by Unused Apps arrives as separate receipts; the log's [APP] lines tie each file to its app
+    func trashedAt(_ original: String, _ tag: String, _ size: String) -> String {
+        let inTrash = trash.path + "/apps-\(tag)"
+        touch(inTrash, "item \(tag)")
+        try? fm.createDirectory(atPath: (original as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        return "[TRASHED] \(size)  \(original)  ->  \(inTrash)\(id(inTrash))"
+    }
+    let appsDir = work.appending(path: "apps").path
+    let fooPath = appsDir + "/Applications/Foo.app", barPath = appsDir + "/Applications/Bar.app"
+    let fooSupport = appsDir + "/Library/Application Support/Foo", fooPrefs = appsDir + "/Library/Preferences/foo.plist"
+    let barCache = appsDir + "/Library/Caches/bar"
+    let appsLog = ledger("cleanup-apps.log", [
+        rule, "\(secs.string(from: now.addingTimeInterval(-3000))) | cleanup | APPLY | apps", 
+        "[APP]     \(fooPath)", "last launched (Spotlight): 2025-01-01",
+        trashedAt(fooPath, "foo", "90.0 MB"), trashedAt(fooSupport, "foo-s", "4.0 MB"), trashedAt(fooPrefs, "foo-p", "1.0 MB"),
+        "[APP]     \(barPath)", trashedAt(barPath, "bar", "20.0 MB"), trashedAt(barCache, "bar-c", "2.0 MB"),
+    ])
+    func appRun() -> UndoRun? {
+        UndoHistory.days(UndoHistory.trashedEntries(ledger: appsLog, source: "Unused Apps", trash: trash)).first?.runs.first
+    }
+    let apps = appRun()?.children ?? []
+    let foo = apps.first { $0.title == "Foo" }, bar = apps.first { $0.title == "Bar" }
+    check("the two apps are two rows of the run, named for the app, each holding its own receipts",
+          apps.count == 2 && foo?.files.count == 3 && bar?.files.count == 2, "\(apps.map { "\($0.title) \($0.files.count)" })")
+    check("an app's row says what it holds", foo?.outcome.hasPrefix("The app and 2 files") == true, foo?.outcome ?? "none")
+    check("the bundle is the first row under its app, and no file is named for the bundle's path",
+          foo?.files.first?.title == "Foo" && foo?.files.dropFirst().allSatisfy { !$0.title.contains("/") } == true)
+    func items(of child: UndoRun.Child?) -> [TrashedItem] {
+        (child?.entries ?? []).compactMap { if case .trashed(let item) = $0.source { item } else { nil } }
+    }
+    // one file of Bar by itself
+    if let file = bar?.files.last {
+        let one = UndoLedger.restore(items(of: file), trash: trash)
+        check("one file of an app can be put back by itself", one.restored == 1 && fm.fileExists(atPath: barCache), "\(one.restored) restored")
+    }
+    let barAfter = appRun()?.children.first { $0.title == "Bar" }
+    check("the app then holds only its bundle", barAfter?.outcome.hasPrefix("The app only") == true && barAfter?.files.count == 1, barAfter?.outcome ?? "none")
+    // the app by itself, leaving its files
+    if let bundle = foo?.files.first {
+        _ = UndoLedger.restore(items(of: bundle), trash: trash)
+    }
+    let fooAfter = appRun()?.children.first { $0.title == "Foo" }
+    check("when the app was put back but its files were not, the row says so and still holds the files",
+          fooAfter?.outcome.hasPrefix("The app itself is back; 2 files still in the Trash") == true && fooAfter?.files.count == 2,
+          fooAfter?.outcome ?? "none")
+    // the rest together
+    let rest = UndoLedger.restore(items(of: fooAfter) + items(of: barAfter), trash: trash)
+    check("what is left of both apps is put back together, in one block", rest.restored == 3 && restoreBanners(appsLog).count == 3,
+          "\(rest.restored) restored, \(restoreBanners(appsLog).count) blocks in all")
+    check("and nothing of the run is offered afterwards", appRun() == nil)
+
     // 18. a cleaner's own line that carries a restore banner's words is not a restore
     let sneaky = ["storage-auto-clean.sh  |  mode=daily  |  APPLY  |  \(secs.string(from: now.addingTimeInterval(-50)))",
                   " input: flags: --apply | restore from Undo | APPLY"]

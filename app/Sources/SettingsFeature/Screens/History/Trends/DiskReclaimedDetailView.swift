@@ -59,7 +59,7 @@ struct DiskReclaimedDetailView: View {
                         detail: "\(group.items.count) \(group.items.count == 1 ? "item" : "items")",
                         bytes: group.totalBytes,
                         children: group.items.map {
-                            Row(id: group.project + "/" + $0.id, name: $0.cacheKind, detail: "",
+                            Row(id: group.project + "/" + $0.id, name: $0.title, detail: "",
                                 bytes: $0.sizeBytes, children: nil)
                         })
                 }
