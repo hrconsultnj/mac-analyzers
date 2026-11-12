@@ -96,17 +96,12 @@ if [[ "$identity" == "Developer ID Application:"* ]]; then
   level="Developer ID"
   # the notary service wants every executable signed on its own, with the
   # hardened runtime and a secure timestamp — inside out, never --deep
-  for binary in notify agent-runner MacAnalyzersApp; do
-    codesign --force --options runtime --timestamp \
-      --entitlements app/MacAnalyzers.entitlements \
-      --sign "$identity" "$app/Contents/MacOS/$binary"
-  done
-  codesign --force --options runtime --timestamp \
-    --entitlements app/MacAnalyzers.entitlements --sign "$identity" "$app"
+  app/sign-app.sh "$app" "$identity" --timestamp
 else
   level="ad-hoc"
   identity="-"
-  codesign --force --deep --sign - "$app" 2>/dev/null
+  # ad-hoc cannot be notarized, but the hardened runtime applies all the same
+  app/sign-app.sh "$app" -
 fi
 codesign --verify --deep --strict "$app"
 echo "→ signed: $level"
