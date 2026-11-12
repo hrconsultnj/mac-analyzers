@@ -146,6 +146,8 @@ public enum Names {
         public static let startBackup = "Start a Backup Afterwards"
         public static let notAllowedYet = "Deleting snapshots isn't allowed yet. Click Allow… in the bar above first."
         public static let removePermission = "Remove Permission…"
+        /// The row in Turn Off that removes it.
+        public static let permissionRowTitle = "Time Machine Permission"
         public static let permissionTitle = "Deleting Snapshots Needs a One-Time Permission"
         public static let earlierPermissionTitle = "An Earlier Permission File Exists"
         public static let earlierPermissionDetail = "A permission file from an older install in Terminal is on this Mac, and it may be what allows this account to delete local snapshots without a password. Mac Analyzers cannot read it. This command, run in Terminal, removes it if it is this account's and leaves it alone otherwise:"
@@ -573,6 +575,7 @@ public enum Names {
         rows += EngineLog.allCases.map { ("Log \($0.rawValue)", log($0)) }
         rows += [Review.selectAll, Review.selectNone, Review.previewAgain, Review.preview, Review.stop, Review.history,
                  Review.showRawOutput, Review.showInFinder, Review.copyPath, Review.copyPaths].map { ("Review", $0) }
+        rows += [TimeMachine.removePermission, TimeMachine.permissionRowTitle].map { ("Time Machine", $0) }
         rows += [Raw.screen, Raw.searchPrompt, Raw.copy, Raw.noOutput, Raw.showAll, Raw.showOlder].map { ("Raw", $0) }
         rows += [Monitor.everything, Monitor.tools, Monitor.lens, Monitor.lensMemory, Monitor.lensEnergy, Monitor.lensDisk,
                  Monitor.name, Monitor.whatItIs, Monitor.memory, Monitor.cpu, Monitor.pid, Monitor.energy, Monitor.read,
