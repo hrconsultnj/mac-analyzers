@@ -75,6 +75,36 @@ import Foundation
     expect(!plain.contains("sudo rm") && !Names.TimeMachine.earlierPermissionDetail.contains("sudo rm") && Names.TimeMachine.earlierPermissionDetail.contains("if it is this account's"),
            "the bar does not give a command that removes without checking, and says the removal happens only if the file is this account's")
 
+    // ---- Turn Off (Setup): which rows it shows and what it says; nothing here shows a prompt or touches /etc ----
+    let suite = URL(fileURLWithPath: "/Users/someone/mac-analyzers")
+    func rows(_ rule: Bool, _ legacy: Bool, uid: UInt32 = 501) -> TurnOffPermission.Rows {
+        TurnOffPermission.rows(uid: uid, ruleFileExists: rule, legacyFileExists: legacy, suiteRoot: suite)
+    }
+    print("Turn Off would offer, per case (rule file, old file): ")
+    for (rule, legacy) in [(false, false), (true, false), (false, true), (true, true)] {
+        let r = rows(rule, legacy)
+        print("  rule=\(rule) old=\(legacy): remove row \(r.removable), earlier-file command \(r.earlierCommand ?? "none")")
+    }
+    print("  and the removal it would run, behind its own prompt, only from a click:\n  \(removeScript)\n")
+    expect(rows(false, false).isEmpty, "Turn Off shows nothing when neither permission file exists")
+    expect(rows(true, false).removable && rows(true, false).earlierCommand == nil, "this account's own rule file: a row that removes it, no Terminal command")
+    expect(!rows(false, true).removable && rows(false, true).earlierCommand == TimeMachinePermission.uninstallCommand(suiteRoot: suite),
+           "only the old shared file: the Terminal command the Time Machine screen shows, and no button (the app removes only what it wrote)")
+    expect(rows(true, true).removable && rows(true, true).earlierCommand == nil, "both files: the own rule's row first; the old file's command appears once the own one is gone")
+    expect(!rows(true, true, uid: 0).removable && !rows(true, false, uid: 0).removable, "as root there is no rule of this account's to remove, so no row")
+    let done = TurnOffPermission.sentence(after: .done, stillThere: false)
+    let doneButThere = TurnOffPermission.sentence(after: .done, stillThere: true)
+    let cancelled = TurnOffPermission.sentence(after: .cancelled, stillThere: true)
+    let failedSentence = TurnOffPermission.sentence(after: .failed("It did not work."), stillThere: true)
+    expect(done.complete && done.text.contains("removed"), "a removal that worked says so: \(done.text)")
+    expect(!doneButThere.complete && doneButThere.text.contains("still on this Mac"), "a removal reported as done while the file is still there is not reported as done: \(doneButThere.text)")
+    expect(!cancelled.complete && cancelled.text.contains("still in place") && cancelled.text.contains("Remove Permission…") && cancelled.text.contains("cancelled"),
+           "a cancelled prompt says the permission is still there and how to remove it: \(cancelled.text)")
+    expect(!failedSentence.complete && failedSentence.text.contains("It did not work."), "a failed removal says why: \(failedSentence.text)")
+    expect(TurnOffPermission.confirmation.contains("administrator password") && TurnOffPermission.explanation.contains("administrator password"),
+           "the row and the confirmation both say an administrator password will be asked")
+    expect(Names.TimeMachine.removePermission == "Remove Permission…", "the button has the Time Machine screen's own name")
+
     // ---- the template and the engine ----
     let template = (try? String(contentsOf: repo.appending(path: "storage-analyzer/sudoers.d/tmutil-thin"), encoding: .utf8)) ?? ""
     let active = template.split(separator: "\n").map(String.init).filter { !$0.hasPrefix("#") && !$0.trimmingCharacters(in: .whitespaces).isEmpty }
