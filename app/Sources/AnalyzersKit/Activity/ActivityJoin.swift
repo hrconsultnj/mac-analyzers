@@ -131,9 +131,7 @@ public enum ActivityJoin {
         guard log == .forensics else { return LogParser.runs(for: log, includingRestores: true) }
         return AnalyzersPaths.allForensics().prefix(10).enumerated().compactMap { position, url in
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-            let lines = text.split(separator: "\n", omittingEmptySubsequences: true)
-                .map { String($0).trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
+            let lines = LogLines.lines(in: text)
             // the report names its own moment; that stamp, not the file's mtime, keeps the id fixed
             let stamp = lines.first.flatMap(headerDate).map { stampFormat.string(from: $0) }
                 ?? url.deletingPathExtension().lastPathComponent

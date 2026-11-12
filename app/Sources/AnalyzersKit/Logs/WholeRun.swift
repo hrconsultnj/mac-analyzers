@@ -92,6 +92,14 @@ public enum WholeRun {
 
     // MARK: - the backwards read
 
+    /// Reads from the end of the file in chunks that double, and looks at each byte ONCE.
+    ///
+    /// A banner that matches is looked for only in the part read since the last pass: if an older pass had held
+    /// one, it would have returned. What is kept between passes is small: the front of what was read that is not a
+    /// whole line yet (`pending`, completed by the next, older chunk, so a banner split at a chunk edge is still
+    /// whole when it is looked at), and the lines from the start of what has been scanned up to its first banner
+    /// (`tail`), which is where the block of a banner found in the new part ends. The first version rebuilt and
+    /// re-split the whole buffer on every pass, scanning a log of 34 MB about twice over before refusing it.
     private static func search(in url: URL, reach: Int, firstChunk: Int,
                                pick: ([String], [Int]) -> Int?) -> Found {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return .notFound }
@@ -101,44 +109,48 @@ public enum WholeRun {
         guard let size = try? handle.seekToEnd(), size > 0 else { return .notFound }
         var start = size
         var step = UInt64(max(firstChunk, 4096))
-        var buffer = Data()
+        var totalRead = 0
+        var pending = Data()
+        var tail: [String] = []
         while true {
             let take = min(step, start)
             start -= take
             guard (try? handle.seek(toOffset: start)) != nil,
                   let chunk = try? handle.read(upToCount: Int(take)) else { return .notFound }
-            buffer = chunk + buffer
+            totalRead += chunk.count
 
-            // whole lines only: drop the cut-off first line unless the buffer starts the file,
-            // and a last line a writer had not finished
-            var from = buffer.startIndex
-            var lineOffset = start
-            if start > 0, let newline = buffer.firstIndex(of: 10) {
-                from = buffer.index(after: newline)
-                lineOffset = start + UInt64(buffer.distance(from: buffer.startIndex, to: from))
+            // whole lines only: drop the cut-off first line unless this reaches the start of the file, and a last
+            // line a writer had not finished. That rule applies on EVERY pass: while the newest bytes hold no newline
+            // (an unfinished line longer than a chunk) the cut waits until a later pass has read one; once a newline
+            // is in hand the region ends with it and nothing more is cut.
+            let region = chunk + pending
+            var from = region.startIndex
+            var dropped = 0
+            if start > 0 {
+                if let newline = region.firstIndex(of: 10) { from = region.index(after: newline) } else { from = region.endIndex }
+                dropped = region.distance(from: region.startIndex, to: from)
             }
-            var upto = buffer.endIndex
-            if buffer.last != 10, let lastNewline = buffer.lastIndex(of: 10) { upto = buffer.index(after: lastNewline) }
-            let text = String(decoding: buffer[from..<max(from, upto)], as: UTF8.self)
-            var lines: [String] = []
-            var offsets: [UInt64] = []
-            var position = lineOffset
-            for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
-                let trimmed = raw.trimmingCharacters(in: .whitespaces)
-                if !trimmed.isEmpty { lines.append(trimmed); offsets.append(position) }
-                position += UInt64(raw.utf8.count) + 1
-            }
+            pending = Data(region[region.startIndex..<from])
+            var upto = region.endIndex
+            if region.last != 10, let lastNewline = region.lastIndex(of: 10) { upto = region.index(after: lastNewline) }
+
+            let (lines, offsets) = LogLines.lines(in: Data(region[from..<max(from, upto)]), base: start + UInt64(dropped))
             let banners = lines.indices.filter { RunMatcher.banner(in: lines[$0]) != nil }
             if let index = pick(lines, banners) {
-                // a banner is only trusted when the whole block after it is in hand, which
-                // it is: the buffer runs to the end of the file
-                let end = banners.first { $0 > index } ?? lines.endIndex
-                return .block(Block(banner: lines[index], lines: Array(lines[(index + 1)..<end]),
-                                    offset: offsets[index]))
+                // a banner is only trusted when the whole block after it is in hand, which it is: what was read
+                // runs to the end of the file, and the lines past this part are `tail`, up to the next banner
+                let block: [String]
+                if let next = banners.first(where: { $0 > index }) {
+                    block = Array(lines[(index + 1)..<next])
+                } else {
+                    block = Array(lines[(index + 1)...]) + tail
+                }
+                return .block(Block(banner: lines[index], lines: block, offset: offsets[index]))
             }
+            if let firstBanner = banners.first { tail = Array(lines[..<firstBanner]) } else { tail = lines + tail }
             if start == 0 { return .notFound }
-            if buffer.count >= reach { return .tooLarge }
-            step = min(step * 2, UInt64(reach - buffer.count))
+            if totalRead >= reach { return .tooLarge }
+            step = min(step * 2, UInt64(reach - totalRead))
         }
     }
 
