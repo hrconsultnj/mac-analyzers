@@ -49,6 +49,33 @@ let kids = node(children: [])'
 passes  "children: inside a comment of a List passes" R 'List(items) { // children: not here
   Text($0.a)
 }'
+# U5: what is not code is not a control, and what is code is read as code
+passes  "children: inside a closure within the call's parentheses passes" S 'List(rows.map { Node($0, children: []) }) { Text("x") }'
+passes  "children: in a nested call within the parentheses passes" T 'List(makeRows(children: 3)) { Text("x") }'
+passes  "OutlineGroup in a block comment passes" U '/* OutlineGroup(items, children: \.kids) { Text("x") } */
+let x = 1'
+passes  "OutlineGroup in a multi-line block comment passes" V '/* old:
+   OutlineGroup(items, children: \.kids)
+   DisclosureGroup("x") { }
+*/
+let x = 1'
+passes  "a nested block comment passes" W '/* outer /* DisclosureGroup("x") { } */ still comment: OutlineGroup() */
+let x = 1'
+passes  "OutlineGroup in a string literal passes" X 'let help = "use OutlineGroup(items) for trees"'
+passes  "List(…, children:) in a string literal passes" Y 'let help = "List(items, children: \\.kids) is refused"'
+passes  "a DisclosureGroup named in a multi-line string passes" Z 'let doc = """
+  DisclosureGroup("x") { }
+  OutlineGroup(a)
+"""'
+refused "a ) inside a string does not end the call early: children: after it is still found" AA 'List(
+    items,
+    header: ")",
+    children: \.kids
+) { item in Text(item.a) }'
+refused "a ( inside a string does not hide the end of the call" AB 'List(items, header: "((", children: \.kids) { Text("x") }'
+refused "code after a block comment on the same line is still read" AC '/* note */ OutlineGroup(items, children: \.kids) { Text("x") }'
+refused "a DisclosureGroup right after a string that mentions the marker is refused" AD 'let a = "// one disclosed block, not rows"
+DisclosureGroup("Raw") { Text("x") }'
 # the component itself is where they live
 d="$TMP/component/Sources"; mkdir -p "$d/UIComponents/OutlineTable"; printf 'OutlineGroup(a, children: \\.k) { Text("x") }\n' > "$d/UIComponents/OutlineTable/X.swift"
 [[ -z "$("$SCAN" "$d" 2>&1)" ]] && check "the OutlineTable component's own folder is not scanned" ok || check "the OutlineTable component's own folder is not scanned" "was scanned"

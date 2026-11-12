@@ -61,23 +61,29 @@ without an entry here — see `scripts/cut-release.sh`.
   identity are taken: a folder that merely carries its name (Electron), a
   group container named for the app that it does not declare, or one that
   another app shares, wherever that other app is installed (in a folder, or
-  inside another app), is shown and left in place; when some app's settings
-  cannot be read, no group container is taken at all. An app that
+  inside another app, at any depth), is shown and left in place; when some
+  app's settings, or a folder, or a link to a folder cannot be read, no group
+  container is taken at all and the screen says what it could not read. An app that
   macOS has no record of, that runs in the background (a login item, launch
   agent, helper or system extension, a menu-bar tool, or something started
-  through `open`), that is running, that has other apps inside it, or that
-  you cannot move without an administrator is listed but never offered. The
+  through `open`), that is running, that holds another app which is in use
+  on its own (opened recently, running, or started by something), or that
+  you cannot move without an administrator is listed but never offered. Apps
+  inside an app (an updater, a helper) are part of it and go with it; the row
+  says how many. The
   screen says what that check reads (launch entries and the commands and scripts
   in them that open an app, your Login Items, what is inside the app) and what it
   cannot see. Which apps open at login is read from the Login & Startup Items
   check, so it must have run today and have been able to read your Login Items
-  (otherwise the screen says to run it from the app); if the app cannot be moved,
+  (otherwise the screen says to run it from the app; Login & Startup Items says
+  the same when it could not list them); if the app cannot be moved,
   none of its files are touched. In Terminal, `cleanup.sh --stale-apps
   --execute` only removes a list you wrote yourself; apps found by their date
   are removed only from a review in the app. Old Recordings lists recording
   folders older than 90 days by the month they were made; they go to the Trash
   too (a recording on another disk goes to that disk's own Trash), so Undo can
-  bring them back from either one. A folder with a part that cannot be read is
+  bring them back from either one (if that disk is not connected, Undo says to
+  connect it). A folder with a part that cannot be read is
   kept, because something in it may be recent.
 - Spotlight lists your developer folders by project with a checkbox to fence
   or unfence each one, and Fence and Unfence for a whole selection. Fence All

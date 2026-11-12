@@ -149,6 +149,19 @@ import Foundation
         let kept = UnusedReview.apps(lines: ["### APP: X   (bundle: com.x)", "[APP]     /p/X.app", "last launched (Spotlight): 2024-01-02", "[KEEP]    \(why)", ""])
         expect(kept.notes.contains(expected) && kept.notes.count == 2 && kept.notes.contains(UnusedReview.checkLimitsNote), "the reason \"\(why.prefix(60))…\" puts its own sentence over the table")
     }
+    let withNested = UnusedReview.apps(lines: ["[CONTAINERS-KEPT] the settings of Hang.app could not be read; a link to a folder inside an app folder is not followed: /Apps/Suite",
+                                               "### APP: Y   (bundle: com.y)", "[APP]     /p/Y.app", "last launched (Spotlight): 2024-01-02", "contains: 2 other app(s) inside it, removed with it: A.app; B.app",
+                                               "[DRY]        10 KB  /p/Y.app", "TOTAL — 1 items"])
+    expect(withNested.notes.contains { $0.contains("Hang.app could not be read") && $0.contains("no container another app might share is taken") },
+           "the engine's [CONTAINERS-KEPT] line becomes one sentence over the table, naming what could not be read: \(withNested.notes)")
+    expect(withNested.rows.first?.detail?.contains("Contains 2 other apps") == true, "an app that holds other apps says how many go with it: \(withNested.rows.first?.detail ?? "none")")
+    // the Login & Startup Items screen reads the same header field (the Apps tab says when the login items were not read)
+    let readHeader = "#login-items-inventory\t2\t2026-11-11 10:00:00\tdry-run\tid1\tlogins=read\n"
+    expect(StartupInventory.parse(readHeader)?.loginItemsUnreadable == false, "a header with logins=read: the login items were read")
+    expect(StartupInventory.parse(readHeader.replacingOccurrences(of: "logins=read", with: "logins=unreadable"))?.loginItemsUnreadable == true, "a header with logins=unreadable is carried to the screen")
+    expect(StartupInventory.parse("#login-items-inventory\t1\t2026-11-11 10:00:00\tdry-run\tid1\n")?.loginItemsUnreadable == false, "an older header with no field makes no claim")
+    expect(StartupInventory.loginItemsUnreadableSentence.contains("Run the audit from Mac Analyzers") && StartupInventory.loginItemsUnreadableSentence.contains("Privacy & Security, Automation"),
+           "the sentence says what to do and where the permission is")
     expect(UnusedReview.loginUnreadableNote.contains("can ask for permission") && Names.Unused.leftInPlace == "Left in Place", "the unreadable note says what to do, and 'Left in Place' is in title style")
     expect(findings.rows.contains { $0.id == unusedSupport.path && ($0.bytes ?? 0) > 200_000 }, "the unused app's files are rows with sizes")
     let refused = runFound(["--stale-apps", "--execute", "--yes"])

@@ -92,10 +92,12 @@ STUB
   check "[$sh] an app last opened long ago, and one macOS knows but has no use of, are offered (not kept)" \
         "$([[ "$out" == *"[APP]     $disc/apps/Old.app"* && "$(rowfor Old)" != *"[KEEP]"* && "$(rowfor Never)" != *"[KEEP]"* && "$out" == *"[APP]     $disc/apps/Never.app"* ]] && echo ok || echo "wrong")"
   check "[$sh] an app opened recently is not even listed" "$([[ "$out" != *"Recent.app"* ]] && echo ok || echo listed)"
-  for pair in "WithAgent|launch entry" "WithLoginItem|login item" "WithSysExt|system extension" "OpenAtLogin|Login & Startup Items" "MenuBar|menu bar" "Holder|Other apps live inside" "NoRecord|no record"; do
+  for pair in "WithAgent|launch entry" "WithLoginItem|login item" "WithSysExt|system extension" "OpenAtLogin|Login & Startup Items" "MenuBar|menu bar" "NoRecord|no record"; do
     n="${pair%%|*}"; why="${pair#*|}"
     check "[$sh] $n is kept, with its reason ($why)" "$([[ "$(rowfor "$n")" == *"[KEEP]"*"$why"* ]] && echo ok || echo "$(rowfor "$n" | grep KEEP)")"
   done
+  check "[$sh] Holder holds an app that nothing uses: it is offered, and the row says what goes with it" \
+        "$([[ "$(rowfor Holder)" != *"[KEEP]"* && "$(rowfor Holder)" == *"contains: 1 other app(s) inside it, removed with it: Inner.app"* ]] && echo ok || echo "$(rowfor Holder)")"
   : > "$disc/index-off"
   out="$(dcleanup --stale-apps)"
   check "[$sh] with indexing off, an app with no record of use is kept, not 'never opened'" "$([[ "$(rowfor Never)" == *"[KEEP]"*"indexing is off"* ]] && echo ok || echo "$(rowfor Never)")"

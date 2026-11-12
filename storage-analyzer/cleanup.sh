@@ -220,17 +220,25 @@ resolve_app_path() {
 SHARED_RUNTIME_NAMES="electron python java code docker steam unity google chromium chrome mozilla firefox microsoft adobe jetbrains node npm flutter qt wine android xcode apple"
 
 # The app groups the app's OWN entitlements declare, one per line. Return 0 when the entitlements were read (an
-# app with none, or one that is not signed at all, declares no group); 3 when they could not be read (codesign
-# failed for another reason): then "which groups does this app declare" is UNKNOWN, not "none".
+# app with none, or one that is not signed at all, declares no group); 3 when they could not be read: codesign failed
+# for another reason, or did not answer within ANALYZERS_CODESIGN_LIMIT seconds (15) and was stopped. Then "which
+# groups does this app declare" is UNKNOWN, not "none".
 app_groups_checked() {
-  local app="$1" xml errf rc
+  local app="$1" xml errf xmlf rc cpid wpid limit="${ANALYZERS_CODESIGN_LIMIT:-15}"
   errf="$(mktemp "${TMPDIR:-/tmp}/cleanup-codesign.XXXXXX")" || return 3
-  xml="$(codesign -d --entitlements - --xml "$app" 2>"$errf")"; rc=$?
+  xmlf="$(mktemp "${TMPDIR:-/tmp}/cleanup-codesign.XXXXXX")" || { rm -f "$errf"; return 3; }
+  codesign -d --entitlements - --xml "$app" > "$xmlf" 2> "$errf" &
+  cpid=$!
+  ( sleep "$limit"; kill -9 "$cpid" 2>/dev/null ) > /dev/null 2>&1 &
+  wpid=$!
+  wait "$cpid" 2>/dev/null; rc=$?
+  pkill -P "$wpid" 2>/dev/null; kill "$wpid" 2>/dev/null; wait "$wpid" 2>/dev/null
+  xml="$(cat "$xmlf" 2>/dev/null)"
   if [[ $rc -ne 0 ]]; then
     if grep -q "not signed at all" "$errf" 2>/dev/null; then rc=0; else rc=3; fi
-    rm -f "$errf"; [[ $rc -eq 0 ]] && return 0; return 3
+    rm -f "$errf" "$xmlf"; [[ $rc -eq 0 ]] && return 0; return 3
   fi
-  rm -f "$errf"
+  rm -f "$errf" "$xmlf"
   [[ -n "$xml" ]] || return 0
   # (plutil cannot name this key: its path syntax splits at the dots) read the <string>s of the key's array
   printf '%s' "$xml" | awk 'BEGIN { RS = "<" }
@@ -244,40 +252,64 @@ app_groups_checked() {
 # the app names)
 app_groups() { app_groups_checked "$1" || true; }
 
-# Every app bundle under the app folders, AT ANY DEPTH (a vendor's suite folder, Utilities, Setapp) and the apps
-# inside bundles (login-item and helper apps), found once per run. ALL_BUNDLES_COMPLETE=0 when a folder could not
-# be read: then the list is not known to be everything.
-ALL_BUNDLES=(); ALL_BUNDLES_DONE=0; ALL_BUNDLES_COMPLETE=1
+# Every app bundle (and app extension, *.appex, which can use a group too) under the app folders, AT ANY DEPTH, and
+# the ones inside bundles at any depth, nested apps inside nested apps too; found once per run. Every way a bundle
+# can sit where this walk would not see it is either walked or recorded in INDEX_PROBLEMS, and then "shared
+# elsewhere" is unknown:
+#   a linked folder in an app folder (never followed: it can point anywhere, a loop, the whole disk): a problem
+#   a folder or bundle that could not be read (a find error): a problem
+#   an app folder that is itself a link: followed (find -H), it is the folder the person named
+#   a bundle named .APP, .App: found (-iname); a linked bundle: found, and read through the link
+#   a nested app behind a link inside a bundle (a framework's Versions/Current is a link to a sibling folder that is
+#   walked anyway): not followed; links inside bundles stay inside them
+INDEX_PROBLEMS=()
+ALL_BUNDLES=(); ALL_BUNDLES_DONE=0
+_is_bundle_name() { case "$(printf '%s' "${1##*/}" | tr '[:upper:]' '[:lower:]')" in *.app|*.appex) return 0 ;; esac; return 1; }
 list_all_app_bundles() {
   [[ "$ALL_BUNDLES_DONE" -eq 1 ]] && return 0
   ALL_BUNDLES_DONE=1
-  local dirs dir b n errf out
+  local dirs dir b n errf out line level
   local -a contents=()
-  errf="$(mktemp "${TMPDIR:-/tmp}/cleanup-find.XXXXXX")" || { ALL_BUNDLES_COMPLETE=0; return 0; }
-  out="$(mktemp "${TMPDIR:-/tmp}/cleanup-find.XXXXXX")" || { rm -f "$errf"; ALL_BUNDLES_COMPLETE=0; return 0; }
+  errf="$(mktemp "${TMPDIR:-/tmp}/cleanup-find.XXXXXX")" || { INDEX_PROBLEMS+=( "a list of the installed apps could not be made" ); return 0; }
+  out="$(mktemp "${TMPDIR:-/tmp}/cleanup-find.XXXXXX")" || { rm -f "$errf"; INDEX_PROBLEMS+=( "a list of the installed apps could not be made" ); return 0; }
   IFS=: read -r -a dirs <<< "${ANALYZERS_APP_DIRS:-/Applications:${HOME_DIR}/Applications}"
   # The lists go through files, not process substitutions: bash 3.2 (the one macOS ships) crashes every later
   # command, and hangs, when process substitutions run in a loop over a few hundred bundles inside a function.
   for dir in "${dirs[@]}"; do
     [[ -d "$dir" ]] || continue
-    find "$dir" \( -type d -o -type l \) -name '*.app' -prune -print0 > "$out" 2>>"$errf"
+    find -H "$dir" \( \( \( -type d -o -type l \) \( -iname '*.app' -o -iname '*.appex' \) -prune -print0 \) -o \( -type l -print0 \) \) > "$out" 2>>"$errf"
     while IFS= read -r -d '' b; do
-      ALL_BUNDLES+=( "$b" )
-      [[ -d "$b/Contents" ]] && contents+=( "$b/Contents" )
+      if _is_bundle_name "$b"; then
+        ALL_BUNDLES+=( "$b" )
+        [[ -d "$b/Contents" ]] && contents+=( "$b/Contents" )
+      elif [[ -d "$b" ]]; then
+        INDEX_PROBLEMS+=( "a link to a folder inside an app folder is not followed: $b" )
+      fi
     done < "$out"
   done
-  # the apps INSIDE bundles (login-item and helper apps), one find over every bundle's Contents
-  if [[ ${#contents[@]} -gt 0 ]]; then
-    find "${contents[@]}" -maxdepth 5 \( -type d -o -type l \) -name '*.app' -prune -print0 > "$out" 2>>"$errf"
-    while IFS= read -r -d '' n; do ALL_BUNDLES+=( "$n" ); done < "$out"
+  # the apps inside bundles, level by level (an app inside an app inside an app), each level one find over every Contents
+  level=0
+  while [[ ${#contents[@]} -gt 0 && $level -lt 12 ]]; do
+    level=$((level + 1))
+    find "${contents[@]}" \( -type d -o -type l \) \( -iname '*.app' -o -iname '*.appex' \) -prune -print0 > "$out" 2>>"$errf"
+    contents=()
+    while IFS= read -r -d '' n; do
+      ALL_BUNDLES+=( "$n" )
+      [[ -d "$n/Contents" ]] && contents+=( "$n/Contents" )
+    done < "$out"
+  done
+  [[ ${#contents[@]} -eq 0 ]] || INDEX_PROBLEMS+=( "apps nested more than twelve levels deep were not read" )
+  if [[ -s "$errf" ]]; then
+    line="$(head -n 1 "$errf" | cut -c1-200)"
+    INDEX_PROBLEMS+=( "a folder could not be searched: ${line}" )
   fi
-  [[ -s "$errf" ]] && ALL_BUNDLES_COMPLETE=0
   rm -f "$errf" "$out"
   return 0
 }
 
 # One line per (group, app) for every bundle, then "!UNREADABLE<TAB>bundle" for each whose entitlements could not be
-# read. Built once per run, eight codesign reads at a time.
+# read (or not within the time limit). Built once per run, eight codesign reads at a time. Every read leaves its own
+# file, so a read that was killed before it wrote one is noticed: the index is then not trusted.
 GROUP_INDEX=""; GROUP_INDEX_COMPLETE=1
 _index_one() {  # bundle outfile
   local b="$1" out="$2" g groups rc
@@ -288,22 +320,35 @@ _index_one() {  # bundle outfile
   return 0
 }
 build_group_index() {
-  local tmpd i=0 b
+  local tmpd i=0 b made=0 line
   GROUP_INDEX="$(mktemp "${TMPDIR:-/tmp}/cleanup-groups.XXXXXX")"
   tmpd="$(mktemp -d "${TMPDIR:-/tmp}/cleanup-groups.XXXXXX")"
   trap 'rm -f "$GROUP_INDEX" "${REC_ERR:-}"' EXIT
   list_all_app_bundles
-  [[ "$ALL_BUNDLES_COMPLETE" -eq 1 ]] || GROUP_INDEX_COMPLETE=0
   for b in ${ALL_BUNDLES[@]+"${ALL_BUNDLES[@]}"}; do
     _index_one "$b" "$tmpd/$i" &
     i=$((i + 1))
     [[ $((i % 8)) -eq 0 ]] && wait
   done
   wait
+  made="$(find "$tmpd" -type f 2>/dev/null | wc -l | tr -d ' ')"
+  [[ "$made" -eq "$i" ]] || INDEX_PROBLEMS+=( "$((i - made)) app reads did not finish" )
   [[ $i -gt 0 ]] && cat "$tmpd"/* >> "$GROUP_INDEX" 2>/dev/null
   rm -rf "$tmpd"
-  grep -q '^!UNREADABLE' "$GROUP_INDEX" 2>/dev/null && GROUP_INDEX_COMPLETE=0
+  while IFS=$'\t' read -r line b; do
+    [[ "$line" == '!UNREADABLE' ]] && INDEX_PROBLEMS+=( "the settings of ${b##*/} could not be read" )
+  done < "$GROUP_INDEX"
+  [[ ${#INDEX_PROBLEMS[@]} -eq 0 ]] || GROUP_INDEX_COMPLETE=0
   return 0
+}
+
+# Said once, at the end of a run that looked at app groups: why no shared container was taken, when something could
+# not be read. The app turns it into a sentence over the table.
+report_index_problems() {
+  [[ ${#INDEX_PROBLEMS[@]} -gt 0 ]] || return 0
+  local joined="" p
+  for p in "${INDEX_PROBLEMS[@]}"; do joined="${joined:+$joined; }$p"; done
+  echo "[CONTAINERS-KEPT] ${joined}"
 }
 
 # Is this group also declared by ANOTHER installed app (any depth, helpers inside other bundles included; the
@@ -327,7 +372,7 @@ name_is_ours() {  # app name
   for w in $SHARED_RUNTIME_NAMES; do [[ "$lname" == "$w" ]] && return 1; done
   list_all_app_bundles
   # a folder that could not be searched may hold an app that owns the name: then nobody can say the name is the app's alone
-  [[ "$ALL_BUNDLES_COMPLETE" -eq 1 ]] || return 1
+  [[ ${#INDEX_PROBLEMS[@]} -eq 0 ]] || return 1
   for other in ${ALL_BUNDLES[@]+"${ALL_BUNDLES[@]}"}; do
     [[ "$other" != "$app" && "$other" != "$app"/* ]] || continue
     base="${other##*/}"; base="${base%.app}"
@@ -429,7 +474,7 @@ detect_system_leftovers() {
 
 # the granular per-app driver: list the full footprint, then (in execute) confirm and remove
 purge_app() {
-  local app_in="$1" app name bid p kb total_kb=0 ans lu keep i
+  local app_in="$1" app name bid p kb total_kb=0 ans lu keep i nested_count nested_names
   app="$(resolve_app_path "$app_in")"
   name="$(basename "${app%.app}")"
   bid="$(resolve_bid "$app")"
@@ -450,6 +495,12 @@ purge_app() {
   if pgrep -x "$name" >/dev/null 2>&1 || pgrep -f "/${name}.app/Contents/MacOS/" >/dev/null 2>&1; then
     echo "  ⚠ ${name} appears to be RUNNING — quit it first; skipping this app."
     return 0
+  fi
+  # apps inside it go with it: say how many, so a person is not surprised
+  # shellcheck source=../lib/launch-items.sh
+  if [[ -f "$LAUNCH_LIB" ]] && source "$LAUNCH_LIB" 2>/dev/null; then
+    IFS=$'\t' read -r nested_count nested_names <<< "$(nested_app_names "$app")"
+    [[ "${nested_count:-0}" -gt 0 ]] && printf "  contains: %s other app(s) inside it, removed with it: %s\n" "$nested_count" "$nested_names"
   fi
   collect_app_footprint "$app" "$bid" "$name" "$PURGE_KEEPCHECK"
   for p in "${APP_PATHS[@]}"; do
@@ -647,6 +698,7 @@ run_app_mode() {
   if [[ ${#APP_TARGETS[@]} -gt 0 ]]; then
     for a in "${APP_TARGETS[@]}"; do purge_app "$a"; done
   fi
+  report_index_problems
 }
 
 echo "=================================================================="

@@ -179,8 +179,81 @@ launch_entry_mentions_app() {  # plist app bid name
   return 1
 }
 
+# Is something set up to start this app: a launchd entry (any recognised form, or one that names its bundle id), or a
+# row of the Login & Startup Items audit's inventory (which adds what the plists cannot show, the System Settings
+# "Open at Login" items, and every entry whose program is inside the app; a stale file can only ADD a reason)?
+# Prints why and returns 0, or returns 1. Used for an app and for an app nested inside another.
+_registered_to_run() {  # app bid
+  local app="$1" bid="$2" p label assoc plists
+  local name="${app##*/}"; name="${name%.app}"
+  plists="$(launch_plist_files)"
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    if launch_entry_mentions_app "$p" "$app" "$bid" "$name"; then
+      echo "Runs in the background: a launch entry starts it"; return 0
+    fi
+    label=$(plutil -extract Label raw -o - "$p" 2>/dev/null)
+    if [[ -n "$bid" && -n "$label" && ( "$label" == "$bid" || "$label" == "$bid".* ) ]]; then echo "Runs in the background: a launch entry belongs to it"; return 0; fi
+    assoc=$(plutil -extract AssociatedBundleIdentifiers xml1 -o - "$p" 2>/dev/null)
+    if [[ -n "$bid" && -n "$assoc" && "$assoc" == *"<string>${bid}</string>"* ]]; then
+      echo "Runs in the background: a launch entry belongs to it"; return 0
+    fi
+  done <<< "$plists"
+  local inventory="${ANALYZERS_LOGIN_INVENTORY:-${HOME}/mac-analyzers/reports/storage/login-items.tsv}"
+  if [[ -f "$inventory" ]] && awk -F'\t' -v app="$app" '
+        /^#/ { next }
+        $5 == app || index($5, app "/") == 1 { found = 1; exit }
+        END { exit found ? 0 : 1 }' "$inventory"; then
+    echo "Runs in the background: it is in your Login & Startup Items"; return 0
+  fi
+  return 1
+}
+
+# the apps inside a bundle, at any depth (an app inside an app is found when that app is asked), one path per line
+nested_app_paths() {  # app
+  find "$1/Contents" \( -type d -o -type l \) -iname '*.app' -prune -print 2>/dev/null
+}
+
+# the names of the apps inside this one, "; " apart, and how many (for the line the review shows)
+nested_app_names() {  # app -> prints "N<TAB>name; name"
+  local n count=0 names="" list
+  list="$(nested_app_paths "$1")"
+  while IFS= read -r n; do
+    [[ -n "$n" ]] || continue
+    count=$((count + 1)); names="${names:+$names; }${n##*/}"
+  done <<< "$list"
+  printf '%s\t%s\n' "$count" "$names"
+}
+
+# Was this app opened within the window (ANALYZERS_STALE_APP_DAYS, 180) by its own Spotlight last-used date?
+_used_within_window() {  # app
+  local days="${ANALYZERS_STALE_APP_DAYS:-180}" lu ts
+  lu="$(mdls -name kMDItemLastUsedDate -raw "$1" 2>/dev/null)"
+  [[ -n "$lu" && "$lu" != "(null)" ]] || return 1
+  ts="$(date -j -f "%Y-%m-%d %H:%M:%S %z" "$lu" +%s 2>/dev/null)" || return 1
+  [[ "$ts" -ge $(( $(date +%s) - days * 86400 )) ]]
+}
+
+# An app inside another app is part of it, and goes with it. It keeps the outer app only when it is in use in its own
+# right: running now, opened within the window by its own last-used date, started by something (a launch entry or a
+# login item), or holding an app that is. An updater or a helper the outer app starts when it needs it is none of
+# these. Prints the nested app's name and returns 0 when one is in use.
+_nested_in_use() {  # app
+  local n bid list
+  list="$(nested_app_paths "$1")"
+  while IFS= read -r n; do
+    [[ -n "$n" ]] || continue
+    bid="$(defaults read "$n/Contents/Info" CFBundleIdentifier 2>/dev/null)"
+    if pgrep -f -- "$n/Contents/MacOS/" >/dev/null 2>&1 || _used_within_window "$n" \
+       || _registered_to_run "$n" "$bid" >/dev/null || _nested_in_use "$n" >/dev/null; then
+      echo "${n##*/}"; return 0
+    fi
+  done <<< "$list"
+  return 1
+}
+
 app_runs_on_its_own() {
-  local app="$1" bid="$2" p label assoc d
+  local app="$1" bid="$2" d inuse
   # inside the bundle: login items, launch agents and daemons (SMAppService), privileged helpers
   for d in LoginItems LaunchAgents LaunchDaemons LaunchServices; do
     if [[ -d "$app/Contents/Library/$d" ]] && [[ -n "$(ls -A "$app/Contents/Library/$d" 2>/dev/null)" ]]; then
@@ -194,38 +267,17 @@ app_runs_on_its_own() {
   if find "$app/Contents" -maxdepth 4 -name '*.systemextension' 2>/dev/null | grep -q .; then
     echo "Has a system extension"; return 0
   fi
-  # launchd entries that start the app (or something inside it) in any recognised form, or that name it
-  local name="${app##*/}"; name="${name%.app}"
-  while IFS= read -r p; do
-    if launch_entry_mentions_app "$p" "$app" "$bid" "$name"; then
-      echo "Runs in the background: a launch entry starts it"; return 0
-    fi
-    label=$(plutil -extract Label raw -o - "$p" 2>/dev/null)
-    if [[ -n "$bid" && -n "$label" && ( "$label" == "$bid" || "$label" == "$bid".* ) ]]; then echo "Runs in the background: a launch entry belongs to it"; return 0; fi
-    assoc=$(plutil -extract AssociatedBundleIdentifiers xml1 -o - "$p" 2>/dev/null)
-    if [[ -n "$bid" && -n "$assoc" && "$assoc" == *"<string>${bid}</string>"* ]]; then
-      echo "Runs in the background: a launch entry belongs to it"; return 0
-    fi
-  done < <(launch_plist_files)
-  # the Login & Startup Items audit's own inventory (login-items.tsv), when it has run: its rows add what
-  # the plists above cannot show, the System Settings "Open at Login" items, and every entry whose program
-  # is inside the app. A stale file can only ADD a reason to keep an app, never remove one.
-  local inventory="${ANALYZERS_LOGIN_INVENTORY:-${HOME}/mac-analyzers/reports/storage/login-items.tsv}"
-  if [[ -f "$inventory" ]] && awk -F'\t' -v app="$app" '
-        /^#/ { next }
-        $5 == app || index($5, app "/") == 1 { found = 1; exit }
-        END { exit found ? 0 : 1 }' "$inventory"; then
-    echo "Runs in the background: it is in your Login & Startup Items"; return 0
-  fi
+  # launchd entries and login items that start the app
+  _registered_to_run "$app" "$bid" && return 0
   # an app with no window of its own: a menu-bar tool, an input method, a background service
   for d in LSUIElement LSBackgroundOnly; do
     if _is_true "$(defaults read "$app/Contents/Info" "$d" 2>/dev/null)"; then
       echo "Runs without a window, in the menu bar or the background"; return 0
     fi
   done
-  # other apps live inside it
-  if find "$app/Contents" -mindepth 2 -maxdepth 5 -name '*.app' 2>/dev/null | grep -q .; then
-    echo "Other apps live inside it"; return 0
+  # apps inside it are part of it; one that is in use in its own right keeps it
+  if inuse="$(_nested_in_use "$app")"; then
+    echo "An app inside it is in use on its own: ${inuse%.app}"; return 0
   fi
   return 1
 }

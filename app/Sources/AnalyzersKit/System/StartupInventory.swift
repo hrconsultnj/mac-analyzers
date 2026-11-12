@@ -15,6 +15,12 @@ public struct StartupInventory: Sendable {
     public let stamp: String
     /// True when that audit only looked (the default); false when it removed.
     public let wasDryRun: Bool
+    /// True when the audit that wrote it could NOT list the System Settings login items (System Events was not
+    /// scriptable): the file then says nothing about which apps open at login. Read from the header's `logins=` field.
+    public var loginItemsUnreadable = false
+
+    /// What the screen says over the Apps tab in that case.
+    public static let loginItemsUnreadableSentence = "Your Login Items could not be read, so apps that open at login are not listed. Run the audit from Mac Analyzers (Audit), where macOS can ask for permission. If it was refused, turn it on in System Settings, under Privacy & Security, Automation."
 
     public var leftovers: [StartupItem] { items.filter { $0.finding == .leftover || $0.finding == .possibleLeftover } }
     /// What the app can offer to remove: user-level leftovers (the script
@@ -119,7 +125,8 @@ public struct StartupInventory: Sendable {
         }
         return StartupInventory(items: disambiguated(items), ranAt: ranAt,
                                 stamp: head.count > 4 ? "(run \(head[4]))" : (head.count > 2 ? head[2] : ""),
-                                wasDryRun: dryRun)
+                                wasDryRun: dryRun,
+                                loginItemsUnreadable: head.count > 5 && head[5] == "logins=unreadable")
     }
 
     /// Two items of one app can share a name (the same agent in your folder and

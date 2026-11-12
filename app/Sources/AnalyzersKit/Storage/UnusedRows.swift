@@ -29,6 +29,8 @@ public struct UnusedApp: Sendable, Equatable {
     public var trashed: [(path: String, bytes: Int64)] = []
     public var failed: [(path: String, why: String)] = []
     public var isRunning = false
+    /// How many other apps are inside this one (they go with it); 0 when none.
+    public var nestedCount = 0
     /// Why the script keeps the app (it runs on its own, macOS has no record…); nil when it can be removed.
     public var keepReason: String?
 
@@ -47,6 +49,10 @@ public enum UnusedReview {
     public static let loginUnreadableNote = "The last Login & Startup Items check could not read your Login Items, so which apps open at login can't be checked yet. Run that check from Mac Analyzers, where macOS can ask for permission, then preview again."
     /// What the "does it start on its own" check reads, and what it cannot see: said once, so a person can weigh a row.
     public static let checkLimitsNote = "Whether an app starts on its own is read from your launch entries and the commands and scripts in them that open it, your Login Items, and what is inside the app. It cannot see a script that builds the app's name from parts, Shortcuts, Automator, cron, or another program that opens the app only when it needs it."
+    /// Why no shared container was taken, when something could not be read: the engine's `[CONTAINERS-KEPT]` line.
+    public static func containersKeptNote(_ causes: String) -> String {
+        "Something could not be read, so no container another app might share is taken (\(causes)). Fix that and preview again."
+    }
     public static let loginCheckNote = "Which apps open at login can only be read from the Login & Startup Items check, and it has not run today. Run it, then preview again."
 
     /// The apps of a whole `cleanup.sh --stale-apps` block. Each app is a group of rows: the app itself and every
@@ -59,7 +65,12 @@ public enum UnusedReview {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
+        var keptCauses: String?
         for line in lines {
+            if line.hasPrefix("[CONTAINERS-KEPT]") {
+                keptCauses = String(line.dropFirst("[CONTAINERS-KEPT]".count)).trimmingCharacters(in: .whitespaces)
+                continue
+            }
             if line.hasPrefix("### APP:") {
                 close()
                 let body = String(line.dropFirst("### APP:".count)).trimmingCharacters(in: .whitespaces)
@@ -78,6 +89,9 @@ public enum UnusedReview {
             } else if line.hasPrefix("last launched (Spotlight):") {
                 let day = String(line.dropFirst("last launched (Spotlight):".count)).trimmingCharacters(in: .whitespaces)
                 current?.lastOpened = formatter.date(from: String(day.prefix(10)))
+            } else if line.hasPrefix("contains:") {
+                let digits = line.dropFirst("contains:".count).trimmingCharacters(in: .whitespaces).prefix { $0.isNumber }
+                current?.nestedCount = Int(digits) ?? 0
             } else if line.contains("appears to be RUNNING") {
                 current?.isRunning = true
             } else if line.hasPrefix("[KEEP]") {
@@ -127,7 +141,7 @@ public enum UnusedReview {
                 let isBundle = item.path == app.path || index == 0
                 rows.append(StorageRow(id: item.path, category: UnusedAppCategory.apps.rawValue, group: app.name,
                                        title: isBundle ? app.name : Self.title(of: item.path, app: app),
-                                       detail: isBundle ? "\(opened) · \(StorageLog.short(item.path))" : StorageLog.short(item.path),
+                                       detail: isBundle ? "\(opened) · \(StorageLog.short(item.path))" + (app.nestedCount > 0 ? " · Contains \(app.nestedCount) other \(app.nestedCount == 1 ? "app" : "apps")" : "") : StorageLog.short(item.path),
                                        bytes: item.bytes, iconPath: isBundle ? item.path : nil))
             }
             for item in app.left {
@@ -136,6 +150,7 @@ public enum UnusedReview {
                                        keptReason: "\(Names.Unused.leftInPlace): \(item.why)"))
             }
         }
+        if let keptCauses, !results { notes.append(containersKeptNote(keptCauses)) }
         if !results && !rows.isEmpty { notes.append(checkLimitsNote) }
         return StorageRows(rows, notes: notes)
     }

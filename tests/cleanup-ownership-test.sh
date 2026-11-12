@@ -44,7 +44,11 @@ world() { # name -> sets W (the folder) and S (the stand-ins' folder)
   # Spotlight: every app was last opened long ago and added long ago; the bundle id comes from Info.plist
   cat > "$S/mdls" <<'STUB'
 #!/bin/bash
-case "$2" in kMDItemCFBundleIdentifier) echo "(null)";; kMDItemLastUsedDate) echo "2024-01-02 03:04:05 +0000";; *) echo "2020-01-01 00:00:00 +0000";; esac
+case "$2" in
+  kMDItemCFBundleIdentifier) echo "(null)";;
+  kMDItemLastUsedDate) [[ "$4" == *RecentNested* ]] && echo "$(date -v-2d '+%Y-%m-%d %H:%M:%S %z')" || echo "2024-01-02 03:04:05 +0000";;
+  *) echo "2020-01-01 00:00:00 +0000";;
+esac
 STUB
   printf '#!/bin/bash\necho "/: Indexing enabled."\n' > "$S/mdutil"
   # codesign: the entitlements of an app come from ent/<App>.xml; none means it is not signed (no groups); ent/<App>.unreadable
@@ -52,8 +56,10 @@ STUB
   cat > "$S/codesign" <<STUB
 #!/bin/bash
 app=""; for a in "\$@"; do app="\$a"; done
-n="\${app##*/}"; n="\${n%.app}"
+n="\${app##*/}"; n="\${n%.app}"; n="\${n%.APP}"; n="\${n%.appex}"
 [[ -f "$W/ent/\$n.xml" ]] && { cat "$W/ent/\$n.xml"; exit 0; }
+[[ -f "$W/ent/\$n.hang" ]] && { echo \$\$ >> "$W/hang.pids"; exec sleep 60; }        # a codesign that never answers
+[[ -f "$W/ent/\$n.die" ]] && kill -9 "\$(ps -o ppid= -p \$PPID | tr -d ' ')"   # a read whose whole job is killed before it writes its file
 [[ -f "$W/ent/\$n.unreadable" ]] && { echo "\$app: permission denied" >&2; exit 1; }
 echo "\$app: code object is not signed at all" >&2; exit 1
 STUB
@@ -137,6 +143,80 @@ for SH in bash /bin/bash; do
   out="$(run --stale-apps)"; mine="$(block Unsigned "$out")"
   check "[$sh] T9 an unsigned app's group.<id> and <team>.<id> containers are shown as left in place, and not taken" \
         "$([[ "$mine" == *"[LEFT]"*"group.com.un.signed"* && "$mine" == *"[LEFT]"*"ABCDE12345.com.un.signed"* && "$mine" == *"does not declare it"* && "$(paths_of "$mine")" != *"Group Containers"* && "$mine" != *"signedother"* ]] && echo ok || echo "$mine")"
+
+  # ---------------------------------------------------------------- S1c: every way a bundle can sit under an app folder
+  world s1c
+  L="$W/home/Library"; G="$L/Group Containers"
+  nested() { mkdir -p "$1/Contents"; printf '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>%s</string></dict></plist>' "$2" > "$1/Contents/Info.plist"; }
+  groups() { printf '%s' "$ENT_HEAD"; for g in "$@"; do printf '<string>%s</string>' "$g"; done; printf '%s' "$ENT_TAIL"; }
+  mkapp GroupA com.g.a; groups TEAM.deep.group TEAM.only.a TEAM.appex.group TEAM.upper.group TEAM.nest2.group > "$W/ent/GroupA.xml"
+  mkapp Host com.g.host; nested "$W/apps/Host.app/Contents/Frameworks/X.framework/Versions/A/Helpers/OtherVendor.app" com.g.other     # depth 8
+  groups TEAM.deep.group > "$W/ent/OtherVendor.xml"
+  mkapp Host2 com.g.host2; nested "$W/apps/Host2.app/Contents/Library/LoginItems/H.app" com.g.h
+  nested "$W/apps/Host2.app/Contents/Library/LoginItems/H.app/Contents/Library/LoginItems/Inner.app" com.g.inner                        # an app inside an app inside an app
+  groups TEAM.nest2.group > "$W/ent/Inner.xml"
+  mkapp Host3 com.g.host3; nested "$W/apps/Host3.app/Contents/PlugIns/Ext.appex" com.g.ext; groups TEAM.appex.group > "$W/ent/Ext.xml"   # an app extension
+  nested "$W/apps/Suite2/Shared.APP" com.g.upper; groups TEAM.upper.group > "$W/ent/Shared.xml"                                       # upper-case suffix
+  for g in TEAM.deep.group TEAM.only.a TEAM.appex.group TEAM.upper.group TEAM.nest2.group; do mkdir -p "$G/$g"; printf x > "$G/$g/d"; done
+  list_a() { run --list-app "$W/apps/GroupA.app"; }
+  out="$(list_a)"; mine="$(block GroupA "$out")"
+  for g in "TEAM.deep.group|a helper nine levels down in a framework" "TEAM.nest2.group|an app inside an app inside an app" "TEAM.appex.group|an app extension of another app" "TEAM.upper.group|a bundle named .APP"; do
+    check "[$sh] U1 a group shared with ${g#*|} is left in place" "$([[ "$mine" == *"[LEFT]"*"${g%%|*}"*"another app shares"* && "$(paths_of "$mine")" != *"${g%%|*}"* ]] && echo ok || echo "$mine")"
+  done
+  check "[$sh] U1 the walk found everything, so a group nobody else declares is still the app's" "$([[ "$(paths_of "$mine")" == *"TEAM.only.a"* && "$out" != *"[CONTAINERS-KEPT]"* ]] && echo ok || echo "$mine")"
+
+  # a linked folder inside an app folder is never followed: its presence makes "shared elsewhere" unknown
+  world s1d
+  L="$W/home/Library"; G="$L/Group Containers"
+  mkapp GroupA com.g.a; groups TEAM.linked.group TEAM.only.a > "$W/ent/GroupA.xml"
+  mkdir -p "$W/outside/Linked"; nested "$W/outside/Linked/GroupL.app" com.g.l; groups TEAM.linked.group > "$W/ent/GroupL.xml"
+  ln -s "$W/outside/Linked" "$W/apps/LinkedSuite"
+  for g in TEAM.linked.group TEAM.only.a; do mkdir -p "$G/$g"; printf x > "$G/$g/d"; done
+  out="$(run --list-app "$W/apps/GroupA.app")"; mine="$(block GroupA "$out")"
+  check "[$sh] U1 a linked suite folder: every group container is left in place, with the reason" \
+        "$([[ "$(paths_of "$mine")" != *"Group Containers"* && "$mine" == *"[LEFT]"*"TEAM.linked.group"*"could not be read"* && "$mine" == *"[LEFT]"*"TEAM.only.a"* ]] && echo ok || echo "$mine")"
+  check "[$sh] U1 and the run says once why, naming the link" "$([[ "$out" == *"[CONTAINERS-KEPT]"*"a link to a folder inside an app folder is not followed: $W/apps/LinkedSuite"* ]] && echo ok || echo "$out" | grep -i kept)"
+  # a loop of links: a link back to its own parent is not followed (so it ends), and is a problem like any linked folder
+  world s1e
+  L="$W/home/Library"; G="$L/Group Containers"
+  mkapp GroupA com.g.a; groups TEAM.only.a > "$W/ent/GroupA.xml"; mkdir -p "$W/apps/Suite" "$G/TEAM.only.a"; printf x > "$G/TEAM.only.a/d"
+  ln -s .. "$W/apps/Suite/back"
+  start=$SECONDS; out="$(run --list-app "$W/apps/GroupA.app")"; took=$((SECONDS - start))
+  check "[$sh] U1 a link back to its own parent ends at once and keeps the containers" \
+        "$([[ $took -lt 20 && "$out" == *"[CONTAINERS-KEPT]"*"Suite/back"* && "$(paths_of "$(block GroupA "$out")")" != *"Group Containers"* ]] && echo ok || echo "took ${took}s: $out" | tail -4)"
+  # two links that point at each other point at nothing: not a folder, not a problem
+  rm -rf "$W/apps/Suite"; ln -s "$W/apps/l2" "$W/apps/l1"; ln -s "$W/apps/l1" "$W/apps/l2"
+  out="$(run --list-app "$W/apps/GroupA.app")"
+  check "[$sh] U1 links that only point at each other are not folders: nothing is held back" "$([[ "$out" != *"[CONTAINERS-KEPT]"* && "$(paths_of "$(block GroupA "$out")")" == *"TEAM.only.a"* ]] && echo ok || echo "$out" | tail -5)"
+  # an app folder that is itself a link is the folder the person named: it is walked
+  world s1f
+  L="$W/home/Library"; G="$L/Group Containers"
+  mkapp GroupA com.g.a; groups TEAM.shared.group TEAM.only.a > "$W/ent/GroupA.xml"
+  nested "$W/apps/Suite/GroupB.app" com.g.b; groups TEAM.shared.group > "$W/ent/GroupB.xml"
+  ln -s "$W/apps" "$W/appslink"
+  printf 'ANALYZERS_APP_DIRS="%s/appslink"\nANALYZERS_LAUNCH_DIRS="%s/launch"\nANALYZERS_LOGIN_INVENTORY="%s/inventory.tsv"\n' "$W" "$W" "$W" > "$W/tree/config.local.sh"
+  for g in TEAM.shared.group TEAM.only.a; do mkdir -p "$G/$g"; printf x > "$G/$g/d"; done
+  out="$(run --list-app "$W/appslink/GroupA.app")"; mine="$(block GroupA "$out")"
+  check "[$sh] U1 an app folder that is a link is walked, and a group shared inside it is left" "$([[ "$mine" == *"[LEFT]"*"TEAM.shared.group"*"another app shares"* && "$(paths_of "$mine")" == *"TEAM.only.a"* ]] && echo ok || echo "$mine")"
+  # a codesign that never answers: stopped at the limit, the app is unreadable, nothing is taken, and it is named
+  world s1g
+  L="$W/home/Library"; G="$L/Group Containers"
+  mkapp GroupA com.g.a; groups TEAM.only.a > "$W/ent/GroupA.xml"; mkapp Hang com.g.hang; : > "$W/ent/Hang.hang"
+  mkdir -p "$G/TEAM.only.a"; printf x > "$G/TEAM.only.a/d"
+  start=$SECONDS; out="$(ANALYZERS_CODESIGN_LIMIT=2 run --list-app "$W/apps/GroupA.app")"; took=$((SECONDS - start))
+  check "[$sh] U1 a codesign that hangs is stopped at the limit, the run finishes, and no container is taken" \
+        "$([[ $took -lt 25 && "$(paths_of "$(block GroupA "$out")")" != *"Group Containers"* && "$(block GroupA "$out")" == *"[LEFT]"*"TEAM.only.a"* ]] && echo ok || echo "took ${took}s: $(block GroupA "$out")")"
+  check "[$sh] U4 and the run says once which app could not be read" "$([[ "$out" == *"[CONTAINERS-KEPT]"*"the settings of Hang.app could not be read"* ]] && echo ok || echo "$out" | grep -i kept)"
+  [[ -f "$W/hang.pids" ]] && while read -r hp; do kill "$hp" 2>/dev/null; done < "$W/hang.pids"     # only the stand-ins this test started
+
+  # a read whose job dies leaves no result file: the index notices and is not trusted
+  world s1h
+  L="$W/home/Library"; G="$L/Group Containers"
+  mkapp GroupA com.g.a; groups TEAM.only.a > "$W/ent/GroupA.xml"; mkapp Die com.g.die; : > "$W/ent/Die.die"
+  mkdir -p "$G/TEAM.only.a"; printf x > "$G/TEAM.only.a/d"
+  out="$(run --list-app "$W/apps/GroupA.app")"
+  check "[$sh] U4 an index with a read that never finished is not trusted: no container is taken, and the run says so" \
+        "$([[ "$(paths_of "$(block GroupA "$out")")" != *"Group Containers"* && "$out" == *"[CONTAINERS-KEPT]"* ]] && echo ok || echo "$out" | tail -5)"
 
   # ---------------------------------------------------------------- S2: an app that cannot be moved
   world s2; EXTRA_CONFIG=""
@@ -231,6 +311,39 @@ for SH in bash /bin/bash; do
   check "[$sh] S4c a reviewed list naming them removes neither" "$([[ -d "$W/apps/Configured.app" && -d "$W/apps/Busy.app" ]] && echo ok || echo "removed")"
   run --app "$W/apps/Configured.app" --execute --yes >/dev/null
   check "[$sh] S4c from Terminal, --app still removes it, as before" "$([[ ! -e "$W/apps/Configured.app" ]] && in_trash Configured.app && echo ok || echo "not removed")"
+
+  # ---------------------------------------------------------------- S4d: apps inside apps (U7)
+  world s4d
+  nested() { mkdir -p "$1/Contents"; printf '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>%s</string>%s</dict></plist>' "$2" "${3:-}" > "$1/Contents/Info.plist"; }
+  agent() { printf '<?xml version="1.0"?><plist version="1.0"><dict><key>Label</key><string>%s</string><key>ProgramArguments</key><array>%s</array></dict></plist>' "$1" "$2" > "$W/launch/$1.plist"; }
+  for n in Quiet1 Quiet2 Quiet3; do mkapp $n com.q.$n; done
+  for n in Sparkle1 Sparkle2 Sparkle3 Sparkle4; do                       # an updater the app starts when it needs it
+    mkapp $n com.s.$n; nested "$W/apps/$n.app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app" com.s.$n.updater '<key>LSUIElement</key><true/>'
+  done
+  for n in LoginHelper1 LoginHelper2; do mkapp $n com.l.$n; nested "$W/apps/$n.app/Contents/Library/LoginItems/Helper.app" com.l.$n.helper; done
+  mkapp SuiteRunning com.u.run; nested "$W/apps/SuiteRunning.app/Contents/Applications/RunningTool.app" com.u.runtool
+  mkapp SuiteRecent com.u.recent; nested "$W/apps/SuiteRecent.app/Contents/Applications/RecentNested.app" com.u.recenttool
+  mkapp SuiteAgent com.u.agent; nested "$W/apps/SuiteAgent.app/Contents/Applications/AgentTool.app" com.u.agenttool
+  mkapp SuiteDeep com.u.deep; nested "$W/apps/SuiteDeep.app/Contents/Applications/Middle.app" com.u.mid
+  nested "$W/apps/SuiteDeep.app/Contents/Applications/Middle.app/Contents/Applications/DeepTool.app" com.u.deeptool
+  agent org.agent '<string>/usr/bin/open</string><string>-a</string><string>AgentTool</string>'      # by name: only the nested app is named
+  agent org.deep '<string>/usr/bin/open</string><string>-a</string><string>DeepTool</string>'
+  printf '#!/bin/bash\n[[ "$*" == *RunningTool* ]] && exit 0\nexit 1\n' > "$S/pgrep"; chmod +x "$S/pgrep"
+  out="$(run --stale-apps)"
+  offered=0; kept=0; total=0
+  for n in Quiet1 Quiet2 Quiet3 Sparkle1 Sparkle2 Sparkle3 Sparkle4 LoginHelper1 LoginHelper2 SuiteRunning SuiteRecent SuiteAgent SuiteDeep; do
+    total=$((total + 1)); if [[ "$(block "$n" "$out")" == *"[KEEP]"* ]]; then kept=$((kept + 1)); else offered=$((offered + 1)); fi
+  done
+  check "[$sh] U7 apps whose only nested app is an updater are offered, not kept (Sparkle1 to 4)" \
+        "$([[ "$(block Sparkle1 "$out")" != *"[KEEP]"* && "$(block Sparkle4 "$out")" != *"[KEEP]"* ]] && echo ok || block Sparkle1 "$out")"
+  check "[$sh] U7 and the row says what goes with the app" "$([[ "$(block Sparkle2 "$out")" == *"contains: 1 other app(s) inside it, removed with it: Updater.app"* ]] && echo ok || block Sparkle2 "$out")"
+  check "[$sh] U7 an app holding an app that is running is kept, and says which" "$([[ "$(block SuiteRunning "$out")" == *"[KEEP]"*"An app inside it is in use on its own: RunningTool"* ]] && echo ok || block SuiteRunning "$out")"
+  check "[$sh] U7 an app holding an app opened within the window is kept" "$([[ "$(block SuiteRecent "$out")" == *"[KEEP]"*"RecentNested"* ]] && echo ok || block SuiteRecent "$out")"
+  check "[$sh] U7 an app holding an app a launch entry starts is kept" "$([[ "$(block SuiteAgent "$out")" == *"[KEEP]"*"An app inside it is in use on its own: AgentTool"* ]] && echo ok || block SuiteAgent "$out")"
+  check "[$sh] U7 an app holding an app that holds an app a launch entry starts is kept" "$([[ "$(block SuiteDeep "$out")" == *"[KEEP]"*"An app inside it is in use on its own: Middle"* ]] && echo ok || block SuiteDeep "$out")"
+  check "[$sh] U7 an app with a login-item helper registered inside is still kept" "$([[ "$(block LoginHelper1 "$out")" == *"[KEEP]"*"registers a login item"* ]] && echo ok || block LoginHelper1 "$out")"
+  check "[$sh] U7 of $total apps $offered are offered and $kept kept (with the updater rule: 7 and 6)" "$([[ $offered -eq 7 && $kept -eq 6 ]] && echo ok || echo "$offered/$kept")"
+  mv "$S/pgrep" "$S/pgrep.off"; printf '#!/bin/bash\nexit 1\n' > "$S/pgrep"; chmod +x "$S/pgrep"
 
   # ---------------------------------------------------------------- S4b: login items need a recent inventory
   world s4b

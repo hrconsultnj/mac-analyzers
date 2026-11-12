@@ -168,7 +168,11 @@ struct LoginItemsView: View {
                          : (model.permission.sentence ?? "Run the audit to see everything that starts by itself."))
                 }
             } else if groups.isEmpty {
-                ContentUnavailableView(emptyTitle, systemImage: tab.symbol, description: Text(emptyDescription))
+                if let unread = unreadableSentence {
+                    ContentUnavailableView("Login Items Not Read", systemImage: "exclamationmark.triangle", description: Text(unread))
+                } else {
+                    ContentUnavailableView(emptyTitle, systemImage: tab.symbol, description: Text(emptyDescription))
+                }
             } else {
                 StartupItemTable(groups: groups, autosave: "loginItems.\(tab.rawValue)", selection: $selection,
                                  expansion: expansion,
@@ -186,13 +190,18 @@ struct LoginItemsView: View {
                         .padding()
                     }
                     .safeAreaInset(edge: .top, spacing: 0) {
-                        if let note = model.failure ?? model.permission.sentence {
+                        if let note = model.failure ?? model.permission.sentence ?? unreadableSentence {
                             Label(note, systemImage: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.orange).padding()
                         }
                     }
             }
         }
+    }
+
+    /// The Apps tab lists the System Settings login items; when the last audit could not read them, it says so.
+    private var unreadableSentence: String? {
+        tab == .apps && model.inventory?.loginItemsUnreadable == true ? StartupInventory.loginItemsUnreadableSentence : nil
     }
 
     private var filteredChanges: [StartupChange] {

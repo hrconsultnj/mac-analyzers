@@ -31,6 +31,8 @@ public struct TrashedItem: Identifiable, Sendable {
         case parentRedirected
         /// The receipt names a place that is not inside the Trash, or a path with `..`.
         case unsafePath
+        /// The item is in another disk's own Trash and that disk is not connected right now.
+        case diskNotConnected
     }
 
     public let originalPath: String
@@ -120,12 +122,13 @@ public enum UndoLedger {
 
     @_spi(TestSupport) public static func trashedItems(in ledger: URL, source: String, trash: URL,
                                                        volumes: UndoVolumes) -> [TrashedItem] {
-        guard let text = try? String(contentsOf: ledger, encoding: .utf8) else { return [] }
+        // read the BYTES and cut them into lines like every other log reader: a line that is not valid UTF-8 (a file
+        // name can hold any byte) costs that line, never the whole log
+        guard let data = try? Data(contentsOf: ledger) else { return [] }
         struct Receipt { let path: String; let dest: String?; let size: String; let id: String?; let date: Date? }
         var trashed: [Receipt] = []
         var runDate: Date?
-        for line in text.split(separator: "\n") {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+        for trimmed in LogLines.lines(in: data) {
             if trimmed.hasPrefix("[RESTORED]") {
                 // a RESTORED line answers the latest TRASHED line for that path before it,
                 // and no other (the same path can be trashed again later)
@@ -164,7 +167,11 @@ public enum UndoLedger {
         let fm = FileManager.default
         guard original.hasPrefix("/"), !hasDotDot(original) else { return .unsafePath }
         guard let trashPath else { return .destinationUnknown }
-        guard isInside(trashPath, trash: trash) || isOtherDiskTrash(trashPath, original: original, volumes: volumes) else { return .unsafePath }
+        guard isInside(trashPath, trash: trash) || isOtherDiskTrash(trashPath, original: original, volumes: volumes) else {
+            // a Trash path of the shape <disk>/.Trashes/<your id>/<name> whose disk is not there: say so, it is not a danger
+            if let mount = otherDiskMount(of: trashPath, uid: volumes.uid), !fm.fileExists(atPath: mount) { return .diskNotConnected }
+            return .unsafePath
+        }
         guard (try? fm.attributesOfItem(atPath: trashPath)) != nil else { return .trashCopyGone }
 
         // is it the thing the cleaner put there?
@@ -242,6 +249,14 @@ public enum UndoLedger {
         return true
     }
 
+    /// The disk a path in `<disk>/.Trashes/<uid>/<name>` names; nil for any other shape.
+    static func otherDiskMount(of path: String, uid: UInt32) -> String? {
+        guard path.hasPrefix("/"), !hasDotDot(path) else { return nil }
+        let parts = path.split(separator: "/").map(String.init)
+        guard parts.count >= 4, parts[parts.count - 2] == String(uid), parts[parts.count - 3] == ".Trashes" else { return nil }
+        return "/" + parts.dropLast(3).joined(separator: "/")
+    }
+
     public enum RestoreError: Error, LocalizedError, Equatable {
         case notRestorable(TrashedItem.Restorability)
         case moveFailed(String)
@@ -266,6 +281,7 @@ public enum UndoLedger {
         case .parentGone: "the folder it came from no longer exists."
         case .parentRedirected: "a folder on the way has been replaced by a link, so it would land somewhere else."
         case .unsafePath: "the receipt names a location the app will not move files to or from."
+        case .diskNotConnected: "the disk it is in is not connected right now. Connect it, then try again."
         }
     }
 

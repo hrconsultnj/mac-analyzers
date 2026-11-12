@@ -599,6 +599,37 @@ func probeUndoFixture(_ args: [String]) {
     }
     check("Restore puts it back from that Trash", putBack)
 
+    // 18b. the disk is unplugged: the sentence says to connect it, not that the place is unsafe (U6)
+    let unplugged = "/Volumes/ZZ-unplugged-\(UUID().uuidString.prefix(8))"
+    let unpluggedItem = receiptFor(unplugged + "/Rec/Meeting", unplugged + "/.Trashes/\(me)/Meeting")
+    check("a recording whose disk is not connected is not 'unsafe'", unpluggedItem?.restorability == .diskNotConnected, "\(String(describing: unpluggedItem?.restorability))")
+    check("and the sentence says to connect the disk", UndoLedger.reason(.diskNotConnected).contains("not connected") && UndoLedger.reason(.diskNotConnected).contains("Connect it"))
+    check("another user's folder on a missing disk is still unsafe, not 'not connected'",
+          receiptFor(unplugged + "/Rec/Meeting", unplugged + "/.Trashes/\(me + 1)/Meeting")?.restorability == .unsafePath)
+
+    // 19. one line that is not valid UTF-8 costs that line, not the whole log (U2); CRLF endings read too
+    let goodOne = work.appending(path: "good-one.txt").path, goodOneTrash = trash.path + "/good-one.txt"
+    let goodTwo = work.appending(path: "good-two.txt").path, goodTwoTrash = trash.path + "/good-two.txt"
+    let badName = work.appending(path: "bad-name").path, badTrash = trash.path + "/bad-name"
+    touch(goodOneTrash); touch(goodTwoTrash); touch(badTrash)
+    var bytes = Data()
+    func addLine(_ text: String) { bytes.append(Data((text + "\n").utf8)) }
+    addLine(banner(now))
+    addLine("[TRASHED] 1 KB  \(goodOne)  ->  \(goodOneTrash)\(id(goodOneTrash))")
+    bytes.append(Data("[TRASHED] 1 KB  \(work.path)/caf".utf8)); bytes.append(0xE9)                  // a Latin-1 e-acute: not UTF-8
+    bytes.append(Data("  ->  \(work.path)/caf-gone\n".utf8))
+    addLine("[TRASHED] 1 KB  \(badName)  ->  \(badTrash)\(id(badTrash))")
+    addLine("[TRASHED] 1 KB  \(goodTwo)  ->  \(goodTwoTrash)\(id(goodTwoTrash))")
+    let badLog = root.appending(path: "bad-byte.log"); try? bytes.write(to: badLog)
+    let listed19 = UndoLedger.trashedItems(in: badLog, source: "Janitor", trash: trash)
+    check("a ledger with one line that is not valid UTF-8 still lists every other item", Set(listed19.map(\.originalPath)).isSuperset(of: [goodOne, goodTwo, badName]),
+          "\(listed19.map(\.originalPath))")
+    check("and each of those verifies and is restorable", [goodOne, goodTwo, badName].allSatisfy { path in listed19.first { $0.originalPath == path }?.restorability == .restorable })
+    var crlf = Data()
+    for text in [banner(now), "[TRASHED] 1 KB  \(goodOne)  ->  \(goodOneTrash)\(id(goodOneTrash))"] { crlf.append(Data((text + "\r\n").utf8)) }
+    let crlfLog = root.appending(path: "crlf.log"); try? crlf.write(to: crlfLog)
+    check("a ledger with Windows line ends lists its item", UndoLedger.trashedItems(in: crlfLog, source: "Janitor", trash: trash).first?.originalPath == goodOne)
+
     print(failures == 0 ? "all \(step) checks passed" : "\(failures) of \(step) checks FAILED")
     exit(failures == 0 ? 0 : 1)
 }
