@@ -140,9 +140,10 @@ struct SetupSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                // the evidence, visually separated from the sales pitch
+                // the evidence, visually separated from the sales pitch by weight and colour, not by a
+                // typewriter face: it is a sentence ("macOS does not recognise this copy…"), not program output
                 Text(check.detail)
-                    .font(.caption.monospaced())
+                    .font(.caption)
                     .foregroundStyle(check.verdict == .ready ? .secondary : .primary)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
