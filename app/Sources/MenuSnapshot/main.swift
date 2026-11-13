@@ -35,7 +35,13 @@ final class Host: NSObject, NSApplicationDelegate {
     let scratch = FileManager.default.temporaryDirectory
         .appending(path: "ma-menu-snapshot-\(UUID().uuidString)", directoryHint: .isDirectory)
     lazy var jobs = JobStore(ledger: JobLedger(url: scratch.appending(path: "app-jobs.jsonl")))
-    let updates = UpdateState()
+    /// This tool has no Info.plist, so the installed version a bundled app reads from its bundle comes from the
+    /// repository's VERSION file here: the footer then compares like the installed app would, and says the truth.
+    let updates: UpdateState = {
+        let version = (try? String(contentsOf: AnalyzersPaths.suiteRoot.appending(path: "VERSION"), encoding: .utf8))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? "0"
+        return UpdateState(installed: version, build: BuildInfo(release: version, commitsAfter: 0, localChanges: false))
+    }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)

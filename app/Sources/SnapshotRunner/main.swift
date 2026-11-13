@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -119,6 +119,8 @@ let fakeRunning = arguments.contains("--fake-running")
 let fakeFailed = arguments.contains("--fake-failed")
 let fakeReview = arguments.contains("--fake-review")
 let scrollToEnd = arguments.contains("--scroll-end")
+/// `--scroll-sidebar`: scroll the sidebar (the narrowest scrollable view) to its last row.
+let scrollSidebar = arguments.contains("--scroll-sidebar")
 /// `--update-state uptodate|dev|available`: which state the sidebar's version item shows
 /// (the network is not asked), to render every state of it.
 let updateStateOption = option("--update-state")
@@ -216,6 +218,9 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         if scrollToEnd {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1) { self.scrollLongestToEnd() }
         }
+        if scrollSidebar {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1) { self.scrollLongestToEnd(leftmost: true) }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait) { self.capture() }
     }
 
@@ -269,14 +274,18 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         exit(code)
     }
 
-    /// The tallest scroll view in the window, taken to its last row.
-    private func scrollLongestToEnd() {
+    /// The tallest scroll view in the window, taken to its last row; with `leftmost` the narrowest (the sidebar).
+    private func scrollLongestToEnd(leftmost: Bool = false) {
         var best: NSScrollView?
         func visit(_ view: NSView) {
             if let scroll = view as? NSScrollView, let document = scroll.documentView,
-               document.frame.height > scroll.contentView.bounds.height,
-               document.frame.height > (best?.documentView?.frame.height ?? 0) {
-                best = scroll
+               document.frame.height > scroll.contentView.bounds.height {
+                if leftmost {
+                    // the sidebar is the narrowest scroll view (the detail's spans the window, under it)
+                    if scroll.frame.width < (best?.frame.width ?? .greatestFiniteMagnitude) { best = scroll }
+                } else if document.frame.height > (best?.documentView?.frame.height ?? 0) {
+                    best = scroll
+                }
             }
             view.subviews.forEach(visit)
         }

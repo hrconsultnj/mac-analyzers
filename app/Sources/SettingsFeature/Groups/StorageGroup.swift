@@ -36,7 +36,11 @@ enum StorageGroup {
          "disk:fixture": .main(Location(disk, path: [.storage(.fixture("disk"))])),
          "timemachine:fixture": .main(Location(timeMachine, path: [.storage(.fixture("timemachine"))])),
          "timemachine:nopermission": .main(Location(timeMachine, path: [.storage(.fixture("timemachine-nopermission"))])),
+         "timemachine:earlier": .main(Location(timeMachine, path: [.storage(.fixture("timemachine-earlier"))])),
          "unused:fixture": .main(Location(unused, path: [.storage(.fixture("unused"))])),
+         "unused:detail": .main(Location(unused, path: [.storage(.fixture("unused-detail"))])),
+         "unused:login": .main(Location(unused, path: [.storage(.fixture("unused-login"))])),
+         "unused:loginunreadable": .main(Location(unused, path: [.storage(.fixture("unused-loginunreadable"))])),
          "recordings:fixture": .main(Location(recordings, path: [.storage(.fixture("recordings"))]))]
     }
 
@@ -159,7 +163,11 @@ enum StorageGroup {
             case "disk": DiskScreen(fixture: StorageFixtures.disk())
             case "timemachine": TimeMachineScreen(fixture: StorageFixtures.timeMachine())
             case "timemachine-nopermission": TimeMachineScreen(fixture: StorageFixtures.timeMachine(), fixtureNeedsPermission: true)
+            case "timemachine-earlier": TimeMachineScreen(fixture: StorageFixtures.timeMachine(), fixtureEarlierPermission: true)
             case "unused": UnusedAppsScreen(fixture: StorageFixtures.unusedApps())
+            case "unused-detail": UnusedAppsScreen(fixture: StorageFixtures.unusedAppsDetail())
+            case "unused-login": UnusedAppsScreen(fixture: StorageFixtures.unusedAppsLoginFirst(unreadable: false))
+            case "unused-loginunreadable": UnusedAppsScreen(fixture: StorageFixtures.unusedAppsLoginFirst(unreadable: true))
             case "recordings": RecordingsScreen(fixture: StorageFixtures.recordings())
             default: CachesScreen(fixture: StorageFixtures.caches())
             }

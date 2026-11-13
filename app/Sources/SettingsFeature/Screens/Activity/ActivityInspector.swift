@@ -174,20 +174,20 @@ struct ActivityInspector: View {
         }
     }
 
+    /// The step line, Stop and the quit note sit on the screen; the output below them is the one boxed thing
+    /// (`LiveOutputView`'s own `GroupBox`), not a card inside a card.
     private func running(_ job: Job) -> some View {
-        GroupBox {
-            VStack(alignment: .leading) {
-                HStack {
-                    ProgressView().controlSize(.small)
-                    Text(job.step ?? "Working…").font(Tokens.Typography.rowTitleKey)
-                    Spacer()
-                    Button("Stop", role: .destructive) { job.cancel() }
-                }
-                Text("If you quit Mac Analyzers while this runs, you will be asked whether to stop it or let it finish in the background.")
-                    .font(Tokens.Typography.caption)
-                    .foregroundStyle(.secondary)
-                LiveOutputView(job: job)
+        VStack(alignment: .leading) {
+            HStack {
+                ProgressView().controlSize(.small)
+                Text(job.step ?? "Working…").font(Tokens.Typography.rowTitleKey)
+                Spacer()
+                Button("Stop", role: .destructive) { job.cancel() }
             }
+            Text("If you quit Mac Analyzers while this runs, you will be asked whether to stop it or let it finish in the background.")
+                .font(Tokens.Typography.caption)
+                .foregroundStyle(.secondary)
+            LiveOutputView(job: job)
         }
     }
 
@@ -275,6 +275,9 @@ struct RunLinesView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
         } else {
+            // Full-screen lines: a plain scroll view with the screen's own margin. A box that fills the whole
+            // screen is not a box (`LiveOutputView` keeps its `GroupBox`: there the output sits under other
+            // content and the box marks it).
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
@@ -285,10 +288,9 @@ struct RunLinesView: View {
                             .textSelection(.enabled)
                     }
                 }
-                .padding(Tokens.Space.m)
+                .padding()
             }
             .defaultScrollAnchor(anchorBottom ? .bottom : .top)
-            .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.tile))
         }
     }
 }

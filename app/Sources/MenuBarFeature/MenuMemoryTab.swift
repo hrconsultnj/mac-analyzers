@@ -17,6 +17,8 @@ extension MenuContentView {
 
         pressureRow
 
+        MenuMemoryBlock()
+
         Divider()
 
         sectionLabel("Recent Events")

@@ -144,8 +144,10 @@ import Foundation
            "an app macOS has no record of is a kept row: \(row("Unknown")?.keptReason ?? "offered")")
     expect(Set(findings.rows.filter { $0.keptReason == nil }.compactMap(\.group)) == ["Unused"], "only the unused app (and its files) can be ticked")
     expect(findings.notes.contains(UnusedReview.checkLimitsNote), "the screen says once what the check reads and what it cannot see")
-    expect(UnusedReview.checkLimitsNote.contains("checked against the apps in your Applications folders") && UnusedReview.checkLimitsNote.contains("not seen"),
+    expect(UnusedReview.checkLimitsNote.contains("checked against your Applications folders only"),
            "and that shared containers are checked against the app folders only")
+    let leftRows = UnusedReview.apps(lines: ["### APP: Z   (bundle: com.z)", "[APP]     /p/Z.app", "last launched (Spotlight): 2024-01-02", "[DRY]        10 MB  /p/Z.app", "[LEFT]       2.0 GB  \(NSHomeDirectory())/Library/Application Support/Electron  —  it carries the app's name, but another program may use the same name"])
+    expect(leftRows.rows.filter { $0.keptReason != nil }.allSatisfy { $0.bytes == nil && $0.valueText == "2.0 GB" }, "a left-in-place row shows its size but does not count it: \(leftRows.rows.map { "\($0.bytes ?? -1)/\($0.valueText ?? "-")" })")
     for (why, expected) in [("Which apps open at login can't be checked yet: run Login & Startup Items first, then preview again", UnusedReview.loginCheckNote),
                             ("Which apps open at login can't be checked yet: the last Login & Startup Items check could not read your Login Items. Run it from the Mac Analyzers app", UnusedReview.loginUnreadableNote)] {
         let kept = UnusedReview.apps(lines: ["### APP: X   (bundle: com.x)", "[APP]     /p/X.app", "last launched (Spotlight): 2024-01-02", "[KEEP]    \(why)", ""])

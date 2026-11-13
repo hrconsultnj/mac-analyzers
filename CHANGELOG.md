@@ -150,10 +150,16 @@ without an entry here — see `scripts/cut-release.sh`.
   "Restored 3 Items", started by you, with the list of what came back. It no
   longer gets mixed into the cleanup it came from, so that cleanup's numbers,
   and a preview that is waiting for your review, stay exactly as they were.
-- The menu-bar panel uses standard controls, so nothing is cut off, and its
-  process list matches Monitor. Its Quit and Stop follow the same rules as
-  Monitor, and a program that does not stop is never forced from the panel: it
-  offers to open Monitor on that program instead.
+- The menu-bar panel uses standard controls, so nothing is cut off. Its Monitor
+  tab now groups what is using memory the way Monitor does (Apps, Tools and
+  macOS, each with its count and total, heaviest first), every app with its own
+  icon, and anything that cannot be stopped shows a lock with the reason on
+  hover. Its Memory tab adds what Activity Monitor's memory footer shows, live:
+  a graph of memory pressure over the last few minutes and Physical Memory,
+  Memory Used, Cached Files, Swap Used, App Memory, Wired Memory and Compressed,
+  matching the main window and Activity Monitor. Its Quit and Stop follow the
+  same rules as Monitor, and a program that does not stop is never forced from
+  the panel: it offers to open Monitor on that program instead.
 - Login & Startup Items, Network and Reports have been rebuilt as screens you
   can read at a glance instead of lists of lines.
 - Login & Startup Items has a tab for Apps that open when you log in,

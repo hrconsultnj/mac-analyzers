@@ -29,22 +29,3 @@ struct MonitorCategory: Identifiable, Hashable {
         }
     }
 }
-
-extension CensusGroup.Category {
-    /// The tab's name: short, where the screen's own name for the category is long.
-    var shortTitle: String {
-        switch self {
-        case .apps: Names.Category.apps
-        case .tools: Names.Monitor.tools
-        case .system: Names.Category.system
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .apps: "app.fill"
-        case .tools: "terminal.fill"
-        case .system: "gearshape.fill"
-        }
-    }
-}
