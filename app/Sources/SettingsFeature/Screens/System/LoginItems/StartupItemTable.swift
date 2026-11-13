@@ -28,7 +28,7 @@ struct StartupItemTable: View {
                           sortUsing: KeyPathComparator(\StartupNode.title, comparator: .localizedStandard)) { node in
                 StartupNodeName(node: node)
             }
-            .width(min: 150, ideal: 220)
+            .width(min: 150, ideal: 280)
             // what the audit found comes right after the name: it is why a person looks at this
             // screen, so it stays on screen when an inspector narrows the table
             OutlineColumn("finding", Names.Column.finding, text: \.findingText,
@@ -44,7 +44,7 @@ struct StartupItemTable: View {
             OutlineColumn("state", Names.Column.state, text: \.stateText,
                           sortUsing: KeyPathComparator(\StartupNode.stateText))
                 .textStyle { $0.isGroup ? .secondary : .primary }
-                .width(min: 90, ideal: 170)
+                .width(min: 90, ideal: 150)
             OutlineColumn("kind", Names.Column.kind, text: \.kindText,
                           sortUsing: KeyPathComparator(\StartupNode.kindText))
                 .width(min: 95, ideal: 110)
