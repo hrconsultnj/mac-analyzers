@@ -7,6 +7,13 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
+- Every row of "Where Your Memory Is" on Monitor's details panel now opens a
+  screen of its own with an arrow: App Memory (with the same Quit and Stop as
+  the table), Wired Memory, Compressed (including which programs hold the
+  most, macOS's own among them), Cached Files, Free (with the memory pressure
+  over time) and a new Swap Used row. Each shows how the figure has moved
+  over the last half hour while the screen is open, what it is, and plainly
+  what macOS does not let any app see, instead of guessing.
 - Monitor now says what kind of thing each group is: a browser, a code editor,
   a terminal, a dev server, a background service, part of macOS. When a group
   is one that no app can stop, or one Stop leaves alone, it tells you why in a

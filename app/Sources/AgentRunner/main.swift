@@ -278,6 +278,10 @@ if args.first == "--probe-cleanup-apply" {
 if args.first == "--probe-monitor" {
     probeMonitor()
 }
+// `--probe-memory-kinds` prints each kind of memory's screen as text and judges its rules. See MemoryKindsProbe.swift.
+if args.first == "--probe-memory-kinds" {
+    await probeMemoryKinds()
+}
 // `--probe-kinds [--all]` prints every running group's kind and the guard-pattern parity; `--probe-kinds-fixture`
 // judges the rules on stand-in processes and fails when one breaks. See KindProbes.swift.
 if args.first == "--probe-kinds" { probeKinds(args) }
