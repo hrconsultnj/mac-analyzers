@@ -83,7 +83,7 @@ struct MonitorView: View {
             .inspector(isPresented: $inspectorShown) {
                 MonitorInspector(model: model, row: model.row(selection),
                                  begin: stopFlow.begin, showDetails: showDetails)
-                    .inspectorColumnWidth(min: 240, ideal: 280, max: 420)
+                    .inspectorColumnWidth(min: 240, ideal: 240, max: 420)
             }
             .searchable(text: $search, prompt: "Search processes")
             .searchFocused($searchFocused)
