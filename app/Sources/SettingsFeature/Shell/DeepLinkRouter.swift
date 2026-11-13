@@ -24,7 +24,10 @@ public enum DeepLinkRouter {
     /// names the changelog What's New reads. Called by SnapshotRunner, nothing else.
     public static func installFixtures(changelog: URL? = nil) {
         ReleaseNote.useDevelopmentFile(changelog)
-        fixtureTargets = ["review:fixture": .main(Location(OverviewGroup.activity, path: [.overview(.reviewFixture)]))]
+        fixtureTargets = ["review:fixture": .main(Location(OverviewGroup.activity, path: [.overview(.reviewFixture)])),
+                          "turnoff:permission": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("permission"))])),
+                          "turnoff:earlier": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("earlier"))])),
+                          "turnoff:none": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("none"))]))]
             .merging(StorageGroup.fixtureTargets) { _, storage in storage }
     }
 
