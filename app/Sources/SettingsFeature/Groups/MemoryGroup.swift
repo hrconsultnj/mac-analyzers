@@ -6,6 +6,8 @@ enum MemoryRoute: Hashable, Codable, Sendable {
     case dossier(DossierRoute)
     /// One row of Memory Guard's history, by its id.
     case guardEntry(String)
+    /// One kind of memory from the Monitor's "Where Your Memory Is" block, on its own screen.
+    case kind(MemoryKind)
 }
 
 /// Monitor, Memory Guard and Memory Cleanup.
@@ -58,6 +60,7 @@ enum MemoryGroup {
         switch route {
         case .dossier(let route): DossierView(route: route)
         case .guardEntry(let id): GuardEntryScreen(id: id)
+        case .kind(let kind): MemoryKindScreen(kind: kind)
         }
     }
 
@@ -75,6 +78,10 @@ enum MemoryGroup {
     /// default, as it always did. Exact targets for the other cleaners are
     /// answered first, by the groups that own them.
     private static func resolveDynamic(_ target: String) -> Resolution? {
+        // `memorykind:app|wired|compressed|cached|free|swap`: Monitor with that kind's screen on top
+        if target.hasPrefix("memorykind:"), let kind = MemoryKind(rawValue: String(target.dropFirst("memorykind:".count))) {
+            return .main(Location(monitor, path: [.memory(.kind(kind))]))
+        }
         if target.hasPrefix("guard:"), let link = GuardLink.parse(String(target.dropFirst("guard:".count))) {
             return .mainWithIntent(Location(memoryGuard), SectionIntent(section: memoryGuard, payload: link.payload))
         }

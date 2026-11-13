@@ -7,6 +7,13 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
+- Every row of "Where Your Memory Is" on Monitor's details panel now opens a
+  screen of its own with an arrow: App Memory (with the same Quit and Stop as
+  the table), Wired Memory, Compressed (including which programs hold the
+  most, macOS's own among them), Cached Files, Free (with the memory pressure
+  over time) and a new Swap Used row. Each shows how the figure has moved
+  over the last half hour while the screen is open, what it is, and plainly
+  what macOS does not let any app see, instead of guessing.
 - Mac Analyzers now runs with macOS's hardened runtime, on a copy you build
   yourself as well as on a download. Another program on your account can no
   longer make the app load code of its own choosing. Nothing changes in how

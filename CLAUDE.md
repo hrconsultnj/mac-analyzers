@@ -219,6 +219,11 @@ through `config.local.sh` (never hardcoded).
   component looks the same in every state — render each state to prove it.
   A fixed size is allowed only where it is the actual job (an icon tile, a
   chart), with a comment saying so.
+- **One way to write a size, by where it is shown** (owner, 2026-11-13): `ByteSize.text(_, style)` and `ByteSize.rate`,
+  never an ad-hoc format at a call site. The decimals are a MAXIMUM, never padding (exactly 5 GB is "5 GB", 5.4 is
+  "5.4 GB", 18.63 is "18.63 GB"): chart axes and crosshair readouts (`.axis`) and figure lists in the style of Activity
+  Monitor's footer (`.figure`) take up to two decimals in gigabytes; headline numbers (`.headline`) and table or list cells
+  (`.cell`, also `MemorySize.text`) one, and none in megabytes; rates one decimal under 10 MB/s, none above.
 - **Native does not mean plainer, and a fix must not take things away**
   (owner, 2026-11-10: "the icons, they're gone … you guys are just
   introducing regressions"). A control that names a kind of thing shows its

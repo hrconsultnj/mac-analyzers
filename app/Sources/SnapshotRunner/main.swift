@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -110,6 +110,8 @@ let wait = Double(option("--wait") ?? "3") ?? 3
 let fakeRunning = arguments.contains("--fake-running")
 let fakeFailed = arguments.contains("--fake-failed")
 let fakeReview = arguments.contains("--fake-review")
+/// `--fake-pressure`: the memory screens' history holds a stretch of warning and critical pressure (the Mac is at normal when it renders).
+let fakePressure = arguments.contains("--fake-pressure")
 let scrollToEnd = arguments.contains("--scroll-end")
 /// `--update-state uptodate|dev|available`: which state the sidebar's version item shows
 /// (the network is not asked), to render every state of it.
@@ -164,6 +166,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
     }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if fakePressure { MemoryTrend.shared.replace(with: Self.pressureHistory()) }
         try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
         SnapshotScratch.arm(scratch)     // removed however this ends (a stop signal included)
         // A snapshot must never run the real engine, whatever screen it opens: a
@@ -251,6 +254,19 @@ final class Snapshot: NSObject, NSApplicationDelegate {
             jobs.enqueue(JobRequest(kind: .storageClean, intent: .preview, options: JobOptions(deep: true)), trigger: .user)
         }
         target = target.replacingOccurrences(of: "@job", with: first.id.uuidString)
+    }
+
+    /// Ninety seconds of history ending now at two-second steps: calm, then a warning stretch, a critical one, then calm again.
+    private static func pressureHistory() -> [MemorySample] {
+        guard let base = MemorySample.read(graphics: nil) else { return [] }
+        let end = Date().addingTimeInterval(-2)
+        return (0..<45).map { step in
+            let level = step < 15 ? 1 : step < 27 ? 2 : step < 33 ? 4 : 1
+            return MemorySample(date: end.addingTimeInterval(Double(step - 44) * 2), breakdown: base.breakdown,
+                                swapUsedBytes: base.swapUsedBytes, swapTotalBytes: base.swapTotalBytes, pressureLevel: level,
+                                graphicsBytes: base.graphicsBytes, swapIns: base.swapIns, swapOuts: base.swapOuts,
+                                compressions: base.compressions, decompressions: base.decompressions, pageSize: base.pageSize)
+        }
     }
 
     private func finish(_ code: Int32) -> Never {

@@ -278,6 +278,10 @@ if args.first == "--probe-cleanup-apply" {
 if args.first == "--probe-monitor" {
     probeMonitor()
 }
+// `--probe-memory-kinds` prints each kind of memory's screen as text and judges its rules. See MemoryKindsProbe.swift.
+if args.first == "--probe-memory-kinds" {
+    await probeMemoryKinds()
+}
 if args.first == "--probe-agents" {
     probeAgents(args)
 }

@@ -22,20 +22,13 @@ public struct MemoryBreakdown: Sendable, Equatable {
     public var freeBytes: Int64 { max(0, totalBytes - usedBytes - cachedBytes) }
 
     public static func current() -> MemoryBreakdown? {
-        var stats = vm_statistics64()
-        var count = mach_msg_type_number_t(
-            MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
-        let host = mach_host_self()
-        let result = withUnsafeMutablePointer(to: &stats) { pointer in
-            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(host, HOST_VM_INFO64, $0, &count)
-            }
-        }
-        var pageSize: vm_size_t = 0
-        guard result == KERN_SUCCESS,
-              host_page_size(host, &pageSize) == KERN_SUCCESS, pageSize > 0
-        else { return nil }
+        guard let reading = VMReading.take() else { return nil }
+        return make(from: reading.stats, pageSize: reading.pageSize)
+    }
 
+    /// The five figures from one reading of the kernel's counters. The block, the memory bar and every memory screen
+    /// build theirs here, so they agree at the same moment.
+    static func make(from stats: vm_statistics64, pageSize: vm_size_t) -> MemoryBreakdown {
         func bytes(_ pages: UInt64) -> Int64 { Int64(pages) * Int64(pageSize) }
         let purgeable = UInt64(stats.purgeable_count)
         let anonymous = UInt64(stats.internal_page_count)
@@ -46,5 +39,26 @@ public struct MemoryBreakdown: Sendable, Equatable {
             compressedBytes: bytes(UInt64(stats.compressor_page_count)),
             compressedOriginalBytes: bytes(stats.total_uncompressed_pages_in_compressor),
             cachedBytes: bytes(UInt64(stats.external_page_count) + purgeable))
+    }
+}
+
+/// One `host_statistics64(HOST_VM_INFO64)` reading and the page size it counts in.
+struct VMReading {
+    let stats: vm_statistics64
+    let pageSize: vm_size_t
+
+    static func take() -> VMReading? {
+        var stats = vm_statistics64()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
+        let host = mach_host_self()
+        let result = withUnsafeMutablePointer(to: &stats) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics64(host, HOST_VM_INFO64, $0, &count)
+            }
+        }
+        var pageSize: vm_size_t = 0
+        guard result == KERN_SUCCESS, host_page_size(host, &pageSize) == KERN_SUCCESS, pageSize > 0 else { return nil }
+        return VMReading(stats: stats, pageSize: pageSize)
     }
 }

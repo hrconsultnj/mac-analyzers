@@ -458,6 +458,22 @@ public enum Names {
         public static let nothingInScope = "Nothing in This Scope"
     }
 
+    // MARK: - the kinds of memory
+
+    /// The screens "Where Your Memory Is" opens, one per kind.
+    public enum MemoryKind {
+        public static let app = "App Memory"
+        public static let wired = "Wired Memory"
+        public static let compressed = "Compressed"
+        public static let cached = "Cached Files"
+        public static let free = "Free"
+        public static let swap = "Swap Used"
+        public static let showInMonitor = "Show in Monitor"
+        public static let overTime = "Over Time"
+        public static let whoHoldsTheMost = "Who Holds the Most"
+        public static let whatItIs = "What It Is"
+    }
+
     // MARK: - stopping things
 
     public enum Stop {
@@ -582,6 +598,8 @@ public enum Names {
                  Monitor.written, Monitor.ended, Monitor.refresh, Monitor.refreshNow, Monitor.every5, Monitor.every15,
                  Monitor.every60, Monitor.paused, Monitor.inspector, Monitor.showDetails, Monitor.whereYourMemoryIs,
                  Monitor.nothingInScope].map { ("Monitor", $0) }
+        rows += [MemoryKind.app, MemoryKind.wired, MemoryKind.compressed, MemoryKind.cached, MemoryKind.free, MemoryKind.swap,
+                 MemoryKind.showInMonitor, MemoryKind.overTime, MemoryKind.whoHoldsTheMost, MemoryKind.whatItIs].map { ("Memory kind", $0) }
         rows += [Stop.stop, Stop.quit, Stop.forceStop, Stop.leaveRunning, Stop.leftAlone, Stop.leftAloneOne].map { ("Stop", $0) }
         rows += [Guard.stopped, Guard.alerts, Guard.period, Guard.show, Guard.last7, Guard.last90, Guard.nothingToReport,
                  Guard.nothingHere, Guard.eventGone, Guard.whatHappened, Guard.theProgram, Guard.whyTheGuardDoesThis,
