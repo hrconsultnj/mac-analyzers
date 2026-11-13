@@ -15,6 +15,8 @@ enum OverviewRoute: Hashable, Codable {
     case reviewFixture
     /// The same with a few hundred rows (`review:fixture:long`).
     case reviewFixtureLong
+    /// A finished run's kept lines in the shared lines box (`job:fixture:finished`).
+    case runLinesFixture
     /// Turn Off with example permission rows (`TurnOffPermission.example`); linkable only after
     /// `DeepLinkRouter.installFixtures()`.
     case turnOffFixture(String)
@@ -86,6 +88,7 @@ enum OverviewGroup {
         case .raw(let subject): RawOutputScreen(subject: subject)
         case .reviewFixture: ReviewFixtureScreen()
         case .reviewFixtureLong: ReviewFixtureScreen(long: true)
+        case .runLinesFixture: RawOutputFixtureScreen()
         }
     }
 
