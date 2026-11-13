@@ -30,6 +30,41 @@ public final class UpdateState {
     /// How far this copy is from the release it is named after.
     public let build: BuildInfo
 
+    /// What this copy follows. Saved: it survives a relaunch.
+    public var channel: UpdateChannel {
+        get { storedChannel }
+        set {
+            guard newValue != storedChannel else { return }
+            storedChannel = newValue
+            UserDefaults.standard.set(newValue.rawValue, forKey: UpdateChannel.defaultsKey)
+            channelState = nil
+            Task { await check() }
+        }
+    }
+    private var storedChannel = UpdateChannel.saved
+    /// Where Beta or This Copy leaves this copy; nil on Releases, or before the first answer.
+    public private(set) var channelState: ChannelState?
+    /// The newest commit on `development` ("a1b2c3d · the commit's first line"), when Beta has heard.
+    public private(set) var newestBeta: String?
+    /// The changelog the channel's release notes come from: development's on Beta, the clone's on This Copy.
+    public private(set) var channelChangelog: String?
+    /// Whether this copy was built from a git clone, and the branch that clone is on: read with plain git,
+    /// never fetched. A downloaded app has no clone and can only follow releases.
+    public private(set) var hasClone = false
+    public private(set) var cloneBranch: String?
+    /// What the clone looks like now, for the This Copy screen.
+    public private(set) var cloneFacts: CloneFacts?
+
+    /// The channels this copy can follow, in the order the picker shows them. The one in use is always
+    /// among them, so the picker never shows a selection it does not offer.
+    public var channels: [UpdateChannel] {
+        var list: [UpdateChannel] = [.releases]
+        if hasClone && cloneBranch == "development" { list.append(.beta) }
+        if hasClone { list.append(.thisCopy) }
+        if !list.contains(channel) { list.append(channel) }
+        return list
+    }
+
     /// The app's job store, handed over once it exists: an install restarts the
     /// app, so it must not start while a job runs.
     public weak var jobs: JobStore?
@@ -48,21 +83,102 @@ public final class UpdateState {
     @_spi(TestSupport) public func preset(latest: String?) {
         self.latest = latest
         checkedAt = Date()
+        isFixture = true
     }
 
-    /// A newer release than the one installed exists.
+    /// Set by a preset: the state is a fixture for a render, so no check overwrites it.
+    @ObservationIgnored private var isFixture = false
+
+    /// The same for a development channel: the channel, what it answered, and the clone it read.
+    @_spi(TestSupport) public func preset(channel: UpdateChannel, state: ChannelState, newest: String? = nil,
+                                          cloneBranch: String? = "development", facts: CloneFacts? = nil) {
+        storedChannel = channel
+        channelState = state
+        newestBeta = newest
+        hasClone = true
+        self.cloneBranch = cloneBranch
+        cloneFacts = facts
+        checkedAt = Date()
+        isFixture = true
+    }
+
+    /// Something newer than this copy exists on the channel it follows.
     public var isAvailable: Bool {
-        latest.map { UpdateChecker.isNewer($0, than: installed) } ?? false
+        switch channel {
+        case .releases: latest.map { UpdateChecker.isNewer($0, than: installed) } ?? false
+        case .beta, .thisCopy: channelState?.isUpdate ?? false
+        }
+    }
+
+    /// What the sidebar's version item, the Updates screen and the footer call the state, one place for all
+    /// three. nil until something answered (an app that cannot reach the network says only its version).
+    public enum Summary: Equatable, Sendable { case updateAvailable, upToDate, developmentBuild }
+
+    public var summary: Summary? {
+        if isAvailable { return .updateAvailable }
+        switch channel {
+        case .releases:
+            if build.isDevelopment { return .developmentBuild }
+            return latest != nil ? .upToDate : nil
+        case .beta, .thisCopy:
+            switch channelState {
+            case .upToDate?: return .upToDate
+            case .ahead?: return .developmentBuild
+            default: return build.isDevelopment ? .developmentBuild : (latest != nil ? .upToDate : nil)
+            }
+        }
+    }
+
+    /// The button the menu-bar footer shows when something is available.
+    public var availableTitle: String? {
+        guard isAvailable else { return nil }
+        switch channel {
+        case .releases: return latest.map { "Update to v\($0)" }
+        case .beta: return Names.Channel.installBeta
+        case .thisCopy: return Names.Channel.rebuild
+        }
     }
 
     /// Checks now (the checker's own 6-hour cache applies unless `force`).
     public func check(force: Bool = false) async {
-        guard phase != .installing else { return }
+        guard phase != .installing, !isFixture else { return }
         phase = .checking
         let found = await UpdateChecker.latestVersion(force: force)
         if let found { latest = found }
+        await refreshChannel(force: force)
         checkedAt = Date()
         if phase == .checking { phase = .idle }
+    }
+
+    /// Reads the clone (local git, off the main thread) and answers for the channel in use. A channel
+    /// that needs the network asks GitHub's public API; none of this fetches into the person's clone.
+    private func refreshChannel(force: Bool) async {
+        let build = self.build
+        let facts: (hasClone: Bool, branch: String?, facts: CloneFacts?) = await Task.detached {
+            guard let clone = SourceClone.current else { return (false, nil, nil) }
+            return (true, clone.branch, clone.facts(installed: build.commit))
+        }.value
+        hasClone = facts.hasClone
+        cloneBranch = facts.branch
+        cloneFacts = facts.facts
+        switch channel {
+        case .releases:
+            channelState = nil
+            channelChangelog = nil
+        case .beta:
+            let compare: BetaCompare?
+            if hasClone, cloneBranch == "development", let commit = build.commit {
+                compare = await UpdateChecker.betaCompare(installedCommit: commit, force: force)
+            } else {
+                compare = nil
+            }
+            channelState = ChannelLogic.beta(build: build, cloneBranch: cloneBranch, isClone: hasClone, compare: compare)
+            newestBeta = compare?.newest
+            channelChangelog = hasClone ? await UpdateChecker.betaChangelog(force: force) : nil
+        case .thisCopy:
+            channelState = ChannelLogic.thisCopy(build: build, clone: facts.facts)
+            channelChangelog = await Task.detached { SourceClone.current?.changelog }.value
+        }
     }
 
     /// Checks at launch and every six hours for as long as the app runs.
@@ -102,6 +218,7 @@ public final class UpdateState {
             return
         }
         phase = .installing
-        GuardControl.runUpgrade()
+        // This Copy rebuilds the clone as it is (nothing is pulled); Releases and Beta pull, then rebuild
+        GuardControl.runUpgrade(rebuildOnly: channel == .thisCopy)
     }
 }

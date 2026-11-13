@@ -7,6 +7,13 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
+- A copy of Mac Analyzers that you built from your own clone can now follow
+  more than the releases. On the Updates screen, choose Beta to see the newest
+  work being developed, or This Copy to see your clone as it is right now,
+  including changes you have not saved to the project yet. Each says how far
+  your installed copy is behind, and one button updates it (Beta) or rebuilds
+  it from your clone (This Copy). Nothing is ever updated by itself, and a
+  copy you downloaded keeps following releases only.
 - Mac Analyzers now runs with macOS's hardened runtime, on a copy you build
   yourself as well as on a download. Another program on your account can no
   longer make the app load code of its own choosing. Nothing changes in how

@@ -233,8 +233,11 @@ public enum GuardControl {
 
     /// Run the repo's upgrade.command in Terminal — visible progress: pull,
     /// rebuild, refresh agents, relaunch. Settings are never touched.
-    public static func runUpgrade() {
-        NSWorkspace.shared.open(AnalyzersPaths.suiteRoot.appending(path: "upgrade.command"))
+    ///
+    /// `rebuildOnly` (the This Copy channel) runs `rebuild.command`: the same steps without the pull,
+    /// so a clone with uncommitted work is built as it is.
+    public static func runUpgrade(rebuildOnly: Bool = false) {
+        NSWorkspace.shared.open(AnalyzersPaths.suiteRoot.appending(path: rebuildOnly ? "rebuild.command" : "upgrade.command"))
     }
 
     /// Deep-link to this app's pane in System Settings → Notifications.

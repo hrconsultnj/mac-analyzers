@@ -63,6 +63,19 @@ REVISION="$(git -C .. rev-parse --short HEAD 2>/dev/null || echo "unknown")"
 [[ -n "$(git -C .. status --porcelain 2>/dev/null)" ]] && REVISION="$REVISION, with local changes"
 /usr/libexec/PlistBuddy -c "Add :MABuildRevision string $REVISION" \
   -c "Add :MABuildDate string $(date '+%b %-d at %H:%M')" "$APP/Contents/Info.plist" 2>/dev/null || true
+# What this build was made from, for the update channels (Updates screen): the full commit, the
+# branch, and "clean" or a hash of the uncommitted changes (scripts/tree-hash.sh: the diff and the
+# bytes of untracked files). The app computes the same hash from a clone, so a copy built from a
+# working tree and that working tree compare equal; a copy with no git history gets no stamp.
+if git -C .. rev-parse --git-dir >/dev/null 2>&1; then
+  BUILD_COMMIT="$(git -C .. rev-parse HEAD 2>/dev/null || true)"
+  BUILD_BRANCH="$(git -C .. rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  [[ "$BUILD_BRANCH" == "HEAD" ]] && BUILD_BRANCH=""
+  BUILD_TREE="$(../scripts/tree-hash.sh .. 2>/dev/null || true)"
+  /usr/libexec/PlistBuddy -c "Add :MABuildCommit string $BUILD_COMMIT" \
+    -c "Add :MABuildBranch string $BUILD_BRANCH" \
+    -c "Add :MABuildTreeHash string $BUILD_TREE" "$APP/Contents/Info.plist" 2>/dev/null || true
+fi
 # How far this build is from the release it is named after, so a development
 # build can say so on screen: that release's tag, the commits made since it,
 # and whether the tree had local changes. A copy with no git history gets no

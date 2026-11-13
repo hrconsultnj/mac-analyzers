@@ -255,6 +255,11 @@ if args.first == "--probe-reports" { probeReports(args) }
 
 // `--probe-guard-history` prints Memory Guard's history as the screen groups it.
 // See GuardHistoryProbe.swift.
+// `--probe-channels` runs the Beta and This Copy update logic against a throwaway git repository.
+// See ChannelProbes.swift.
+if args.first == "--probe-channels" {
+    probeChannels()
+}
 if args.first == "--probe-guard-rules" {
     probeGuardRules()
 }

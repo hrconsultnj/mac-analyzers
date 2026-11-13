@@ -14,11 +14,20 @@ public struct BuildInfo: Sendable, Equatable {
     /// Commits made after the release tag. nil: no stamp, so a release.
     public let commitsAfter: Int?
     public let localChanges: Bool
+    /// The commit this copy was built from (full hash), the branch it was on, and "clean" or a hash of the
+    /// uncommitted changes it was built with. nil for a copy built before these were stamped, or a download.
+    public let commit: String?
+    public let branch: String?
+    public let treeHash: String?
 
-    public init(release: String, commitsAfter: Int?, localChanges: Bool = false) {
+    public init(release: String, commitsAfter: Int?, localChanges: Bool = false,
+                commit: String? = nil, branch: String? = nil, treeHash: String? = nil) {
         self.release = release
         self.commitsAfter = commitsAfter
         self.localChanges = localChanges
+        self.commit = commit
+        self.branch = branch
+        self.treeHash = treeHash
     }
 
     /// Read from the running bundle's Info.plist.
@@ -27,7 +36,10 @@ public struct BuildInfo: Sendable, Equatable {
         let commits = (info["MABuildCommitsAfter"] as? NSNumber)?.intValue
         return BuildInfo(release: UpdateChecker.installedVersion,
                          commitsAfter: commits,
-                         localChanges: (info["MABuildLocalChanges"] as? NSNumber)?.boolValue ?? false)
+                         localChanges: (info["MABuildLocalChanges"] as? NSNumber)?.boolValue ?? false,
+                         commit: (info["MABuildCommit"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                         branch: (info["MABuildBranch"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                         treeHash: (info["MABuildTreeHash"] as? String).flatMap { $0.isEmpty ? nil : $0 })
     }
 
     /// Newer than the release it is named after.

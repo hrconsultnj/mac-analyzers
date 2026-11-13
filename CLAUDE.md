@@ -342,3 +342,16 @@ Both are protected (code-owner review required for PRs; owner pushes directly).
 - The app self-checks for releases (launch + every 6 h, `UpdateChecker`) and
   notifies once per new version; the Update pane and menu footer show
   installed vs latest and run `upgrade.command` on Install.
+  A copy built from a git clone can also follow an update channel, picked on
+  the Updates screen (`UpdateChannel`, saved in defaults): **Releases** (the
+  default, as above), **Beta** (the newest commit on `development`, read with
+  one public GitHub compare of the commit this copy was built from; Install is
+  `upgrade.command`, a `git pull --ff-only` on development plus a rebuild; only
+  offered when the clone is on `development`) and **This Copy** (the clone
+  itself, uncommitted changes included, read with plain local `git`; "Rebuild
+  from This Copy" runs `rebuild.command`, the same build without the pull). The
+  build stamps `MABuildCommit`, `MABuildBranch` and `MABuildTreeHash` (a hash
+  of the uncommitted changes that the app recomputes the same way), and a
+  downloaded app, which has no clone, shows Releases only. Nothing fetches into
+  the person's clone and nothing installs by itself; `agent-runner
+  --probe-channels` proves every state against a throwaway repository.

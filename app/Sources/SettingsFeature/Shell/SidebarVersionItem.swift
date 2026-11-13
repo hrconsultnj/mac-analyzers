@@ -43,15 +43,11 @@ struct SidebarVersionItem: View {
     /// Nothing until a check has answered: an app that cannot reach the
     /// network says only its version rather than claiming to be current.
     private var state: (text: String, symbol: String, tint: Color)? {
-        if updates.isAvailable {
-            return (Names.State.updateAvailable, "arrow.down.circle.fill", .orange)
+        switch updates.summary {
+        case .updateAvailable?: return (Names.State.updateAvailable, "arrow.down.circle.fill", .orange)
+        case .developmentBuild?: return (Names.State.developmentBuild, "hammer.fill", .blue)
+        case .upToDate?: return (Names.State.upToDate, "checkmark.circle.fill", .secondary)
+        case nil: return nil
         }
-        if updates.build.isDevelopment {
-            return (Names.State.developmentBuild, "hammer.fill", .blue)
-        }
-        if updates.latest != nil {
-            return (Names.State.upToDate, "checkmark.circle.fill", .secondary)
-        }
-        return nil
     }
 }

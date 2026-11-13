@@ -55,4 +55,61 @@ public enum UpdateChecker {
         }
         return false
     }
+
+    // MARK: - Beta: the newest commit on `development`
+
+    private static let repository = "hrconsultnj/mac-analyzers"
+
+    /// Where GitHub's `development` stands against the commit this copy was built from: one public GET of
+    /// the compare endpoint, cached for 6 hours per installed commit unless forced. Falls back to the last
+    /// answer for that commit when it cannot be read; nil when there is none (offline).
+    public static func betaCompare(installedCommit: String, force: Bool = false) async -> BetaCompare? {
+        let defaults = UserDefaults.standard
+        let cached = defaults.data(forKey: "updateBetaCompare")
+            .flatMap { try? JSONDecoder().decode(CachedCompare.self, from: $0) }
+            .flatMap { $0.commit == installedCommit ? $0 : nil }
+        if !force, let cached, Date().timeIntervalSince1970 - cached.at < 6 * 3600 { return cached.compare }
+        guard let url = URL(string: "https://api.github.com/repos/\(repository)/compare/\(installedCommit)...development"),
+              let (data, response) = try? await URLSession.shared.data(from: url),
+              let http = response as? HTTPURLResponse
+        else { return cached?.compare }
+        var result: BetaCompare?
+        if http.statusCode == 404 || http.statusCode == 422 {
+            result = BetaCompare(status: "missing", aheadBy: 0)        // GitHub does not know this commit
+        } else if http.statusCode == 200, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let status = json["status"] as? String {
+            var newest: String?
+            if let last = (json["commits"] as? [[String: Any]])?.last,
+               let sha = last["sha"] as? String, let commit = last["commit"] as? [String: Any] {
+                let line = (commit["message"] as? String)?.split(separator: "\n").first.map(String.init) ?? ""
+                newest = "\(sha.prefix(7)) · \(line)"
+            }
+            result = BetaCompare(status: status, aheadBy: json["ahead_by"] as? Int ?? 0, newest: newest)
+        }
+        guard let result else { return cached?.compare }
+        if let encoded = try? JSONEncoder().encode(CachedCompare(commit: installedCommit, at: Date().timeIntervalSince1970, compare: result)) {
+            defaults.set(encoded, forKey: "updateBetaCompare")
+        }
+        return result
+    }
+
+    private struct CachedCompare: Codable { var commit: String; var at: Double; var compare: BetaCompare }
+
+    /// The changelog on the `development` branch: where the Beta channel's release notes come from (its
+    /// "## Next" section). Cached for the same 6 hours; the last copy when it cannot be read.
+    public static func betaChangelog(force: Bool = false) async -> String? {
+        let defaults = UserDefaults.standard
+        let at = defaults.double(forKey: "updateBetaChangelogAt")
+        if !force, Date().timeIntervalSince1970 - at < 6 * 3600, let cached = defaults.string(forKey: "updateBetaChangelog") {
+            return cached
+        }
+        guard let url = URL(string: "https://raw.githubusercontent.com/\(repository)/development/CHANGELOG.md"),
+              let (data, response) = try? await URLSession.shared.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let text = String(data: data, encoding: .utf8)
+        else { return defaults.string(forKey: "updateBetaChangelog") }
+        defaults.set(text, forKey: "updateBetaChangelog")
+        defaults.set(Date().timeIntervalSince1970, forKey: "updateBetaChangelogAt")
+        return text
+    }
 }

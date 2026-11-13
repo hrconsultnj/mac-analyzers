@@ -78,6 +78,32 @@ public enum Names {
         public static let developmentBuild = "Dev Build"
     }
 
+    // MARK: - update channels
+
+    public enum Channel {
+        public static let heading = "Update Channel"
+        public static let releases = "Releases"
+        public static let beta = "Beta"
+        public static let thisCopy = "This Copy"
+        public static let installBeta = "Update to Newest Beta"
+        public static let rebuild = "Rebuild from This Copy"
+    }
+
+    /// The sentences the two development channels say (not names: they are not in the title-style table).
+    public enum ChannelText {
+        public static let notAClone = "This copy was downloaded, not built from a clone of the project, so it can only follow releases."
+        public static func notOnDevelopment(_ branch: String?) -> String {
+            "Beta follows the development branch. Your clone is on \(branch.map { "“\($0)”" } ?? "no branch")."
+        }
+        public static let offline = "Couldn't reach GitHub to check."
+        public static let aheadOfDevelopment = "This copy has changes that are newer than the development branch on GitHub."
+        public static let notOnGitHub = "This copy was built from changes that are not on GitHub."
+        public static let divergedFromDevelopment = "This copy and the development branch on GitHub have each moved on."
+        public static let cloneIsBehindInstall = "This copy has changes your clone no longer has."
+        public static let cloneLacksCommit = "This copy was built from changes your clone doesn't have."
+        public static let installHadChangesCloneLost = "This copy was built with changes your clone no longer has."
+    }
+
     // MARK: - Activity scopes
 
     public enum Scope {
@@ -575,6 +601,7 @@ public enum Names {
         rows += EngineLog.allCases.map { ("Log \($0.rawValue)", log($0)) }
         rows += [Review.selectAll, Review.selectNone, Review.previewAgain, Review.preview, Review.stop, Review.history,
                  Review.showRawOutput, Review.showInFinder, Review.copyPath, Review.copyPaths].map { ("Review", $0) }
+        rows += [Channel.heading, Channel.releases, Channel.beta, Channel.thisCopy, Channel.installBeta, Channel.rebuild].map { ("Channel", $0) }
         rows += [TimeMachine.removePermission, TimeMachine.permissionRowTitle].map { ("Time Machine", $0) }
         rows += [Raw.screen, Raw.searchPrompt, Raw.copy, Raw.noOutput, Raw.showAll, Raw.showOlder].map { ("Raw", $0) }
         rows += [Monitor.everything, Monitor.tools, Monitor.lens, Monitor.lensMemory, Monitor.lensEnergy, Monitor.lensDisk,
