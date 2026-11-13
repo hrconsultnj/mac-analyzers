@@ -36,7 +36,7 @@ extension CensusBuilder {
     func liveProcess(_ entry: Entry, label: String? = nil,
                      category: CensusGroup.Category? = nil) -> LiveProcess {
         let command = argv(entry)
-        let isDev = command.map(LiveStats.isDevKillable) ?? false
+        let isDev = command.map { isDevTooling(entry, command: $0) } ?? false
         return LiveProcess(
             pid: entry.pid, residentMB: entry.residentMB,
             rawName: CommandLineDisplay.shown(command ?? entry.path),
@@ -48,14 +48,14 @@ extension CensusBuilder {
 
     /// Which of the three kinds of owner a top-level process is, and the
     /// name its group goes by.
-    func classify(_ root: Entry) -> (category: CensusGroup.Category, name: String) {
+    func classify(_ root: Entry) -> (category: CensusGroup.Category, name: String, appPath: String?) {
         if let known = classMemo[root.pid] { return known }
         let result = uncachedClassify(root)
         classMemo[root.pid] = result
         return result
     }
 
-    private func uncachedClassify(_ root: Entry) -> (category: CensusGroup.Category, name: String) {
+    private func uncachedClassify(_ root: Entry) -> (category: CensusGroup.Category, name: String, appPath: String?) {
         let launchedFromSession = root.ppid > 1
             && table[root.ppid].map { isSessionHost($0.path) } == true
         // Chromium browsers run their main binary from a signed temp clone
@@ -66,32 +66,32 @@ extension CensusBuilder {
             // Finder, Dock, Control Center… ship as .app but ARE the system
             let builtIn = ["/System/Library/", "/Library/Apple/", "/usr/"]
                 .contains { app.path.hasPrefix($0) }
-            return (builtIn ? .system : .apps, app.name)
+            return (builtIn ? .system : .apps, app.name, builtIn ? nil : app.path)
         }
         // a helper that lives outside its app's bundle (a system extension, a login helper) belongs to the app
         // whose bundle identifier its own identifier extends
-        if let owner = appOwningHelper(root) { return (.apps, owner) }
+        if let owner = appOwningHelper(root) { return (.apps, owner, nil) }
         if launchedFromSession {
-            return (.tools, liveProcess(root).friendlyName)
+            return (.tools, liveProcess(root).friendlyName, nil)
         }
         if MemoryCensus.isSystemPath(root.path) || (root.path.hasPrefix("pid ") && root.uid != me) {
-            return (.system, leafName(root))
+            return (.system, leafName(root), nil)
         }
-        return (.tools, liveProcess(root).friendlyName)
+        return (.tools, liveProcess(root).friendlyName, nil)
     }
 
     /// The bundle identifiers of the running third-party apps, with the name each one's group goes by.
     /// Read from the apps' own Info.plist (one read per bundle), once per census. Apple's own apps are left
     /// out: their daemons are macOS, not part of an app.
-    func appIdentifiers() -> [(id: String, name: String)] {
+    func appIdentifiers() -> [(id: String, name: String, path: String)] {
         if let known = appIdentifiersMemo { return known }
         var seen = Set<String>()
-        var found: [(id: String, name: String)] = []
+        var found: [(id: String, name: String, path: String)] = []
         for entry in table.values {
             guard let app = Self.outermostApp(in: entry.path), seen.insert(app.path).inserted,
                   !["/System/Library/", "/Library/Apple/", "/usr/"].contains(where: { app.path.hasPrefix($0) }),
                   let id = Bundle(path: app.path)?.bundleIdentifier, !id.hasPrefix("com.apple.") else { continue }
-            found.append((id.lowercased(), app.name))
+            found.append((id.lowercased(), app.name, app.path))
         }
         appIdentifiersMemo = found
         return found

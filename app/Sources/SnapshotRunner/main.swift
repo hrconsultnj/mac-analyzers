@@ -85,6 +85,14 @@ if let domain = Bundle.main.bundleIdentifier ?? Optional(ProcessInfo.processInfo
 // the example screens (`review:fixture`) can be linked only in this process; this tool has no
 // app bundle, so MA_CHANGELOG names the changelog What's New shows (read HERE, never by the app)
 let changelog = ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fileURLWithPath: $0) }
+// the kinds a screen shows come from the checkout this tool was built from, not from whichever engine the person's
+// own checkout holds: a render of work in progress must show that work's `kinds.json`
+do {
+    var checkout = URL(fileURLWithPath: #filePath)
+    for _ in 0..<4 { checkout.deleteLastPathComponent() }
+    let rules = checkout.appending(path: "memory-analyzer/rules/kinds.json")
+    if FileManager.default.fileExists(atPath: rules.path) { KindCatalog.use(file: rules) }
+}
 // Called directly, never awaited: one `await` in this file's top-level code makes the whole of it
 // an async task, and `NSApplication.run()` started inside a task never services the main dispatch
 // queue, so the delayed capture below would never fire and the tool would sit there until killed

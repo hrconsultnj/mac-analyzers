@@ -38,13 +38,15 @@ public enum MonitorTree {
         case .system:
             children = group.parts.map { partRow($0, in: group, cpu: cpu) }
             detail = group.role ?? ""
-            stop = .unavailable("Part of macOS — not something to quit from here.")
+            // the kind says why, in words: macOS's own, running as the system, or served by it
+            stop = .unavailable(group.leftAlone ?? "Part of macOS — not something to quit from here.")
         }
 
         return MonitorRow(id: id, kind: .group, category: group.category, name: name, detail: detail,
                           memoryBytes: group.totalBytes, cpu: total(of: group.members, cpu),
                           processCount: group.members.count, pid: nil,
-                          children: children, stop: stop, iconPID: group.lead.pid)
+                          children: children, stop: stop, iconPID: group.lead.pid,
+                          processKind: group.kind, leftAlone: group.leftAlone)
     }
 
     private static func partRow(_ part: CensusPart, in group: CensusGroup, cpu: [Int: Double]) -> MonitorRow {
@@ -121,7 +123,7 @@ public enum MonitorTree {
 
     private static func toolsStop(_ group: CensusGroup) -> MonitorStop {
         guard case .tools = group.quit else {
-            return .unavailable("These programs belong to another account.")
+            return .unavailable(group.leftAlone ?? "These programs belong to another account.")
         }
         guard CodingAgentHosts.isAvailable else { return .unavailable(CodingAgentHosts.unavailableSentence) }
         if group.programs.allSatisfy({ $0.lockedBy != nil || !$0.hostedSessions.isEmpty }),

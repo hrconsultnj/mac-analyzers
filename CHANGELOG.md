@@ -7,6 +7,12 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
+- Monitor now says what kind of thing each group is: a browser, a code editor,
+  a terminal, a dev server, a background service, part of macOS. When a group
+  is one that no app can stop, or one Stop leaves alone, it tells you why in a
+  sentence: macOS's own processes, programs of another account, a live coding
+  session. For remote-access tools such as Tailscale it warns that stopping
+  them can cut you off from this Mac.
 - Mac Analyzers now runs with macOS's hardened runtime, on a copy you build
   yourself as well as on a download. Another program on your account can no
   longer make the app load code of its own choosing. Nothing changes in how

@@ -37,6 +37,7 @@ private struct RowDetail: View {
                                value: row.pid.map { row.processCount == 1 ? "pid \($0)" : "\(row.processCount)" }
                                    ?? "\(row.processCount)")
                 if !row.detail.isEmpty { LabeledContent("What it is", value: row.detail) }
+                if let kind = row.processKind { LabeledContent(Names.Column.kind, value: kind.name) }
             } header: {
                 HStack {
                     if let icon { Image(nsImage: icon).resizable().frame(width: 20, height: 20) }
@@ -69,6 +70,10 @@ private struct RowDetail: View {
                     Button("\(verb) \(row.name)…") { begin(row.stop) }
                 } else if let reason = row.lockedReason {
                     Label(reason, systemImage: "lock.fill").foregroundStyle(.secondary)
+                }
+                // something the person may stop, with a word of care: a Connection Tool, a background service
+                if row.stopVerb != nil, let held = row.leftAlone {
+                    Label(held, systemImage: "shield.lefthalf.filled").foregroundStyle(.secondary)
                 }
                 if row.pid != nil || row.iconPID != nil {
                     Button(Names.Monitor.showDetails) { showDetails(row) }

@@ -153,6 +153,16 @@ through `config.local.sh` (never hardcoded).
   `agent-runner --probe-setup` prints the Setup checklist as text.
   `agent-runner --probe-memory [--all]` prints the Monitor pane's memory
   census as text (where memory is + every process group with its total).
+  The census is the ONE classifier: it gives every group its category AND its
+  kind (`CensusGroup.kind`, from `memory-analyzer/rules/kinds.json` through
+  `AnalyzersKit/Memory/Kinds/`); the app's screens read that field and never
+  classify a process a second time. The guard script does not read it yet: it keeps its own `KILLABLE_RE` until the rules engine
+  (phase B) replaces that, and its live-session exemption must first cover every
+  agent in `lib/coding-agents.tsv`.
+  `agent-runner --probe-kinds [--all]` prints every group's kind, the rule that
+  decided it and what the guard may do, with the parity check against the guard
+  script's own pattern; `--probe-kinds-fixture` is the same rules on stand-in
+  processes, in the gate.
   `agent-runner --probe-job <kind> [--cancel-after <s>]` runs one tracked job
   headless through the same kernel the app uses (`AnalyzersKit/Jobs/`) and
   prints its lines, the log block it was matched to and how it ended.
