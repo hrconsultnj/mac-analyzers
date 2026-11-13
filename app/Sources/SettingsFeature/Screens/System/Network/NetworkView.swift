@@ -92,6 +92,15 @@ struct NetworkView: View {
     }
 
     @ViewBuilder private var content: some View {
+        if !model.loaded {
+            // reading the saved snapshots: say nothing is saved only once that is known
+            ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            loadedContent
+        }
+    }
+
+    @ViewBuilder private var loadedContent: some View {
         switch scope {
         case .snapshot:
             if model.viewing == nil {
