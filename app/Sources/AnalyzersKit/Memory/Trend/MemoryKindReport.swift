@@ -103,7 +103,7 @@ public struct MemoryKindReport: Sendable {
                             rates("Squeezed per second", .compressed) { $0.compressionRate(since: $1) },
                             rates("Read back per second", .compressed, dashed: true) { $0.decompressionRate(since: $1) }])],
                 pressure: [],
-                notes: ["No program can be asked how much of ITS memory is compressed: the system gives that only to its own tools. The table below is what the system's own `top` reports, read when this screen opens (and when you ask), for every process of the Mac, macOS's included.", note],
+                notes: ["No program can be asked how much of ITS memory is compressed: the system gives that only to its own tools. The table above is what the system's own `top` reports, read when this screen opens (and when you ask), for every process of the Mac, macOS's included.", note],
                 since: samples.first?.date)
         case .cached:
             return MemoryKindReport(
