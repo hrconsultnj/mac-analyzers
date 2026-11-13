@@ -34,6 +34,7 @@ struct ReportBlocksView: View {
                             ForEach(Array(section.blocks.enumerated()), id: \.offset) { _, block in view(for: block) }
                         }
                         .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     } label: {
                         Text(section.title).font(.title3.bold())
                     }

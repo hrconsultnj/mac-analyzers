@@ -14,6 +14,21 @@ public enum TurnOffPermission {
         public let earlierCommand: String?
         /// Nothing to show at all.
         public var isEmpty: Bool { !removable && earlierCommand == nil }
+
+        public init(removable: Bool, earlierCommand: String?) {
+            self.removable = removable
+            self.earlierCommand = earlierCommand
+        }
+    }
+
+    /// The rows for `SnapshotRunner`'s example targets (`turnoff:permission`, `turnoff:earlier`, `turnoff:none`), so
+    /// each state can be looked at without a file in /etc/sudoers.d, which nothing here ever creates for a test.
+    public static func example(_ name: String) -> Rows {
+        switch name {
+        case "permission": Rows(removable: true, earlierCommand: nil)
+        case "earlier": Rows(removable: false, earlierCommand: TimeMachinePermission.uninstallCommand())
+        default: Rows(removable: false, earlierCommand: nil)
+        }
     }
 
     /// `ruleFileExists` and `legacyFileExists` are what the disk says, read by the screen and given here so a probe

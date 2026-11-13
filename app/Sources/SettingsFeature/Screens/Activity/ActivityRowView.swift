@@ -41,7 +41,6 @@ struct ActivityRowView: View {
                     Spacer(minLength: Tokens.Space.xl)
                     when
                 }
-                .padding(.vertical, Tokens.Space.xxs)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
