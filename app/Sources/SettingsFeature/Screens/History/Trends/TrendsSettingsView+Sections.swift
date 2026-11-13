@@ -104,7 +104,6 @@ extension TrendsSettingsView {
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
                 }
                 .buttonStyle(.bordered)
                 .buttonSizing(.flexible)
