@@ -19,9 +19,14 @@ public struct BuildInfo: Sendable, Equatable {
     public let commit: String?
     public let branch: String?
     public let treeHash: String?
+    /// The release tag the commit count was made from ("v2.69.2"). It is `v` + `release` unless that tag is
+    /// not in the clone (`VERSION` bumped before the release is tagged, or a tag not fetched): then the count
+    /// is from an older tag and this build is heading TO `release`, not past it. nil: not stamped.
+    public let releaseTag: String?
 
     public init(release: String, commitsAfter: Int?, localChanges: Bool = false,
-                commit: String? = nil, branch: String? = nil, treeHash: String? = nil) {
+                commit: String? = nil, branch: String? = nil, treeHash: String? = nil, releaseTag: String? = nil) {
+        self.releaseTag = releaseTag
         self.release = release
         self.commitsAfter = commitsAfter
         self.localChanges = localChanges
@@ -39,7 +44,8 @@ public struct BuildInfo: Sendable, Equatable {
                          localChanges: (info["MABuildLocalChanges"] as? NSNumber)?.boolValue ?? false,
                          commit: (info["MABuildCommit"] as? String).flatMap { $0.isEmpty ? nil : $0 },
                          branch: (info["MABuildBranch"] as? String).flatMap { $0.isEmpty ? nil : $0 },
-                         treeHash: (info["MABuildTreeHash"] as? String).flatMap { $0.isEmpty ? nil : $0 })
+                         treeHash: (info["MABuildTreeHash"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                         releaseTag: (info["MABuildReleaseTag"] as? String).flatMap { $0.isEmpty ? nil : $0 })
     }
 
     /// Newer than the release it is named after: commits since its tag or uncommitted changes. A build made
@@ -73,7 +79,10 @@ public struct BuildInfo: Sendable, Equatable {
     /// offered the release it is already past and is offered the next real one.
     public var developmentVersion: String? {
         guard isDevelopment else { return nil }
-        var text = Self.nextPatch(after: release) + "-dev" + (commitsAfter.map { ".\($0)" } ?? "")
+        // past the release only when its own tag was the one counted from; otherwise it is on its way to `release`
+        // itself ("2.70.0-dev.15", below 2.70.0), so the release is still offered when it is published
+        let base = releaseTag.map { $0 == "v\(release)" } ?? true ? Self.nextPatch(after: release) : release
+        var text = base + "-dev" + (commitsAfter.map { ".\($0)" } ?? "")
         let metadata = [commit.map { String($0.prefix(7)) },
                         localChangesUnknown ? "unknown" : (localChanges ? "local" : nil)].compactMap { $0 }
         if !metadata.isEmpty { text += "+" + metadata.joined(separator: ".") }

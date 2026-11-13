@@ -119,7 +119,7 @@ cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"
 # the release's number for a build exactly at its tag with a clean tree, else the next patch with
 # -dev.<commits since the tag>+<commit>[.local]. CFBundleShortVersionString stays the plain release.
 BUILD_VERSION="$("$BIN/AgentRunner" --build-version "$(tr -d ' \n' < ../VERSION)" "${BUILD_AHEAD:--}" \
-  "$(case "${BUILD_TREE:-clean}" in clean) echo 0 ;; unknown) echo '?' ;; *) echo 1 ;; esac)" "${BUILD_COMMIT:--}" 2>/dev/null || true)"
+  "$(case "${BUILD_TREE:-clean}" in clean) echo 0 ;; unknown) echo '?' ;; *) echo 1 ;; esac)" "${BUILD_COMMIT:--}" "${BUILD_TAG:--}" 2>/dev/null || true)"
 [[ -n "$BUILD_VERSION" ]] && /usr/libexec/PlistBuddy -c "Add :MABuildVersion string $BUILD_VERSION" "$APP/Contents/Info.plist" 2>/dev/null || true
 
 [[ -f AppIcon.icns ]] || ./make-icon.sh

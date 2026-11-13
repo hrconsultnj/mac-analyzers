@@ -359,8 +359,12 @@ Both are protected (code-owner review required for PRs; owner pushes directly).
   off fsmonitor, hooks and attributes (`--attr-source` the empty tree), empties
   every filter and diff driver the clone defines, ignores the person's global
   and system configuration, runs with a minimal environment, and asks for
-  untracked files and submodules whatever the settings say; git failing makes
-  the state "unknown". A downloaded app, or a Mac without the developer tools,
+  untracked files whatever the settings say; settings go in as
+  `GIT_CONFIG_COUNT`/`KEY`/`VALUE` pairs (a driver name may contain "="),
+  submodules are never entered (`--ignore-submodules=dirty`; a clone with a
+  submodule and uncommitted work is unknown), a partial clone never fetches
+  (`GIT_NO_LAZY_FETCH`), a non-empty `.git/info/attributes` is unknown, and
+  git failing makes the state "unknown". A downloaded app, or a Mac without the developer tools,
   runs no git at all (`GitTools`, so Apple's install dialog never appears) and
   shows Releases only. A development build is never named for the release:
   `BuildInfo.version` is the next patch, `-dev.<commits since the tag>`,

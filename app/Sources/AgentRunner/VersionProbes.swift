@@ -37,6 +37,14 @@ func probeVersions() async -> Never {
     expect("git could not say whether the tree was clean: the version says so, never silently clean",
            BuildInfo(release: "2.69.2", commitsAfter: 0, commit: commit, treeHash: "unknown").version, "2.69.3-dev.0+8e2c9b0.unknown")
     expect("   (and it is not a release)", String(BuildInfo(release: "2.69.2", commitsAfter: 0, commit: commit, treeHash: "unknown").isDevelopment), "true")
+    // VERSION ahead of the newest tag in the clone (bumped before the release is tagged, or the tag not fetched):
+    // the build is heading TO that release, not past it
+    let early = BuildInfo(release: "2.70.0", commitsAfter: 15, commit: "abcdef1" + String(repeating: "0", count: 33), releaseTag: "v2.69.2")
+    expect("VERSION 2.70.0 but the newest tag found is v2.69.2: the base is VERSION itself", early.version, "2.70.0-dev.15+abcdef1")
+    flag("   so 2.70.0 is still offered when it is published", UpdateChecker.isNewer("2.70.0", than: early.version), true)
+    flag("   and the build is above the release before it", UpdateChecker.isNewer(early.version, than: "2.69.2"), true)
+    expect("the tag of VERSION itself was found: the next patch as before",
+           BuildInfo(release: "2.70.0", commitsAfter: 15, commit: "abcdef1" + String(repeating: "0", count: 33), releaseTag: "v2.70.0").version, "2.70.1-dev.15+abcdef1")
     expect("the next patch after a minor", BuildInfo.nextPatch(after: "2.70.0"), "2.70.1")
 
     print("\n— semantic-versioning precedence —")

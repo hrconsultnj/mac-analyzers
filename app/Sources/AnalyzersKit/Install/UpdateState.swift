@@ -243,17 +243,36 @@ public final class UpdateState {
             }
             return
         }
-        // Beta pulls whatever branch the clone is on NOW: the state is up to six hours old, so look again
-        if channel == .beta, cloneProvider()?.branch != "development" {
-            channelState = .unavailable(Names.ChannelText.branchChanged)
-            let alert = NSAlert()
-            alert.alertStyle = .informational
-            alert.messageText = Names.ChannelText.branchChanged
-            alert.addButton(withTitle: "OK")
-            NSApp.activate(ignoringOtherApps: true)
-            alert.runModal()
+        // Beta pulls whatever branch the clone is on NOW, and the state is up to six hours old: look again,
+        // off the main thread (each look is a few git processes)
+        if channel == .beta {
+            guard !installPending else { return }
+            installPending = true
+            let provider = cloneProvider
+            Task {
+                let branch = await Task.detached { provider()?.branch }.value
+                installPending = false
+                if branch == "development" { startInstall() } else { refuseBranchChanged() }
+            }
             return
         }
+        startInstall()
+    }
+
+    @ObservationIgnored private var installPending = false
+
+    private func refuseBranchChanged() {
+        channelState = .unavailable(Names.ChannelText.branchChanged)
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = Names.ChannelText.branchChanged
+        alert.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
+    }
+
+    private func startInstall() {
+        guard phase != .installing else { return }
         phase = .installing
         // This Copy rebuilds the clone as it is (nothing is pulled); Releases and Beta pull, then rebuild
         GuardControl.runUpgrade(rebuildOnly: channel == .thisCopy)

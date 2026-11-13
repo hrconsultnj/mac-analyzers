@@ -76,7 +76,7 @@ func probeChannels() -> Never {
         try? shell.run()
         let value = String(decoding: shellOut.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         shell.waitUntilExit()
-        return value
+        return shell.terminationStatus == 0 ? value : ""        // a failed script is "unknown", whatever it printed
     }
     func sameHash(_ label: String) {
         let stamped = stamp(repo), read = clone.fingerprint ?? "nil"
@@ -236,11 +236,145 @@ func probeChannels() -> Never {
     let ran = fired()
     if !ran.isEmpty { failed += 1 }
     print("\(ran.isEmpty ? "PASS" : "FAIL") reading the hostile clone (every read the app makes, and scripts/tree-hash.sh) ran nothing: \(ran.isEmpty ? "no marker" : Set(ran).sorted().joined(separator: ", "))")
-    print("\(stamp(hostile).count == 64 ? "PASS" : "FAIL") …and the hash of its uncommitted work is a real hash")
+    // its .git/info/attributes names a filter: that is the one place left that can pick a driver, so it reads unknown
+    let infoUnknown = hostileClone.fingerprint == nil && hostileClone.facts(installed: hostileHead) == nil && stamp(hostile).isEmpty
+    if !infoUnknown { failed += 1 }
+    print("\(infoUnknown ? "PASS" : "FAIL") a non-empty .git/info/attributes reads unknown (app and script), never clean")
+    // with it gone the clone still has filters, drivers and .gitattributes configured, and is read normally
+    try? FileManager.default.removeItem(at: hostile.appending(path: ".git/info/attributes"))
+    try? FileManager.default.removeItem(at: markers)
+    print("\(stamp(hostile).count == 64 ? "PASS" : "FAIL") …and without it the hash of its uncommitted work is a real hash")
     if stamp(hostile).count != 64 { failed += 1 }
     let sameAsApp = stamp(hostile) == hostileClone.fingerprint
     if !sameAsApp { failed += 1 }
+    let stillSilent = fired().isEmpty
+    if !stillSilent { failed += 1 }
+    print("\(stillSilent ? "PASS" : "FAIL") …and reading it that way still runs nothing")
     print("\(sameAsApp ? "PASS" : "FAIL") the script and the app still agree on a clone with .gitattributes and filters configured")
+
+    // ── more hostile shapes, each proved to run something under plain git and nothing through the app and the script
+    print("\n— more hostile clones —")
+    /// A program the clone names: it writes its name to the marker, and (a filter) passes its input through,
+    /// unless it is a protocol program that must not wait for input (fsmonitor, uploadpack).
+    func marked(_ marker: URL, _ name: String, passThrough: Bool = true) -> String {
+        let url = root.appending(path: "run2-\(name).sh")
+        try? "#!/bin/sh\necho \(name) >> '\(marker.path)'\n\(passThrough ? "cat\n" : "exit 1\n")".write(to: url, atomically: true, encoding: .utf8)
+        chmod(url.path, 0o755)
+        return url.path
+    }
+    func plainGitFires(_ dir: URL, _ marker: URL) -> Set<String> {
+        try? FileManager.default.removeItem(at: marker)
+        for command in [["status", "--porcelain"], ["diff", "HEAD"]] {
+            let control = Process()
+            control.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            control.arguments = ["-C", dir.path] + command
+            control.standardOutput = FileHandle.nullDevice; control.standardError = FileHandle.nullDevice
+            control.standardInput = FileHandle.nullDevice
+            try? control.run(); control.waitUntilExit()
+        }
+        let fired = Set(((try? String(contentsOf: marker, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init))
+        try? FileManager.default.removeItem(at: marker)
+        return fired
+    }
+    func hostileCase(_ label: String, _ dir: URL, _ marker: URL, unknown: Bool) {
+        let controlFired = plainGitFires(dir, marker)
+        let controlOK = !controlFired.isEmpty
+        if !controlOK { failed += 1 }
+        print("\(controlOK ? "PASS" : "FAIL") \(label): plain git runs \(controlFired.sorted()) (the test can fail)")
+        let clone = SourceClone(root: dir)
+        _ = clone.isWorkingTree; _ = clone.branch; _ = clone.head; _ = clone.isDirty
+        let fingerprint = clone.fingerprint
+        let facts = clone.facts(installed: clone.head)
+        let stamped = stamp(dir)
+        let fired = ((try? String(contentsOf: marker, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
+        let silent = fired.isEmpty
+        if !silent { failed += 1 }
+        print("\(silent ? "PASS" : "FAIL")    through the app and tree-hash.sh: \(silent ? "nothing ran" : "RAN " + Set(fired).sorted().joined(separator: ", "))")
+        if unknown {
+            let ok = fingerprint == nil && facts == nil && stamped.isEmpty
+            if !ok { failed += 1 }
+            print("\(ok ? "PASS" : "FAIL")    and it reads unknown (fingerprint, facts and the script's hash are all nil/empty), never clean"
+                  + (ok ? "" : " — fingerprint \(fingerprint ?? "nil"), facts \(facts == nil ? "nil" : "read"), script \(stamped.isEmpty ? "empty" : stamped)"))
+        }
+    }
+    func fresh(_ name: String) -> (URL, URL) {
+        let dir = root.appending(path: name, directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        git(dir, ["init", "-q", "-b", "development"])
+        return (dir, root.appending(path: "markers-\(name).txt"))
+    }
+    // t5: a driver whose name contains "=" (cannot be named by -c), picked by info/attributes
+    do {
+        let (dir, marker) = fresh("t5-equals")
+        _ = commit(dir, "x.txt", "one\n")
+        if let handle = try? FileHandle(forWritingTo: dir.appending(path: ".git/config")) {
+            handle.seekToEndOfFile()
+            handle.write(Data("[filter \"a=b\"]\n\tclean = \(marked(marker, "equals-filter"))\n".utf8))
+            try? handle.close()
+        }
+        try? "*.txt filter=a=b\n".write(to: dir.appending(path: ".git/info/attributes"), atomically: true, encoding: .utf8)
+        write(dir, "x.txt", "edited\n")
+        hostileCase("a filter whose name contains '='", dir, marker, unknown: true)
+    }
+    // t7: a submodule whose own configuration and info/attributes pick a filter
+    do {
+        let (source, _) = fresh("t7-src")
+        _ = commit(source, "s.txt", "inside\n")
+        let (dir, marker) = fresh("t7-submodule")
+        _ = commit(dir, "p.txt", "parent\n")
+        git(dir, ["-c", "protocol.file.allow=always", "submodule", "add", "-q", source.path, "sub"])
+        git(dir, ["add", "-A"]); git(dir, ["commit", "-q", "-m", "add the submodule"])
+        let inner = dir.appending(path: ".git/modules/sub")
+        if let handle = try? FileHandle(forWritingTo: inner.appending(path: "config")) {
+            handle.seekToEndOfFile()
+            handle.write(Data("[filter \"evil\"]\n\tclean = \(marked(marker, "submodule-filter"))\n[core]\n\tfsmonitor = \(marked(marker, "submodule-fsmonitor", passThrough: false))\n".utf8))
+            try? handle.close()
+        }
+        try? FileManager.default.createDirectory(at: inner.appending(path: "info"), withIntermediateDirectories: true)
+        try? "*.txt filter=evil\n".write(to: inner.appending(path: "info/attributes"), atomically: true, encoding: .utf8)
+        write(dir.appending(path: "sub", directoryHint: .isDirectory), "s.txt", "inside, edited\n")
+        write(dir, "p.txt", "parent, edited\n")
+        hostileCase("a submodule that names a filter, a program and its own attributes", dir, marker, unknown: true)
+    }
+    // t10: a partial clone whose promisor remote's uploadpack is a script (git would run it to fetch a missing blob)
+    do {
+        let (source, _) = fresh("t10-src")
+        git(source, ["config", "uploadpack.allowFilter", "true"]); git(source, ["config", "uploadpack.allowAnySHA1InWant", "true"])
+        _ = commit(source, "big.txt", "lots of text\n")
+        let dir = root.appending(path: "t10-partial", directoryHint: .isDirectory)
+        git(root, ["clone", "-q", "--filter=blob:none", "--no-checkout", "file://\(source.path)", dir.path])
+        git(dir, ["read-tree", "HEAD"])
+        let marker = root.appending(path: "markers-t10.txt")
+        git(dir, ["config", "remote.origin.uploadpack", marked(marker, "uploadpack", passThrough: false)])
+        write(dir, "big.txt", "different text\n")
+        hostileCase("a partial clone whose promisor remote names a program", dir, marker, unknown: true)
+    }
+
+    print("\n— hashing a large file keeps memory flat —")
+    do {
+        let (dir, _) = fresh("big")
+        _ = commit(dir, "a.txt", "one\n")
+        write(dir, "a.txt", "two\n")
+        let size: UInt64 = 400 * 1_048_576
+        FileManager.default.createFile(atPath: dir.appending(path: "recording.bin").path, contents: nil)
+        if let handle = try? FileHandle(forWritingTo: dir.appending(path: "recording.bin")) { try? handle.truncate(atOffset: size); try? handle.close() }
+        func peak() -> Int { var usage = rusage(); getrusage(RUSAGE_SELF, &usage); return Int(usage.ru_maxrss) }
+        let before = peak()
+        let started = Date()
+        let hashed = SourceClone(root: dir).fingerprint
+        let grown = (peak() - before) / 1_048_576
+        let ok = hashed?.count == 64 && grown < 100
+        if !ok { failed += 1 }
+        print("\(ok ? "PASS" : "FAIL") a 400 MB untracked file: hashed in \(String(format: "%.1f", Date().timeIntervalSince(started))) s, peak memory grew by \(grown) MB (limit 100)")
+    }
+
+    print("\n— what a This Copy read costs —")
+    let own = hashScript.deletingLastPathComponent().deletingLastPathComponent()
+    if FileManager.default.fileExists(atPath: own.appending(path: ".git").path) {
+        let started = Date()
+        let read = SourceClone(root: own).facts(installed: SourceClone(root: own).head)
+        print("info: one read of this repository (\(read == nil ? "unknown" : "read")) took \(String(format: "%.2f", Date().timeIntervalSince(started))) s, run off the main thread by UpdateState")
+    }
 
     print("\n— a failure is never \"clean\" —")
     let broken = root.appending(path: "broken", directoryHint: .isDirectory)

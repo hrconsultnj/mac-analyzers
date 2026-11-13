@@ -47,13 +47,14 @@ if args.first == "--probe-setup" {
 // the menu footer and What's New will say for THIS copy, read from its own
 // Info.plist and bundled changelog — so a development build can be told from a
 // release without opening a window.
-// `agent-runner --build-version <release> <commits after the tag | -> <local changes 0|1|?> <commit | ->`
+// `agent-runner --build-version <release> <commits after the tag | -> <local changes 0|1|?> <commit | -> [release tag counted from]`
 // prints the version of that build: `app/build.sh` stamps it into the app (MABuildVersion), so the build
 // script and the app build the string in the one place, BuildInfo.
 if args.first == "--build-version", args.count >= 5 {
     // the third value: 0 clean, 1 uncommitted changes, ? git could not say (the version says .unknown)
     let build = BuildInfo(release: args[1], commitsAfter: Int(args[2]), localChanges: args[3] == "1",
-                          commit: args[4] == "-" ? nil : args[4], treeHash: args[3] == "?" ? "unknown" : nil)
+                          commit: args[4] == "-" ? nil : args[4], treeHash: args[3] == "?" ? "unknown" : nil,
+                          releaseTag: args.count > 5 && args[5] != "-" ? args[5] : nil)
     print(build.version)
     exit(0)
 }
