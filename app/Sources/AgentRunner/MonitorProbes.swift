@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 @_spi(TestSupport) import AnalyzersKit
 
@@ -46,6 +47,15 @@ func probeMonitor() -> Never {
     }
     print(pad("NAME", 40) + pad("WHAT IT IS", 38) + pad("MEMORY", 10) + pad("CPU", 8) + pad("PID", 8) + "STOP")
     show(rows, depth: 0, limit: 12, openTop: 3)
+
+    // how wide the names are at the table's own font: what the name column's minimum is declared from
+    func every(_ rows: [MonitorRow]) -> [MonitorRow] { rows.flatMap { [$0] + every($0.children) } }
+    let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+    let widths = every(rows).map { NSAttributedString(string: $0.name, attributes: [.font: font]).size().width }.sorted()
+    if !widths.isEmpty {
+        func at(_ share: Double) -> Int { Int(widths[min(widths.count - 1, Int(Double(widths.count) * share))].rounded(.up)) }
+        print("name widths at \(Int(font.pointSize)) pt over \(widths.count) rows (every level): median \(at(0.5)), 90th percentile \(at(0.9)), 99th \(at(0.99)), longest \(at(1.0))")
+    }
 
     // the levels: a tab per kind (with its total), groups, and no repeated title inside a group
     print("\ntabs:")

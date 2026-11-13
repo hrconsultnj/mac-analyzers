@@ -47,7 +47,11 @@ struct MonitorOutline<Menu: View>: View {
             OutlineColumn("name", Names.Monitor.name, sortUsing: KeyPathComparator(\MonitorRow.name)) { row in
                 MonitorNameCell(row: row, icon: icons[row.id] ?? inherited[row.id])
             }
-            .width(min: 130, ideal: 210)
+            // The name is what a person reads ("What It Is" is said again in the inspector), so its minimum is wide enough for
+            // a typical long name: the 90th percentile of the disambiguated names on one Mac was 213 pt at the table font
+            // (`agent-runner --probe-monitor` prints it), plus the icon (12 + 6), three levels of indent and the cell's padding
+            // (about 68): 280. The table then gives up "What It Is" before the name truncates.
+            .width(min: 280, ideal: 280)
             .typeSelect { $0.name }
             OutlineColumn("what", Names.Monitor.whatItIs, text: { $0.detail })
                 .textStyle { _ in .secondary }
