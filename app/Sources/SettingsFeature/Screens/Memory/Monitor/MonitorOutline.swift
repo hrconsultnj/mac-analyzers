@@ -50,8 +50,10 @@ struct MonitorOutline<Menu: View>: View {
             // The name is what a person reads ("What It Is" is said again in the inspector), so its minimum is wide enough for
             // a typical long name: the 90th percentile of the disambiguated names on one Mac was 213 pt at the table font
             // (`agent-runner --probe-monitor` prints it), plus the icon (12 + 6), three levels of indent and the cell's padding
-            // (about 68): 280. The table then gives up "What It Is" before the name truncates.
-            .width(min: 280, ideal: 280)
+            // (about 68): 280 wanted. Its minimum is 225 so that with the details panel open (which repeats the full name) in a 900 pt
+            // window the name, Memory, CPU and Stop or Quit still fit without scrolling sideways; its ideal stays 270, so
+            // with room the name is whole and the table gives up "What It Is" before the name truncates.
+            .width(min: 225, ideal: 270)
             .typeSelect { $0.name }
             OutlineColumn("what", Names.Monitor.whatItIs, text: { $0.detail })
                 .textStyle { _ in .secondary }
@@ -61,11 +63,11 @@ struct MonitorOutline<Menu: View>: View {
                           sortUsing: KeyPathComparator(\MonitorRow.memoryBytes))
                 .alignment(.trailing).monospacedDigits()
                 .textStyle { $0.memoryBytes > 4 * 1_073_741_824 ? .warning : .secondary }
-                .width(min: 72, ideal: 80)
+                .width(min: 66, ideal: 80)
             OutlineColumn("cpu", Names.Monitor.cpu, text: { $0.cpuText },
                           sortUsing: KeyPathComparator(\MonitorRow.cpuSort))
                 .alignment(.trailing).monospacedDigits().textStyle { _ in .secondary }
-                .width(min: 56, ideal: 62)
+                .width(min: 50, ideal: 62)
             // a pid is an identifier: text, so it never gains a thousands separator
             OutlineColumn("pid", Names.Monitor.pid, text: { $0.pid.map { String($0) } ?? "" },
                           sortUsing: KeyPathComparator(\MonitorRow.pidSort))
@@ -75,7 +77,7 @@ struct MonitorOutline<Menu: View>: View {
                 .defaultHidden()
             OutlineColumn("stop", "") { row in stopControl(row) }
                 .hideable(false)
-                .width(min: 48, ideal: 52)
+                .width(min: 44, ideal: 52)
         }
         .contextMenu({ ids in
             if let row = ids.first.flatMap(rowFor) { menu(row) }
