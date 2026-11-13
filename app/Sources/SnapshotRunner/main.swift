@@ -277,6 +277,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
             let level = step < 15 ? 1 : step < 27 ? 2 : step < 33 ? 4 : 1
             return MemorySample(date: end.addingTimeInterval(Double(step - 44) * 2), breakdown: base.breakdown,
                                 swapUsedBytes: base.swapUsedBytes, swapTotalBytes: base.swapTotalBytes, pressureLevel: level,
+                                pressurePercent: level == 1 ? 26 + (step % 5) * 2 : level == 2 ? 60 + (step % 6) * 3 : 90 + step % 4,
                                 graphicsBytes: base.graphicsBytes, swapIns: base.swapIns, swapOuts: base.swapOuts,
                                 compressions: base.compressions, decompressions: base.decompressions, pageSize: base.pageSize)
         }

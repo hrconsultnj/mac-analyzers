@@ -6,32 +6,6 @@ import UIComponents
 /// One chart of the memory screens: lines on ONE axis, 2 pt thick, a dashed line for a second series of the same kind (so
 /// identity is never colour alone), a legend whenever there is more than one series, and a crosshair with the values at the
 /// pointer. The colour of a line is the colour of its row in the Monitor's block: identity follows the entity.
-/// About five time labels however long the history is: every 15 s while it is young, then every minute, then every 5 minutes
-/// (the automatic choice printed a label per second and cut the last one off).
-func timeAxisStride(span: TimeInterval) -> (component: Calendar.Component, count: Int, showsSeconds: Bool) {
-    switch span {
-    case ..<90: (.second, 15, true)
-    case ..<420: (.minute, 1, false)
-    case ..<1_500: (.minute, 5, false)
-    default: (.minute, 10, false)
-    }
-}
-
-/// The tick positions for a time axis: automatic while the history is only seconds old (a fixed step may land no tick in it).
-func timeAxisValues(span: TimeInterval) -> AxisMarkValues {
-    if span < 25 { return .automatic(desiredCount: 4) }
-    let marks = timeAxisStride(span: span)
-    return .stride(by: marks.component, count: marks.count)
-}
-
-/// A time tick's label in the secondary text colour (a label given a format takes the accent colour, which reads as a link).
-@ViewBuilder func timeLabel(_ value: AxisValue, _ showsSeconds: Bool) -> some View {
-    if let date = value.as(Date.self) {
-        Text(date, format: showsSeconds ? .dateTime.hour().minute().second() : .dateTime.hour().minute())
-            .foregroundStyle(.secondary)
-    }
-}
-
 struct TrendChart: View {
     let chart: MemoryKindReport.Chart
     @State private var hovered: Date?
@@ -148,67 +122,5 @@ struct TrendChart: View {
                   let high = series.points.map(\.value).max() else { return nil }
             return "\(series.name): now \(text(last)), lowest \(text(low)), highest \(text(high))"
         }.joined(separator: ". ")
-    }
-}
-
-/// The pressure level over time as a strip, with its legend: each state has a word and a symbol, never colour alone.
-struct PressureStrip: View {
-    let bands: [MemoryKindReport.Band]
-
-    /// Consecutive samples at one level drawn as one stretch, so a calm hour is one bar and not a bar per sample.
-    private var runs: [(from: Date, to: Date, level: Int)] {
-        var found: [(from: Date, to: Date, level: Int)] = []
-        for (index, band) in bands.enumerated() {
-            let end = index + 1 < bands.count ? bands[index + 1].date : band.date.addingTimeInterval(2)
-            if let last = found.last, last.level == band.level { found[found.count - 1].to = end }
-            else { found.append((band.date, end, band.level)) }
-        }
-        return found
-    }
-
-    private var spanSeconds: TimeInterval {
-        guard let first = bands.first?.date, let last = bands.last?.date else { return 0 }
-        return last.timeIntervalSince(first)
-    }
-
-    private func look(_ level: Int) -> (word: String, symbol: String, color: Color) {
-        switch level {
-        case ..<2: ("Normal", "checkmark.circle.fill", .green)
-        case 2..<4: ("Warning", "exclamationmark.triangle.fill", .yellow)
-        default: ("Critical", "exclamationmark.octagon.fill", .red)
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.m) {
-            Text("Memory Pressure").font(.headline)
-            Chart {
-                ForEach(Array(runs.enumerated()), id: \.offset) { _, run in
-                    BarMark(xStart: .value("From", run.from), xEnd: .value("To", run.to), y: .value("Pressure", "level"))
-                        .foregroundStyle(look(run.level).color)
-                }
-            }
-            .chartYAxis(.hidden)
-            .chartXAxis {
-                let marks = timeAxisStride(span: spanSeconds)
-                AxisMarks(values: timeAxisValues(span: spanSeconds)) { value in
-                    AxisValueLabel { timeLabel(value, marks.showsSeconds) }
-                }
-            }
-            .chartPlotStyle { plot in plot.frame(height: 22) }     // the strip itself; the labels sit under it
-            .frame(height: 52)
-            .accessibilityLabel("Memory pressure over time")
-            .accessibilityValue(bands.last.map { "now \(look($0.level).word)" } ?? "")
-            HStack(spacing: Tokens.Space.xl) {
-                ForEach([1, 2, 4], id: \.self) { level in
-                    Label {
-                        Text(look(level).word).foregroundStyle(.secondary)
-                    } icon: {
-                        Image(systemName: look(level).symbol).foregroundStyle(look(level).color)
-                    }
-                    .font(.caption)
-                }
-            }
-        }
     }
 }

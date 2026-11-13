@@ -293,6 +293,7 @@ if args.first == "--probe-stop-targets" {
     await probeStopTargets(args)
 }
 // `--probe-panel` prints the panel's Monitor groups and Memory figures as text (PanelProbes.swift).
+if args.first == "--probe-pressure" { await MainActor.run { probePressure() } }
 if args.first == "--probe-panel" { await MainActor.run { probePanel() } }
 // `--probe-panel-stop` proves the menu-bar panel's Quit and Stop go through MemoryStop (PanelStopProbes.swift).
 if args.first == "--probe-panel-stop" {
