@@ -110,7 +110,7 @@ public enum LogParser {
             }
             // a block that OPENS with a banner is a run of its own: the janitor writes a rule, the banner and the body with no
             // rule between them, so before this its second run in a window was taken for the first one's closing summary
-            if pendingHeader == nil, let first = block.first, RunMatcher.banner(in: first) != nil, first.isEmpty {
+            if pendingHeader == nil, let first = block.first, RunMatcher.banner(in: first) != nil {
                 result.append(LogRun(id: result.count, header: first, lines: Array(block.dropFirst())))
                 continue
             }
