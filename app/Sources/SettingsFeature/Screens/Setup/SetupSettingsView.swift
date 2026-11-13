@@ -134,7 +134,6 @@ struct SetupSettingsView: View {
             Image(systemName: symbol(check.verdict))
                 .foregroundStyle(tone(check.verdict).tint)
                 .imageScale(.large)
-                .padding(.top, Tokens.Space.hair)
             VStack(alignment: .leading, spacing: Tokens.Space.xs) {
                 Text(check.title).font(.callout.weight(.medium))
                 Text(check.why)
@@ -157,7 +156,6 @@ struct SetupSettingsView: View {
                 .buttonStyle(.glassProminent)
             }
         }
-        .padding(.vertical, Tokens.Space.xxs)
     }
 
     private func symbol(_ verdict: SetupCheck.Verdict) -> String {
