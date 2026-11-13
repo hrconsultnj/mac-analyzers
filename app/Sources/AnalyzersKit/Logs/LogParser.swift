@@ -16,18 +16,53 @@ public enum LogParser {
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0
         let window: UInt64 = 262_144
-        let start = size > window ? size - window : 0
+        var start = size > window ? size - window : 0
+        // A run bigger than the window (a Downloads preview prints a line per file: 6,000 screenshots are 600 KB) would
+        // be read from its middle, with no banner: it was then listed under one of its own file lines, started "one
+        // minute late", and its screen could not find it. The window starts at the banner of the run it falls in.
+        var alignedToLine = false
+        if start > 0, let banner = bannerStart(before: start, in: handle) { start = banner; alignedToLine = true }
         try? handle.seek(toOffset: start)
         guard var data = try? handle.readToEnd() else { return [] }
         // The window starts at a byte, which can be the middle of a multi-byte
         // character; decoding that strictly makes the whole tail nothing, so a log
         // would vanish until it grew past the offset. Start at the first whole line
         // and decode leniently.
-        if start > 0, let newline = data.firstIndex(of: 10) { data = data[data.index(after: newline)...] }
+        if start > 0, !alignedToLine, let newline = data.firstIndex(of: 10) { data = data[data.index(after: newline)...] }
         let text = String(decoding: data, as: UTF8.self)
         let lines = LogLines.lines(in: data)
 
         return text.contains("====") ? runBlocks(lines, includingRestores: includingRestores) : dayGroups(lines)
+    }
+
+    /// How far back a run's banner is looked for: the same reach as `WholeRun`.
+    private static let bannerReach = 32 * 1_048_576
+
+    /// Where the banner line of the run that `offset` falls in begins: the nearest banner before it, read backwards in
+    /// chunks. nil when there is none within reach (the log has no banners, or the run is bigger than the reach).
+    private static func bannerStart(before offset: UInt64, in handle: FileHandle) -> UInt64? {
+        var end = offset
+        var read: UInt64 = 0
+        while end > 0, read < UInt64(bannerReach) {
+            let take = min(UInt64(262_144), end)
+            let begin = end - take
+            guard (try? handle.seek(toOffset: begin)) != nil, let chunk = try? handle.read(upToCount: Int(take)) else { return nil }
+            read += take
+            let found = LogLines.lines(in: chunk, base: begin)
+            // the first line of a chunk that does not start the file may be cut; the last may run past `end`
+            var index = found.lines.count - 1
+            while index >= 0 {
+                let cut = index == 0 && begin > 0
+                if !cut, RunMatcher.banner(in: found.lines[index]) != nil {
+                    // the rule line above a banner goes with it: the parser reads a log as report-style by its rules
+                    if index > 0, found.lines[index - 1].allSatisfy({ $0 == "=" }) { return found.offsets[index - 1] }
+                    return found.offsets[index]
+                }
+                index -= 1
+            }
+            end = begin
+        }
+        return nil
     }
 
     /// Report-style logs: runs delimited by ===== separators; a short block
@@ -53,6 +88,12 @@ public enum LogParser {
         for block in blocks {
             if block.count <= 3, let first = block.first, first.contains("|") {
                 pendingHeader = block.joined(separator: " · ")
+                continue
+            }
+            // a block that OPENS with a banner is a run of its own: the janitor writes a rule, the banner and the body with no
+            // rule between them, so before this its second run in a window was taken for the first one's closing summary
+            if pendingHeader == nil, let first = block.first, RunMatcher.banner(in: first) != nil {
+                result.append(LogRun(id: result.count, header: first, lines: Array(block.dropFirst())))
                 continue
             }
             if pendingHeader == nil, let last = result.last {

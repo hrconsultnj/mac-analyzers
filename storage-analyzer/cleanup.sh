@@ -512,13 +512,16 @@ purge_app() {
     keep="$(app_keep_reason "$app" "$bid")"
     if [[ -n "$keep" ]]; then printf "  [KEEP]    %s\n" "$keep"; return 0; fi
   fi
-  if pgrep -x "$name" >/dev/null 2>&1 || pgrep -f "/${name}.app/Contents/MacOS/" >/dev/null 2>&1; then
+  # shellcheck source=../lib/launch-items.sh
+  [[ -f "$LAUNCH_LIB" ]] && source "$LAUNCH_LIB" 2>/dev/null
+  # (the library's anchored matching: see app_name_is_running; without the library the old, looser match)
+  if { declare -F app_name_is_running >/dev/null && app_name_is_running "$name"; } \
+     || { ! declare -F app_name_is_running >/dev/null && { pgrep -x "$name" >/dev/null 2>&1 || pgrep -f "/${name}.app/Contents/MacOS/" >/dev/null 2>&1; }; }; then
     echo "  ⚠ ${name} appears to be RUNNING — quit it first; skipping this app."
     return 0
   fi
   # apps inside it go with it: say how many, so a person is not surprised
-  # shellcheck source=../lib/launch-items.sh
-  if [[ -f "$LAUNCH_LIB" ]] && source "$LAUNCH_LIB" 2>/dev/null; then
+  if declare -F nested_app_names >/dev/null; then
     IFS=$'\t' read -r nested_count nested_names <<< "$(nested_app_names "$app")"
     [[ "${nested_count:-0}" -gt 0 ]] && printf "  contains: %s other app(s) inside it, removed with it: %s (their own settings and data are left in place)\n" "$nested_count" "$nested_names"
   fi

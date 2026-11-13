@@ -57,6 +57,23 @@ func probeRunMatcher() -> Never {
         check("\(label) run (\(size / 1024) KB log)", isExact && parsedItems(outcome) == items,
               "\(describe(outcome)) in \(took)")
     }
+    // the list of runs (Activity reads the last 256 KB of a log) sees a run bigger than that under ITS OWN banner, with its
+    // lines whole: the window starts at the banner of the run it falls in. Before, the newest run was listed under one of
+    // its own file lines (a Downloads preview of 6,154 items, 600 KB), started at the log's last write, and its screen
+    // looked for a banner that did not exist and said "Details Weren't Kept".
+    for items in [1_000, 6_154, 12_000] {
+        // as the engine writes it: a rule line above each banner
+        let rule = String(repeating: "=", count: 64) + "\n"
+        let url = write("listed-\(items).log", rule + old + rule + block(banner: banner, items: items))
+        let runs = LogParser.runs(at: url)
+        let first = runs.first
+        let isBanner = first.map { RunMatcher.banner(in: $0.header) != nil && $0.header.hasPrefix(banner) } ?? false
+        check("a run of \(items) items is listed under its banner, whole", isBanner && (first?.lines.count ?? 0) >= items,
+              "\(runs.count) runs, header \"\(first?.header.prefix(70) ?? "none")\", \(first?.lines.count ?? 0) lines")
+        if case .block(let found) = WholeRun.find(banner: first?.header.components(separatedBy: " · ").first ?? "", in: url) {
+            check("and its own screen finds that banner and holds every item (\(items))", found.lines.filter { $0.hasPrefix("[DRY]") }.count == items, "\(found.lines.count) lines")
+        } else { check("and its own screen finds that banner (\(items))", false, "not found") }
+    }
     // beyond the reach: 33 MB of one run
     let giant = dir.appending(path: "giant.log")
     FileManager.default.createFile(atPath: giant.path, contents: nil)
