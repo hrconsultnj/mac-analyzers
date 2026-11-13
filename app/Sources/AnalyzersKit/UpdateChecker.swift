@@ -28,7 +28,7 @@ public enum UpdateChecker {
         if !force,
            Date().timeIntervalSince1970 - lastCheck < 6 * 3600,
            let cached = defaults.string(forKey: "updateLatest"),
-           !isNewer(installedVersion, than: cached) {
+           !isNewer(BuildInfo.current.version, than: cached) {
             return cached
         }
         guard let url = URL(string: "https://api.github.com/repos/hrconsultnj/mac-analyzers/releases/latest"),
@@ -44,16 +44,45 @@ public enum UpdateChecker {
         return version
     }
 
-    /// Numeric semver comparison ("2.10.0" beats "2.9.0" — string compare lies).
+    /// Semantic-versioning precedence ("2.10.0" beats "2.9.0" — string compare lies; a prerelease is below its
+    /// release: 2.69.2 < 2.69.3-dev.2 < 2.69.3-dev.10 < 2.69.3; build metadata after "+" is ignored).
     public static func isNewer(_ candidate: String, than current: String) -> Bool {
-        let a = candidate.split(separator: ".").compactMap { Int($0) }
-        let b = current.split(separator: ".").compactMap { Int($0) }
-        for i in 0..<max(a.count, b.count) {
-            let x = i < a.count ? a[i] : 0
-            let y = i < b.count ? b[i] : 0
-            if x != y { return x > y }
+        compare(candidate, current) == .orderedDescending
+    }
+
+    public static func compare(_ lhs: String, _ rhs: String) -> ComparisonResult {
+        let a = split(lhs), b = split(rhs)
+        for i in 0..<max(a.core.count, b.core.count) {
+            let x = i < a.core.count ? a.core[i] : 0
+            let y = i < b.core.count ? b.core[i] : 0
+            if x != y { return x > y ? .orderedDescending : .orderedAscending }
         }
-        return false
+        switch (a.pre.isEmpty, b.pre.isEmpty) {
+        case (true, true): return .orderedSame
+        case (true, false): return .orderedDescending          // a release is above its prereleases
+        case (false, true): return .orderedAscending
+        case (false, false): break
+        }
+        for i in 0..<min(a.pre.count, b.pre.count) {
+            let x = a.pre[i], y = b.pre[i]
+            if x == y { continue }
+            switch (Int(x), Int(y)) {
+            case let (nx?, ny?): return nx > ny ? .orderedDescending : .orderedAscending
+            case (_?, nil): return .orderedAscending           // numbers sort below words
+            case (nil, _?): return .orderedDescending
+            default: return x > y ? .orderedDescending : .orderedAscending
+            }
+        }
+        if a.pre.count == b.pre.count { return .orderedSame }
+        return a.pre.count > b.pre.count ? .orderedDescending : .orderedAscending      // fewer identifiers sort lower
+    }
+
+    private static func split(_ version: String) -> (core: [Int], pre: [String]) {
+        let withoutBuild = version.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false)[0]
+        let parts = withoutBuild.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+        let core = parts[0].split(separator: ".").compactMap { Int($0) }
+        let pre = parts.count > 1 ? parts[1].split(separator: ".").map(String.init) : []
+        return (core, pre)
     }
 
     // MARK: - Beta: the newest commit on `development`
@@ -74,6 +103,10 @@ public enum UpdateChecker {
               let http = response as? HTTPURLResponse
         else { return cached?.compare }
         var result: BetaCompare?
+        if http.statusCode == 403 || http.statusCode == 429 {
+            // GitHub is limiting this network: not "offline", and not worth caching
+            return cached?.compare ?? BetaCompare(status: "rateLimited", aheadBy: 0)
+        }
         if http.statusCode == 404 || http.statusCode == 422 {
             result = BetaCompare(status: "missing", aheadBy: 0)        // GitHub does not know this commit
         } else if http.statusCode == 200, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

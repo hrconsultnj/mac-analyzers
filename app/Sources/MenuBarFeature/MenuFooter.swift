@@ -19,9 +19,10 @@ extension MenuContentView {
                     .buttonStyle(.borderedProminent)
                     .help("Update in Terminal, then relaunch; settings are kept")
             } else {
-                Text(updates.build.versionText)
+                Text(updates.build.shortVersionText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .help(updates.build.versionText)        // the full version, build metadata included
             }
             Spacer()
             Button {

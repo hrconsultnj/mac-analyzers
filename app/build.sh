@@ -71,7 +71,11 @@ if git -C .. rev-parse --git-dir >/dev/null 2>&1; then
   BUILD_COMMIT="$(git -C .. rev-parse HEAD 2>/dev/null || true)"
   BUILD_BRANCH="$(git -C .. rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   [[ "$BUILD_BRANCH" == "HEAD" ]] && BUILD_BRANCH=""
-  BUILD_TREE="$(../scripts/tree-hash.sh .. 2>/dev/null || true)"
+  # "clean", a hash of the uncommitted changes, or "unknown" when git could not say (never read as clean)
+  BUILD_TREE="$(../scripts/tree-hash.sh .. 2>/dev/null)" || BUILD_TREE="unknown"
+  # whether the tree had uncommitted changes, whether or not a release tag is in reach
+  /usr/libexec/PlistBuddy -c "Add :MABuildLocalChanges bool $([[ "$BUILD_TREE" == "clean" || "$BUILD_TREE" == "unknown" ]] && echo false || echo true)" \
+    "$APP/Contents/Info.plist" 2>/dev/null || true
   /usr/libexec/PlistBuddy -c "Add :MABuildCommit string $BUILD_COMMIT" \
     -c "Add :MABuildBranch string $BUILD_BRANCH" \
     -c "Add :MABuildTreeHash string $BUILD_TREE" "$APP/Contents/Info.plist" 2>/dev/null || true
@@ -104,7 +108,6 @@ if [[ "$BUILD_AHEAD" =~ ^[0-9]+$ ]]; then
   [[ -n "$(git -C .. status --porcelain 2>/dev/null)" ]] && BUILD_DIRTY=1
   /usr/libexec/PlistBuddy -c "Add :MABuildReleaseTag string $BUILD_TAG" \
     -c "Add :MABuildCommitsAfter integer $BUILD_AHEAD" \
-    -c "Add :MABuildLocalChanges bool $([[ "$BUILD_DIRTY" == 1 ]] && echo true || echo false)" \
     "$APP/Contents/Info.plist" 2>/dev/null || true
 else
   BUILD_AHEAD=""
@@ -112,6 +115,12 @@ fi
 cp "$BIN/MacAnalyzersApp" "$APP/Contents/MacOS/MacAnalyzersApp"
 cp "$BIN/NotifierCLI" "$APP/Contents/MacOS/notify"
 cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"
+# The version this build IS, asked of BuildInfo (the app builds the same string from the same stamps):
+# the release's number for a build exactly at its tag with a clean tree, else the next patch with
+# -dev.<commits since the tag>+<commit>[.local]. CFBundleShortVersionString stays the plain release.
+BUILD_VERSION="$("$BIN/AgentRunner" --build-version "$(tr -d ' \n' < ../VERSION)" "${BUILD_AHEAD:--}" \
+  "$(case "${BUILD_TREE:-clean}" in clean) echo 0 ;; unknown) echo '?' ;; *) echo 1 ;; esac)" "${BUILD_COMMIT:--}" 2>/dev/null || true)"
+[[ -n "$BUILD_VERSION" ]] && /usr/libexec/PlistBuddy -c "Add :MABuildVersion string $BUILD_VERSION" "$APP/Contents/Info.plist" 2>/dev/null || true
 
 [[ -f AppIcon.icns ]] || ./make-icon.sh
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"

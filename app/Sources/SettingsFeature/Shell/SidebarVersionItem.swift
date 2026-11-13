@@ -27,7 +27,7 @@ struct SidebarVersionItem: View {
         }
         .buttonStyle(.plain)
         .background(.bar)
-        .help("Open \(Names.Screen.updates)")
+        .help("Open \(Names.Screen.updates) · \(updates.build.versionText)")
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens \(Names.Screen.updates)")
     }

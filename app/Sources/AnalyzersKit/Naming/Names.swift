@@ -96,6 +96,10 @@ public enum Names {
             "Beta follows the development branch. Your clone is on \(branch.map { "“\($0)”" } ?? "no branch")."
         }
         public static let offline = "Couldn't reach GitHub to check."
+        public static let rateLimited = "GitHub is limiting checks from this network right now. Try again in a while."
+        public static let cannotRead = "Couldn't read your clone with git, so it can't be compared with this copy."
+        public static let builtWithLocalChanges = "This copy was built with changes that are not committed, so it is not the newest beta."
+        public static let branchChanged = "Your clone is no longer on the development branch, so the newest beta can't be installed."
         public static let aheadOfDevelopment = "This copy has changes that are newer than the development branch on GitHub."
         public static let notOnGitHub = "This copy was built from changes that are not on GitHub."
         public static let divergedFromDevelopment = "This copy and the development branch on GitHub have each moved on."

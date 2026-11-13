@@ -54,6 +54,8 @@ public final class UpdateState {
     public private(set) var cloneBranch: String?
     /// What the clone looks like now, for the This Copy screen.
     public private(set) var cloneFacts: CloneFacts?
+    /// Whether the clone has uncommitted changes, when it was asked (Beta and This Copy); nil when unknown.
+    public private(set) var cloneDirty: Bool?
 
     /// The channels this copy can follow, in the order the picker shows them. The one in use is always
     /// among them, so the picker never shows a selection it does not offer.
@@ -72,11 +74,17 @@ public final class UpdateState {
     @ObservationIgnored private var loop: Task<Void, Never>?
     private static let cadence: Duration = .seconds(6 * 3600)
 
-    public init(installed: String = UpdateChecker.installedVersion, build: BuildInfo? = nil) {
-        self.installed = installed
-        self.build = build ?? BuildInfo(release: installed, commitsAfter: BuildInfo.current.commitsAfter,
-                                         localChanges: BuildInfo.current.localChanges)
+    /// `installed` is the version this copy IS (`BuildInfo.version`): the release's number for a release,
+    /// the development version for any other build, so a development copy is never offered the release it
+    /// is already past.
+    public init(build: BuildInfo = .current, clone: @escaping @Sendable () -> SourceClone? = { SourceClone.current }) {
+        self.build = build
+        self.installed = build.version
+        self.cloneProvider = clone
     }
+
+    /// Where the clone comes from: this app's own clone, or a throwaway one in a probe.
+    @ObservationIgnored private let cloneProvider: @Sendable () -> SourceClone?
 
     /// For `SnapshotRunner --update-state`: sets what the last check answered, so
     /// each state of the version item can be rendered without the network.
@@ -152,32 +160,50 @@ public final class UpdateState {
 
     /// Reads the clone (local git, off the main thread) and answers for the channel in use. A channel
     /// that needs the network asks GitHub's public API; none of this fetches into the person's clone.
+    /// What each channel reads: Releases only whether there is a clone and its branch (the picker), Beta
+    /// also whether it is dirty, This Copy everything including the fingerprint of the uncommitted changes
+    /// (streamed through a hash). An answer is kept only if the channel is still the one that was asked
+    /// about when it arrives: a slow check for one channel never shows under another.
     private func refreshChannel(force: Bool) async {
+        let asked = channel
         let build = self.build
-        let facts: (hasClone: Bool, branch: String?, facts: CloneFacts?) = await Task.detached {
-            guard let clone = SourceClone.current else { return (false, nil, nil) }
-            return (true, clone.branch, clone.facts(installed: build.commit))
+        let provider = cloneProvider
+        let basics: (hasClone: Bool, branch: String?) = await Task.detached {
+            guard let clone = provider() else { return (false, nil) }
+            return (true, clone.branch)
         }.value
-        hasClone = facts.hasClone
-        cloneBranch = facts.branch
-        cloneFacts = facts.facts
-        switch channel {
+        hasClone = basics.hasClone
+        cloneBranch = basics.branch
+        guard channel == asked else { return }
+        switch asked {
         case .releases:
             channelState = nil
             channelChangelog = nil
+            cloneFacts = nil
+            cloneDirty = nil
         case .beta:
-            let compare: BetaCompare?
-            if hasClone, cloneBranch == "development", let commit = build.commit {
+            let dirty = await Task.detached { provider()?.isDirty }.value
+            var compare: BetaCompare?
+            if basics.hasClone, basics.branch == "development", let commit = build.commit {
                 compare = await UpdateChecker.betaCompare(installedCommit: commit, force: force)
-            } else {
-                compare = nil
             }
-            channelState = ChannelLogic.beta(build: build, cloneBranch: cloneBranch, isClone: hasClone, compare: compare)
+            let notes = basics.hasClone ? await UpdateChecker.betaChangelog(force: force) : nil
+            guard channel == asked else { return }
+            cloneDirty = dirty
+            cloneFacts = nil
+            channelState = ChannelLogic.beta(build: build, cloneBranch: basics.branch, isClone: basics.hasClone, compare: compare)
             newestBeta = compare?.newest
-            channelChangelog = hasClone ? await UpdateChecker.betaChangelog(force: force) : nil
+            channelChangelog = notes
         case .thisCopy:
-            channelState = ChannelLogic.thisCopy(build: build, clone: facts.facts)
-            channelChangelog = await Task.detached { SourceClone.current?.changelog }.value
+            let read: (facts: CloneFacts?, changelog: String?) = await Task.detached {
+                guard let clone = provider() else { return (nil, nil) }
+                return (clone.facts(installed: build.commit), clone.changelog)
+            }.value
+            guard channel == asked else { return }
+            cloneFacts = read.facts
+            cloneDirty = read.facts?.isDirty
+            channelState = ChannelLogic.thisCopy(build: build, isClone: basics.hasClone, clone: read.facts)
+            channelChangelog = read.changelog
         }
     }
 
@@ -215,6 +241,17 @@ public final class UpdateState {
             if alert.runModal() == .alertFirstButtonReturn {
                 SettingsOpener.open(target: "job:\(job.id.uuidString)")
             }
+            return
+        }
+        // Beta pulls whatever branch the clone is on NOW: the state is up to six hours old, so look again
+        if channel == .beta, cloneProvider()?.branch != "development" {
+            channelState = .unavailable(Names.ChannelText.branchChanged)
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = Names.ChannelText.branchChanged
+            alert.addButton(withTitle: "OK")
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
             return
         }
         phase = .installing

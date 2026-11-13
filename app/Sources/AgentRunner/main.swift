@@ -26,6 +26,7 @@ if args.first == "--probe-setup" {
         loginItem: SetupCheck(id: "login", title: "Opens at login",
                               why: "", verdict: .unset,
                               detail: "not queryable outside the app"))
+    print("version: \(BuildInfo.current.versionText)")
     print("engine: \(engine.summary)  root: \(AnalyzersPaths.suiteRoot.path)")
     print("bundled: \(AnalyzersPaths.usingBundledEngine)")
     for check in report.checks {
@@ -46,10 +47,21 @@ if args.first == "--probe-setup" {
 // the menu footer and What's New will say for THIS copy, read from its own
 // Info.plist and bundled changelog — so a development build can be told from a
 // release without opening a window.
+// `agent-runner --build-version <release> <commits after the tag | -> <local changes 0|1|?> <commit | ->`
+// prints the version of that build: `app/build.sh` stamps it into the app (MABuildVersion), so the build
+// script and the app build the string in the one place, BuildInfo.
+if args.first == "--build-version", args.count >= 5 {
+    // the third value: 0 clean, 1 uncommitted changes, ? git could not say (the version says .unknown)
+    let build = BuildInfo(release: args[1], commitsAfter: Int(args[2]), localChanges: args[3] == "1",
+                          commit: args[4] == "-" ? nil : args[4], treeHash: args[3] == "?" ? "unknown" : nil)
+    print(build.version)
+    exit(0)
+}
 if args.first == "--probe-build" {
     let build = BuildInfo.current
     print("stamp: release v\(build.release), commits after: \(build.commitsAfter.map(String.init) ?? "none (reads as a release)"), local changes: \(build.localChanges)")
     print("build line:            \(UpdateChecker.installedBuild ?? "(none)")")
+    print("version:               \(build.version)   (short: \(build.shortVersion); stamped: \(Bundle.main.object(forInfoDictionaryKey: "MABuildVersion") as? String ?? "none"))")
     print("Installed Version:     \(build.versionText)")
     if build.isDevelopment {
         print("status line:           \(build.developmentSentence(latest: "\(build.release)"))")
@@ -59,7 +71,7 @@ if args.first == "--probe-build" {
         print("sidebar state:         \(Names.State.upToDate)")
     }
     print("sidebar version:       \(build.sidebarText)")
-    print("menu footer:           \(build.versionText)")
+    print("menu footer:           \(build.shortVersionText)")
     let changelog = Bundle.main.resourceURL?.appending(path: "CHANGELOG.md")
     let text = changelog.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
     let headings = text.split(separator: "\n").filter { $0.hasPrefix("## ") }.prefix(2).map { String($0) }
@@ -259,6 +271,11 @@ if args.first == "--probe-reports" { probeReports(args) }
 // See ChannelProbes.swift.
 if args.first == "--probe-channels" {
     probeChannels()
+}
+// `--probe-versions`: the version a build is, how versions compare, and the owner's This Copy flow.
+// See VersionProbes.swift.
+if args.first == "--probe-versions" {
+    await probeVersions()
 }
 if args.first == "--probe-guard-rules" {
     probeGuardRules()

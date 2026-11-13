@@ -20,7 +20,7 @@ public enum UpdateChannel: String, CaseIterable, Sendable, Identifiable {
         }
     }
 
-    static let defaultsKey = "updateChannel"
+    public static let defaultsKey = "updateChannel"
 
     public static var saved: UpdateChannel {
         UserDefaults.standard.string(forKey: defaultsKey).flatMap(UpdateChannel.init(rawValue:)) ?? .releases
@@ -114,7 +114,10 @@ public enum ChannelLogic {
         }
         guard let compare else { return .unknown(Names.ChannelText.offline) }
         switch compare.status {
-        case "identical": return .upToDate
+        case "rateLimited": return .unknown(Names.ChannelText.rateLimited)
+        case "identical":
+            // the commit is the newest, but a build with uncommitted changes in it is not "the newest beta"
+            return build.localChanges || build.localChangesUnknown ? .ahead(Names.ChannelText.builtWithLocalChanges) : .upToDate
         case "ahead": return .behind(changes: compare.aheadBy, uncommitted: false)
         case "behind": return .ahead(Names.ChannelText.aheadOfDevelopment)
         case "missing": return .ahead(Names.ChannelText.notOnGitHub)
@@ -123,8 +126,10 @@ public enum ChannelLogic {
     }
 
     /// This Copy: the clone this build came from, uncommitted changes included.
-    public static func thisCopy(build: BuildInfo, clone: CloneFacts?) -> ChannelState {
-        guard let clone else { return .unavailable(Names.ChannelText.notAClone) }
+    public static func thisCopy(build: BuildInfo, isClone: Bool, clone: CloneFacts?) -> ChannelState {
+        guard isClone else { return .unavailable(Names.ChannelText.notAClone) }
+        // a clone that git could not be read in is unknown, never "clean": a wrong "up to date" hides work
+        guard let clone else { return .unknown(Names.ChannelText.cannotRead) }
         guard build.commit != nil else { return .behind(changes: nil, uncommitted: clone.isDirty) }
         let installedFingerprint = build.treeHash ?? (build.localChanges ? "unknown" : "clean")
         switch clone.relation {

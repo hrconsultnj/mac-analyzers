@@ -42,6 +42,11 @@ struct UpdateChannelRows: View {
             }
             .help("The newest commit on the development branch on GitHub")
             stateLabel
+            if updates.cloneDirty == true {
+                Label("Your clone has changes that are not committed yet. Updating pulls the newest commit and builds those changes in too.",
+                      systemImage: "info.circle")
+                    .foregroundStyle(.secondary)
+            }
         case .thisCopy:
             if let facts = updates.cloneFacts {
                 LabeledContent("Your Clone") {

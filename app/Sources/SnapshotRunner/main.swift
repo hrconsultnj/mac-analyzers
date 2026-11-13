@@ -151,8 +151,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
             case "available": (0, "999.0.0")
             default: (0, version)
             }
-            let forced = UpdateState(installed: version,
-                                     build: BuildInfo(release: version, commitsAfter: preset.commits, localChanges: false))
+            let forced = UpdateState(                                     build: BuildInfo(release: version, commitsAfter: preset.commits, localChanges: false))
             forced.preset(latest: preset.latest)
             // the development channels: `beta-behind|beta-current|beta-ahead|beta-offline|copy-behind|copy-dirty|copy-current|copy-differs`
             let commit = String(repeating: "a", count: 40)
@@ -169,7 +168,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
             ]
             if let fixture = fixtures[state] {
                 let channelBuild = BuildInfo(release: version, commitsAfter: 3, localChanges: true, commit: commit, branch: "development", treeHash: "x")
-                let channelState = UpdateState(installed: version, build: channelBuild)
+                let channelState = UpdateState(build: channelBuild)
                 channelState.preset(latest: version)
                 channelState.preset(channel: fixture.0, state: fixture.1, newest: fixture.2, cloneBranch: fixture.3.branch, facts: fixture.3)
                 return channelState
@@ -178,8 +177,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         }
         let parts = git(["describe", "--tags", "--long", "--match", "v[0-9]*"]).split(separator: "-")
         let ahead = parts.count >= 3 ? Int(parts[parts.count - 2]) : nil
-        return UpdateState(installed: version,
-                           build: BuildInfo(release: version, commitsAfter: ahead,
+        return UpdateState(                           build: BuildInfo(release: version, commitsAfter: ahead,
                                             localChanges: !git(["status", "--porcelain"]).isEmpty))
     }()
 

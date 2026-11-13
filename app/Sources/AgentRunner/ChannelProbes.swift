@@ -23,6 +23,7 @@ func probeChannels() -> Never {
         let out = Pipe()
         process.standardOutput = out
         process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
         try? process.run()
         let data = out.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
@@ -37,7 +38,7 @@ func probeChannels() -> Never {
     func build(commit: String?, tree: String? = "clean", dirty: Bool = false) -> BuildInfo {
         BuildInfo(release: "2.69.2", commitsAfter: 1, localChanges: dirty, commit: commit, branch: "development", treeHash: tree)
     }
-    func facts(_ clone: SourceClone, installed: String) -> CloneFacts { clone.facts(installed: installed) }
+    func facts(_ clone: SourceClone, installed: String) -> CloneFacts? { clone.facts(installed: installed) }
 
     // ── a clone with history, on the development branch
     let repo = root.appending(path: "clone", directoryHint: .isDirectory)
@@ -47,20 +48,20 @@ func probeChannels() -> Never {
     let clone = SourceClone(root: repo)
 
     print("— This Copy: the clone this build came from —")
-    check("equal: built from the clone's head, clean", ChannelLogic.thisCopy(build: build(commit: first), clone: facts(clone, installed: first)),
+    check("equal: built from the clone's head, clean", ChannelLogic.thisCopy(build: build(commit: first), isClone: true, clone: facts(clone, installed: first)),
           .upToDate, channel: .thisCopy)
 
     _ = commit(repo, "b.txt", "two\n")
     let third = commit(repo, "c.txt", "three\n")
-    check("behind: the clone has 2 commits the install lacks", ChannelLogic.thisCopy(build: build(commit: first), clone: facts(clone, installed: first)),
+    check("behind: the clone has 2 commits the install lacks", ChannelLogic.thisCopy(build: build(commit: first), isClone: true, clone: facts(clone, installed: first)),
           .behind(changes: 2, uncommitted: false), channel: .thisCopy)
 
     write(repo, "a.txt", "one, edited\n")
     write(repo, "new.txt", "untracked\n")
-    check("behind and dirty: 2 commits and uncommitted changes", ChannelLogic.thisCopy(build: build(commit: first), clone: facts(clone, installed: first)),
+    check("behind and dirty: 2 commits and uncommitted changes", ChannelLogic.thisCopy(build: build(commit: first), isClone: true, clone: facts(clone, installed: first)),
           .behind(changes: 2, uncommitted: true), channel: .thisCopy)
     check("same commit, dirty now, installed built clean: uncommitted work not installed",
-          ChannelLogic.thisCopy(build: build(commit: third), clone: facts(clone, installed: third)),
+          ChannelLogic.thisCopy(build: build(commit: third), isClone: true, clone: facts(clone, installed: third)),
           .behind(changes: 0, uncommitted: true), channel: .thisCopy)
 
     // the stamp build.sh makes (scripts/tree-hash.sh) and the clone's own reading must be the same value
@@ -71,13 +72,14 @@ func probeChannels() -> Never {
         shell.executableURL = hashScript
         shell.arguments = [dir.path]
         let shellOut = Pipe(); shell.standardOutput = shellOut
+        shell.standardInput = FileHandle.nullDevice
         try? shell.run()
         let value = String(decoding: shellOut.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         shell.waitUntilExit()
         return value
     }
     func sameHash(_ label: String) {
-        let stamped = stamp(repo), read = clone.fingerprint
+        let stamped = stamp(repo), read = clone.fingerprint ?? "nil"
         let ok = stamped == read && (stamped == "clean" || stamped.count == 64)
         if !ok { failed += 1 }
         print("\(ok ? "PASS" : "FAIL") \(label): build.sh's tree hash equals the app's reading\n       (\(stamped.prefix(12))… vs \(read.prefix(12))…)")
@@ -106,30 +108,30 @@ func probeChannels() -> Never {
     let builtWithUntracked = stamp(repo)
     write(repo, "new.txt", "untracked, edited after the build\n")
     check("an untracked file changed after the build: not up to date",
-          ChannelLogic.thisCopy(build: build(commit: third, tree: builtWithUntracked, dirty: true), clone: facts(clone, installed: third)),
+          ChannelLogic.thisCopy(build: build(commit: third, tree: builtWithUntracked, dirty: true), isClone: true, clone: facts(clone, installed: third)),
           .behind(changes: 0, uncommitted: true), channel: .thisCopy)
     write(repo, "new.txt", "untracked\n")
     check("same commit, installed built with exactly these uncommitted changes: up to date",
-          ChannelLogic.thisCopy(build: build(commit: third, tree: stamped, dirty: true), clone: facts(clone, installed: third)),
+          ChannelLogic.thisCopy(build: build(commit: third, tree: stamped, dirty: true), isClone: true, clone: facts(clone, installed: third)),
           .upToDate, channel: .thisCopy)
     check("installed built with other uncommitted changes than the clone has now",
-          ChannelLogic.thisCopy(build: build(commit: third, tree: String(repeating: "a", count: 64), dirty: true), clone: facts(clone, installed: third)),
+          ChannelLogic.thisCopy(build: build(commit: third, tree: String(repeating: "a", count: 64), dirty: true), isClone: true, clone: facts(clone, installed: third)),
           .behind(changes: 0, uncommitted: true), channel: .thisCopy)
 
     git(repo, ["checkout", "-q", "--", "."]); try? FileManager.default.removeItem(at: repo.appending(path: "new.txt"))
     check("the install had uncommitted changes the clone no longer has",
-          ChannelLogic.thisCopy(build: build(commit: third, tree: stamped, dirty: true), clone: facts(clone, installed: third)),
+          ChannelLogic.thisCopy(build: build(commit: third, tree: stamped, dirty: true), isClone: true, clone: facts(clone, installed: third)),
           .differs(Names.ChannelText.installHadChangesCloneLost), channel: .thisCopy)
 
     git(repo, ["reset", "-q", "--hard", first])
     check("ahead: the install is from commits the clone has since reset away",
-          ChannelLogic.thisCopy(build: build(commit: third), clone: facts(clone, installed: third)),
+          ChannelLogic.thisCopy(build: build(commit: third), isClone: true, clone: facts(clone, installed: third)),
           .differs(Names.ChannelText.cloneIsBehindInstall), channel: .thisCopy)
     check("unrelated: the install's commit is not in the clone at all",
-          ChannelLogic.thisCopy(build: build(commit: String(repeating: "b", count: 40)), clone: facts(clone, installed: String(repeating: "b", count: 40))),
+          ChannelLogic.thisCopy(build: build(commit: String(repeating: "b", count: 40)), isClone: true, clone: facts(clone, installed: String(repeating: "b", count: 40))),
           .differs(Names.ChannelText.cloneLacksCommit), channel: .thisCopy)
     check("an older build that recorded no commit",
-          ChannelLogic.thisCopy(build: build(commit: nil), clone: facts(clone, installed: first)),
+          ChannelLogic.thisCopy(build: build(commit: nil), isClone: true, clone: facts(clone, installed: first)),
           .behind(changes: nil, uncommitted: false), channel: .thisCopy)
 
     let plain = root.appending(path: "download", directoryHint: .isDirectory)
@@ -137,7 +139,7 @@ func probeChannels() -> Never {
     let notClone = SourceClone(root: plain).isWorkingTree
     if notClone { failed += 1 }
     print("\(notClone ? "FAIL" : "PASS") a folder that is not a git working tree is not a clone")
-    check("not a clone (a download): This Copy is unavailable", ChannelLogic.thisCopy(build: build(commit: first), clone: nil),
+    check("not a clone (a download): This Copy is unavailable", ChannelLogic.thisCopy(build: build(commit: first), isClone: false, clone: nil),
           .unavailable(Names.ChannelText.notAClone), channel: .thisCopy)
 
     print("\n— Beta: the newest commit on development on GitHub —")
@@ -165,6 +167,131 @@ func probeChannels() -> Never {
           .unavailable(Names.ChannelText.notAClone), channel: .beta)
     check("an older build that recorded no commit is offered the newest once", ChannelLogic.beta(build: build(commit: nil), cloneBranch: "development", isClone: true, compare: nil),
           .behind(changes: nil, uncommitted: false), channel: .beta)
+
+    // ── reading a clone must run nothing the clone names, and a failure is never "clean"
+    print("\n— a hostile clone: nothing it names may run —")
+    let hostile = root.appending(path: "hostile", directoryHint: .isDirectory)
+    try? FileManager.default.createDirectory(at: hostile, withIntermediateDirectories: true)
+    let markers = root.appending(path: "markers.txt")
+    func script(_ name: String) -> String {
+        let url = root.appending(path: "run-\(name).sh")
+        try? "#!/bin/sh\necho \(name) >> '\(markers.path)'\ncat\n".write(to: url, atomically: true, encoding: .utf8)
+        chmod(url.path, 0o755)
+        return url.path
+    }
+    git(hostile, ["init", "-q", "-b", "development"])
+    write(hostile, "a.txt", "one\n"); write(hostile, "b.bin", "bin\n"); write(hostile, "c.log", "log\n")
+    git(hostile, ["add", "-A"]); git(hostile, ["commit", "-q", "-m", "first"])
+    let hostileHead = git(hostile, ["rev-parse", "HEAD"])
+    // everything that can name a program: in the clone's own configuration, its attributes, its info/attributes,
+    // an included file, a hooks folder, and an attributes file
+    write(hostile, ".gitattributes", "*.txt filter=evil diff=evildiff\n")
+    write(root, "included.config", "[core]\n\tfsmonitor = \(script("include-fsmonitor"))\n")
+    let hooks = root.appending(path: "hooks", directoryHint: .isDirectory)
+    try? FileManager.default.createDirectory(at: hooks, withIntermediateDirectories: true)
+    for hook in ["pre-commit", "post-checkout", "post-merge", "reference-transaction", "fsmonitor-watchman"] {
+        try? "#!/bin/sh\necho hook-\(hook) >> '\(markers.path)'\n".write(to: hooks.appending(path: hook), atomically: true, encoding: .utf8)
+        chmod(hooks.appending(path: hook).path, 0o755)
+    }
+    write(root, "global.attributes", "*.log filter=evil3\n")
+    try? "*.bin filter=evil2\n".write(to: hostile.appending(path: ".git/info/attributes"), atomically: true, encoding: .utf8)
+    let settings: [(String, String)] = [
+        ("core.fsmonitor", script("fsmonitor")), ("include.path", root.appending(path: "included.config").path),
+        ("filter.evil.clean", script("clean-filter")), ("filter.evil.smudge", script("smudge-filter")),
+        ("filter.evil.process", script("process-filter")), ("filter.evil2.clean", script("info-attributes-filter")),
+        ("filter.evil3.clean", script("attributes-file-filter")), ("core.attributesFile", root.appending(path: "global.attributes").path),
+        ("diff.evildiff.textconv", script("textconv")), ("diff.evildiff.command", script("diff-driver")),
+        ("diff.external", script("external-diff")), ("core.hooksPath", hooks.path), ("core.pager", script("pager")),
+        ("pager.diff", script("pager-diff")), ("core.sshCommand", script("ssh")), ("credential.helper", script("credential")),
+        ("gpg.program", script("gpg")), ("uploadpack.packObjectsHook", script("uploadpack")),
+        ("core.editor", script("editor")), ("sequence.editor", script("sequence-editor")),
+    ]
+    for (key, value) in settings { git(hostile, ["config", key, value]) }
+    git(hostile, ["config", "includeIf.gitdir:\(hostile.path)/.path", root.appending(path: "included.config").path])
+    // work to find, so status and diff have a reason to run their filters
+    write(hostile, "a.txt", "one, edited\n"); write(hostile, "b.bin", "bin, edited\n"); write(hostile, "c.log", "log, edited\n")
+    write(hostile, "new.txt", "untracked\n")
+    func fired() -> [String] {
+        ((try? String(contentsOf: markers, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
+    }
+    // control: plain git on this clone DOES run them, so the setup is a real test
+    try? FileManager.default.removeItem(at: markers)
+    for command in [["status", "--porcelain"], ["diff", "HEAD"], ["ls-files", "--others"]] {
+        let control = Process()
+        control.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        control.arguments = ["-C", hostile.path] + command
+        control.standardOutput = FileHandle.nullDevice; control.standardError = FileHandle.nullDevice
+        control.standardInput = FileHandle.nullDevice
+        try? control.run(); control.waitUntilExit()
+    }
+    let control = Set(fired())
+    let controlOK = !control.isEmpty
+    if !controlOK { failed += 1 }
+    print("\(controlOK ? "PASS" : "FAIL") control: plain git on this clone runs \(control.sorted()) (the test can fail)")
+    try? FileManager.default.removeItem(at: markers)
+    let hostileClone = SourceClone(root: hostile)
+    _ = hostileClone.isWorkingTree; _ = hostileClone.branch; _ = hostileClone.head; _ = hostileClone.isDirty
+    _ = hostileClone.fingerprint; _ = hostileClone.facts(installed: hostileHead); _ = hostileClone.changelog
+    _ = stamp(hostile)
+    let ran = fired()
+    if !ran.isEmpty { failed += 1 }
+    print("\(ran.isEmpty ? "PASS" : "FAIL") reading the hostile clone (every read the app makes, and scripts/tree-hash.sh) ran nothing: \(ran.isEmpty ? "no marker" : Set(ran).sorted().joined(separator: ", "))")
+    print("\(stamp(hostile).count == 64 ? "PASS" : "FAIL") …and the hash of its uncommitted work is a real hash")
+    if stamp(hostile).count != 64 { failed += 1 }
+    let sameAsApp = stamp(hostile) == hostileClone.fingerprint
+    if !sameAsApp { failed += 1 }
+    print("\(sameAsApp ? "PASS" : "FAIL") the script and the app still agree on a clone with .gitattributes and filters configured")
+
+    print("\n— a failure is never \"clean\" —")
+    let broken = root.appending(path: "broken", directoryHint: .isDirectory)
+    try? FileManager.default.createDirectory(at: broken, withIntermediateDirectories: true)
+    git(broken, ["init", "-q", "-b", "development"])
+    let brokenFirst = commit(broken, "a.txt", "one\n")
+    write(broken, "a.txt", "edited\n")
+    let index = broken.appending(path: ".git/index").path
+    chmod(index, 0o000)
+    let brokenClone = SourceClone(root: broken)
+    let brokenFacts = brokenClone.facts(installed: brokenFirst)
+    let unreadable = brokenClone.isDirty == nil && brokenClone.fingerprint == nil && brokenFacts == nil
+    if !unreadable { failed += 1 }
+    print("\(unreadable ? "PASS" : "FAIL") an unreadable index with a tracked edit: dirty, fingerprint and facts are nil (unknown), not clean")
+    check("   and This Copy says unknown, not that it matches", ChannelLogic.thisCopy(build: build(commit: brokenFirst), isClone: true, clone: brokenFacts),
+          .unknown(Names.ChannelText.cannotRead), channel: .thisCopy)
+    let scriptFails = Process()
+    scriptFails.executableURL = hashScript; scriptFails.arguments = [broken.path]
+    let scriptOut = Pipe(); scriptFails.standardOutput = scriptOut; scriptFails.standardError = FileHandle.nullDevice
+    scriptFails.standardInput = FileHandle.nullDevice
+    try? scriptFails.run(); scriptFails.waitUntilExit()
+    let scriptPrinted = String(decoding: scriptOut.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    let scriptFailed = scriptFails.terminationStatus != 0 && !scriptPrinted.contains("clean")
+    if !scriptFailed { failed += 1 }
+    print("\(scriptFailed ? "PASS" : "FAIL") scripts/tree-hash.sh exits non-zero and prints nothing for it (a build then stamps \"unknown\", never \"clean\")")
+    chmod(index, 0o644)
+
+    print("\n— settings that hide work cannot hide it —")
+    let hidden = root.appending(path: "hidden", directoryHint: .isDirectory)
+    try? FileManager.default.createDirectory(at: hidden, withIntermediateDirectories: true)
+    git(hidden, ["init", "-q", "-b", "development"])
+    _ = commit(hidden, "a.txt", "one\n")
+    git(hidden, ["config", "status.showUntrackedFiles", "no"])
+    git(hidden, ["config", "diff.ignoreSubmodules", "all"])
+    write(hidden, "NewFile.swift", "let x = 1\n")
+    let hiddenClone = SourceClone(root: hidden)
+    let seen = hiddenClone.isDirty == true && stamp(hidden).count == 64
+    if !seen { failed += 1 }
+    print("\(seen ? "PASS" : "FAIL") status.showUntrackedFiles=no in the clone: the new file still makes it dirty and is hashed")
+    let before = stamp(hidden)
+    write(hidden, "NewFile.swift", "let x = 2\n")
+    let edited = stamp(hidden) != before && hiddenClone.fingerprint == stamp(hidden)
+    if !edited { failed += 1 }
+    print("\(edited ? "PASS" : "FAIL") …and an edit to it changes the hash, in the script and in the app")
+
+    print("\n— a folder inside a bigger repository is not a clone —")
+    let inner = repo.appending(path: "inside", directoryHint: .isDirectory)
+    try? FileManager.default.createDirectory(at: inner, withIntermediateDirectories: true)
+    let innerIsClone = SourceClone(root: inner).isWorkingTree
+    if innerIsClone { failed += 1 }
+    print("\(innerIsClone ? "FAIL" : "PASS") a folder inside a repository (a home folder that is a dotfiles repo) is not taken for the clone")
 
     print("\n\(failed == 0 ? "all channel states are as expected" : "\(failed) state(s) wrong")")
     ProbeScratch.finish(failed == 0 ? 0 : 1)

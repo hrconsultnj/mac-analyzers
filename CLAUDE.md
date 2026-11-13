@@ -345,13 +345,28 @@ Both are protected (code-owner review required for PRs; owner pushes directly).
   A copy built from a git clone can also follow an update channel, picked on
   the Updates screen (`UpdateChannel`, saved in defaults): **Releases** (the
   default, as above), **Beta** (the newest commit on `development`, read with
-  one public GitHub compare of the commit this copy was built from; Install is
-  `upgrade.command`, a `git pull --ff-only` on development plus a rebuild; only
-  offered when the clone is on `development`) and **This Copy** (the clone
-  itself, uncommitted changes included, read with plain local `git`; "Rebuild
-  from This Copy" runs `rebuild.command`, the same build without the pull). The
-  build stamps `MABuildCommit`, `MABuildBranch` and `MABuildTreeHash` (a hash
-  of the uncommitted changes that the app recomputes the same way), and a
-  downloaded app, which has no clone, shows Releases only. Nothing fetches into
-  the person's clone and nothing installs by itself; `agent-runner
-  --probe-channels` proves every state against a throwaway repository.
+  two public GitHub requests, a compare of the commit this copy was built from
+  and the changelog on `development`; Install is `upgrade.command`, a `git pull
+  --ff-only` on development plus a rebuild; only offered when the clone is on
+  `development`) and **This Copy** (the clone itself, uncommitted changes
+  included, read with local `git`; "Rebuild from This Copy" runs
+  `rebuild.command`, the same build without the pull). The build stamps
+  `MABuildCommit`, `MABuildBranch`, `MABuildTreeHash` (`scripts/tree-hash.sh`:
+  "clean", a hash of the uncommitted changes and the bytes of untracked files,
+  or "unknown"; the app recomputes the same value) and `MABuildVersion`.
+  **Reading a clone must never run a program the clone names** and a failure
+  is never "clean": every git call (`SourceClone`, `scripts/tree-hash.sh`) turns
+  off fsmonitor, hooks and attributes (`--attr-source` the empty tree), empties
+  every filter and diff driver the clone defines, ignores the person's global
+  and system configuration, runs with a minimal environment, and asks for
+  untracked files and submodules whatever the settings say; git failing makes
+  the state "unknown". A downloaded app, or a Mac without the developer tools,
+  runs no git at all (`GitTools`, so Apple's install dialog never appears) and
+  shows Releases only. A development build is never named for the release:
+  `BuildInfo.version` is the next patch, `-dev.<commits since the tag>`,
+  `+<short commit>` and `.local` (or `.unknown`) for uncommitted changes, by
+  semantic-versioning precedence (`2.69.2 < 2.69.3-dev.42 < 2.69.3`); Beta and
+  This Copy decide "newer" by commit and fingerprint, never by that string.
+  Nothing fetches into the person's clone and nothing installs by itself;
+  `agent-runner --probe-channels` (including a hostile clone that writes a
+  marker if anything runs) and `--probe-versions` prove it.

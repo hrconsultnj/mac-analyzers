@@ -7,6 +7,13 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
+- A copy built from work that is not released yet no longer claims the version
+  of the last release. It is named for the release it is heading to, with a
+  development number, for example 2.69.3-dev.42 in the sidebar, and the full
+  name, with the build it came from and a note when it has changes that are
+  not saved to the project yet, on the Updates screen. A copy like this is
+  never offered the release it is already past, and is offered the next real
+  one when it comes out.
 - A copy of Mac Analyzers that you built from your own clone can now follow
   more than the releases. On the Updates screen, choose Beta to see the newest
   work being developed, or This Copy to see your clone as it is right now,
