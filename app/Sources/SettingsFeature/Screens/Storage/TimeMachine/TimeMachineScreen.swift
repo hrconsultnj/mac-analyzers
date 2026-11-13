@@ -29,6 +29,8 @@ struct TimeMachineScreen: View {
     var fixture: StorageRows?
     /// Whether the example shows the permission as missing.
     var fixtureNeedsPermission = false
+    /// Whether the example shows an earlier Terminal permission in effect (allowed, with no file of this account's own).
+    var fixtureEarlierPermission = false
 
     private static let parse: @Sendable (WholeRun.Block) -> StorageRows = { TimeMachineReview.build(lines: $0.lines).rows }
 
@@ -48,7 +50,7 @@ struct TimeMachineScreen: View {
         switch model.phase {
         case .running: model.job?.step ?? "Looking…"
         case .loading: "Reading the results…"
-        default: "Backups on your Time Machine disk are never touched"
+        default: "Your backups aren't touched"
         }
     }
 
@@ -62,7 +64,7 @@ struct TimeMachineScreen: View {
         .safeAreaBar(edge: .top, alignment: .leading, spacing: 0) { permissionBar }
         .onAppear {
             model.adopt(store, kind: .tmReclaim)
-            if let fixture { model.showFixture(fixture); allowed = !fixtureNeedsPermission; ruleThere = !fixtureNeedsPermission; legacyThere = false }
+            if let fixture { model.showFixture(fixture); allowed = !fixtureNeedsPermission; ruleThere = !fixtureNeedsPermission && !fixtureEarlierPermission; legacyThere = fixtureEarlierPermission }
         }
         // sudo is asked, as this person, whether it would run the command: a rule left by an older version, or one
         // for another account, is "not allowed" here (listing runs nothing and asks for no password)
