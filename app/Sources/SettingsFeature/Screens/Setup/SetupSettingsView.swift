@@ -134,16 +134,16 @@ struct SetupSettingsView: View {
             Image(systemName: symbol(check.verdict))
                 .foregroundStyle(tone(check.verdict).tint)
                 .imageScale(.large)
-                .padding(.top, Tokens.Space.hair)
             VStack(alignment: .leading, spacing: Tokens.Space.xs) {
                 Text(check.title).font(.callout.weight(.medium))
                 Text(check.why)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                // the evidence, visually separated from the sales pitch
+                // the evidence, visually separated from the sales pitch by weight and colour, not by a
+                // typewriter face: it is a sentence ("macOS does not recognise this copy…"), not program output
                 Text(check.detail)
-                    .font(.caption.monospaced())
+                    .font(.caption)
                     .foregroundStyle(check.verdict == .ready ? .secondary : .primary)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
@@ -157,7 +157,6 @@ struct SetupSettingsView: View {
                 .buttonStyle(.glassProminent)
             }
         }
-        .padding(.vertical, Tokens.Space.xxs)
     }
 
     private func symbol(_ verdict: SetupCheck.Verdict) -> String {

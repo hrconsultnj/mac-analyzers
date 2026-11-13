@@ -98,6 +98,41 @@ public enum StorageFixtures {
         return UnusedReview.apps(lines: lines.map { $0.trimmingCharacters(in: .whitespaces) })
     }
 
+    /// The detail of Unused Apps with its groups open: an app with its files and the apps inside it, an app with a
+    /// left-in-place folder and a shared container, and an app that is kept, with the sentence over the table about
+    /// what could not be read.
+    public static func unusedAppsDetail() -> StorageRows {
+        let day = { (days: Int) in DateFormatter.fixtureDay.string(from: Date().addingTimeInterval(-Double(days) * 86_400)) }
+        let lines = [
+            "### APP: Old Editor   (bundle: com.example.OldEditor)", "[APP]     /Applications/Old Editor.app", "last launched (Spotlight): \(day(520))",
+            "contains: 2 other app(s) inside it, removed with it: Updater.app; Crash Reporter.app (their own settings and data are left in place)",
+            "[DRY]       1.2 GB  /Applications/Old Editor.app", "[DRY]       640 MB  \(home)/Library/Application Support/Old Editor",
+            "[DRY]       90 MB  \(home)/Library/Caches/com.example.OldEditor", "[DRY]       12 KB  \(home)/Library/Preferences/com.example.OldEditor.plist",
+            "### APP: Electron Notes   (bundle: com.example.electronnotes)", "[APP]     /Applications/Electron Notes.app", "last launched (Spotlight): \(day(450))",
+            "[DRY]       180 MB  /Applications/Electron Notes.app", "[DRY]       60 MB  \(home)/Library/Caches/com.example.electronnotes",
+            "[LEFT]      2.0 GB  \(home)/Library/Application Support/Electron  —  it carries the app's name, but another program may use the same name",
+            "[LEFT]      40 MB  \(home)/Library/Group Containers/group.example.shared  —  another app shares this group container",
+            "[LEFT]      8 MB  \(home)/Library/Group Containers/group.com.example.electronnotes  —  its name matches the app, but the app does not declare it, so nothing shows it is the app's",
+            "### APP: VPN Client   (bundle: com.example.VPNClient)", "[APP]     /Applications/VPN Client.app", "last launched (Spotlight): \(day(260))",
+            "[KEEP]    Has a system extension",
+            "[CONTAINERS-KEPT] the settings of Broken Tool.xpc could not be read; an app folder that is configured is not there: /Volumes/Apps/Applications",
+        ]
+        return UnusedReview.apps(lines: lines)
+    }
+
+    /// Every app kept because which apps open at login cannot be checked yet: nothing run, or the last run could not read them.
+    public static func unusedAppsLoginFirst(unreadable: Bool) -> StorageRows {
+        let reason = unreadable
+            ? "Which apps open at login can't be checked yet: the last Login & Startup Items check could not read your Login Items. Run it from the Mac Analyzers app, where macOS can ask for permission, then preview again"
+            : "Which apps open at login can't be checked yet: run Login & Startup Items first, then preview again"
+        var lines: [String] = []
+        for (name, days) in [("Old Editor", 520), ("Screen Recorder", 410), ("Photo Tool", 230)] {
+            lines += ["### APP: \(name)   (bundle: com.example.\(name.replacingOccurrences(of: " ", with: "")))", "[APP]     /Applications/\(name).app",
+                      "last launched (Spotlight): \(DateFormatter.fixtureDay.string(from: Date().addingTimeInterval(-Double(days) * 86_400)))", "[KEEP]    \(reason)"]
+        }
+        return UnusedReview.apps(lines: lines)
+    }
+
     /// What a preview of old recordings shows: folders by the month they were made.
     public static func recordings() -> StorageRows {
         let months = ["Standup 2026-05", "Client call 2026-05", "Demo 2026-06", "All hands 2026-06", "Interview 2026-07"]
@@ -113,7 +148,10 @@ public enum StorageFixtures {
         let documents = ["Invoice March.pdf", "Tax Notes.docx", "Lease.pdf", "Receipt 4821.pdf", "Meeting Notes.txt"]
         for (index, name) in documents.enumerated() { lines.append("[DRY] \(index + 1) MB  \(home)/Downloads/\(name)") }
         lines += ["[DRY] 2.5 GB  \(home)/Downloads/2025", "[DRY] 640.0 MB  \(home)/Downloads/Setup.dmg",
-                  "[DRY] 3 MB  \(home)/Downloads/photo.jpg", "### Screenshots (untouched 60+ days)"]
+                  "[DRY] 3 MB  \(home)/Downloads/photo.jpg",
+                  // documents that exist only in iCloud: shown with their real size, never offered
+                  "[CLOUD] 120.0 MB  \(home)/Downloads/Thesis draft.docx", "[CLOUD] 48.0 MB  \(home)/Downloads/Contract signed.pdf",
+                  "### Screenshots (untouched 60+ days)"]
         for index in 0..<12 { lines.append("[CLOUD] 26 KB  \(home)/Desktop/Screenshots/Screenshot \(index).png") }
         lines.append("[SKIP] kept by pattern  \(home)/Downloads/keep-me.zip")
         return DownloadReview.build(lines: lines, info: { path in

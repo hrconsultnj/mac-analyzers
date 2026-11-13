@@ -52,6 +52,14 @@ public struct CensusGroup: Identifiable, Sendable {
     /// Live coding sessions that run inside this app (apps only): agent → how
     /// many. Quitting the app ends them, so the dialog says so.
     public let hostedSessions: [String: Int]
+    /// What the group IS inside its category (a browser, a dev server, a macOS service). One reading, from the
+    /// catalog in `memory-analyzer/rules/kinds.json`: the Monitor, the menu-bar panel and the guard all read this.
+    public let kind: ProcessKind
+    /// Which rule decided the kind, and whether it rests on an identity or only on a name.
+    public let kindMatch: KindMatch
+    /// Why this group is left alone or handled with care, in words: part of macOS, another account's, a live coding
+    /// session, a Connection Tool. Says only what Monitor's Stop and Quit do. nil when nothing is held back.
+    public let leftAlone: String?
 
     public var totalBytes: Int64 { members.reduce(0) { $0 + $1.memoryBytes } }
     public var totalText: String { MemorySize.text(totalBytes) }
@@ -81,7 +89,7 @@ public struct CensusGroup: Identifiable, Sendable {
             parts: parts.compactMap { $0.keeping(keptPIDs) },
             quit: quit,
             programs: programs.compactMap { $0.keeping(keptPIDs) },
-            hostedSessions: hostedSessions)
+            hostedSessions: hostedSessions, kind: kind, kindMatch: kindMatch, leftAlone: leftAlone)
     }
 }
 

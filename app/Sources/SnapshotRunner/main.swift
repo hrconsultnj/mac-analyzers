@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--scroll-end] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -85,6 +85,14 @@ if let domain = Bundle.main.bundleIdentifier ?? Optional(ProcessInfo.processInfo
 // the example screens (`review:fixture`) can be linked only in this process; this tool has no
 // app bundle, so MA_CHANGELOG names the changelog What's New shows (read HERE, never by the app)
 let changelog = ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fileURLWithPath: $0) }
+// the kinds a screen shows come from the checkout this tool was built from, not from whichever engine the person's
+// own checkout holds: a render of work in progress must show that work's `kinds.json`
+do {
+    var checkout = URL(fileURLWithPath: #filePath)
+    for _ in 0..<4 { checkout.deleteLastPathComponent() }
+    let rules = checkout.appending(path: "memory-analyzer/rules/kinds.json")
+    if FileManager.default.fileExists(atPath: rules.path) { KindCatalog.use(file: rules) }
+}
 // Called directly, never awaited: one `await` in this file's top-level code makes the whole of it
 // an async task, and `NSApplication.run()` started inside a task never services the main dispatch
 // queue, so the delayed capture below would never fire and the tool would sit there until killed
@@ -113,6 +121,8 @@ let fakeReview = arguments.contains("--fake-review")
 /// `--fake-pressure`: the memory screens' history holds a stretch of warning and critical pressure (the Mac is at normal when it renders).
 let fakePressure = arguments.contains("--fake-pressure")
 let scrollToEnd = arguments.contains("--scroll-end")
+/// `--scroll-sidebar`: scroll the sidebar (the narrowest scrollable view) to its last row.
+let scrollSidebar = arguments.contains("--scroll-sidebar")
 /// `--update-state uptodate|dev|available`: which state the sidebar's version item shows
 /// (the network is not asked), to render every state of it.
 let updateStateOption = option("--update-state")
@@ -211,6 +221,9 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         if scrollToEnd {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1) { self.scrollLongestToEnd() }
         }
+        if scrollSidebar {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1) { self.scrollLongestToEnd(leftmost: true) }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait) { self.capture() }
     }
 
@@ -277,14 +290,18 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         exit(code)
     }
 
-    /// The tallest scroll view in the window, taken to its last row.
-    private func scrollLongestToEnd() {
+    /// The tallest scroll view in the window, taken to its last row; with `leftmost` the narrowest (the sidebar).
+    private func scrollLongestToEnd(leftmost: Bool = false) {
         var best: NSScrollView?
         func visit(_ view: NSView) {
             if let scroll = view as? NSScrollView, let document = scroll.documentView,
-               document.frame.height > scroll.contentView.bounds.height,
-               document.frame.height > (best?.documentView?.frame.height ?? 0) {
-                best = scroll
+               document.frame.height > scroll.contentView.bounds.height {
+                if leftmost {
+                    // the sidebar is the narrowest scroll view (the detail's spans the window, under it)
+                    if scroll.frame.width < (best?.frame.width ?? .greatestFiniteMagnitude) { best = scroll }
+                } else if document.frame.height > (best?.documentView?.frame.height ?? 0) {
+                    best = scroll
+                }
             }
             view.subviews.forEach(visit)
         }

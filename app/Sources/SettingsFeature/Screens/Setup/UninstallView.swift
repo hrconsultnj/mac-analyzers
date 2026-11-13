@@ -19,6 +19,8 @@ struct UninstallView: View {
     @State private var job: Job?
     /// The Time Machine permission, as the disk says it is now: read when the screen opens and again after any change.
     @State private var permission = TurnOffPermission.rows()
+    /// Example rows from `SnapshotRunner`'s `turnoff:` targets; nil in the app people use.
+    var permissionFixture: TurnOffPermission.Rows?
 
     enum Level: String, Identifiable {
         case pause, background, everything
@@ -125,7 +127,7 @@ struct UninstallView: View {
             Text(confirming.map { confirmMessage(for: $0) } ?? "")
         }
         .task {
-            permission = TurnOffPermission.rows()
+            permission = permissionFixture ?? TurnOffPermission.rows()
             await adoptRunning()
         }
     }
@@ -219,7 +221,11 @@ struct UninstallView: View {
             // half-done state behind and the sentence below can say exactly what is still there. The
             // prompt is the only step a person can refuse, so it comes last of the removals; the Finder
             // window opens after it whatever the answer was.
-            if level == .everything, permission.removable {
+            if level == .everything, permission.removable, !agentsOff {
+                // turning the agents off failed: no password prompt on top of a failure
+                result = (result.map { $0 + " " } ?? "")
+                    + "The Time Machine permission was left in place, and no password was asked. Remove it with Remove Permission… on this screen once the background jobs are off."
+            } else if level == .everything, permission.removable {
                 let outcome = await TimeMachinePermission.revoke()
                 permission = TurnOffPermission.rows()
                 let said = TurnOffPermission.sentence(after: outcome, stillThere: permission.removable)
