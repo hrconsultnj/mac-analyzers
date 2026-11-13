@@ -25,7 +25,16 @@ public struct MemoryKindReport: Sendable {
 
     public struct Band: Sendable {
         public let date: Date
+        /// The state (1 normal, 2 warning, 4 critical): the bar's colour.
         public let level: Int
+        /// How much pressure, 0 to 100: the bar's height.
+        public let percent: Int
+
+        public init(date: Date, level: Int, percent: Int) {
+            self.date = date
+            self.level = level
+            self.percent = percent
+        }
     }
 
     public let kind: MemoryKind
@@ -119,7 +128,7 @@ public struct MemoryKindReport: Sendable {
                 facts: [("Free", MemorySize.text(b.freeBytes, .figure)), ("In use (apps, wired, compressed)", MemorySize.text(b.usedBytes, .figure)),
                         ("Memory pressure", pressureWord(now.pressureLevel))],
                 charts: [Chart(title: Names.MemoryKind.free, unit: .bytes, series: [series(Names.MemoryKind.free, .free) { Double($0.breakdown.freeBytes) }])],
-                pressure: samples.map { Band(date: $0.date, level: $0.pressureLevel) },
+                pressure: samples.map { Band(date: $0.date, level: $0.pressureLevel, percent: $0.pressurePercent) },
                 notes: ["Pressure is the system's own verdict on whether memory is keeping up: normal, warning or critical. Free memory on its own says little, because macOS fills spare room with cached files on purpose.", note],
                 since: samples.first?.date)
         case .swap:

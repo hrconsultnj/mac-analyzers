@@ -12,6 +12,9 @@ public struct MemorySample: Sendable, Equatable {
     public let swapTotalBytes: Int64
     /// Pressure level as the kernel gives it: 1 normal, 2 warning, 4 critical.
     public let pressureLevel: Int
+    /// How much pressure there is, 0 to 100: 100 minus `kern.memorystatus_level` (the share of memory the kernel still
+    /// counts as available). The HEIGHT of Activity Monitor's pressure graph; the level above is its colour.
+    public let pressurePercent: Int
     /// What the graphics driver has allocated (system-wide), when it could be read.
     public let graphicsBytes: Int64?
     /// Lifetime counters, in pages of `pageSize`; a rate is the difference between two samples over the time between them.
@@ -22,13 +25,15 @@ public struct MemorySample: Sendable, Equatable {
     public let pageSize: Int64
 
     public init(date: Date, breakdown: MemoryBreakdown, swapUsedBytes: Int64, swapTotalBytes: Int64, pressureLevel: Int,
-                graphicsBytes: Int64?, swapIns: UInt64, swapOuts: UInt64, compressions: UInt64, decompressions: UInt64,
+                pressurePercent: Int? = nil, graphicsBytes: Int64?, swapIns: UInt64, swapOuts: UInt64, compressions: UInt64, decompressions: UInt64,
                 pageSize: Int64) {
         self.date = date
         self.breakdown = breakdown
         self.swapUsedBytes = swapUsedBytes
         self.swapTotalBytes = swapTotalBytes
         self.pressureLevel = pressureLevel
+        // when a caller has no reading (a fixture), a height that fits the state
+        self.pressurePercent = pressurePercent ?? (pressureLevel < 2 ? 30 : pressureLevel < 4 ? 65 : 90)
         self.graphicsBytes = graphicsBytes
         self.swapIns = swapIns
         self.swapOuts = swapOuts
@@ -47,12 +52,16 @@ public struct MemorySample: Sendable, Equatable {
         var level: Int32 = 1
         var levelSize = MemoryLayout<Int32>.size
         if sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &levelSize, nil, 0) != 0 { level = 1 }
+        var available: Int32 = 100
+        var availableSize = MemoryLayout<Int32>.size
+        if sysctlbyname("kern.memorystatus_level", &available, &availableSize, nil, 0) != 0 { available = 100 }
         return MemorySample(
             date: Date(),
             breakdown: MemoryBreakdown.make(from: stats, pageSize: reading.pageSize),
             swapUsedBytes: swapOK ? Int64(swap.xsu_used) : 0,
             swapTotalBytes: swapOK ? Int64(swap.xsu_total) : 0,
             pressureLevel: Int(level),
+            pressurePercent: min(100, max(0, 100 - Int(available))),
             graphicsBytes: graphics,
             swapIns: stats.swapins, swapOuts: stats.swapouts,
             compressions: stats.compressions, decompressions: stats.decompressions,
