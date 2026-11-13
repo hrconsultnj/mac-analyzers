@@ -21,7 +21,9 @@ public enum PanelStop {
         case locked(String)
     }
 
-    /// The offer for a row's group, from what the census saw. Cheap: it reads no process table (the
+    /// The offer for a row's group, from what the census saw. The ONE place the panel decides a row "cannot be
+    /// stopped" and why (the sentence in `.locked`): when the census carries its own reason and kind
+    /// (guard-builder's work), this is the single call site that switches to it. Cheap: it reads no process table (the
     /// plan that does is built when the button is pressed).
     public static func offer(for group: CensusGroup) -> Offer {
         switch group.quit {
