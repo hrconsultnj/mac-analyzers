@@ -24,28 +24,45 @@ public struct MenuPanelModel: Sendable {
         public let group: CensusGroup
     }
 
-    /// One category of the census as the panel's Monitor tab shows it: the same grouping Monitor uses (the
-    /// census's own category of each group), with how many apps or tools it holds and their total, the heaviest first.
-    public struct Section: Identifiable, Sendable {
+    /// One row of the panel's Monitor tab: a group (an app, a tool, a macOS service) or, below it, one of its members.
+    /// The same groups and names Monitor shows; a group opens to its parts (an app) or its separate programs (a tool).
+    public struct Node: Identifiable, Sendable {
+        public let id: String
+        public let name: String
+        /// One short phrase: "3 helpers", "36 processes", or what a macOS service is for.
+        public let detail: String?
+        /// The full breakdown for hover ("2 tabs and pages, 13 extensions, …"); Monitor shows it in full.
+        public let breakdown: String?
+        public let sizeText: String
         public let category: CensusGroup.Category
-        public let title: String
-        public let symbol: String
-        public let groups: Int
-        public let processes: Int
-        public let totalBytes: Int64
-        public let totalText: String
-        public let rows: [ProcessRow]
-        /// Groups of the category that are not in `rows`.
-        public let more: Int
-        public var id: String { category.rawValue }
+        /// The Monitor row this belongs to, by its exact name (`MemoryStop.monitorLink(forGroup:)`).
+        public let groupName: String
+        /// What Quit or Stop acts on: set on a group, never on a member.
+        public let group: CensusGroup?
+        /// For a member: the group it belongs to, for its icon (an app's parts take the app's, smaller).
+        public let owner: CensusGroup?
+        public let children: [Node]?
     }
 
-    /// How many rows each category shows before "N more in Monitor".
-    public static let rowsPerCategory: [CensusGroup.Category: Int] = [.apps: 5, .tools: 4, .system: 3]
+    /// How many groups the table lists before "N more in Monitor".
+    public static let nodesPerTab = 30
+
+    /// The Monitor tab for one category (nil is All), heaviest first, at most `nodesPerTab` groups, and how many more
+    /// there are. Members are built only for the groups shown.
+    public func nodes(in category: CensusGroup.Category?) -> (nodes: [Node], more: Int) {
+        let mine = category == nil ? allGroups : allGroups.filter { $0.category == category }
+        let shown = mine.prefix(Self.nodesPerTab)
+        return (shown.map(Self.node), mine.count - shown.count)
+    }
+
+    /// Groups, processes and bytes per category, for the tabs' counts.
+    public func groupCount(in category: CensusGroup.Category?) -> Int {
+        category == nil ? allGroups.count : allGroups.filter { $0.category == category }.count
+    }
+
+    private let allGroups: [CensusGroup]
 
     public let processes: [ProcessRow]
-    /// The census by category, in the order Monitor's tabs run (apps, tools, macOS); empty categories left out.
-    public let sections: [Section]
     /// Everything the census found, for "N more".
     public let totalGroups: Int
     public let totalBytes: Int64
@@ -58,16 +75,30 @@ public struct MenuPanelModel: Sendable {
         totalBytes = census.totalBytes
         memoryUsedBytes = census.breakdown?.usedBytes
         memoryTotalBytes = census.breakdown?.totalBytes
+        allGroups = groups
         processes = groups.prefix(limit).map(Self.row)
-        sections = CensusGroup.Category.allCases.compactMap { category in
-            let mine = groups.filter { $0.category == category }
-            guard !mine.isEmpty else { return nil }
-            let shown = mine.prefix(Self.rowsPerCategory[category] ?? 4)
-            let bytes = mine.reduce(Int64(0)) { $0 + $1.totalBytes }
-            return Section(category: category, title: category.shortTitle, symbol: category.symbol, groups: mine.count,
-                           processes: mine.reduce(0) { $0 + $1.members.count }, totalBytes: bytes,
-                           totalText: MemorySize.text(bytes), rows: shown.map(Self.row), more: mine.count - shown.count)
+    }
+
+    private static func node(_ group: CensusGroup) -> Node {
+        let row = Self.row(group)
+        // an app opens to its parts, a tool to its separate programs; one of them is not worth an arrow
+        var members: [Node] = []
+        if group.category == .apps, group.parts.count > 1 {
+            members = group.parts.map { part in
+                Node(id: "\(group.id)|part|\(part.id)", name: part.title,
+                     detail: part.members.count > 1 ? "\(part.members.count) processes" : nil, breakdown: nil,
+                     sizeText: part.totalText, category: group.category, groupName: group.name, group: nil, owner: group, children: nil)
+            }
+        } else if group.category == .tools, group.programs.count > 1 {
+            members = group.programs.map { program in
+                Node(id: "\(group.id)|program|\(program.id)", name: program.label,
+                     detail: program.members.count > 1 ? "\(program.members.count) processes" : nil, breakdown: nil,
+                     sizeText: program.totalText, category: group.category, groupName: group.name, group: nil, owner: group, children: nil)
+            }
         }
+        return Node(id: group.id, name: group.name, detail: row.detail, breakdown: row.breakdown, sizeText: group.totalText,
+                    category: group.category, groupName: group.name, group: group, owner: nil,
+                    children: members.isEmpty ? nil : members)
     }
 
     private static func row(_ group: CensusGroup) -> ProcessRow {
@@ -77,7 +108,8 @@ public struct MenuPanelModel: Sendable {
             let others = group.members.count - 1
             detail = group.category == .apps ? "\(others) \(others == 1 ? "helper" : "helpers")" : "\(group.members.count) processes"
         } else {
-            detail = group.role
+            // what a macOS service is for, when it is short; a long sentence is on hover and in Monitor
+            detail = group.role.flatMap { $0.count <= 24 ? $0 : nil }
         }
         let quit: Bool
         if case .unavailable = group.quit { quit = false } else { quit = true }
@@ -85,7 +117,7 @@ public struct MenuPanelModel: Sendable {
         if case .app = group.quit { app = true } else { app = false }
         return ProcessRow(id: group.id, name: group.name, totalBytes: group.totalBytes,
                           sizeText: group.totalText, detail: detail,
-                          breakdown: group.members.count > 1 ? group.partsSummary : nil,
+                          breakdown: group.members.count > 1 ? group.partsSummary : group.role,
                           processCount: group.members.count, category: group.category,
                           canQuit: quit, isApp: app, group: group)
     }

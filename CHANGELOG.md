@@ -145,10 +145,10 @@ without an entry here — see `scripts/cut-release.sh`.
   longer gets mixed into the cleanup it came from, so that cleanup's numbers,
   and a preview that is waiting for your review, stay exactly as they were.
 - The menu-bar panel uses standard controls, so nothing is cut off. Its Monitor
-  tab now groups what is using memory the way Monitor does (Apps, Tools and
-  macOS, each with its count and total, heaviest first), every app with its own
-  icon, and anything that cannot be stopped shows a lock with the reason on
-  hover. Its Memory tab adds what Activity Monitor's memory footer shows, live:
+  tab now has a tab bar (All, Apps, Tools, macOS) and lists what is using memory
+  the way Monitor does, heaviest first: each app or tool opens to its parts or
+  programs, every app has its own icon, and anything that cannot be stopped
+  shows a lock with the reason on hover. Its Memory tab adds what Activity Monitor's memory footer shows, live:
   a graph of memory pressure over the last few minutes and Physical Memory,
   Memory Used, Cached Files, Swap Used, App Memory, Wired Memory and Compressed,
   matching the main window and Activity Monitor. Its Quit and Stop follow the

@@ -27,6 +27,9 @@ public struct MenuContentView: View {
     @State var runNowPlans: [String: RunNowPlan] = [:]
     /// Monitor tab: the census, taken off the main actor while that tab is open.
     @State var panel: MenuPanelModel?
+    /// The Monitor tab's category tab, and what a Quit or Stop on its rows is doing.
+    @State var monitorScope: MonitorScope = .all
+    @State var stopFlow = PanelStopFlow()
     /// A host (the snapshot tool) asked for a tab: then the remembered one is not restored.
     private let pinnedTab: Bool
 

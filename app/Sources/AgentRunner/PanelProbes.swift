@@ -24,20 +24,22 @@ private func mb(_ bytes: Int64) -> String { String(format: "%8.1f MB", Double(by
 @MainActor func probePanel() -> Never {
     print("MONITOR TAB — the groups by category, heaviest first (the same census as Monitor):\n")
     let panel = MenuPanelModel(census: MemoryCensus.take())
-    for section in panel.sections {
-        print("\(section.title) · \(section.groups) groups · \(section.processes) processes · \(section.totalText)")
-        for row in section.rows {
-            let offer = PanelStop.offer(for: row.group)
+    for scope in [nil, CensusGroup.Category.apps, .tools, .system] {
+        let shown = panel.nodes(in: scope)
+        print("\(scope?.shortTitle ?? Names.Monitor.everything) · \(panel.groupCount(in: scope)) groups")
+        for node in shown.nodes.prefix(8) {
             let state: String
-            switch offer {
-            case .quit: state = "Quit"
-            case .stop: state = "Stop"
-            case .locked(let reason): state = "lock: \(reason.prefix(60))"
-            }
-            let icon = GroupIcon.image(for: row.group) != nil ? "icon" : "symbol"
-            print("    \(row.name.padding(toLength: 26, withPad: " ", startingAt: 0)) \(row.sizeText.padding(toLength: 9, withPad: " ", startingAt: 0)) \(icon.padding(toLength: 7, withPad: " ", startingAt: 0)) \(state)")
+            if let group = node.group {
+                switch PanelStop.offer(for: group) {
+                case .quit: state = "Quit"
+                case .stop: state = "Stop"
+                case .locked(let reason): state = "lock: \(reason.prefix(50))"
+                }
+            } else { state = "" }
+            let inside = node.children.map { " ▸ \($0.count) inside: \($0.prefix(3).map(\.name).joined(separator: ", "))" } ?? ""
+            print("    \(node.name.padding(toLength: 26, withPad: " ", startingAt: 0)) \(node.sizeText.padding(toLength: 9, withPad: " ", startingAt: 0)) \((node.detail ?? "").padding(toLength: 14, withPad: " ", startingAt: 0)) \(state)\(inside)")
         }
-        if section.more > 0 { print("    … \(section.more) more in Monitor (\(section.category.monitorLink))") }
+        if shown.more > 0 { print("    … \(shown.more) more in Monitor") }
     }
     print("\nMEMORY TAB — the panel's figures against vm_stat and sysctl, read together:\n")
     guard let memory = PanelMemory.take() else { print("the Mac would not say"); exit(1) }
