@@ -458,6 +458,67 @@ public enum Names {
         public static let nothingInScope = "Nothing in This Scope"
     }
 
+    // MARK: - the kinds of memory
+
+    /// The screens "Where Your Memory Is" opens, one per kind.
+    public enum MemoryKind {
+        public static let app = "App Memory"
+        public static let wired = "Wired Memory"
+        public static let compressed = "Compressed"
+        public static let cached = "Cached Files"
+        public static let free = "Free"
+        public static let swap = "Swap Used"
+        public static let showInMonitor = "Show in Monitor"
+        public static let overTime = "Over Time"
+        public static let whoHoldsTheMost = "Who Holds the Most"
+        public static let whatItIs = "What It Is"
+    }
+
+    // MARK: - kinds of process (memory-analyzer/rules/kinds.json holds the ids, this holds the names)
+
+    public enum Kind {
+        public static let connectionTools = "Connection Tools"
+        public static let meetingAndChat = "Meeting & Chat"
+        public static let editorsAndIDEs = "Editors & IDEs"
+        public static let browsers = "Browsers"
+        public static let terminals = "Terminals"
+        public static let containersAndVMs = "Containers & VMs"
+        public static let otherApps = "Other Apps"
+        public static let codingAgentSessions = "Coding-Agent Sessions"
+        public static let backgroundServices = "Background Services"
+        public static let databases = "Databases"
+        public static let simulatorsAndEmulators = "Simulators & Emulators"
+        public static let devServers = "Dev Servers"
+        public static let buildDaemons = "Build Daemons"
+        public static let testRunners = "Test Runners"
+        public static let testBrowsers = "Test Browsers"
+        public static let toolServers = "Tool Servers (MCP)"
+        public static let javaScriptRuntimes = "JavaScript Runtimes"
+        public static let otherCommands = "Other Commands"
+        public static let systemAndOtherAccounts = "System and Other Accounts"
+        public static let macOSServices = "macOS Services"
+        public static let unclassified = "Unclassified"
+
+        /// Kind id (kinds.json) → name. A kind without a name makes the catalog unusable.
+        static let byID: [String: String] = [
+            "apps.connection": connectionTools, "apps.meeting": meetingAndChat, "apps.editors": editorsAndIDEs,
+            "apps.browsers": browsers, "apps.terminals": terminals, "apps.containers": containersAndVMs, "apps.other": otherApps,
+            "tools.codingAgents": codingAgentSessions, "tools.connection": connectionTools,
+            "tools.backgroundServices": backgroundServices, "tools.databases": databases,
+            "tools.simulators": simulatorsAndEmulators, "tools.devServers": devServers,
+            "tools.buildDaemons": buildDaemons, "tools.testRunners": testRunners, "tools.testBrowsers": testBrowsers,
+            "tools.toolServers": toolServers, "tools.runtimes": javaScriptRuntimes, "tools.other": otherCommands,
+            "macos.system": systemAndOtherAccounts, "macos.services": macOSServices,
+        ]
+
+        public static func name(forID id: String) -> String? {
+            byID[id] ?? (id.hasSuffix(".unclassified") ? unclassified : nil)
+        }
+
+        /// Every name above, for the check.
+        public static var all: [String] { Array(Set(byID.values)).sorted() + [unclassified] }
+    }
+
     // MARK: - stopping things
 
     public enum Stop {
@@ -582,6 +643,9 @@ public enum Names {
                  Monitor.written, Monitor.ended, Monitor.refresh, Monitor.refreshNow, Monitor.every5, Monitor.every15,
                  Monitor.every60, Monitor.paused, Monitor.inspector, Monitor.showDetails, Monitor.whereYourMemoryIs,
                  Monitor.nothingInScope].map { ("Monitor", $0) }
+        rows += [MemoryKind.app, MemoryKind.wired, MemoryKind.compressed, MemoryKind.cached, MemoryKind.free, MemoryKind.swap,
+                 MemoryKind.showInMonitor, MemoryKind.overTime, MemoryKind.whoHoldsTheMost, MemoryKind.whatItIs].map { ("Memory kind", $0) }
+        rows += Kind.all.map { ("Kind", $0) }
         rows += [Stop.stop, Stop.quit, Stop.forceStop, Stop.leaveRunning, Stop.leftAlone, Stop.leftAloneOne].map { ("Stop", $0) }
         rows += [Guard.stopped, Guard.alerts, Guard.period, Guard.show, Guard.last7, Guard.last90, Guard.nothingToReport,
                  Guard.nothingHere, Guard.eventGone, Guard.whatHappened, Guard.theProgram, Guard.whyTheGuardDoesThis,

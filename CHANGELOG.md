@@ -7,6 +7,19 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
+- Every row of "Where Your Memory Is" on Monitor's details panel now opens a
+  screen of its own with an arrow: App Memory (with the same Quit and Stop as
+  the table), Wired Memory, Compressed (including which programs hold the
+  most, macOS's own among them), Cached Files, Free (with the memory pressure
+  over time) and a new Swap Used row. Each shows how the figure has moved
+  over the last half hour while the screen is open, what it is, and plainly
+  what macOS does not let any app see, instead of guessing.
+- Monitor now says what kind of thing each group is: a browser, a code editor,
+  a terminal, a dev server, a background service, part of macOS. When a group
+  is one that no app can stop, or one Stop leaves alone, it tells you why in a
+  sentence: macOS's own processes, programs of another account, a live coding
+  session. For remote-access tools such as Tailscale it warns that stopping
+  them can cut you off from this Mac.
 - Mac Analyzers now runs with macOS's hardened runtime, on a copy you build
   yourself as well as on a download. Another program on your account can no
   longer make the app load code of its own choosing. Nothing changes in how
@@ -145,10 +158,10 @@ without an entry here — see `scripts/cut-release.sh`.
   longer gets mixed into the cleanup it came from, so that cleanup's numbers,
   and a preview that is waiting for your review, stay exactly as they were.
 - The menu-bar panel uses standard controls, so nothing is cut off. Its Monitor
-  tab now groups what is using memory the way Monitor does (Apps, Tools and
-  macOS, each with its count and total, heaviest first), every app with its own
-  icon, and anything that cannot be stopped shows a lock with the reason on
-  hover. Its Memory tab adds what Activity Monitor's memory footer shows, live:
+  tab now has a tab bar (All, Apps, Tools, macOS) and lists what is using memory
+  the way Monitor does, heaviest first: each app or tool opens to its parts or
+  programs, every app has its own icon, and anything that cannot be stopped
+  shows a lock with the reason on hover. Its Memory tab adds what Activity Monitor's memory footer shows, live:
   a graph of memory pressure over the last few minutes and Physical Memory,
   Memory Used, Cached Files, Swap Used, App Memory, Wired Memory and Compressed,
   matching the main window and Activity Monitor. Its Quit and Stop follow the

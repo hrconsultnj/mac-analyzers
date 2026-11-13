@@ -37,6 +37,7 @@ private struct RowDetail: View {
                                value: row.pid.map { row.processCount == 1 ? "pid \($0)" : "\(row.processCount)" }
                                    ?? "\(row.processCount)")
                 if !row.detail.isEmpty { LabeledContent("What it is", value: row.detail) }
+                if let kind = row.processKind { LabeledContent(Names.Column.kind, value: kind.name) }
             } header: {
                 HStack {
                     if let icon { Image(nsImage: icon).resizable().frame(width: 20, height: 20) }
@@ -70,6 +71,10 @@ private struct RowDetail: View {
                 } else if let reason = row.lockedReason {
                     Label(reason, systemImage: "lock.fill").foregroundStyle(.secondary)
                 }
+                // something the person may stop, with a word of care: a Connection Tool, a background service
+                if row.stopVerb != nil, let held = row.leftAlone {
+                    Label(held, systemImage: "shield.lefthalf.filled").foregroundStyle(.secondary)
+                }
                 if row.pid != nil || row.iconPID != nil {
                     Button(Names.Monitor.showDetails) { showDetails(row) }
                 }
@@ -83,20 +88,23 @@ private struct RowDetail: View {
 
 private struct MemoryExplained: View {
     let model: MonitorModel
+    @Environment(Navigator.self) private var navigator
 
     var body: some View {
         Form {
             if let memory = model.breakdown {
                 Section(Names.Monitor.whereYourMemoryIs) {
-                    legend(.blue, "App Memory", memory.appBytes,
-                           "Held right now by the apps and processes in the table.")
-                    legend(.indigo, "Wired Memory", memory.wiredBytes,
+                    legend(.app, .blue, memory.appBytes, "Held right now by the apps and processes in the table.")
+                    legend(.wired, .indigo, memory.wiredBytes,
                            "macOS itself — the kernel, drivers and graphics. Can't be moved or squeezed.")
-                    legend(.purple, "Compressed", memory.compressedBytes,
-                           "Idle memory macOS squeezed to make room — \(MemorySize.text(memory.compressedOriginalBytes)) of it packed into this.")
-                    legend(.teal, "Cached Files", memory.cachedBytes,
+                    legend(.compressed, .purple, memory.compressedBytes,
+                           "Idle memory macOS squeezed to make room — \(MemorySize.text(memory.compressedOriginalBytes, .figure)) of it packed into this.")
+                    legend(.cached, .teal, memory.cachedBytes,
                            "Recently used files kept for speed. Not counted as in use — handed back the moment an app needs the room.")
-                    legend(nil, "Free", memory.freeBytes, "Untouched.")
+                    legend(.free, nil, memory.freeBytes, "Untouched.")
+                    if let swap = MemorySample.readSwap() {
+                        legend(.swap, .brown, swap.used, "Memory macOS moved to the disk. Of \(MemorySize.text(swap.total, .figure)) of swap space.")
+                    }
                 }
             }
             Section {
@@ -113,19 +121,29 @@ private struct MemoryExplained: View {
         .formStyle(.grouped)
     }
 
-    private func legend(_ color: Color?, _ title: String, _ bytes: Int64, _ explanation: String) -> some View {
-        LabeledContent {
-            Text(MemorySize.text(bytes)).monospacedDigit()
-        } label: {
-            VStack(alignment: .leading) {
-                HStack(spacing: 6) {
-                    Circle().fill(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.quaternary))
-                        .frame(width: Tokens.Icon.dot, height: Tokens.Icon.dot)
+    /// A row of the block: its figure, a sentence, and an arrow to the screen of its own.
+    private func legend(_ kind: MemoryKind, _ color: Color?, _ bytes: Int64, _ explanation: String) -> some View {
+        Button { navigator.push(.memory(.kind(kind))) } label: {
+            LabeledContent {
+                HStack(spacing: Tokens.Space.s) {
+                    Text(MemorySize.text(bytes, .figure)).monospacedDigit()
+                    Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
                         .accessibilityHidden(true)
-                    Text(title)
                 }
-                Text(explanation).font(.caption).foregroundStyle(.secondary)
+            } label: {
+                VStack(alignment: .leading) {
+                    HStack(spacing: 6) {
+                        Circle().fill(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.quaternary))
+                            .frame(width: Tokens.Icon.dot, height: Tokens.Icon.dot)
+                            .accessibilityHidden(true)
+                        Text(kind.title)
+                    }
+                    Text(explanation).font(.caption).foregroundStyle(.secondary)
+                }
             }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens a screen about \(kind.title)")
     }
 }

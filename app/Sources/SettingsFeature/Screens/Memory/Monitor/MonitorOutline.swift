@@ -24,6 +24,20 @@ struct MonitorOutline<Menu: View>: View {
     let open: (MonitorRow) -> Void
     @ViewBuilder let menu: (MonitorRow) -> Menu
 
+    /// What a member row (a part of an app, a process) shows at its left: the icon of the app it belongs to, so a group that
+    /// is open reads as members UNDER the parent's name and not to the left of it.
+    private var inherited: [String: NSImage] {
+        var found: [String: NSImage] = [:]
+        func visit(_ row: MonitorRow, from image: NSImage?) {
+            for child in row.children {
+                if let image, child.kind == .part || child.kind == .process { found[child.id] = image }
+                visit(child, from: image)
+            }
+        }
+        for row in rows where row.category == .apps { visit(row, from: icons[row.id]) }
+        return found
+    }
+
     var body: some View {
         // The shared table fits its columns to the room (section 11 of the table's report): "What It Is", which the
         // details panel says again for the selected row, is the one that can go (and the Process ID, which starts
@@ -31,7 +45,7 @@ struct MonitorOutline<Menu: View>: View {
         OutlineTable(rows, children: \.childRows, selection: $selection, sortOrder: $sortOrder,
                      expanded: expanded, autosave: "monitor") {
             OutlineColumn("name", Names.Monitor.name, sortUsing: KeyPathComparator(\MonitorRow.name)) { row in
-                MonitorNameCell(row: row, icon: icons[row.id])
+                MonitorNameCell(row: row, icon: icons[row.id] ?? inherited[row.id])
             }
             .width(min: 130, ideal: 210)
             .typeSelect { $0.name }
@@ -99,18 +113,24 @@ struct MonitorOutline<Menu: View>: View {
     }
 }
 
-/// A row's name with the icon of the app it belongs to.
+/// A row's name with something at its left: a group has its app's icon (16 pt) or a symbol; a member of a group (a part of an
+/// app, a process) has the app's icon or the category's symbol at 12 pt, so the members sit under the parent's name.
 struct MonitorNameCell: View {
     let row: MonitorRow
     let icon: NSImage?
+
+    private var isMember: Bool { row.kind == .part || row.kind == .process }
 
     var body: some View {
         HStack(spacing: 6) {
             if let icon {
                 // an app's own icon at row size: the icon is the actual job
-                Image(nsImage: icon).resizable().frame(width: 16, height: 16)
+                Image(nsImage: icon).resizable().frame(width: isMember ? 12 : 16, height: isMember ? 12 : 16)
             } else if row.kind == .group || row.kind == .program {
                 Image(systemName: symbol).foregroundStyle(.secondary)
+            } else if isMember {
+                Image(systemName: symbol).font(.system(size: 9)).foregroundStyle(.tertiary)
+                    .frame(width: 12, height: 12)   // the symbol sits in the same 12 pt as an icon would
             }
             Text(row.name).foregroundStyle(row.isEnded ? Color.secondary : Color.primary)
         }

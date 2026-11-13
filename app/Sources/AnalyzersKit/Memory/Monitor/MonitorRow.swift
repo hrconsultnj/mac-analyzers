@@ -46,6 +46,11 @@ public struct MonitorRow: Identifiable, Sendable {
     public var stop: MonitorStop
     /// The app's icon comes from this pid.
     public let iconPID: Int?
+    /// What a group row IS (a browser, a dev server, a macOS service); nil on rows below a group.
+    public var processKind: ProcessKind?
+    /// Why the group is left alone or handled with care, in words (macOS, another account, a live coding session,
+    /// a Connection Tool); nil when nothing is held back. Says only what Monitor's Stop and Quit do.
+    public var leftAlone: String?
     /// Whether the process this row stands for has ended since the last refresh. Rows of ended processes
     /// leave the table at the next refresh; in the moment between, the row says so instead of offering a
     /// Stop (and a Stop re-checks the process's start time regardless).

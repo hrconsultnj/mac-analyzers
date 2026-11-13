@@ -414,6 +414,22 @@ for SH in bash /bin/bash; do
   check "[$sh] V5 an app whose program is running is seen as running (real pgrep)" "$([[ "$(block Runner "$out")" == *"appears to be RUNNING"* ]] && echo ok || block Runner "$out")"
   check "[$sh] V5 and an app that is not running is not" "$([[ "$(block Idle "$out")" != *"appears to be RUNNING"* ]] && echo ok || block Idle "$out")"
   kill "$runner" 2>/dev/null; wait "$runner" 2>/dev/null
+  # a program that runs THROUGH an interpreter has the interpreter first on its command line: still running (scripts of our
+  # own, never a copy of a system binary)
+  mkapp RunnerSh com.r.runnersh; mkapp RunnerEnv com.r.runnerenv
+  for n in RunnerSh RunnerEnv; do
+    mkdir -p "$W/apps/$n.app/Contents/MacOS"
+    printf '#!/bin/sh\nn=0; while [ "$n" -lt 60 ]; do /bin/sleep 1; n=$((n+1)); done\n' > "$W/apps/$n.app/Contents/MacOS/$n"; chmod +x "$W/apps/$n.app/Contents/MacOS/$n"
+  done
+  /bin/sh "$W/apps/RunnerSh.app/Contents/MacOS/RunnerSh" & via_sh=$!
+  /usr/bin/env sh "$W/apps/RunnerEnv.app/Contents/MacOS/RunnerEnv" & via_env=$!
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25; do
+    [[ "$(ps -o command= -p "$via_sh" 2>/dev/null)" == *"RunnerSh.app/Contents/MacOS/RunnerSh"* && "$(ps -ax -o command= | grep -c "[R]unnerEnv.app/Contents/MacOS/RunnerEnv")" -ge 1 ]] && break; sleep 0.2
+  done
+  out="$(run --stale-apps)"
+  check "[$sh] V5 a program run as /bin/sh <path> is seen as running" "$([[ "$(block RunnerSh "$out")" == *"appears to be RUNNING"* ]] && echo ok || block RunnerSh "$out")"
+  check "[$sh] V5 a program run as /usr/bin/env sh <path> is seen as running" "$([[ "$(block RunnerEnv "$out")" == *"appears to be RUNNING"* ]] && echo ok || block RunnerEnv "$out")"
+  kill "$via_sh" "$via_env" 2>/dev/null; wait "$via_sh" "$via_env" 2>/dev/null
   # many runs at once: each run's own pgrep holds the pattern text in its command line, and must not make an idle app look running
 for n in 1 2 3 4 5 6 7 8 9 10 11 12; do ( run --list-app "$W/apps/Idle.app" > "$W/conc$n" ) & done; wait
   seen=0; for n in 1 2 3 4 5 6 7 8 9 10 11 12; do grep -q "appears to be RUNNING" "$W/conc$n" && seen=$((seen + 1)); done

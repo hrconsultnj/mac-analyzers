@@ -74,6 +74,37 @@ func probeRunMatcher() -> Never {
             check("and its own screen finds that banner and holds every item (\(items))", found.lines.filter { $0.hasPrefix("[DRY]") }.count == items, "\(found.lines.count) lines")
         } else { check("and its own screen finds that banner (\(items))", false, "not found") }
     }
+    // ONE grouping of a log into runs, for every reader (Activity's list and the whole-log readers that Trends and Undo's dates use):
+    // two janitor runs back to back (a rule, the banner, the body, no rule between banner and body) are two runs in both, each
+    // with its own banner, and over logs of both shapes the two readers agree run for run
+    do {
+        let rule = String(repeating: "=", count: 64) + "\n"
+        let first = "2026-11-10 17:06 | downloads janitor | DRY RUN | downloads>60d screenshots>60d"
+        let second = "2026-11-10 17:11 | downloads janitor | DRY RUN | downloads>60d screenshots>60d"
+        let back = rule + block(banner: first, items: 3) + rule + block(banner: second, items: 4)
+        let url = write("back-to-back.log", back)
+        let list = LogParser.runs(at: url), whole = LogParser.allRuns(at: url)
+        check("two janitor runs back to back are two runs in the list", list.count == 2 && list[0].header.hasPrefix(second) && list[1].header.hasPrefix(first),
+              "\(list.map { String($0.header.prefix(16)) })")
+        check("and two runs in the whole-log reader, with their own banners and lines", whole.count == 2 && whole[0].header == list[0].header && whole[1].header == list[1].header
+              && whole[0].lines.count == list[0].lines.count && whole[0].lines.filter { $0.hasPrefix("[DRY]") }.count == 4,
+              "\(whole.map { "\($0.header.prefix(16)) \($0.lines.count)" })")
+        let mixed = rule + "input: x | y\n" + rule + block(banner: first, items: 2) + rule + block(banner: second, items: 5) + rule
+            + "2026-11-10 18:00 | downloads janitor | APPLY | x\n" + rule + "[TRASHED] 1 KB  /a  ->  /b\n"
+        let mixedURL = write("mixed-shapes.log", mixed)
+        let a = LogParser.runs(at: mixedURL).map { "\($0.header)|\($0.lines.count)" }, b = LogParser.allRuns(at: mixedURL).map { "\($0.header)|\($0.lines.count)" }
+        check("over a log of both shapes the list and the whole-log reader agree run for run", a == b && !a.isEmpty, "\(a.count) vs \(b.count)")
+    }
+    // an event log (the guard's: no rule lines anywhere) is not read backwards in full to find that out
+    do {
+        var text = ""
+        for index in 0..<300_000 { text += "2026-11-1\(index % 9) 10:\(String(format: "%02d", index % 60)):00  [guard] stopped something \(index)\n" }
+        let url = write("event-style.log", text)
+        let started = ContinuousClock.now
+        let list = LogParser.runs(at: url)
+        let took = started.duration(to: .now)
+        check("a log with no banners is listed without reading it backwards in full (\(text.utf8.count / 1024) KB)", !list.isEmpty && took < .milliseconds(100), "\(list.count) groups in \(took)")
+    }
     // beyond the reach: 33 MB of one run
     let giant = dir.appending(path: "giant.log")
     FileManager.default.createFile(atPath: giant.path, contents: nil)

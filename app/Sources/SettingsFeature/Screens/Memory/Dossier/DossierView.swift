@@ -64,7 +64,7 @@ struct DossierView: View {
         let protected = config.memory.protectExtra.contains {
             name.contains($0.lowercased()) || $0.lowercased().contains(name)
         }
-        let killable = LiveStats.isDevKillable(route.name)
+        let killable = LiveStats.isDevTooling(route.name)
 
         Section("Protection") {
             if protected {

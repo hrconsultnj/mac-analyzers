@@ -17,7 +17,7 @@ public enum ProcessNaming {
         if executable == "tsc" || command.contains("typescript/bin/tsc") { return "TypeScript compiler" }
         // a macOS framework's own helper reads as the framework: "Media Analysis"
         if let framework = frameworkName(in: command) { return framework }
-        let isDeveloperTool = LiveStats.isDevKillable(command)
+        let isDeveloperTool = LiveStats.isDevTooling(command)
         let process = LiveProcess(pid: 0, residentMB: 0, rawName: command,
                                   kind: isDeveloperTool ? .devTool : .app)
         let name = process.friendlyName

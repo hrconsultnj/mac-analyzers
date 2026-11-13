@@ -21,7 +21,12 @@ public enum LogParser {
         // be read from its middle, with no banner: it was then listed under one of its own file lines, started "one
         // minute late", and its screen could not find it. The window starts at the banner of the run it falls in.
         var alignedToLine = false
-        if start > 0, let banner = bannerStart(before: start, in: handle) { start = banner; alignedToLine = true }
+        // Only a log of the block style has banners, and that is decided first and cheaply: an event log such as the
+        // guard's has no rule line anywhere and was read backwards in full to find that out. The window answers it, else
+        // the head of the file (a block log opens with a rule).
+        if start > 0, isBlockStyle(handle, windowStart: start), let banner = bannerStart(before: start, in: handle) {
+            start = banner; alignedToLine = true
+        }
         try? handle.seek(toOffset: start)
         guard var data = try? handle.readToEnd() else { return [] }
         // The window starts at a byte, which can be the middle of a multi-byte
@@ -33,6 +38,16 @@ public enum LogParser {
         let lines = LogLines.lines(in: data)
 
         return text.contains("====") ? runBlocks(lines, includingRestores: includingRestores) : dayGroups(lines)
+    }
+
+    /// Whether this is a block log (rule lines between runs): a rule in the window that will be read, or in the first 64 KB.
+    private static func isBlockStyle(_ handle: FileHandle, windowStart: UInt64) -> Bool {
+        let rule = Data("====".utf8)
+        for (from, length) in [(windowStart, 262_144), (UInt64(0), 65_536)] {
+            guard (try? handle.seek(toOffset: from)) != nil, let chunk = try? handle.read(upToCount: length) else { continue }
+            if chunk.range(of: rule) != nil { return true }
+        }
+        return false
     }
 
     /// How far back a run's banner is looked for: the same reach as `WholeRun`.
@@ -69,7 +84,10 @@ public enum LogParser {
     /// containing "|" is the header for the body block that follows. Headers
     /// run to 3 lines (title, settings, `input:`) — a body block never starts
     /// with a "|" line, it opens on a `### ` group.
-    private static func runBlocks(_ allLines: [String], includingRestores: Bool) -> [LogRun] {
+    /// THE grouping of a block log's lines into runs, newest first, for every reader: Activity's list (`limit` 20, over a
+    /// window), Trends and Undo's dates (`limit` nil, the whole log). One function, so two readers never disagree about
+    /// where a run begins.
+    static func runBlocks(_ allLines: [String], includingRestores: Bool, limit: Int? = 20) -> [LogRun] {
         // a restore's block is taken out first, so the rest parses exactly as it would without it
         let (lines, restores) = RestoreBlock.split(allLines)
         var blocks: [[String]] = []
@@ -92,7 +110,7 @@ public enum LogParser {
             }
             // a block that OPENS with a banner is a run of its own: the janitor writes a rule, the banner and the body with no
             // rule between them, so before this its second run in a window was taken for the first one's closing summary
-            if pendingHeader == nil, let first = block.first, RunMatcher.banner(in: first) != nil {
+            if pendingHeader == nil, let first = block.first, RunMatcher.banner(in: first) != nil, first.isEmpty {
                 result.append(LogRun(id: result.count, header: first, lines: Array(block.dropFirst())))
                 continue
             }
@@ -108,7 +126,7 @@ public enum LogParser {
             result.append(LogRun(id: result.count, header: header, lines: body))
             pendingHeader = nil
         }
-        let newestFirst = Array(result.reversed().prefix(20))
+        let newestFirst = limit.map { Array(result.reversed().prefix($0)) } ?? Array(result.reversed())
         return includingRestores ? RestoreBlock.merge(restores: restores, into: newestFirst) : newestFirst
     }
 

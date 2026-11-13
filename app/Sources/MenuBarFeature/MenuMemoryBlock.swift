@@ -1,87 +1,60 @@
-import Charts
 import SwiftUI
 import AnalyzersKit
+import UIComponents
 
-/// What Activity Monitor's memory footer shows, live, on the Memory tab: the pressure of the last few minutes and
-/// the figures in its words. The numbers come from `PanelMemory`, the same source as the main window's
-/// "Where Your Memory Is" (`MemoryBreakdown`), so the panel, the window and Activity Monitor agree.
+/// What Activity Monitor's memory footer shows, live, on the Memory tab: the pressure of the last five minutes and
+/// the figures in its words. Both come from the app's ONE sampler (`MemoryTrend`) and its one function for the
+/// figures (`MemoryBreakdown`), the same the main window's memory screens read, so the panel, the window and
+/// Activity Monitor agree.
 ///
-/// Sampling: every two seconds, on the main actor, ONLY while this block is on screen (the `task` below is
-/// cancelled when the panel closes or another tab shows), so a closed panel costs nothing. Each sample is three
-/// kernel calls, no process table. What was recorded earlier stays for the next opening (`PanelPressureTrace`).
+/// Sampling: `MemoryTrend` samples every two seconds only while some screen has begun, and this block begins when it
+/// appears and ends when it goes (the panel closing or another tab), so a closed panel costs nothing.
 struct MenuMemoryBlock: View {
-    @State private var memory: PanelMemory?
-    private let trace = PanelPressureTrace.shared
+    private let trend = MemoryTrend.shared
+    /// How much history the strip shows.
+    private static let seconds: TimeInterval = 300
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            graph
-            if let memory { figures(memory) }
+            strip
+            if let sample = trend.latest { figures(sample) }
         }
-        .task {
-            while !Task.isCancelled {
-                let taken = PanelMemory.take()
-                memory = taken
-                trace.record(taken?.pressurePercent)
-                try? await Task.sleep(for: .seconds(PanelPressureTrace.interval))
-            }
-        }
+        .onAppear { trend.begin() }
+        .onDisappear { trend.end() }
     }
 
-    /// One series, one hue, thin line over a faint fill, a fixed 0 to 100 scale, the last five minutes. A chart
-    /// needs a height, so the height is fixed: drawing it is its job.
-    private var graph: some View {
-        let now = Date()
-        return VStack(alignment: .leading, spacing: 2) {
-            Chart {
-                ForEach(Array(trace.runs.enumerated()), id: \.offset) { index, run in
-                    ForEach(run, id: \.date) { sample in
-                        AreaMark(x: .value("Time", sample.date), y: .value("Pressure", sample.percent),
-                                 series: .value("Recording", index))
-                            .foregroundStyle(.tint.opacity(0.15))
-                        LineMark(x: .value("Time", sample.date), y: .value("Pressure", sample.percent),
-                                 series: .value("Recording", index))
-                            .foregroundStyle(.tint)
-                            .lineStyle(StrokeStyle(lineWidth: 2))
-                    }
-                }
-            }
-            .chartXScale(domain: now.addingTimeInterval(-PanelPressureTrace.window)...now)
-            .chartYScale(domain: 0...100)
-            .chartXAxis(.hidden)
-            .chartYAxis {
-                AxisMarks(position: .trailing, values: [0, 50, 100]) {
-                    AxisGridLine().foregroundStyle(.quaternary)
-                    AxisValueLabel().font(.caption2).foregroundStyle(.tertiary)
-                }
-            }
-            .frame(height: 56)
-            .accessibilityLabel("Memory pressure over the last five minutes")
-            .accessibilityValue(memory?.pressurePercent.map { "\($0) percent" } ?? "not available")
-            Text("Memory pressure (higher is worse), last 5 minutes")
+    /// Activity Monitor's pressure graph: bar height is how much pressure there is, colour is the state, the legend names
+    /// the states. The shared `PressureStrip`, the same one the memory screens draw.
+    private var strip: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            PressureStrip(bands: trend.window(seconds: Self.seconds).map {
+                MemoryKindReport.Band(date: $0.date, level: $0.pressureLevel, percent: $0.pressurePercent)
+            }, title: nil, showsTimeAxis: false, plotHeight: 44)
+            Text("Memory pressure, last 5 minutes")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
     }
 
-    /// Activity Monitor's order and spelling: two columns of a name and its figure, names at the leading edge,
-    /// figures at the trailing edge of their column.
-    private func figures(_ memory: PanelMemory) -> some View {
-        Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 2) {
+    /// Activity Monitor's order and spelling, in the `figure` size style: two columns of a name and its figure, names
+    /// at the leading edge, figures at the trailing edge of their column.
+    private func figures(_ sample: MemorySample) -> some View {
+        let b = sample.breakdown
+        return Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 2) {
             GridRow {
-                name("Physical Memory"); value(memory.physicalText)
-                name("App Memory").padding(.leading, 12); value(memory.appText)
+                name("Physical Memory"); value(b.totalBytes)
+                name("App Memory").padding(.leading, 12); value(b.appBytes)
             }
             GridRow {
-                name("Memory Used"); value(memory.usedText)
-                name("Wired Memory").padding(.leading, 12); value(memory.wiredText)
+                name("Memory Used"); value(b.usedBytes)
+                name("Wired Memory").padding(.leading, 12); value(b.wiredBytes)
             }
             GridRow {
-                name("Cached Files"); value(memory.cachedText)
-                name("Compressed").padding(.leading, 12); value(memory.compressedText)
+                name("Cached Files"); value(b.cachedBytes)
+                name("Compressed").padding(.leading, 12); value(b.compressedBytes)
             }
             GridRow {
-                name("Swap Used"); value(memory.swapText)
+                name("Swap Used"); value(sample.swapUsedBytes)
             }
         }
         .font(.caption)
@@ -90,7 +63,7 @@ struct MenuMemoryBlock: View {
 
     private func name(_ text: String) -> some View { Text(text).foregroundStyle(.secondary) }
 
-    private func value(_ text: String) -> some View {
-        Text(text).monospacedDigit().gridColumnAlignment(.trailing)
+    private func value(_ bytes: Int64?) -> some View {
+        Text(bytes.map { ByteSize.text($0, .figure) } ?? "—").monospacedDigit().gridColumnAlignment(.trailing)
     }
 }
