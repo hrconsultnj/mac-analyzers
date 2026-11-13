@@ -31,9 +31,12 @@ struct MemoryKindScreen: View {
                         }
                         VStack(spacing: 0) {
                             ForEach(report.facts, id: \.label) { fact in
-                                LabeledContent(fact.label, value: fact.value)
-                                    .frame(maxWidth: .infinity)      // fills the row; not a column
-                                    .padding(.vertical, Tokens.Space.s)
+                                HStack {
+                                    Text(fact.label)
+                                    Spacer(minLength: Tokens.Space.xxl)
+                                    Text(fact.value).monospacedDigit().foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, Tokens.Space.s)
                                 Divider()
                             }
                         }
