@@ -1,0 +1,493 @@
+{
+  "schema": 1,
+  "about": "The kinds of process Mac Analyzers tells apart, and how each is recognised. Read by the app and by agent-runner (AnalyzersKit/Memory/Kinds); the guard script does not read it. A process belongs to the category the census put it in (apps, tools, system); the kind says what it is inside that category. Recognition is by identity where the system gives one: bundle identifier, executable, program path, launchd job. A rule that can only go by a name says so (basis name) and its kind says why (nameOnlyBecause). Order matters: within a pass the first kind that matches wins. Pass 1 is the identity rules, pass 2 the name rules, pass 3 the kinds marked generic, then the category's fallback kind. Kind names are in Names.swift (Names.Kind), not here.",
+  "kinds": [
+    {
+      "id": "apps.connection",
+      "category": "apps",
+      "devTooling": false,
+      "stopsWith": "none",
+      "forceAfterGrace": null,
+      "guardMay": "Nothing: it may be how you reach this Mac when you are away.",
+      "leftAlone": "A Connection Tool: it may be how you reach this Mac when you are away, so Memory Guard never closes it.",
+      "recognizedBy": [
+        {
+          "by": "bundleId",
+          "basis": "identity",
+          "values": [
+            "io.tailscale.ipn",
+            "com.teamviewer",
+            "com.philandro.anydesk",
+            "tv.parsec",
+            "com.carriez.rustdesk",
+            "com.splashtop",
+            "com.p5sys.jump",
+            "com.google.chromeremotedesktop",
+            "com.zerotier",
+            "com.wireguard",
+            "com.cloudflare.1dot1dot1dot1"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apps.meeting",
+      "category": "apps",
+      "devTooling": false,
+      "stopsWith": "quit",
+      "forceAfterGrace": null,
+      "guardMay": "Asked to quit, only when memory has run out and you put it on the list. Never while a call is on.",
+      "leftAlone": null,
+      "recognizedBy": [
+        {
+          "by": "bundleId",
+          "basis": "identity",
+          "values": [
+            "us.zoom.xos",
+            "com.microsoft.teams",
+            "com.microsoft.teams2",
+            "com.tinyspeck.slackmacgap",
+            "com.hnc.Discord",
+            "com.cisco.webexmeetingsapp",
+            "Cisco-Systems.Spark",
+            "net.whatsapp.WhatsApp",
+            "ru.keepcoder.Telegram",
+            "org.whispersystems.signal-desktop"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apps.containers",
+      "category": "apps",
+      "devTooling": false,
+      "stopsWith": "quit",
+      "forceAfterGrace": null,
+      "guardMay": "Asked to quit, only when memory has run out and you put it on the list. Quitting ends every container and virtual machine inside.",
+      "leftAlone": null,
+      "nameOnlyBecause": "lib/coding-agents.tsv lists these apps by name, and that list is the one the engine and the app share",
+      "recognizedBy": [
+        {
+          "by": "bundleId",
+          "basis": "identity",
+          "values": [
+            "dev.kdrag0n.MacVirt",
+            "com.docker.docker"
+          ]
+        },
+        {
+          "by": "containerApp",
+          "basis": "name"
+        }
+      ]
+    },
+    {
+      "id": "apps.terminals",
+      "category": "apps",
+      "devTooling": false,
+      "stopsWith": "quit",
+      "forceAfterGrace": null,
+      "guardMay": "Asked to quit, only when memory has run out and you put it on the list. Never while a live coding session runs in it.",
+      "leftAlone": null,
+      "recognizedBy": [
+        {
+          "by": "bundleId",
+          "basis": "identity",
+          "values": [
+            "com.googlecode.iterm2",
+            "dev.warp.Warp-Stable",
+            "com.mitchellh.ghostty",
+            "net.kovidgoyal.kitty",
+            "org.alacritty",
+            "com.github.wez.wezterm"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apps.editors",
+      "category": "apps",
+      "devTooling": false,
+      "stopsWith": "quit",
+      "forceAfterGrace": null,
+      "guardMay": "Asked to quit, only when memory has run out and you put it on the list.",
+      "leftAlone": null,
+      "recognizedBy": [
+        {
+          "by": "bundleId",
+          "basis": "identity",
+          "values": [
+            "com.microsoft.VSCode",
+            "com.todesktop.230313mzl4w4u92",
+            "com.exafunction.windsurf",
+            "dev.zed.Zed",
+            "com.sublimetext",
+            "com.jetbrains",
+            "com.google.android.studio",
+            "com.panic.Nova",
+            "com.barebones.bbedit",
+            "com.macromates.TextMate",
+            "com.apple.dt.Xcode"
+          ]
+        },
+        {
+          "by": "appCategory",
+          "basis": "identity",
+          "values": [
+            "public.app-category.developer-tools"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apps.browsers",
+      "category": "apps",
+      "devTooling": false,
+      "stopsWith": "quit",
+      "forceAfterGrace": null,
+      "guardMay": "Asked to quit, only when memory has run out and you put it on the list. A tab alone is never closed.",
+      "leftAlone": null,
+      "recognizedBy": [
+        {
+          "by": "httpsHandler",
+          "basis": "identity"
+        }
+      ]
+    },
+    {
+      "id": "apps.other",
+      "category": "apps",
+      "devTooling": false,
+      "fallback": true,
+      "stopsWith": "quit",
+      "forceAfterGrace": null,
+      "guardMay": "Asked to quit, only when memory has run out and you put it on the list.",
+      "leftAlone": null,
+      "recognizedBy": []
+    },
+    {
+      "id": "tools.codingAgents",
+      "category": "tools",
+      "devTooling": false,
+      "stopsWith": "none",
+      "forceAfterGrace": null,
+      "guardMay": "Nothing: a live coding session is never touched.",
+      "leftAlone": "A live coding session. Close it in the session itself; Memory Guard and Stop leave it alone.",
+      "recognizedBy": [
+        {
+          "by": "agentRoot",
+          "basis": "identity"
+        }
+      ]
+    },
+    {
+      "id": "tools.connection",
+      "category": "tools",
+      "devTooling": false,
+      "stopsWith": "none",
+      "forceAfterGrace": null,
+      "guardMay": "Nothing: it may be how you reach this Mac when you are away.",
+      "leftAlone": "A Connection Tool: it may be how you reach this Mac when you are away, so Memory Guard never stops it.",
+      "recognizedBy": [
+        {
+          "by": "exe",
+          "basis": "identity",
+          "values": [
+            "tailscaled",
+            "tailscale",
+            "zerotier-one",
+            "cloudflared",
+            "wireguard-go",
+            "openvpn"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tools.backgroundServices",
+      "category": "tools",
+      "devTooling": false,
+      "stopsWith": "none",
+      "forceAfterGrace": null,
+      "guardMay": "Tells you only: stopping one makes launchd start it again.",
+      "leftAlone": "A background service that launchd keeps running. Stopping it only makes macOS start it again, so Memory Guard leaves it alone. Turn it off under Login & Startup Items.",
+      "recognizedBy": [
+        {
+          "by": "launchdLabel",
+          "basis": "identity"
+        }
+      ]
+    },
+    {
+      "id": "tools.databases",
+      "category": "tools",
+      "devTooling": false,
+      "stopsWith": "stop",
+      "forceAfterGrace": null,
+      "guardMay": "Asked to stop, never forced, only when memory has run out and only as the last step among tools.",
+      "leftAlone": null,
+      "recognizedBy": [
+        {
+          "by": "exe",
+          "basis": "identity",
+          "values": [
+            "postgres",
+            "mysqld",
+            "mariadbd",
+            "redis-server",
+            "valkey-server",
+            "mongod"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tools.simulators",
+      "category": "tools",
+      "devTooling": false,
+      "stopsWith": "stop",
+      "forceAfterGrace": null,
+      "guardMay": "Asked to stop when memory runs short.",
+      "leftAlone": null,
+      "recognizedBy": [
+        {
+          "by": "exePath",
+          "basis": "identity",
+          "values": [
+            "/CoreSimulator/",
+            "CoreSimulator.framework"
+          ]
+        },
+        {
+          "by": "exe",
+          "basis": "identity",
+          "values": [
+            "emulator",
+            "qemu-system-aarch64",
+            "qemu-system-x86_64"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tools.devServers",
+      "category": "tools",
+      "devTooling": true,
+      "stopsWith": "stop",
+      "forceAfterGrace": 5,
+      "guardMay": "Asked to stop when it grows past its limit or memory runs short, and ended after five seconds if it will not stop.",
+      "leftAlone": null,
+      "nameOnlyBecause": "a Next.js server is only told from other Node programs by its command words, and it rewrites its own process title",
+      "recognizedBy": [
+        {
+          "by": "exe",
+          "basis": "identity",
+          "values": [
+            "vite",
+            "next-server"
+          ]
+        },
+        {
+          "by": "script",
+          "basis": "identity",
+          "values": [
+            "vite",
+            "next-server"
+          ]
+        },
+        {
+          "by": "argv",
+          "basis": "name",
+          "values": [
+            "next dev",
+            "next-server"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tools.buildDaemons",
+      "category": "tools",
+      "devTooling": true,
+      "stopsWith": "stop",
+      "forceAfterGrace": 5,
+      "guardMay": "Asked to stop when it grows past its limit or memory runs short, and ended after five seconds if it will not stop.",
+      "leftAlone": null,
+      "recognizedBy": [
+        {
+          "by": "exe",
+          "basis": "identity",
+          "values": [
+            "turbo",
+            "esbuild",
+            "webpack",
+            "tsup"
+          ]
+        },
+        {
+          "by": "script",
+          "basis": "identity",
+          "values": [
+            "turbo",
+            "esbuild",
+            "webpack",
+            "tsup"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tools.testRunners",
+      "category": "tools",
+      "devTooling": true,
+      "stopsWith": "stop",
+      "forceAfterGrace": 5,
+      "guardMay": "Asked to stop when it grows past its limit or memory runs short, and ended after five seconds if it will not stop.",
+      "leftAlone": null,
+      "nameOnlyBecause": "a test runner's worker processes are only told by the runner's name in their command line",
+      "recognizedBy": [
+        {
+          "by": "exe",
+          "basis": "identity",
+          "values": [
+            "vitest",
+            "jest"
+          ]
+        },
+        {
+          "by": "script",
+          "basis": "identity",
+          "values": [
+            "vitest",
+            "jest"
+          ]
+        },
+        {
+          "by": "argv",
+          "basis": "name",
+          "values": [
+            "vitest",
+            "jest",
+            "jest-worker"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tools.testBrowsers",
+      "category": "tools",
+      "devTooling": true,
+      "stopsWith": "stop",
+      "forceAfterGrace": 5,
+      "guardMay": "Asked to stop when it grows past its limit or memory runs short, and ended after five seconds if it will not stop.",
+      "leftAlone": null,
+      "nameOnlyBecause": "a browser a test tool started is only told from the person's own by the --headless flag or the tool's name",
+      "recognizedBy": [
+        {
+          "by": "exe",
+          "basis": "identity",
+          "values": [
+            "headless_shell"
+          ]
+        },
+        {
+          "by": "exePath",
+          "basis": "identity",
+          "values": [
+            "ms-playwright"
+          ]
+        },
+        {
+          "by": "argv",
+          "basis": "name",
+          "values": [
+            "--headless",
+            "playwright"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tools.runtimes",
+      "category": "tools",
+      "devTooling": true,
+      "generic": true,
+      "stopsWith": "stop",
+      "forceAfterGrace": 5,
+      "guardMay": "Asked to stop when it grows past its limit or memory runs short, and ended after five seconds if it will not stop.",
+      "leftAlone": null,
+      "recognizedBy": [
+        {
+          "by": "exe",
+          "basis": "identity",
+          "values": [
+            "node",
+            "npm",
+            "npx",
+            "bun",
+            "tsx",
+            "deno"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tools.toolServers",
+      "category": "tools",
+      "devTooling": false,
+      "stopsWith": "stop",
+      "forceAfterGrace": null,
+      "guardMay": "Tells you when it is large. Never one that a live coding session started.",
+      "leftAlone": null,
+      "nameOnlyBecause": "nothing in a tool server's identity says it speaks the Model Context Protocol; only its name does. A Node program that serves it reads as a JavaScript runtime",
+      "recognizedBy": [
+        {
+          "by": "argv",
+          "basis": "name",
+          "values": [
+            "mcp",
+            "modelcontextprotocol"
+          ]
+        }
+      ],
+      "generic": true
+    },
+    {
+      "id": "tools.other",
+      "category": "tools",
+      "devTooling": false,
+      "fallback": true,
+      "stopsWith": "stop",
+      "forceAfterGrace": null,
+      "guardMay": "Tells you when it is large. When memory has run out and nothing else frees enough, may ask the biggest one over 1 GB to stop, never forced.",
+      "leftAlone": null,
+      "recognizedBy": []
+    },
+    {
+      "id": "macos.system",
+      "category": "system",
+      "devTooling": false,
+      "stopsWith": "none",
+      "forceAfterGrace": null,
+      "guardMay": "Tells you only: no app can stop it.",
+      "leftAlone": "Part of macOS, and runs as the system, so no app can stop it.",
+      "recognizedBy": [
+        {
+          "by": "otherAccount",
+          "basis": "identity"
+        }
+      ]
+    },
+    {
+      "id": "macos.services",
+      "category": "system",
+      "devTooling": false,
+      "fallback": true,
+      "stopsWith": "none",
+      "forceAfterGrace": null,
+      "guardMay": "Tells you only: macOS starts it again and the system depends on it.",
+      "leftAlone": "Part of macOS. The system depends on it and starts it again if it ends, so Memory Guard never stops it.",
+      "recognizedBy": []
+    }
+  ]
+}

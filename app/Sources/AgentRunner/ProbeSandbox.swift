@@ -17,7 +17,7 @@ enum ProbeSandbox {
 
     /// The probes that run in the sandbox.
     static let names: Set<String> = ["--probe-cleanup-apply", "--probe-agents", "--probe-guard-rules", "--probe-stop-targets", "--probe-activity-ids",
-                                     "--probe-panel-stop"]
+                                     "--probe-panel-stop", "--probe-kinds-fixture"]
 
     /// The repository this binary was built from: `…/app/Sources/AgentRunner/ProbeSandbox.swift` is four levels down.
     static let sourceRoot: URL = {
@@ -36,6 +36,12 @@ enum ProbeSandbox {
         let home = ProbeScratch.folder("ma-probe-home")
         AnalyzersPaths.useHome(home)
         setenv("HOME", home.path, 1)        // and whatever the probe starts
+        // the engine's data files come from the checkout this binary was built from: the throwaway home has no
+        // engine, and a name or a kind read from nothing would make the probe judge an empty catalog
+        let rules = sourceRoot.appending(path: "memory-analyzer/rules/kinds.json")
+        if FileManager.default.fileExists(atPath: rules.path) { KindCatalog.use(file: rules) }
+        let agents = sourceRoot.appending(path: "lib/coding-agents.tsv")
+        if FileManager.default.fileExists(atPath: agents.path) { CodingAgentHosts.useList(at: agents) }
 
         let resolved = AnalyzersPaths.home.resolvingSymlinksInPath().path
         let suite = AnalyzersPaths.suiteRoot.resolvingSymlinksInPath().path

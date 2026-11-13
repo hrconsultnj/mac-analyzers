@@ -344,7 +344,7 @@ check_snapshot() {
 # would fail. Add a probe to PROBES when it has an exit status worth trusting.
 # --probe-stop-targets is not here: it needs a shell outside the system folders, detaches itself, starts
 # processes and takes about a minute, so it is run by hand (and by the person reviewing a stop path).
-PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-login-removal --probe-storage-setting --probe-disk-runway --probe-fence --probe-cleanup-parse --probe-undo-fixture --probe-panel-stop --probe-tm"
+PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-login-removal --probe-storage-setting --probe-disk-runway --probe-fence --probe-cleanup-parse --probe-undo-fixture --probe-panel-stop --probe-tm --probe-kinds-fixture"
 check_probes() {
   local app="$ROOT/app"
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi

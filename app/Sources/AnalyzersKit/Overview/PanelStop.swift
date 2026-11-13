@@ -80,6 +80,9 @@ extension CensusGroup {
     @_spi(TestSupport) public static func standInApp(name: String, root: ProcessIdentity) -> CensusGroup? {
         guard let lead = LiveStats.process(pid: root.pid) else { return nil }
         return CensusGroup(id: "stand-in:\(name)", name: name, category: .apps, role: nil, lead: lead, members: [lead],
-                           parts: [], quit: .app([root]), programs: [], hostedSessions: [:])
+                           parts: [], quit: .app([root]), programs: [], hostedSessions: [:],
+                           kind: KindCatalog.current.fallbackKind(for: .apps),
+                           kindMatch: KindMatch(kind: KindCatalog.current.fallbackKind(for: .apps), basis: .fallback, rule: "stand-in"),
+                           leftAlone: nil)
     }
 }

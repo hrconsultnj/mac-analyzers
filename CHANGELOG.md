@@ -7,6 +7,11 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
+- Monitor now says what kind of thing each group is: a browser, a code editor,
+  a terminal, a dev server, a background service, part of macOS. When a group
+  is one Memory Guard will never stop, or one no app can stop, it tells you why
+  in a sentence: macOS's own processes, programs of another account, a live
+  coding session, and remote-access tools such as Tailscale.
 - Mac Analyzers now runs with macOS's hardened runtime, on a copy you build
   yourself as well as on a download. Another program on your account can no
   longer make the app load code of its own choosing. Nothing changes in how
