@@ -17,13 +17,13 @@ struct AppMemorySection: View {
             VStack(alignment: .leading, spacing: Tokens.Space.s) {
                 Text("Where It Is").font(.title3.weight(.semibold))
                 ForEach(MonitorCategory.categories(of: model.rows).dropFirst()) { category in
-                    LabeledContent {
-                        Text(category.totalText).monospacedDigit()
-                    } label: {
+                    HStack {
                         Label("\(category.title), \(category.groups) \(category.groups == 1 ? "group" : "groups")",
                               systemImage: category.symbol)
+                        Spacer(minLength: Tokens.Space.xxl)
+                        Text(category.totalText).monospacedDigit().foregroundStyle(.secondary)
                     }
-                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Tokens.Space.xs)
                     Divider()
                 }
                 Text("A program's figure counts the memory macOS has compressed at its full size, as Activity Monitor's Memory column does, so these add up to more than App Memory.")
