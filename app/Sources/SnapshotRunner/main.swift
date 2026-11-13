@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -110,6 +110,10 @@ func option(_ name: String) -> String? {
     guard let index = arguments.firstIndex(of: name), arguments.indices.contains(index + 1) else { return nil }
     return arguments[index + 1]
 }
+// `--home <folder>`: every path the app reads (reports, logs, ledgers) resolves under this folder instead of the account's
+// home, so a screen can be looked at with a log of any size (a run of 6,000 items) without touching the real ones.
+// Must come before anything asks for a path.
+if let folder = option("--home") { AnalyzersPaths.useHome(URL(fileURLWithPath: folder)) }
 // `--guard-log <file>`: show Memory Guard's history from this log instead of the real one.
 if let log = option("--guard-log") { GuardHistory.useLog(at: URL(fileURLWithPath: log)) }
 let sizeParts = (option("--size") ?? "1100x720").split(separator: "x").compactMap { Double($0) }

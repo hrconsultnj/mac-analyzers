@@ -115,8 +115,7 @@ struct ActivityInspector: View {
                 Text(row.needsReview
                      ? "This preview found something and nothing has been changed yet. Review it, untick anything you want kept, then apply."
                      : "This preview found something, but it can't be applied as it stands: it is older than \(Int(JobStore.reviewWindow / 60)) minutes, or it was discarded, or it wasn't started from this app. Preview again to see what would be cleaned now.")
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: Tokens.Space.xl)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if let target = row.reviewTarget {
                     Button(row.needsReview ? "Review and Apply" : Names.Review.previewAgain) { navigator.open(target: target) }
                         .buttonStyle(.glassProminent)
@@ -138,8 +137,7 @@ struct ActivityInspector: View {
             HStack(spacing: Tokens.Space.xl) {
                 Image(systemName: "questionmark.circle").foregroundStyle(.secondary)
                 Text("This run finished, but \(Self.lostSentence(reason)) Nothing from it is shown or can be applied. Preview again to see what would be cleaned now.")
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: Tokens.Space.xl)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if let target = row.reviewTarget {
                     Button(Names.Review.previewAgain) { navigator.open(target: target) }
                         .buttonStyle(.glassProminent)
