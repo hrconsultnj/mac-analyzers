@@ -161,8 +161,8 @@ final class MonitorModel {
     private func readIcons() {
         var found = icons
         for row in rows where row.category == .apps {
-            if let pid = row.iconPID,
-               let image = NSRunningApplication(processIdentifier: pid_t(pid))?.icon {
+            // the same lookup as the menu-bar panel's: an app whose main process is a helper still has its bundle's icon
+            if let pid = row.iconPID, let image = GroupIcon.image(forAppPID: pid) {
                 found[row.id] = image
             }
         }

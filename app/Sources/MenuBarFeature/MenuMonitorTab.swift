@@ -23,20 +23,25 @@ extension MenuContentView {
         }
         .task(id: monitorRefresh) { await refreshCensus() }
 
-        sectionLabel("Using the Most Memory")
         if let panel {
-            ForEach(panel.processes) { row in
-                ProcessGroupRow(row: row, reload: { Task { await refreshCensus(once: true) } })
-            }
-            MenuRowButton(action: { SettingsOpener.open(target: "monitor") }) {
-                HStack {
-                    Text("\(panel.totalGroups - panel.processes.count) more in \(Names.Screen.monitor)")
-                        .font(.callout)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)  // decorative disclosure arrow
+            ForEach(panel.sections) { section in
+                CategoryHeader(section: section)
+                ForEach(section.rows) { row in
+                    ProcessGroupRow(row: row, reload: { Task { await refreshCensus(once: true) } })
+                }
+                if section.more > 0 {
+                    MenuRowButton(action: { SettingsOpener.open(target: section.category.monitorLink) }) {
+                        HStack {
+                            Text("\(section.more) more in \(Names.Screen.monitor)")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                                .accessibilityHidden(true)  // decorative disclosure arrow
+                        }
+                    }
                 }
             }
         } else {
@@ -71,7 +76,7 @@ extension MenuContentView {
 /// the person's yes is confirmed right here with the plan's own title, detail and action word before
 /// anything is sent; and a program that did not stop is never forced from here: the row offers to open
 /// Monitor on it, where Force Stop has its own confirmation. A row that cannot be stopped has a lock
-/// where the button would be, so the layout never changes, and says why under its name.
+/// where the button would be, so the layout never changes; the reason is on hover.
 struct ProcessGroupRow: View {
     let row: MenuPanelModel.ProcessRow
     let reload: () -> Void
@@ -88,7 +93,7 @@ struct ProcessGroupRow: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center, spacing: 8) {
                 // the name side opens Monitor: the place to see what a group is made of
-                MenuRowButton(action: { SettingsOpener.open(target: "monitor") }) {
+                MenuRowButton(action: { SettingsOpener.open(target: MemoryStop.monitorLink(forGroup: row.group.name)) }) {
                     HStack(alignment: .center, spacing: 8) {
                         icon.frame(width: 20, height: 20).accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 1) {
@@ -96,16 +101,15 @@ struct ProcessGroupRow: View {
                             if let detail = row.detail {
                                 Text(detail).font(.caption).foregroundStyle(.secondary)
                             }
-                            if case .locked(let reason) = offer {
-                                Text(reason).font(.caption).foregroundStyle(.tertiary)
-                            }
                         }
                         .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                .help(row.breakdown ?? row.name)   // the full breakdown on hover; Monitor has it in full
                 Text(row.sizeText)
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
+                    .fixedSize()        // the number and the control never give way to a long description
                 switch offer {
                 case .quit:
                     Button("Quit") { begin() }
@@ -115,10 +119,14 @@ struct ProcessGroupRow: View {
                     Button("Stop") { begin() }
                         .disabled(working || asking != nil)
                         .help("Ask \(row.name) to stop; nothing is forced")
-                case .locked:
+                case .locked(let reason):
+                    // no button, and why: on hover and for VoiceOver
                     Image(systemName: "lock.fill")
                         .foregroundStyle(.tertiary)
-                        .accessibilityLabel("Not offered here")
+                        .fixedSize()    // an image shrinks to nothing beside long text unless told not to
+                        .help(reason)
+                        .accessibilityLabel("Cannot be stopped from here")
+                        .accessibilityHint(reason)
                 }
             }
             if let asking {
@@ -183,13 +191,28 @@ struct ProcessGroupRow: View {
     }
 
     @ViewBuilder private var icon: some View {
-        if row.category == .apps,
-           let app = NSRunningApplication(processIdentifier: pid_t(row.group.lead.pid)),
-           let image = app.icon {
+        if let image = GroupIcon.image(for: row.group) {
             Image(nsImage: image).resizable()
         } else {
-            IconTile(symbol: row.category == .tools ? "hammer.fill" : "gearshape.fill",
-                     color: row.category == .tools ? .blue : .gray, side: 20)
+            IconTile(symbol: row.category.symbol, color: row.category == .tools ? .blue : .gray, side: 20)
         }
+    }
+}
+
+/// A category's heading: its icon and name, how many groups it holds, and their total.
+struct CategoryHeader: View {
+    let section: MenuPanelModel.Section
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Label(section.title, systemImage: section.symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text("\(section.groups)").font(.caption).foregroundStyle(.tertiary)
+            Spacer()
+            Text(section.totalText).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+        }
+        .padding(.top, 4)
+        .accessibilityElement(children: .combine)
     }
 }
