@@ -16,9 +16,10 @@ public struct ProcessKind: Identifiable, Sendable, Hashable {
     public let stopsWith: StopsWith
     /// Seconds a stop is given before what is left is ended; nil means never forced.
     public let forceAfterGrace: Int?
-    /// What the guard may do to it, as a sentence (the probe prints it).
+    /// What the guard is meant to be allowed to do to it, as a sentence (the probe prints it). The guard script does
+    /// not read the kinds yet: this is the policy the catalog carries, not what the script does today.
     public let guardMay: String
-    /// Why the guard (and, where it is so, the person) leaves it alone, as a sentence; nil when nothing is held back.
+    /// Why Monitor leaves it alone or handles it with care, as a sentence; nil when nothing is held back.
     public let leftAlone: String?
 
     /// The kind's name on screen (`Names.Kind`).
@@ -57,6 +58,8 @@ public struct ProcessSubject: Sendable {
     public let uid: UInt32
     public let me: UInt32
     public let ppid: Int
+    /// The process's own number, for the rules that ask whether it is the very process launchd runs for a job.
+    public let pid: Int
     /// The app's bundle identifier and category (`LSApplicationCategoryType`), for a process that belongs to an app.
     public let bundleID: String?
     public let appCategory: String?
@@ -64,13 +67,14 @@ public struct ProcessSubject: Sendable {
     public let appName: String?
     public let appPath: String?
 
-    public init(path: String, command: String? = nil, uid: UInt32, me: UInt32, ppid: Int = 0,
+    public init(path: String, command: String? = nil, uid: UInt32, me: UInt32, ppid: Int = 0, pid: Int = 0,
                 bundleID: String? = nil, appCategory: String? = nil, appName: String? = nil, appPath: String? = nil) {
         self.path = path
         self.command = command ?? path
         self.uid = uid
         self.me = me
         self.ppid = ppid
+        self.pid = pid
         self.bundleID = bundleID
         self.appCategory = appCategory
         self.appName = appName

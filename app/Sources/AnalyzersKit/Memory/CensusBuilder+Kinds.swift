@@ -24,7 +24,7 @@ extension CensusBuilder {
     /// What the rules are asked about a process.
     func subject(of entry: Entry, command: String?, appName: String? = nil, appPath: String? = nil) -> ProcessSubject {
         let info = appPath.map(appInfo(at:))
-        return ProcessSubject(path: entry.path, command: command, uid: entry.uid, me: me, ppid: entry.ppid,
+        return ProcessSubject(path: entry.path, command: command, uid: entry.uid, me: me, ppid: entry.ppid, pid: entry.pid,
                               bundleID: info?.bundleID, appCategory: info?.category, appName: appName, appPath: appPath)
     }
 
@@ -45,7 +45,7 @@ extension CensusBuilder {
             }
             if let path { (bundleID, appCategory) = appInfo(at: path) }
         }
-        let subject = ProcessSubject(path: lead.path, command: argv(lead), uid: lead.uid, me: me, ppid: lead.ppid,
+        let subject = ProcessSubject(path: lead.path, command: argv(lead), uid: lead.uid, me: me, ppid: lead.ppid, pid: lead.pid,
                                      bundleID: bundleID, appCategory: appCategory,
                                      appName: category == .apps ? name : nil, appPath: path)
         return kinds.recognize(subject, in: category, environment: kindEnvironment)
@@ -56,6 +56,10 @@ extension CensusBuilder {
     func leftAlone(kind: ProcessKind, category: CensusGroup.Category, lead: Entry) -> String? {
         if category != .system, lead.uid != me {
             return "Runs under another account, so no app of yours can stop it."
+        }
+        // another person's login is not "the system": uids below 500 are macOS's own accounts
+        if category == .system, lead.uid != me, lead.uid >= 500 {
+            return "Part of macOS, and runs under another account, so no app of yours can stop it."
         }
         return kind.leftAlone
     }

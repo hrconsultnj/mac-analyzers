@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "about": "The kinds of process Mac Analyzers tells apart, and how each is recognised. Read by the app and by agent-runner (AnalyzersKit/Memory/Kinds); the guard script does not read it. A process belongs to the category the census put it in (apps, tools, system); the kind says what it is inside that category. Recognition is by identity where the system gives one: bundle identifier, executable, program path, launchd job. A rule that can only go by a name says so (basis name) and its kind says why (nameOnlyBecause). Order matters: within a pass the first kind that matches wins. Pass 1 is the identity rules, pass 2 the name rules, pass 3 the kinds marked generic, then the category's fallback kind. Kind names are in Names.swift (Names.Kind), not here.",
+  "about": "The kinds of process Mac Analyzers tells apart, and how each is recognised. Read by the app and by agent-runner (AnalyzersKit/Memory/Kinds); the guard script does not read it yet, so `guardMay` is the policy the kinds are meant to carry, not what the script does today, and `leftAlone` says only what Monitor's own Stop and Quit do. A process belongs to the category the census put it in (apps, tools, system); the kind says what it is inside that category. Recognition is by identity where the system gives one: bundle identifier, executable, program path, launchd job. A rule that can only go by a name says so (basis name) and its kind says why (nameOnlyBecause). Order matters: within a pass the first kind that matches wins. Pass 1 is the identity rules, pass 2 the name rules, pass 3 the kinds marked generic, then the category's fallback kind. Kind names are in Names.swift (Names.Kind), not here.",
   "kinds": [
     {
       "id": "apps.connection",
@@ -9,7 +9,7 @@
       "stopsWith": "none",
       "forceAfterGrace": null,
       "guardMay": "Nothing: it may be how you reach this Mac when you are away.",
-      "leftAlone": "A Connection Tool: it may be how you reach this Mac when you are away, so Memory Guard never closes it.",
+      "leftAlone": "A Connection Tool: it may be how you reach this Mac when you are away, and quitting it can cut you off.",
       "recognizedBy": [
         {
           "by": "bundleId",
@@ -172,7 +172,7 @@
       "stopsWith": "none",
       "forceAfterGrace": null,
       "guardMay": "Nothing: a live coding session is never touched.",
-      "leftAlone": "A live coding session. Close it in the session itself; Memory Guard and Stop leave it alone.",
+      "leftAlone": "A live coding session. Close it in the session itself; Stop in Monitor leaves it alone.",
       "recognizedBy": [
         {
           "by": "agentRoot",
@@ -187,7 +187,7 @@
       "stopsWith": "none",
       "forceAfterGrace": null,
       "guardMay": "Nothing: it may be how you reach this Mac when you are away.",
-      "leftAlone": "A Connection Tool: it may be how you reach this Mac when you are away, so Memory Guard never stops it.",
+      "leftAlone": "A Connection Tool: it may be how you reach this Mac when you are away, and stopping it can cut you off.",
       "recognizedBy": [
         {
           "by": "exe",
@@ -210,7 +210,7 @@
       "stopsWith": "none",
       "forceAfterGrace": null,
       "guardMay": "Tells you only: stopping one makes launchd start it again.",
-      "leftAlone": "A background service that launchd keeps running. Stopping it only makes macOS start it again, so Memory Guard leaves it alone. Turn it off under Login & Startup Items.",
+      "leftAlone": "A background service that launchd keeps running. Stopping it only makes macOS start it again. Turn it off under Login & Startup Items.",
       "recognizedBy": [
         {
           "by": "launchdLabel",
@@ -486,7 +486,7 @@
       "stopsWith": "none",
       "forceAfterGrace": null,
       "guardMay": "Tells you only: macOS starts it again and the system depends on it.",
-      "leftAlone": "Part of macOS. The system depends on it and starts it again if it ends, so Memory Guard never stops it.",
+      "leftAlone": "Part of macOS. The system depends on it and starts it again if it ends, so it is not offered for stopping.",
       "recognizedBy": []
     }
   ]

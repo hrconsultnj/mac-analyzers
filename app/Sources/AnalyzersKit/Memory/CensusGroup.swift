@@ -57,8 +57,8 @@ public struct CensusGroup: Identifiable, Sendable {
     public let kind: ProcessKind
     /// Which rule decided the kind, and whether it rests on an identity or only on a name.
     public let kindMatch: KindMatch
-    /// Why this group is left alone, in words, when it is: part of macOS, another account's, a live coding
-    /// session, a Connection Tool. nil when nothing is held back.
+    /// Why this group is left alone or handled with care, in words: part of macOS, another account's, a live coding
+    /// session, a Connection Tool. Says only what Monitor's Stop and Quit do. nil when nothing is held back.
     public let leftAlone: String?
 
     public var totalBytes: Int64 { members.reduce(0) { $0 + $1.memoryBytes } }

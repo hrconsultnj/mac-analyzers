@@ -71,7 +71,7 @@ private struct RowDetail: View {
                 } else if let reason = row.lockedReason {
                     Label(reason, systemImage: "lock.fill").foregroundStyle(.secondary)
                 }
-                // something the person may stop but Memory Guard never does: a Connection Tool, a background service
+                // something the person may stop, with a word of care: a Connection Tool, a background service
                 if row.stopVerb != nil, let held = row.leftAlone {
                     Label(held, systemImage: "shield.lefthalf.filled").foregroundStyle(.secondary)
                 }

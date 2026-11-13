@@ -77,7 +77,7 @@ func probeKinds(_ args: [String]) -> Never {
     for category in CensusGroup.Category.allCases {
         let groups = census.groups(in: category)
         print("\n\(category.title) · \(groups.count) groups")
-        print("  " + line("GROUP", 34) + line("KIND", 26) + line("DECIDED BY", 40) + "THE GUARD MAY")
+        print("  " + line("GROUP", 34) + line("KIND", 26) + line("DECIDED BY", 40) + "CATALOG POLICY (the guard script does not read it yet)")
         let shown = args.contains("--all") ? groups : Array(groups.prefix(25))
         for group in shown {
             let match = group.kindMatch
@@ -168,12 +168,12 @@ func probeKindsFixture(_ args: [String]) -> Never {
 
     let me: UInt32 = 501
     let environment = KindEnvironment(httpsHandlers: ["com.operasoftware.opera", "com.googlecode.iterm2"],
-                                      launchdPrograms: ["/Users/x/bin/syncer": "com.example.syncer"])
+                                      launchdJobs: [700: "com.example.syncer", 710: "com.example.refresh"])
     func tool(_ label: String, _ command: String, _ kind: String, _ basis: KindMatch.Basis = .identity,
-              path: String? = nil, ppid: Int = 700, uid: UInt32 = 501, difference: (Bool, String)? = nil) -> Row {
+              path: String? = nil, pid: Int = 9000, ppid: Int = 600, uid: UInt32 = 501, difference: (Bool, String)? = nil) -> Row {
         let first = command.split(separator: " ").first.map(String.init) ?? command
         return Row(label: label, category: .tools,
-                   subject: ProcessSubject(path: path ?? first, command: command, uid: uid, me: me, ppid: ppid),
+                   subject: ProcessSubject(path: path ?? first, command: command, uid: uid, me: me, ppid: ppid, pid: pid),
                    kind: kind, basis: basis, difference: difference.map { ($0.0, $0.1) })
     }
     func app(_ label: String, _ name: String, _ bundleID: String, _ kind: String, _ basis: KindMatch.Basis = .identity,
@@ -205,7 +205,13 @@ func probeKindsFixture(_ args: [String]) -> Never {
         // tools: sessions, connection, services, databases, simulators
         tool("a coding session", "/Users/x/.local/bin/claude --resume", "tools.codingAgents"),
         tool("a mesh VPN daemon", "/usr/local/bin/tailscaled --state=/x", "tools.connection"),
-        tool("launchd keeps it running", "/Users/x/bin/syncer --watch", "tools.backgroundServices", path: "/Users/x/bin/syncer", ppid: 1),
+        tool("launchd keeps it running: the very process it runs for the job", "/Users/x/bin/syncer --watch", "tools.backgroundServices",
+             path: "/Users/x/bin/syncer", pid: 700, ppid: 1),
+        tool("a job that runs node is that one process", "/Users/x/.nvm/bin/node /Users/x/refresh.js", "tools.backgroundServices",
+             path: "/Users/x/.nvm/bin/node", pid: 710, ppid: 1,
+             difference: (true, "the pattern selects node; the kind is a background service launchd restarts, which is not developer tooling")),
+        tool("an orphan of the interpreter a job runs is not that job", "/Users/x/.nvm/bin/node /Users/x/p/server.js", "tools.runtimes",
+             path: "/Users/x/.nvm/bin/node", pid: 711, ppid: 1),
         tool("the same program started by hand", "/Users/x/bin/syncer --watch", "tools.other", .fallback, path: "/Users/x/bin/syncer"),
         tool("PostgreSQL", "/opt/homebrew/opt/postgresql@16/bin/postgres -D /x", "tools.databases"),
         tool("Redis, named by its first word", "redis-server *:6379", "tools.databases", path: "/opt/homebrew/bin/redis-server"),

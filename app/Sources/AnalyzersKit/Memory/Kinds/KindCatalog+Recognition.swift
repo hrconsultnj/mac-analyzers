@@ -4,20 +4,21 @@ import Foundation
 public struct KindEnvironment: Sendable {
     /// Bundle identifiers (lowercased) and paths of the apps that open web links.
     public let httpsHandlers: Set<String>
-    /// Executable path → the label of the launchd job that keeps it running.
-    public let launchdPrograms: [String: String]
+    /// The process launchd runs for each installed job, by pid → the job's label. A job's pid, never its executable:
+    /// an orphan of the same interpreter is not that job.
+    public let launchdJobs: [Int: String]
 
-    public init(httpsHandlers: Set<String>, launchdPrograms: [String: String]) {
+    public init(httpsHandlers: Set<String>, launchdJobs: [Int: String]) {
         self.httpsHandlers = httpsHandlers
-        self.launchdPrograms = launchdPrograms
+        self.launchdJobs = launchdJobs
     }
 
     /// Nothing known: for a caller that has only a command line.
-    public static let none = KindEnvironment(httpsHandlers: [], launchdPrograms: [:])
+    public static let none = KindEnvironment(httpsHandlers: [], launchdJobs: [:])
 
     /// Read from the system, for a census.
     public static func live() -> KindEnvironment {
-        KindEnvironment(httpsHandlers: BrowserHandlers.current(), launchdPrograms: LaunchdServices.programs())
+        KindEnvironment(httpsHandlers: BrowserHandlers.current(), launchdJobs: LaunchdServices.jobs())
     }
 }
 
@@ -143,7 +144,7 @@ extension KindCatalog {
             case .script:
                 return script.flatMap { name in rule.values.first { $0 == name } }
             case .launchdLabel:
-                guard subject.ppid == 1, let label = environment.launchdPrograms[subject.path] else { return nil }
+                guard subject.pid > 0, let label = environment.launchdJobs[subject.pid] else { return nil }
                 return label
             case .otherAccount:
                 return subject.uid != subject.me ? "runs as another account" : nil

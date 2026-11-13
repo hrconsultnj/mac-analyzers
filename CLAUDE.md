@@ -155,8 +155,10 @@ through `config.local.sh` (never hardcoded).
   census as text (where memory is + every process group with its total).
   The census is the ONE classifier: it gives every group its category AND its
   kind (`CensusGroup.kind`, from `memory-analyzer/rules/kinds.json` through
-  `AnalyzersKit/Memory/Kinds/`); the Monitor, the menu-bar panel and the guard
-  read that field and never classify a process a second time.
+  `AnalyzersKit/Memory/Kinds/`); the app's screens read that field and never
+  classify a process a second time. The guard script does not read it yet: it keeps its own `KILLABLE_RE` until the rules engine
+  (phase B) replaces that, and its live-session exemption must first cover every
+  agent in `lib/coding-agents.tsv`.
   `agent-runner --probe-kinds [--all]` prints every group's kind, the rule that
   decided it and what the guard may do, with the parity check against the guard
   script's own pattern; `--probe-kinds-fixture` is the same rules on stand-in
