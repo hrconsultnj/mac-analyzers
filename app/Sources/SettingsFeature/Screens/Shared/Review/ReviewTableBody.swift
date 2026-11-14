@@ -146,6 +146,8 @@ struct ReviewNameCell: View {
                 Image(systemName: "folder")
             }
         }
+        // the icon is centred on the name and the line under it, not level with the name
+        .labelStyle(.centeredIcon)
     }
 }
 
