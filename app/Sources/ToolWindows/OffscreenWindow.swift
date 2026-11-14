@@ -49,6 +49,21 @@ public final class OffscreenWindow: NSWindow {
             .flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) }
     }
 
+    /// The window server lists a window a moment after it is ordered in, not in the same turn: an ordered-in window
+    /// that is not listed yet gets a bounded wait (up to a second, a run-loop turn at a time) before it counts as
+    /// unconfirmed. Never longer, and never a pass: a window still unlisted after the wait is refused.
+    private func waitForListing() -> CGRect? {
+        let deadline = Date().addingTimeInterval(Self.listingWait)
+        repeat {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+            if let rect = serverBounds() { return rect }
+        } while Date() < deadline
+        return nil
+    }
+
+    /// The longest the window server is given to list an ordered-in window.
+    static let listingWait: TimeInterval = 1.0
+
     /// Why this window is, or may be, on a display; nil when it is nowhere near one. Judged two ways: the
     /// frame against every screen's frame, and the window server's bounds for the window against every active
     /// display's bounds. A window that is ordered in and that the window server does not list cannot be
@@ -56,10 +71,13 @@ public final class OffscreenWindow: NSWindow {
     public func onScreenReason() -> String? {
         var reasons: [String] = []
         if let reason = frameReason() { reasons.append(reason) }
-        if let rect = serverBounds() {
+        if let rect = serverBounds() ?? (isVisible ? waitForListing() : nil) {
+            // The ONLINE displays, not the active ones: while the screen is locked or asleep the active list is
+            // empty, and a guard that compares against nothing refuses nothing.
             var ids = [CGDirectDisplayID](repeating: 0, count: 16)
             var count: UInt32 = 0
-            CGGetActiveDisplayList(UInt32(ids.count), &ids, &count)
+            CGGetOnlineDisplayList(UInt32(ids.count), &ids, &count)
+            if count == 0 { reasons.append("the window server lists no display, so there is nothing to judge the window against") }
             for id in ids.prefix(Int(count)) where CGDisplayBounds(id).intersects(rect) {
                 reasons.append("the window server puts it at \(rect.debugDescription), on display \(id)")
             }
