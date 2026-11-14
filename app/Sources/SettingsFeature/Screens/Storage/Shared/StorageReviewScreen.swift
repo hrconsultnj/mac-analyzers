@@ -109,7 +109,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
     @ViewBuilder private var review: some View {
         if let rows = model.rows, let session = model.session {
             if rows.rows.isEmpty {
-                ContentUnavailableView("Nothing to Clean", systemImage: "checkmark.circle",
+                EmptyState("Nothing to Clean", systemImage: "checkmark.circle",
                                        description: Text("This preview found nothing to remove."))
             } else {
                 ReviewTable(session: session, preview: model.phase == .lastKnown ? nil : model.job,
@@ -231,21 +231,17 @@ struct StoragePhaseContent<Ready: View>: View {
     var body: some View {
         switch model.phase {
         case .empty:
-            ContentUnavailableView {
+            EmptyState {
                 Label(emptyTitle, systemImage: "eye")
             } description: {
                 Text(emptyText)
             } actions: {
                 Button(Names.Review.preview, action: preview).buttonStyle(.borderedProminent)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .running:
-            VStack {
-                ProgressView()
-                Text(model.job?.step ?? "Previewing…").foregroundStyle(.secondary)
+            LoadingState(model.job?.step ?? "Previewing…") {
                 Button(Names.Review.stop, role: .cancel) { model.job?.cancel() }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed(let message):
             retry("Preview Failed", systemImage: "exclamationmark.triangle", text: message,
                   diagnostics: StorageDiagnostics.report(job: model.job, message: message))
@@ -255,14 +251,14 @@ struct StoragePhaseContent<Ready: View>: View {
             retry("Results Can't Be Shown", systemImage: "questionmark.folder",
                   text: "\(why) Nothing from it can be applied.")
         case .loading:
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            LoadingState()
         case .ready, .lastKnown:
             ready()
         }
     }
 
     private func retry(_ title: String, systemImage: String, text: String, diagnostics: String? = nil) -> some View {
-        ContentUnavailableView {
+        EmptyState {
             Label(title, systemImage: systemImage)
         } description: {
             Text(text)

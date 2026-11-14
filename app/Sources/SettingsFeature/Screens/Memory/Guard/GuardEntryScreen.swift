@@ -19,10 +19,10 @@ struct GuardEntryScreen: View {
             if let row {
                 content(for: row)
             } else if loaded {
-                ContentUnavailableView(Names.Guard.eventGone, systemImage: "clock.arrow.circlepath",
+                EmptyState(Names.Guard.eventGone, systemImage: "clock.arrow.circlepath",
                                        description: Text("It has aged out of the log, so there is nothing more to show."))
             } else {
-                ProgressView()
+                LoadingState()
             }
         }
         .navigationTitle(row?.title ?? "Event")

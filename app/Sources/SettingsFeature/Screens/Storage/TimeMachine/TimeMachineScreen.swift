@@ -107,7 +107,7 @@ struct TimeMachineScreen: View {
     @ViewBuilder private var content: some View {
         let tree = TimeMachineNode.tree(model.rows ?? StorageRows([]))
         if tree.isEmpty {
-            ContentUnavailableView(Names.TimeMachine.nothingToThin, systemImage: "checkmark.circle",
+            EmptyState(Names.TimeMachine.nothingToThin, systemImage: "checkmark.circle",
                                    description: Text(Names.TimeMachine.nothingToThinDetail))
         } else {
             OutlineTable(tree, children: \.children, selection: $selection, expanded: expansion.binding, autosave: "timemachine") {

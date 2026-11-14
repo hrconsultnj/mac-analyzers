@@ -30,7 +30,7 @@ struct ActivityInspector: View {
         if let row {
             screen(for: row)
         } else {
-            ContentUnavailableView("Select a Run", systemImage: "list.bullet.rectangle",
+            EmptyState("Select a Run", systemImage: "list.bullet.rectangle",
                                    description: Text("Pick a run to see what it did."))
         }
     }
@@ -165,9 +165,9 @@ struct ActivityInspector: View {
         } else if let section = sections.first(where: { RunTab(section: $0) == current }) {
             RunResultsDefault(section: section, screen: "run.\(row.kind?.rawValue ?? row.log?.rawValue ?? "other")").id(section.id)
         } else if outcome == nil {
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            LoadingState()
         } else {
-            ContentUnavailableView("No Details Were Recorded", systemImage: "text.alignleft",
+            EmptyState("No Details Were Recorded", systemImage: "text.alignleft",
                                    description: Text("Show Raw Output has the text this run left."))
         }
     }

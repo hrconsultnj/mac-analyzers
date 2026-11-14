@@ -94,7 +94,7 @@ struct NetworkView: View {
     @ViewBuilder private var content: some View {
         if !model.loaded {
             // reading the saved snapshots: say nothing is saved only once that is known
-            ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
+            LoadingState()
         } else {
             loadedContent
         }
@@ -104,7 +104,7 @@ struct NetworkView: View {
         switch scope {
         case .snapshot:
             if model.viewing == nil {
-                ContentUnavailableView {
+                EmptyState {
                     Label(model.isTaking ? "Taking a Snapshot" : "No Snapshot Yet", systemImage: "network")
                 } description: {
                     Text(model.isTaking ? "Reading what each program has sent and received."
