@@ -28,7 +28,7 @@ struct MenuEventRow: View {
 
     var body: some View {
         MenuRowButton(action: { SettingsOpener.open(target: "log:guardLog") }) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
                 Image(systemName: row.event.symbol)
                     .foregroundStyle(row.event.tint)
                     .accessibilityHidden(true)  // decorative — the title already says what happened
