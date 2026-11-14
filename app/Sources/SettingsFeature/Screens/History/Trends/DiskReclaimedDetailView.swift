@@ -33,7 +33,7 @@ struct DiskReclaimedDetailView: View {
     var body: some View {
         Group {
             if loaded && rows.isEmpty {
-                ContentUnavailableView("Nothing Removed", systemImage: "internaldrive",
+                EmptyState("Nothing Removed", systemImage: "internaldrive",
                                        description: Text("A cleanup has not deleted anything in this period."))
             } else {
                 OutlineTable(sorted(rows), children: \.children, selection: $selection, sortOrder: $sortOrder,

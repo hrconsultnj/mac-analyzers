@@ -134,13 +134,13 @@ struct GuardHistoryView: View {
     @ViewBuilder private func emptyState(_ days: [GuardHistory.Day]) -> some View {
         if model.hasLoaded, model.loadingWindow == nil, days.isEmpty {
             if !appliedSearch.isEmpty {
-                ContentUnavailableView.search(text: appliedSearch)
+                EmptyState.search(text: appliedSearch)
             } else if model.history.entries.isEmpty {
-                ContentUnavailableView(Names.Guard.nothingToReport, systemImage: "shield.lefthalf.filled",
-                                       description: Text("The guard has not stopped or flagged anything in \(model.window.phrase). Quiet is good."))
+                EmptyState(Names.Guard.nothingToReport, systemImage: "shield.lefthalf.filled",
+                           description: Text("The guard has not stopped or flagged anything in \(model.window.phrase). Quiet is good."))
             } else {
-                ContentUnavailableView(Names.Guard.nothingHere, systemImage: scope == .crisisReports ? "stethoscope" : "line.3.horizontal.decrease",
-                                       description: Text("Nothing in this view in \(model.window.phrase). Try another."))
+                EmptyState(Names.Guard.nothingHere, systemImage: scope == .crisisReports ? "stethoscope" : "line.3.horizontal.decrease",
+                           description: Text("Nothing in this view in \(model.window.phrase). Try another."))
             }
         }
     }

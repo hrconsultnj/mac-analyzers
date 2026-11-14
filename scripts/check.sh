@@ -33,7 +33,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 ROOT="$(cd "$(dirname "$0")/.." && pwd)" || exit 2
 cd "$ROOT" || exit 2
 
-ALL="syntax lint secrets changelog tests workflows strays spi env snapshot names periods probes outline app"
+ALL="syntax lint secrets changelog tests workflows strays spi env snapshot names periods probes outline states app"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ma-check.XXXXXX")" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -60,6 +60,7 @@ describe() {
     probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids, Undo restore safety, the menu-bar panel's Quit and Stop (agent-runner; macOS only)" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
     outline)   echo "the shared OutlineTable, headless: open all and re-sort with text and with hosted cells log no AppKit reentrancy warning (scripts/outline-probe.sh; macOS only)" ;;
+    states)    echo "no screen draws its own empty, failed or loading state: a bare ContentUnavailableView or screen-state ProgressView outside Shared/ScreenState.swift is refused (scripts/states-refuse.sh; tests/states-refuse-test.sh plants each form)" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
   esac
 }
@@ -471,6 +472,17 @@ check_outline() {
   return 0
 }
 
+check_states() {
+  if [ ! -x scripts/states-refuse.sh ]; then DETAIL="skipped: no scripts/states-refuse.sh"; return 2; fi
+  scripts/states-refuse.sh app/Sources/SettingsFeature >"$OUT" 2>&1
+  if [ -s "$OUT" ]; then
+    DETAIL="$(wc -l <"$OUT" | tr -d ' ') screen state(s) drawn without EmptyState / LoadingState (Shared/ScreenState.swift)"
+    return 1
+  fi
+  DETAIL="every empty, failed and loading state is the shared EmptyState / LoadingState"
+  return 0
+}
+
 check_app() {
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
   if [ ! -f app/Package.swift ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
@@ -557,7 +569,7 @@ if [ -n "$range" ]; then
       case "$n" in
         syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
         changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
-        app|spi|env|snapshot|names|periods|probes|outline) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
+        app|spi|env|snapshot|names|periods|probes|outline|states) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
         secrets|strays) selected="$selected $n" ;;
       esac
     done

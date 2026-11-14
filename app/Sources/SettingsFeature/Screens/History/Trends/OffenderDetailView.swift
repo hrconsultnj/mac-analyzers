@@ -15,7 +15,7 @@ struct OffenderDetailView: View {
                 TrendsEventTable(rows: OverviewModel.eventRows(timeline.events, limit: Int.max),
                                  emptyTitle: "No Events")
             } else {
-                ProgressView()
+                LoadingState()
             }
         }
         .navigationTitle(name)

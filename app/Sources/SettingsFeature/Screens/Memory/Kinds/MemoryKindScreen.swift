@@ -52,7 +52,7 @@ struct MemoryKindScreen: View {
                     .padding()          // the screen's own margin: the content runs the width of the window
                 }
             } else {
-                ProgressView("Reading memory…")
+                LoadingState("Reading memory…")
             }
         }
         .onAppear { trend.begin() }

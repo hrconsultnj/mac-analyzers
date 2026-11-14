@@ -46,9 +46,9 @@ extension MonitorView {
     @ViewBuilder private func lensEmpty(_ empty: Bool, _ title: String, _ symbol: String) -> some View {
         if model.hasLoaded, empty {
             if search.isEmpty {
-                ContentUnavailableView(title, systemImage: symbol)
+                EmptyState(title, systemImage: symbol)
             } else {
-                ContentUnavailableView.search(text: search)
+                EmptyState.search(text: search)
             }
         }
     }

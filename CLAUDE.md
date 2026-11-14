@@ -107,7 +107,13 @@ through `config.local.sh` (never hardcoded).
   (`SettingsFeature/Shared/PaneScaffold.swift`); a screen that shows data (a
   table, a list, a review) is a `DataScreen`
   (`SettingsFeature/Shared/DataScreen.swift`), which fills the window, carries
-  the title and subtitle, and centres an empty state. The main window is
+  the title and subtitle. A screen never draws its own empty, failed or
+  loading state: it is `EmptyState` or `LoadingState`
+  (`SettingsFeature/Shared/ScreenState.swift`: the system's
+  `ContentUnavailableView` and `ProgressView`, filling the space the screen has
+  left and centring in it, with the icon, title, description and the button
+  that fixes it where one exists); `scripts/check.sh states` refuses a bare
+  one. The main window is
   `SettingsFeature/Shell/`: `MainWindowView` over one `Navigator` (selection,
   a path per section, ONE back/forward history recorded only in its four
   mutators `select` / `push` / `setPath` / `open`); the sidebar is a plain

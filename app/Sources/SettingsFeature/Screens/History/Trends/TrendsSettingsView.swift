@@ -58,9 +58,9 @@ struct TrendsSettingsView: View {
         if parts.count > 1, let hours = Int(parts[1]), let requested = ReportPeriod(rawValue: hours) { period = requested }
     }
 
-    private var list: some View {
-        List {
-            if let snap = snapshot {
+    @ViewBuilder private var list: some View {
+        if let snap = snapshot {
+            List {
                 Section {
                     Text(snap.headline)
                         .font(.title3.weight(.semibold))
@@ -76,9 +76,10 @@ struct TrendsSettingsView: View {
                 } else {
                     storageSections(snap)
                 }
-            } else {
-                Section { ProgressView("Reading the logs…") }
             }
+        } else {
+            // not inside the list: a section's spinner sat at the top left; the state fills what the tabs leave
+            LoadingState("Reading the logs…")
         }
     }
 

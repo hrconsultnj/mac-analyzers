@@ -13,7 +13,7 @@ struct GuardEventListDetailView: View {
 
     var body: some View {
         Group {
-            if loaded { TrendsEventTable(rows: rows, emptyTitle: "No \(title)") } else { ProgressView() }
+            if loaded { TrendsEventTable(rows: rows, emptyTitle: "No \(title)") } else { LoadingState() }
         }
         .navigationTitle(title)
         .navigationSubtitle(loaded ? "\(rows.count) in \(period.phrase)" : periodSubtitle(loading: period, ""))
