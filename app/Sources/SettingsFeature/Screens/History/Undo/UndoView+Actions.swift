@@ -6,7 +6,7 @@ import AnalyzersKit
 extension UndoView {
 
     func load() async {
-        await awaitLoad({ UndoHistory.entries() }) {
+        await awaitLoad({ UndoHistory.entries() }, key: "undo.entries") {
             entries = $0
             loaded = true
             // open what can still be put back, and the guard's days, the first time this screen shows rows

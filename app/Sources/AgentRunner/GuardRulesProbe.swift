@@ -37,8 +37,8 @@ func probeGuardRules() -> Never {
             lines.append("\(stamp(daysAgo: day, 8 + program, 0)) SPIKE pid=\(5000 + day * 10 + program) +800MB now 1900MB  node /Users/x/p/node_modules/.bin/\(tool)")
         }
     }
-    // an alert at five past midnight on the first day of the seven-day period
-    lines.append("\(stamp(daysAgo: 7, 0, 5)) SPIKE pid=6001 +700MB now 1700MB  node /Users/x/edge/node_modules/.bin/vite")
+    // an alert at five past midnight on the first day of the seven-day period (today and the six days before it)
+    lines.append("\(stamp(daysAgo: 6, 0, 5)) SPIKE pid=6001 +700MB now 1700MB  node /Users/x/edge/node_modules/.bin/vite")
     let ordered = lines.sorted()
     // the guard is writing the last line as this reads: it has no newline yet
     let halfWritten = "\(stamp(daysAgo: 0, 0, 1)) KILLED [hard-cap 6144MB] pid=99999 rss=7000MB  node /Users/x/half"
@@ -64,11 +64,11 @@ func probeGuardRules() -> Never {
           "\(day?.rows.filter { $0.kind == .pressure }.map(\.count) ?? [])")
     check("a half-written last line is left out", !history.entries.contains { $0.pid == 99_999 }, "events read: \(history.coverage.eventCount)")
 
-    // a period starts at the start of its first day
+    // "Last N Days" is N days counting today: it starts at the start of the day N-1 days back (here 6 days back)
     let week = GuardHistory.load(days: 7)
-    check("the first day of a period is whole (an alert at 00:05 is in)", week.entries.contains { $0.pid == 6001 },
+    check("the first day of a period is whole (an alert at 00:05 six days ago is in)", week.entries.contains { $0.pid == 6001 },
           "events in the 7-day period: \(week.coverage.eventCount)")
-    check("and nothing older is", !week.entries.contains { ($0.pid ?? 0) >= 5000 + 8 * 10 && ($0.pid ?? 0) < 6000 }, "rows from eight days ago and older are left out")
+    check("and nothing older is", !week.entries.contains { ($0.pid ?? 0) >= 5000 + 7 * 10 && ($0.pid ?? 0) < 6000 }, "rows from seven days ago and older are left out")
 
     // the list gains a page at a time, whole days, and never passes the rule unless one day is bigger
     let days = history.days()
@@ -99,13 +99,19 @@ func probeGuardRules() -> Never {
     let chronological = Array(periodLines.reversed())      // oldest first: 100 days, 40 days, 6 days, 3.5 days, 30 h, 2 h
     try? ((Array(chronological[0..<2]) + filler + Array(chronological[2...])).joined(separator: "\n") + "\n").write(to: periodLog, atomically: true, encoding: .utf8)
     GuardHistory.useLog(at: periodLog)
+    // the one period type: the same six choices on Trends and Memory Guard, in order, with the names the menu shows
+    check("the period menu offers six choices", ReportPeriod.allCases.map(\.rawValue) == [24, 72, 168, 336, 720, 2_160]
+          && ReportPeriod.allCases.map(\.title) == Names.Period.all, ReportPeriod.allCases.map(\.title).joined(separator: ", "))
+    check("a stored length that is not offered becomes the nearest longer one",
+          ReportPeriod.nearest(atLeast: 336) == .fortnight && ReportPeriod.nearest(atLeast: 200) == .fortnight && ReportPeriod.nearest(atLeast: 24) == .day
+            && ReportPeriod.nearest(atLeast: 100) == .week && ReportPeriod.nearest(atLeast: 9_999) == nil, "200 hours is \(ReportPeriod.nearest(atLeast: 200)?.title ?? "none")")
     func inPeriod(_ hours: Int) -> [Int] {
-        let begin = hours == 24 ? now.addingTimeInterval(-86_400)
-            : (calendar.date(byAdding: .day, value: -(hours / 24), to: calendar.startOfDay(for: now)) ?? now)
+        let begin = ReportPeriod(rawValue: hours)?.start(now: now) ?? now
         return ages.indices.filter { now.addingTimeInterval(-ages[$0] * 3_600) >= begin }
     }
-    for (name, hours) in [("last 24 hours", 24), ("last 3 days", 72), ("last 7 days", 168), ("last 90 days", 2_160)] {
-        let loaded = GuardHistory.load(since: GuardHistory.periodStart(hours: hours, now: now))
+    for period in ReportPeriod.allCases {
+        let (name, hours) = (period.title.lowercased(), period.rawValue)
+        let loaded = GuardHistory.load(since: period.start(now: now))
         let wanted = Set(inPeriod(hours).map { 7_000 + $0 })
         let got = Set(loaded.entries.compactMap(\.pid).filter { $0 < 8_000 })     // the filler is not what is being counted
         check("the \(name) holds exactly the alerts inside it", got == wanted && !wanted.isEmpty,
@@ -113,7 +119,7 @@ func probeGuardRules() -> Never {
     }
     // an entry screen looks a row up in the same period the list showed (GuardEntryScreen): every row of every
     // period must be found again by its id in that period's read, including a group that straddles the period's start
-    for hours in [24, 72, 168, 2_160] {
+    for hours in ReportPeriod.allCases.map(\.rawValue) {
         let read = GuardHistory.load(since: GuardHistory.periodStart(hours: hours, now: now))
         let ids = read.days(scope: .all, search: "").flatMap { $0.rows.map(\.id) }
         let lost = ids.filter { read.row(id: $0) == nil }
@@ -123,7 +129,7 @@ func probeGuardRules() -> Never {
     let shortRead = GuardHistory.load(since: GuardHistory.periodStart(hours: 24, now: now)).coverage.bytesRead
     let longRead = GuardHistory.load(since: GuardHistory.periodStart(hours: 2_160, now: now)).coverage.bytesRead
     check("a short period reads less of the log than a long one", shortRead < longRead, "24 hours \(shortRead) bytes, 90 days \(longRead) bytes")
-    let panel = GuardLogParser.recentEvents(fromLog: periodLog, within: 86_400, limit: 50, after: nil)
+    let panel = GuardLogParser.recentEvents(fromLog: periodLog, limit: 50, after: nil)
     check("the menu-bar panel's last 24 hours and the screen's are the same alerts",
           Set(panel.compactMap(\.pid)) == Set(GuardHistory.load(since: GuardHistory.periodStart(hours: 24, now: Date())).entries.compactMap(\.pid)) && panel.count == 1,
           "panel \(panel.compactMap(\.pid).sorted())")

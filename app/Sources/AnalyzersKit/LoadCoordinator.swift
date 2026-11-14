@@ -13,13 +13,22 @@ import Foundation
 ///      fast clicks cost one sweep at a time instead of ten at once.
 ///   2. DEDUPED + CACHED — a key that was produced within its TTL returns
 ///      instantly, so re-entering a pane (or a 5s refresh tick) is free.
-///   3. KEYED PER CALL SITE — callers get a key for free from #fileID and
-///      #line, so panes never collide or invalidate each other.
+///   3. KEYED BY THE CALLER — a key names the load AND every input of it (a
+///      period, a process, a channel), so panes never collide and a request with
+///      other inputs is never answered with a cached one's data. `awaitLoad`
+///      has no default key for that reason.
 public actor LoadCoordinator {
 
     public static let shared = LoadCoordinator()
 
     private var cache: [String: (stamp: Date, value: any Sendable)] = [:]
+
+    /// Test support: every read whose key starts with one of `prefixes` takes `seconds` longer, so a screenshot tool can
+    /// look at a screen while its data is on the way. Never set by the app.
+    @_spi(TestSupport) public func slowDown(prefixes: [String], by seconds: TimeInterval) {
+        delay = (prefixes, seconds)
+    }
+    private var delay: (prefixes: [String], seconds: TimeInterval) = ([], 0)
 
     /// Fresh-enough cached value, else produce it here (on the actor, off
     /// the main thread, one at a time). `nil` means the caller was cancelled
@@ -34,6 +43,7 @@ public actor LoadCoordinator {
         // quickly and the last one used to wait out three sweeps for screens
         // already off-stage; now the abandoned ones simply never run.
         guard !Task.isCancelled else { return nil }
+        if delay.seconds > 0, delay.prefixes.contains(where: key.hasPrefix) { Thread.sleep(forTimeInterval: delay.seconds) }
         let fresh = produce()
         cache[key] = (Date(), fresh)
         return fresh

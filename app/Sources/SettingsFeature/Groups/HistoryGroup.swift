@@ -27,21 +27,28 @@ enum HistoryGroup {
             "undo:servers": undoIntent("servers"),
             "undo:opened": undoIntent("opened"),
             // the drill-downs, for 30 days (also what the snapshot renders open)
-            "trends:kills": drill(.kills(.day30)),
-            "trends:spikes": drill(.spikes(.day30)),
-            "trends:pressure": drill(.pressure(.day30)),
-            "trends:cpu": drill(.cpuHogs(.day30)),
-            "trends:memory-freed": drill(.memoryFreed(.day30)),
+            "trends:kills": drill(.kills(.month)),
+            "trends:spikes": drill(.spikes(.month)),
+            "trends:pressure": drill(.pressure(.month)),
+            "trends:cpu": drill(.cpuHogs(.month)),
+            "trends:memory-freed": drill(.memoryFreed(.month)),
             // the two tabs: the screen opens on the one named
             "trends:memory": tab(.memory),
             "trends:storage": tab(.storage),
-            "trends:disk": drill(.diskReclaimed(.day30)),
+            "trends:disk": drill(.diskReclaimed(.month)),
             "trends:reclaimable": drill(.reclaimableNow),
         ],
         resolveDynamic: { target in
+            // `trends:memory:24h`, `trends:storage:7d`: a tab with the period it should show
+            for category in TrendCategory.allCases where target.hasPrefix("trends:\(category.rawValue):") {
+                let name = String(target.dropFirst("trends:\(category.rawValue):".count))
+                if let period = ReportPeriod(linkName: name) {
+                    return .mainWithIntent(Location(trends), SectionIntent(section: trends, payload: "\(category.rawValue)|\(period.rawValue)"))
+                }
+            }
             // `trends:offender:<name>` — that process's timeline over 30 days
             guard target.hasPrefix("trends:offender:") else { return nil }
-            return drill(.offender(String(target.dropFirst("trends:offender:".count)), .day30))
+            return drill(.offender(String(target.dropFirst("trends:offender:".count)), .month))
         })
 
     private static func undoIntent(_ payload: String) -> Resolution {

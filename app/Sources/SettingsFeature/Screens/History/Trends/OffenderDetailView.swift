@@ -5,7 +5,7 @@ import UIComponents
 /// One process's whole guard timeline over one period, as a table.
 struct OffenderDetailView: View {
     let name: String
-    let period: TrendsModel.Period
+    let period: ReportPeriod
 
     @State private var timeline: OffenderTimeline?
 
@@ -22,12 +22,13 @@ struct OffenderDetailView: View {
         .navigationSubtitle(subtitle)
         .task {
             let window = period, processName = name
-            await awaitLoad({ TrendsModel.offenderTimeline(name: processName, period: window) }) { timeline = $0 }
+            await awaitLoad({ TrendsModel.offenderTimeline(name: processName, period: window) },
+                            key: "trends.offender.\(window.rawValue).\(processName)") { timeline = $0 }
         }
     }
 
     private var subtitle: String {
-        guard let t = timeline else { return period.label }
+        guard let t = timeline else { return periodSubtitle(loading: period, "") }
         let peak = t.peakResidentMB > 0 ? ", peak \(formatMB(t.peakResidentMB))" : ""
         return "\(t.eventCount) \(t.eventCount == 1 ? "event" : "events"), \(t.killCount) stopped\(peak)"
     }

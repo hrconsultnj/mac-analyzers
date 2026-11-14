@@ -176,12 +176,12 @@ public enum GuardLogParser {
     /// kills always show; only the LATEST spike per pid shows, and spikes from
     /// pids that were later killed are dropped. Newest first.
     public static func recentEvents(fromLog url: URL,
-                                    within interval: TimeInterval = 86_400,
+                                    since start: Date = GuardHistory.periodStart(hours: 24),
                                     limit: Int = 6,
                                     after clearedAt: Date? = nil) -> [GuardEvent] {
         guard let data = try? Data(contentsOf: url),
               let text = String(data: data, encoding: .utf8) else { return [] }
-        let cutoff = max(Date().addingTimeInterval(-interval), clearedAt ?? .distantPast)
+        let cutoff = max(start, clearedAt ?? .distantPast)
 
         var kills: [GuardEvent] = []
         var others: [GuardEvent] = []
@@ -217,7 +217,12 @@ public enum GuardLogParser {
     public static func allEvents(fromLog url: URL,
                                  within interval: TimeInterval = 90 * 86_400,
                                  limit: Int? = nil) -> [GuardEvent] {
-        let reading = GuardLogReader.read(url, since: Date().addingTimeInterval(-interval))
+        allEvents(fromLog: url, since: Date().addingTimeInterval(-interval), limit: limit)
+    }
+
+    /// The same from a date on: the log is read backwards only as far as `start`, so a short period costs a short read.
+    public static func allEvents(fromLog url: URL, since start: Date, limit: Int? = nil) -> [GuardEvent] {
+        let reading = GuardLogReader.read(url, since: start)
         let events = reading.lines.compactMap { parseLine($0) }
             .sorted { $0.date > $1.date }
         return limit.map { Array(events.prefix($0)) } ?? events

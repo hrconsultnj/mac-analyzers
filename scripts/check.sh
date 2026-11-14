@@ -33,7 +33,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 ROOT="$(cd "$(dirname "$0")/.." && pwd)" || exit 2
 cd "$ROOT" || exit 2
 
-ALL="syntax lint secrets changelog tests workflows strays spi env snapshot names probes outline states app"
+ALL="syntax lint secrets changelog tests workflows strays spi env snapshot names periods probes outline states app"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ma-check.XXXXXX")" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -56,6 +56,7 @@ describe() {
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
     env)       echo "the app people install reads no environment variable: ProcessInfo's environment and getenv appear only in AgentRunner, SnapshotRunner and the one file that passes the environment on to the engine scripts" ;;
     snapshot)  echo "the snapshot tool's main.swift has no top-level await: one makes its top-level code an async task, and an app run inside a task never fires its delayed capture, so every render hangs" ;;
+    periods)   echo "every screen with a period offers it from the one shared ReportPeriod and its one menu (PeriodToolbar): no second period type of any name, no Picker or list of periods outside Shared/PeriodMenu.swift (scripts/periods-refuse.sh, proved by tests/periods-refuse-test.sh)" ;;
     probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids, Undo restore safety, the menu-bar panel's Quit and Stop (agent-runner; macOS only)" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
     outline)   echo "the shared OutlineTable, headless: open all and re-sort with text and with hosted cells log no AppKit reentrancy warning (scripts/outline-probe.sh; macOS only)" ;;
@@ -319,6 +320,22 @@ check_env() {
   return 0
 }
 
+# One period type, one menu. Every screen with a period (Trends, Memory Guard) offers every period of
+# `ReportPeriod` through `PeriodToolbar`; a screen says only its default and the key it saves under.
+# scripts/periods-refuse.sh lists what is refused (a second period type of any name ending in Period, a Window or TimeRange
+# enum in History, Memory or Overview code, a Picker or ForEach over the periods, a written-out list of them);
+# tests/periods-refuse-test.sh plants each form and proves the script refuses it and passes the allowed ones.
+check_periods() {
+  if [ ! -x scripts/periods-refuse.sh ]; then DETAIL="skipped: no scripts/periods-refuse.sh"; return 2; fi
+  scripts/periods-refuse.sh app/Sources >"$OUT" 2>&1
+  if [ -s "$OUT" ]; then
+    DETAIL="$(wc -l <"$OUT" | tr -d ' ') period type(s) or list(s) outside the shared one — use ReportPeriod and PeriodToolbar"
+    return 1
+  fi
+  DETAIL="one period type (ReportPeriod) and one menu (PeriodToolbar)"
+  return 0
+}
+
 # SnapshotRunner renders a screen and captures it after a delay on the main
 # dispatch queue. One `await` in main.swift's top-level code turns that code
 # into an async task; NSApplication.run() started inside a task never services
@@ -345,7 +362,7 @@ check_snapshot() {
 # would fail. Add a probe to PROBES when it has an exit status worth trusting.
 # --probe-stop-targets is not here: it needs a shell outside the system folders, detaches itself, starts
 # processes and takes about a minute, so it is run by hand (and by the person reviewing a stop path).
-PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-login-removal --probe-storage-setting --probe-disk-runway --probe-fence --probe-cleanup-parse --probe-undo-fixture --probe-panel-stop --probe-tm --probe-channels --probe-versions --probe-pressure --probe-memory-kinds --probe-kinds-fixture"
+PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-trend-buckets --probe-login-removal --probe-storage-setting --probe-disk-runway --probe-fence --probe-cleanup-parse --probe-undo-fixture --probe-panel-stop --probe-tm --probe-channels --probe-versions --probe-pressure --probe-memory-kinds --probe-kinds-fixture"
 check_probes() {
   local app="$ROOT/app"
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
@@ -546,7 +563,7 @@ if [ -n "$range" ]; then
       case "$n" in
         syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
         changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
-        app|spi|env|snapshot|names|probes|outline|states) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
+        app|spi|env|snapshot|names|periods|probes|outline|states) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
         secrets|strays) selected="$selected $n" ;;
       esac
     done

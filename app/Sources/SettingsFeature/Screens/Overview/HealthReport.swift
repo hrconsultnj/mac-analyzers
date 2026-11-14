@@ -24,7 +24,7 @@ enum HealthReport {
     // MARK: - content
 
     static func build() -> String {
-        let trends = TrendsModel.snapshot(period: .day30)
+        let trends = TrendsModel.snapshot(period: .month)
         let disk = LiveStats.diskUsage()
         let runway = ForecastModel.diskRunway()
         let loginRun = LogParser.runs(for: .loginItems).first.map {

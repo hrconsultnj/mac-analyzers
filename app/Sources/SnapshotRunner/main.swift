@@ -138,6 +138,13 @@ case "hidden": .hidden
 case "peek": .peeking
 default: .shown
 }
+/// `--then <target> [--then-at <seconds>]`: open a second target that long after launch (default 3 s), on the screen already
+/// showing, as a link opened while a screen is open: how a period changed while its data is in view is rendered.
+/// `--load-delay <seconds>`: reads of Trends and Memory Guard take that much longer, so the state while a new
+/// period loads can be captured.
+let thenTarget = option("--then")
+let thenAt = Double(option("--then-at") ?? "3") ?? 3
+let loadDelay = Double(option("--load-delay") ?? "0") ?? 0
 let scrollToEnd = arguments.contains("--scroll-end")
 /// `--scroll-sidebar`: scroll the sidebar (the narrowest scrollable view) to its last row.
 let scrollSidebar = arguments.contains("--scroll-sidebar")
@@ -284,6 +291,18 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             NotificationCenter.default.post(name: NotifyChannel.openPaneInternal, object: nil,
                                             userInfo: ["target": target])
+        }
+        if loadDelay > 0 {
+            // from the second target on: the first read is quick, the one a change starts is slow
+            DispatchQueue.main.asyncAfter(deadline: .now() + thenAt - 0.2) {
+                Task { await LoadCoordinator.shared.slowDown(prefixes: ["trends.", "guard.history"], by: loadDelay) }
+            }
+        }
+        if let thenTarget {
+            DispatchQueue.main.asyncAfter(deadline: .now() + thenAt) {
+                NotificationCenter.default.post(name: NotifyChannel.openPaneInternal, object: nil,
+                                                userInfo: ["target": thenTarget])
+            }
         }
         if scrollToEnd {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1) { self.scrollLongestToEnd() }

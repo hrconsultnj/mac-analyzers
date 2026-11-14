@@ -87,17 +87,34 @@ public enum TrendTotals {
     /// Memory the cleaners actually closed over the period (dry rows are intent,
     /// not effect), from every run in both logs.
     public static func reapedMemoryMB(within interval: TimeInterval, now: Date = Date()) -> Int {
-        let cutoff = now.addingTimeInterval(-interval)
-        var total = 0
+        reapedMemory(since: now.addingTimeInterval(-interval)).reduce(0) { $0 + $1.mb }
+    }
+
+    /// The same, run by run from a date on, each with the moment it started (what a chart buckets by).
+    public static func reapedMemory(since start: Date) -> [(date: Date, mb: Int)] {
+        var found: [(date: Date, mb: Int)] = []
         for log in [EngineLog.memoryClean, .reclaim] {
             for run in LogParser.allRuns(for: log) {
-                guard let date = runDate(run.header), date >= cutoff else { continue }
+                guard let date = runDate(run.header), date >= start else { continue }
                 let parsed = ReapParser.parse(runHeader: run.header, lines: run.lines)
-                total += parsed.allItems.filter { $0.status == .killed || $0.status == .quit }
+                let mb = parsed.allItems.filter { $0.status == .killed || $0.status == .quit }
                     .compactMap(\.mb).reduce(0, +)
+                if mb > 0 { found.append((date, mb)) }
             }
         }
-        return total
+        return found
+    }
+
+    /// What the storage cleaner deleted, run by run from a date on, each with the moment it started.
+    public static func removedStorage(since start: Date) -> [(date: Date, bytes: Int64)] {
+        var found: [(date: Date, bytes: Int64)] = []
+        for run in LogParser.allRuns(for: .storageClean) {
+            guard let date = runDate(run.header), date >= start else { continue }
+            let parsed = StorageCleanParser.parse(runHeader: run.header, lines: run.lines)
+            let bytes = parsed.items.filter { $0.status == .deleted }.reduce(Int64(0)) { $0 + $1.sizeBytes }
+            found.append((date, bytes))
+        }
+        return found
     }
 
     /// What the latest storage check says a cleanup could remove: the findings of the

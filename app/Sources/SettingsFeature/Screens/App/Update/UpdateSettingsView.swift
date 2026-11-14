@@ -109,7 +109,9 @@ struct UpdateSettingsView: View {
             // Beta and This Copy read the unreleased section from THEIR changelog (development's, or the
             // clone's with its uncommitted edits); the releases below are the bundled ones.
             let includeNext = channel == .releases && updates.build.isDevelopment
-            await awaitLoad({ ReleaseNote.channelNotes(channel: channel, changelog: channelText, includeNext: includeNext) }) { notes = $0 }
+            // keyed by what the notes are made of: the channel, whether the unreleased part is in, and the text itself
+            await awaitLoad({ ReleaseNote.channelNotes(channel: channel, changelog: channelText, includeNext: includeNext) },
+                            key: "update.notes.\(channel).\(includeNext).\(channelText.hashValue)") { notes = $0 }
         }
         .task {
             // always fresh when the pane opens — the cache is for background

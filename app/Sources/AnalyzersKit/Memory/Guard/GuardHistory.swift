@@ -187,16 +187,19 @@ public struct GuardHistory: Sendable {
     /// Blocking (it reads the log and names every program once): call it off
     /// the main actor and not on every refresh — `GuardHistoryModel` does both.
     public static func load(days: Int = windowDays, now: Date = Date()) -> GuardHistory {
-        // from the start of that day, so the oldest day is whole, not cut mid-afternoon
-        load(since: Calendar.current.date(byAdding: .day, value: -days, to: Calendar.current.startOfDay(for: now)) ?? now)
+        load(since: periodStart(hours: days * 24, now: now))
     }
 
-    /// Where a period of `hours` begins. The last 24 hours is the last 24 hours back from `now`, the same moment the
-    /// menu-bar panel's "Recent Events" counts from (`GuardLogParser.recentEvents`, `within: 86_400`); a longer period begins
-    /// at the start of that day, so its oldest day is whole.
+    /// Where a period of `hours` begins, the one rule every screen, total, chart and the menu-bar panel's "Recent Events"
+    /// share. The last 24 hours begins ON the hour: the current clock hour and the 23 before it, so a chart of it is 24
+    /// equal bars (the current one only up to now). "Last N days" is N days counting today: it begins at the start of the
+    /// day N-1 days back, so 7 days is today and the 6 days before it, 7 bars, and the oldest day is whole.
     public static func periodStart(hours: Int, now: Date = Date(), calendar: Calendar = .current) -> Date {
-        if hours <= 24 { return now.addingTimeInterval(-Double(hours) * 3_600) }
-        return calendar.date(byAdding: .day, value: -(hours / 24), to: calendar.startOfDay(for: now)) ?? now
+        if hours <= 24 {
+            let thisHour = calendar.dateInterval(of: .hour, for: now)?.start ?? now
+            return calendar.date(byAdding: .hour, value: -(max(hours, 1) - 1), to: thisHour) ?? thisHour
+        }
+        return calendar.date(byAdding: .day, value: -(hours / 24 - 1), to: calendar.startOfDay(for: now)) ?? now
     }
 
     /// Everything from `start` on. The log is read backwards only as far as `start`, so a short period costs a short read
