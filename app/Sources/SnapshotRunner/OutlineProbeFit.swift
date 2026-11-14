@@ -1,4 +1,5 @@
 import AppKit
+import ToolWindows
 import Foundation
 import SwiftUI
 import UIComponents
@@ -30,10 +31,9 @@ enum ProbeFit {
         let model = ProbeModel(rows: makeProbeRows(parents: 10, kids: 2))
         let autosave = "probe-fit-\(getpid())"
         let host = NSHostingController(rootView: Screen(model: model, autosave: autosave))
-        let window = ProbeWindow(contentViewController: host)
+        let window = OffscreenWindow(contentViewController: host)
         window.styleMask = [.titled, .resizable]
-        window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-        window.orderFrontRegardless()
+        window.placeOffscreen()
         var ok = true
         // the setting that makes a scroll bar take room: legacy scrollers, as with "Show scroll bars: Always"
         let legacy = true
@@ -117,10 +117,9 @@ enum ProbeFit {
         verdict(shown(outline).contains("owner"), "560: a person asks for Owner although there is no room: \(shown(outline))")
         window.contentViewController = nil; window.close()
         spin(0.3)
-        let again = ProbeWindow(contentViewController: NSHostingController(rootView: Screen(model: model, autosave: autosave)))
+        let again = OffscreenWindow(contentViewController: NSHostingController(rootView: Screen(model: model, autosave: autosave)))
         again.styleMask = [.titled, .resizable]
-        again.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-        again.orderFrontRegardless()
+        again.placeOffscreen()
         again.setContentSize(NSSize(width: 560, height: 500)); _ = settle(); spin(0.8); _ = settle()
         if let relaunched = again.contentView.flatMap(findOutline(in:)) {
             verdict(shown(relaunched).contains("owner") && !shown(relaunched).contains("kind"),

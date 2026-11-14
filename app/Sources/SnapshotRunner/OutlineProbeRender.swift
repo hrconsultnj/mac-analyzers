@@ -1,5 +1,6 @@
 @_spi(TestSupport) import AnalyzersKit
 import AppKit
+import ToolWindows
 import Foundation
 import SwiftUI
 import SettingsFeature
@@ -67,18 +68,18 @@ enum ProbeRender {
         }
 
         let host = NSHostingController(rootView: content)
-        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+        let window = OffscreenWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
         window.contentViewController = host
         window.setContentSize(size)
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-        window.orderFrontRegardless()
+        window.placeOffscreen()
         _ = settle(); spin(0.8)
 
         // Drawn by the view itself into a bitmap: needs no display and no screen-recording
         // permission, so it works when the screen is locked too.
+        window.requireOffscreen(before: "draw \(fixture)")
         guard let view = window.contentView else { return 1 }
         view.layoutSubtreeIfNeeded()
         var made = false
