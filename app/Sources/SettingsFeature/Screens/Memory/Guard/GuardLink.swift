@@ -7,15 +7,15 @@ import AnalyzersKit
 struct GuardLink: Codable {
     var scopeName: String?
     var query: String?
-    var windowDays: Int?
+    var windowHours: Int?
 
     var scope: GuardHistory.Scope? { scopeName.flatMap { GuardHistory.Scope(rawValue: $0) } }
-    var window: GuardHistoryModel.Window? { windowDays.flatMap { GuardHistoryModel.Window(rawValue: $0) } }
+    var window: GuardHistoryModel.Window? { windowHours.flatMap { GuardHistoryModel.Window(rawValue: $0) } }
 
     init(scope: GuardHistory.Scope? = nil, query: String? = nil, window: GuardHistoryModel.Window? = nil) {
         scopeName = scope?.rawValue
         self.query = query
-        windowDays = window?.rawValue
+        windowHours = window?.rawValue
     }
 
     init?(payload: String) {

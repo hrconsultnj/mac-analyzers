@@ -187,9 +187,22 @@ public struct GuardHistory: Sendable {
     /// Blocking (it reads the log and names every program once): call it off
     /// the main actor and not on every refresh — `GuardHistoryModel` does both.
     public static func load(days: Int = windowDays, now: Date = Date()) -> GuardHistory {
-        guard let url = logOverride.withLock({ $0 }) ?? EngineLog.guardLog.url else { return .empty }
         // from the start of that day, so the oldest day is whole, not cut mid-afternoon
-        let start = Calendar.current.date(byAdding: .day, value: -days, to: Calendar.current.startOfDay(for: now)) ?? now
+        load(since: Calendar.current.date(byAdding: .day, value: -days, to: Calendar.current.startOfDay(for: now)) ?? now)
+    }
+
+    /// Where a period of `hours` begins. The last 24 hours is the last 24 hours back from `now`, the same moment the
+    /// menu-bar panel's "Recent Events" counts from (`GuardLogParser.recentEvents`, `within: 86_400`); a longer period begins
+    /// at the start of that day, so its oldest day is whole.
+    public static func periodStart(hours: Int, now: Date = Date(), calendar: Calendar = .current) -> Date {
+        if hours <= 24 { return now.addingTimeInterval(-Double(hours) * 3_600) }
+        return calendar.date(byAdding: .day, value: -(hours / 24), to: calendar.startOfDay(for: now)) ?? now
+    }
+
+    /// Everything from `start` on. The log is read backwards only as far as `start`, so a short period costs a short read
+    /// however long the log is.
+    public static func load(since start: Date) -> GuardHistory {
+        guard let url = logOverride.withLock({ $0 }) ?? EngineLog.guardLog.url else { return .empty }
         let reading = GuardLogReader.read(url, since: start)
         let events = reading.lines.compactMap { GuardLogParser.parseLine($0) }
         let oldest = events.map(\.date).min()

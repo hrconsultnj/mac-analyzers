@@ -83,5 +83,40 @@ func probeGuardRules() -> Never {
     check("the pages together show every row once", shown == total && steps > 1, "\(shown) of \(total) rows")
     check("days run newest first", zip(days, days.dropFirst()).allSatisfy { $0.day > $1.day }, "\(days.count) days")
     check("row ids are unique", Set(days.flatMap { $0.rows.map(\.id) }).count == total, "\(total) rows")
+
+    // the periods the menu offers, on a log of its own: alerts 2 h, 30 h, 3.5 days, 6 days, 40 days and 100 days ago
+    let now = Date()
+    let ages = [2.0, 30, 84, 144, 960, 2_400]
+    let periodLog = ProbeScratch.folder("ma-probe-guard-periods").appending(path: "guard.log")
+    let periodLines = ages.enumerated().map { index, hours in
+        "\(formatter.string(from: now.addingTimeInterval(-hours * 3_600))) SPIKE pid=\(7_000 + index) +800MB now 1900MB  node /Users/x/p\(index)/node_modules/.bin/vite"
+    }
+    // a long log, in time order like the real one: the 100- and 40-day-old alerts, then 8,000 from 20 days ago, then the rest;
+    // a short period stops before the filler, a long one has to read through it
+    let filler = (0..<8_000).map { index in
+        "\(formatter.string(from: now.addingTimeInterval(-20 * 86_400 + Double(index)))) SPIKE pid=\(20_000 + index) +800MB now 1900MB  node /Users/x/old/node_modules/.bin/vite"
+    }
+    let chronological = Array(periodLines.reversed())      // oldest first: 100 days, 40 days, 6 days, 3.5 days, 30 h, 2 h
+    try? ((Array(chronological[0..<2]) + filler + Array(chronological[2...])).joined(separator: "\n") + "\n").write(to: periodLog, atomically: true, encoding: .utf8)
+    GuardHistory.useLog(at: periodLog)
+    func inPeriod(_ hours: Int) -> [Int] {
+        let begin = hours == 24 ? now.addingTimeInterval(-86_400)
+            : (calendar.date(byAdding: .day, value: -(hours / 24), to: calendar.startOfDay(for: now)) ?? now)
+        return ages.indices.filter { now.addingTimeInterval(-ages[$0] * 3_600) >= begin }
+    }
+    for (name, hours) in [("last 24 hours", 24), ("last 3 days", 72), ("last 7 days", 168), ("last 90 days", 2_160)] {
+        let loaded = GuardHistory.load(since: GuardHistory.periodStart(hours: hours, now: now))
+        let wanted = Set(inPeriod(hours).map { 7_000 + $0 })
+        let got = Set(loaded.entries.compactMap(\.pid).filter { $0 < 8_000 })     // the filler is not what is being counted
+        check("the \(name) holds exactly the alerts inside it", got == wanted && !wanted.isEmpty,
+              "read \(got.sorted()), wanted \(wanted.sorted()), \(loaded.coverage.bytesRead) bytes")
+    }
+    let shortRead = GuardHistory.load(since: GuardHistory.periodStart(hours: 24, now: now)).coverage.bytesRead
+    let longRead = GuardHistory.load(since: GuardHistory.periodStart(hours: 2_160, now: now)).coverage.bytesRead
+    check("a short period reads less of the log than a long one", shortRead < longRead, "24 hours \(shortRead) bytes, 90 days \(longRead) bytes")
+    let panel = GuardLogParser.recentEvents(fromLog: periodLog, within: 86_400, limit: 50, after: nil)
+    check("the menu-bar panel's last 24 hours and the screen's are the same alerts",
+          Set(panel.compactMap(\.pid)) == Set(GuardHistory.load(since: GuardHistory.periodStart(hours: 24, now: Date())).entries.compactMap(\.pid)) && panel.count == 1,
+          "panel \(panel.compactMap(\.pid).sorted())")
     exit(failed ? 1 : 0)
 }
