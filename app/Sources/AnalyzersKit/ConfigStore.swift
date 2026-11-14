@@ -254,6 +254,10 @@ public final class ConfigStore {
         let tmp = AnalyzersPaths.configLocal.appendingPathExtension("tmp")
         try out.write(to: tmp, atomically: true, encoding: .utf8)
         _ = try fm.replaceItemAt(AnalyzersPaths.configLocal, withItemAt: tmp)
+        // what the guard script reads from the rules engine, written with the same numbers (best effort: the script
+        // keeps today's constants when the file is not there)
+        GuardFallbackFile.write(hardCapMB: memory.hardCapMB, hardCapStop: memory.hardCapKill, pressureStop: memory.pressureKill,
+                                neverClosePaths: GuardRules.load().local.neverClose.filter { $0.hasPrefix("/") })
     }
 
     /// Escape POSIX ERE metacharacters so a literal app name stays literal

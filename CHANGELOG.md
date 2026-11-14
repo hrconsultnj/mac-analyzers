@@ -5,6 +5,19 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## Next
+
+- Memory Guard has tabs now, the same way Monitor has: When Memory Runs Out, Apps,
+  Tools, macOS and History. Each kind of thing (browsers, dev servers, databases,
+  macOS services and so on) shows the rules that apply to it and what each rule would
+  have done in the last seven days. For now these rules only watch and write down
+  what they would have done: nothing new is stopped or closed. The menu-bar panel
+  has a short "Rules Today" line for each tab that has something.
+- The guard now keeps its hands off every live coding session, not only Claude Code:
+  Codex, Gemini CLI, Copilot, OpenCode and the rest of the list, and everything they
+  started. If it ever cannot tell which programs belong to a coding session, it stops
+  nothing and says so.
+
 ## v2.71.0 — Recording sources, one period menu and a sidebar you can tuck away
 
 Old Recordings now works for everyone, not only for one folder, and the

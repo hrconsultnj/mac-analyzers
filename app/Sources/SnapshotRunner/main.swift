@@ -96,6 +96,11 @@ do {
     for _ in 0..<4 { checkout.deleteLastPathComponent() }
     let rules = checkout.appending(path: "memory-analyzer/rules/kinds.json")
     if FileManager.default.fileExists(atPath: rules.path) { KindCatalog.use(file: rules) }
+    // and the plan the same way: a render of work in progress shows that work's rules (the person's own changes are read as ever)
+    let planFolder = checkout.appending(path: "memory-analyzer/rules")
+    if FileManager.default.fileExists(atPath: planFolder.appending(path: "plan.json").path) {
+        GuardRules.use(directory: planFolder, local: nil)   // (nil: the person's file, found when it is read, after --home)
+    }
 }
 // Called directly, never awaited: one `await` in this file's top-level code makes the whole of it
 // an async task, and `NSApplication.run()` started inside a task never services the main dispatch

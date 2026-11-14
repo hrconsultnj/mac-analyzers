@@ -6,6 +6,8 @@
 # All scripts source config.local.sh from the repo root if present.
 # ---------------------------------------------------------------------------
 
+# (The app also keeps the person's Never Close list in rules.local.json and writes it, with the
+# hard cap and the stop switches below, to reports/memory/.guard-fallback.tsv for the guard to read.)
 # Extra never-kill processes (regex alternatives appended to the guard/reaper/
 # reclaim protect list). Put YOUR meeting apps, recorders, home-automation
 # daemons, anything that must survive every sweep.

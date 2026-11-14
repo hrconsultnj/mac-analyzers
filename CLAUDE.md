@@ -274,6 +274,16 @@ through `config.local.sh` (never hardcoded).
   --probe-activity [--real]` prints the sections, `--probe-activity-ids` proves
   ids survive a log growing, `--probe-failures` prints the failure sentences, and
   `--probe-pid-recycle` proves a stop refuses a recycled pid.
+- **Memory Guard's rules are data, and in this version they only watch.** `memory-analyzer/rules/{kinds,plan,protected}.json`
+  are read by `AnalyzersKit/Rules/` (`GuardRules`: the plan plus the person's sparse `~/mac-analyzers/rules.local.json`;
+  an unknown field makes that rule, or the whole local file, unusable and says so). `RulesEngine` looks at the census once a
+  minute while the app runs and `RuleEvaluator` says what each rule would do; the only thing written is a would-have row
+  in `reports/memory/rule-outcomes.jsonl`. NOTHING in the app stops, quits or signals anything: a rule that reads Acting is
+  one the guard SCRIPT already carries out (the dev-tooling cap and the critical-pressure step), and the engine writes no
+  row for it. The script reads only `.guard-fallback.tsv` (`lib/guard-select.sh`) and its own `KILLABLE_RE`, and spares
+  every live coding session of `lib/coding-agents.tsv` (`memory-analyzer/tests/guard-exemption-test.sh`). Acting rules and
+  CONTRIBUTING's invariant text are a later phase. `agent-runner --check-rules`, `--compare-legacy [--real]` (the script's
+  set against the engine's: the engine's must be inside) and `--rules-once` show it; `--probe-rules-fixture` judges it.
 - **One period, one loader.** A screen with a period (Trends, Memory Guard) takes it from the shared
   `ReportPeriod` (`AnalyzersKit/History/`: 24 hours, 3, 7, 14, 30, 90 days, begun by `GuardHistory.periodStart`; a
   chart's bars are `TrendBuckets`: hourly for 24 hours, daily after) and shows it with `PeriodToolbar` in

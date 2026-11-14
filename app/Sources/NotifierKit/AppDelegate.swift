@@ -36,6 +36,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationPoster.shared.setup()
         NotifyBridge.start()
         startUpdateWatcher()
+        startRulesWatcher()
 
         ThermalWatcher.shared.start { title, message in
             NotificationPoster.shared.post(title: title, subtitle: "Thermal",

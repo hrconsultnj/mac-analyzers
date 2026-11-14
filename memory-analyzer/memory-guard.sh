@@ -22,8 +22,11 @@
 #                         touched. 0 = off.
 #
 # ONLY dev tooling is ever killed (node/npx/bun/next/vite/playwright/headless
-# chromium). Zoom, browsers, VS Code, Docker, Claude sessions, screen
-# recording and all system processes are on a hard never-kill list.
+# chromium). Zoom, browsers, VS Code, Docker, screen recording and all system
+# processes are on a hard never-kill list, and so is every live coding session
+# (an agent in lib/coding-agents.tsv) with everything below it: its MCP servers,
+# its dev servers, the commands it waits on. If that list cannot be read the
+# guard stops nothing and says so (it still alerts).
 #
 # Designed to run forever under launchd (KeepAlive). Test with:
 #   ./memory-guard.sh --once --verbose
@@ -64,6 +67,7 @@ CPU_HOG_PCT="${GUARD_CPU_HOG_PCT:-150}"       # %CPU that counts as a hog…
 CPU_HOG_TICKS="${GUARD_CPU_HOG_TICKS:-3}"     # …sustained for this many ticks → notify (NEVER kill)
 DEV_SWEEP_SECS="${GUARD_DEV_SWEEP_SECS:-120}" # run the idle-dev-tooling pass this often (0 = off)
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+FALLBACK_FILE="${LOG_DIR}/.guard-fallback.tsv"   # what the app's rules engine tells this script (lib/guard-select.sh)
 
 # what the guard is ALLOWED to kill (dev tooling only). Binary names are
 # anchored ((^|/)name( |$)) so `bun` can't substring-match "usbaudio.bundle".
@@ -87,6 +91,35 @@ if ! awk -v re="$PROTECT_RE" 'BEGIN { if ("probe" ~ re) exit 0; exit 0 }' </dev/
   exit 78
 fi
 
+# the live AI-session exemption (CONTRIBUTING.md invariant 3), the same list the app and the cleaners read. Not being
+# able to read it is never read as "no session is running": nothing is stopped (kill_proc), alerts continue.
+LIVE_SESSIONS_OK=0
+# shellcheck source=../lib/live-sessions.sh
+if [[ -r "${ANALYZERS_ROOT}/lib/live-sessions.sh" ]] && source "${ANALYZERS_ROOT}/lib/live-sessions.sh" 2>/dev/null; then
+  LIVE_SESSIONS_OK=1
+fi
+GUARD_SELECT_OK=0
+# shellcheck source=../lib/guard-select.sh
+if [[ -r "${ANALYZERS_ROOT}/lib/guard-select.sh" ]] && source "${ANALYZERS_ROOT}/lib/guard-select.sh" 2>/dev/null; then
+  GUARD_SELECT_OK=1
+fi
+
+# What the rules engine wrote for this script, when it wrote anything: the same values as the managed block of
+# config.local.sh. Missing or unreadable, or a value that is not what it should be: today's constants stay.
+# Read again at every tick: the app writes the file whenever the rules change.
+FALLBACK_PAUSE=0
+HARD_CAP_FROM_ARG=0
+read_fallback() {
+  [[ "$GUARD_SELECT_OK" -eq 1 && -r "$FALLBACK_FILE" ]] || return 0
+  local fb
+  fb="$(guard_fallback_value "$FALLBACK_FILE" hardCapMB)"
+  [[ "$HARD_CAP_FROM_ARG" -eq 0 && "$fb" =~ ^[0-9]+$ && "$fb" -gt 0 ]] && HARD_CAP_MB="$fb"
+  fb="$(guard_fallback_value "$FALLBACK_FILE" hardCapStop)";  [[ "$fb" == 0 || "$fb" == 1 ]] && HARDCAP_KILL="$fb"
+  fb="$(guard_fallback_value "$FALLBACK_FILE" pressureStop)"; [[ "$fb" == 0 || "$fb" == 1 ]] && PRESSURE_KILL="$fb"
+  fb="$(guard_fallback_value "$FALLBACK_FILE" pause)";        FALLBACK_PAUSE=0; [[ "$fb" == 1 ]] && FALLBACK_PAUSE=1
+  return 0
+}
+
 ONCE=0
 VERBOSE=0
 ORIG_ARGS="$*"
@@ -95,7 +128,7 @@ while [[ $# -gt 0 ]]; do
     --once)         ONCE=1 ;;
     --verbose)      VERBOSE=1 ;;
     --interval)     INTERVAL="${2:-15}"; shift ;;
-    --hard-cap-mb)  HARD_CAP_MB="${2:-6144}"; shift ;;
+    --hard-cap-mb)  HARD_CAP_MB="${2:-6144}"; HARD_CAP_FROM_ARG=1; shift ;;
     -h|--help)      sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
@@ -179,6 +212,11 @@ short_name() {
 kill_proc() {
   local pid="$1" rsskb="$2" reason="$3" args="$4" name
   name="$(short_name "$args")"
+  # fail closed: without the list of coding agents no process can be told from a live session's, so none is stopped
+  if [[ "$LIVE_SESSIONS_OK" -ne 1 ]]; then
+    log "KILL-SKIPPED [$reason] pid=$pid  the list of coding agents could not be read  $args"
+    return 1
+  fi
   kill -TERM "$pid" 2>/dev/null || { log "KILL-FAIL pid=$pid already gone"; return 1; }
   local i=0
   while kill -0 "$pid" 2>/dev/null && [[ $i -lt 5 ]]; do sleep 1; i=$((i+1)); done
@@ -221,7 +259,8 @@ if [[ -f "$LOG_FILE" && $(stat -f '%z' "$LOG_FILE" 2>/dev/null || echo 0) -gt 52
 fi
 
 tick() {
-  [[ -e "$PAUSE_FLAG" ]] && return 0
+  read_fallback
+  [[ -e "$PAUSE_FLAG" || "$FALLBACK_PAUSE" == 1 ]] && return 0
   local now level
   now=$(date +%s)
   level=$(sysctl -n kern.memorystatus_vm_pressure_level 2>/dev/null || echo 1)
@@ -238,14 +277,15 @@ tick() {
   fi
 
   # snapshot of KILLABLE-and-not-PROTECTED candidates: pid \t rss_kb \t args
-  local snap
-  snap=$(ps axo pid=,rss=,args= | awk -v killre="$KILLABLE_RE" -v protre="$PROTECT_RE" -v self="$$" '
-    { pid=$1; rss=$2; $1=""; $2=""; sub(/^ +/,"");
-      if (pid+0 <= 500 || pid == self) next;
-      if ($0 !~ killre) next;
-      if ($0 ~ protre) next;
-      gsub(/\t/," ");
-      printf "%s\t%s\t%.400s\n", pid, rss, $0 }')
+  # (a live coding session and everything below it is dropped, then the person's Never Close paths: lib/guard-select.sh)
+  local snap exempt="" ptable never=""
+  ptable=$(ps axo pid=,rss=,args=)
+  [[ -r "$FALLBACK_FILE" ]] && never="$FALLBACK_FILE"
+  snap=$(echo "$ptable" | guard_select_candidates "$KILLABLE_RE" "$PROTECT_RE" "$$" "" "$never")
+  if [[ -n "$snap" && "$LIVE_SESSIONS_OK" -eq 1 ]]; then
+    exempt="$(live_session_exempt | tr '\n' ' ')"
+    snap=$(echo "$ptable" | guard_select_candidates "$KILLABLE_RE" "$PROTECT_RE" "$$" "$exempt" "$never")
+  fi
 
   # --- 1. hard cap: single runaway dev process, any pressure level ---
   if [[ -n "$snap" && $((now - LAST_KILL_TS)) -ge "$KILL_COOLDOWN" ]]; then

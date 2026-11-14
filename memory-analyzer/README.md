@@ -70,8 +70,27 @@ Polls kernel memory-pressure every 15s. Escalation ladder:
 
 **Safelist (killable):** node/npm/npx/bun/tsx/deno, next/vite/webpack/esbuild,
 vitest/jest, playwright + headless Chromium.
-**Never killed:** Zoom, all browsers, VS Code, Docker, Claude sessions, screen
-recording, anything system — plus whatever ANALYZERS_PROTECT_EXTRA adds in config.local.sh.
+**Never killed:** Zoom, all browsers, VS Code, Docker, screen recording, anything
+system — plus whatever ANALYZERS_PROTECT_EXTRA adds in config.local.sh — and **every
+live coding session**: an agent in `lib/coding-agents.tsv` (Claude Code, Codex, Gemini
+CLI, Copilot, OpenCode, …) and everything it started, its MCP servers and dev servers
+included (`lib/live-sessions.sh`, the same list the app and the cleaners read). If that
+list cannot be read the guard stops nothing and logs `KILL-SKIPPED`; it still alerts.
+`memory-analyzer/tests/guard-exemption-test.sh` proves it for every agent in the list.
+
+**What the app tells the guard:** `~/mac-analyzers/reports/memory/.guard-fallback.tsv`,
+plain `key<TAB>value` lines the app writes whenever a setting changes (`hardCapMB`,
+`hardCapStop`, `pressureStop`, `neverClosePath` once per path, `pause`) and the guard
+re-reads every tick (`lib/guard-select.sh`, bash 3.2). A Never Close path is matched as
+plain text with `index()`, never as a pattern. With no file, the guard uses the values it
+always had.
+
+**The rules engine (the app).** `rules/kinds.json`, `rules/plan.json` and
+`rules/protected.json` describe what each kind of process may be asked, as data. In this
+version the engine only WATCHES: once a minute, while the app runs, it writes what each
+rule would have done to `reports/memory/rule-outcomes.jsonl` and stops nothing. The guard
+script above does everything that is done. `agent-runner --check-rules`,
+`--compare-legacy` and `--rules-once` check and show it.
 
 Pause during a heavy legit build: `./memory-manage-agents.sh pause` / `resume`,
 or the Pause/Resume button in the menu-bar app. The app's Settings → Memory
