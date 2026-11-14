@@ -28,6 +28,9 @@ public final class OffscreenWindow: NSWindow {
     /// before) and checks where it really is. A frame that is already on a display stops the tool before the window is
     /// ordered in at all.
     public func placeOffscreen() {
+        // An explicit appearance from the start: a Liquid Glass surface (the sidebar) decides light or dark from
+        // what is behind it, and behind a window parked on no display there is nothing, so it would pick light.
+        if appearance == nil { appearance = NSApp.effectiveAppearance }
         setFrameOrigin(Self.origin)
         let framed = Self.reasons(frame: frame, screenFrames: NSScreen.screens.map(\.frame), isOrderedIn: false,
                                   serverBounds: nil, displayBounds: [])

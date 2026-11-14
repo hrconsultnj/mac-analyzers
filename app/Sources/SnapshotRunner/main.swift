@@ -1,14 +1,15 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--sidebar shown|hidden|peek] [--toolbar-dump] [--escape] [--toggle-frames] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--sidebar shown|hidden|peek] [--toolbar-dump] [--escape] [--toggle-frames] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--view-tree] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
 // `log:forensics`, …). The real main window is built with the real data
 // stores, in an OffscreenWindow far outside every display (a render refuses to
 // capture, and says why, when the window touches one), navigated to the target, given
-// time to load, and captured — toolbar, sidebar and all.
+// time to load, and drawn into a PNG from the window's own views (OffscreenWindow.snapshotPNG) —
+// toolbar, sidebar and all; a window on no display cannot be imaged by `screencapture`.
 //
 // The window gets the same environment the app gives it: the guard store, the
 // settings, ONE job store and ONE update state. `--fake-running` starts two
@@ -434,14 +435,19 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         // the hard guard: a window on a display ends the run here, before anything is captured
         window.requireOffscreen(before: "capture \(target)")
         print("snapshot-runner: \(window.placementReport())")
-        let capture = Process()
-        capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        capture.arguments = ["-x", "-o", "-l", String(window.windowNumber), output.path]
-        do {
-            try capture.run()
-            capture.waitUntilExit()
-        } catch {
-            FileHandle.standardError.write(Data("snapshot-runner: could not run screencapture: \(error)\n".utf8))
+        // drawn from the window's own views: a window parked on no display cannot be imaged by the window server
+        // (`screencapture -l` says "could not create image from window"), and this needs no display at all
+        if arguments.contains("--view-tree"), let frameView = window.contentView?.superview {
+            func dump(_ view: NSView, _ depth: Int) {
+                guard depth < 14 else { return }
+                let f = view.frame
+                print(String(repeating: "  ", count: depth) + "\(type(of: view)) (\(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height)))\(view.isHidden ? " hidden" : "")\(view.wantsLayer ? " layer:\(type(of: view.layer!))" : "")")
+                for sub in view.subviews { dump(sub, depth + 1) }
+            }
+            dump(frameView, 0)
+        }
+        do { try window.writeSnapshot(to: output) } catch {
+            FileHandle.standardError.write(Data("snapshot-runner: no picture was made: \(error)\n".utf8))
             finish(1)
         }
         // the window cannot be smaller than the app's own minimum: say so instead of letting a
