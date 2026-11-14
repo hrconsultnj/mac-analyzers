@@ -5,7 +5,7 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
-## Next
+## v2.70.0 — Every screen rebuilt the same way, with tabs and groups
 
 Every screen of the main window has been rebuilt to read the same way: the
 kinds of thing a screen shows are tabs with a count, rows are grouped under
@@ -24,8 +24,10 @@ show what is in it. Controls are the standard Mac ones throughout.
   cannot be stopped, and warns before you stop a remote-access tool such as
   Tailscale. Each row of "Where Your Memory Is" opens a screen of its own,
   including a new Swap Used, showing the last half hour.
-- Memory Guard reads as a day-by-day history of what it stopped or flagged,
-  and Memory Cleanup is a preview you tick before anything is closed.
+- Memory Guard reads as a day-by-day history of what it stopped or flagged.
+  It opens on the last 24 hours, with Last 3 Days, Last 7 Days and Last 90
+  Days to choose from, and remembers your choice. Memory Cleanup is a
+  preview you tick before anything is closed.
 - Caches & Builds, Downloads and Temp & Agents are each one screen: Preview,
   tick, Apply, with every earlier run under History. A preview keeps its own
   setting, such as Deep or Delete Permanently, and applies exactly that.
