@@ -179,17 +179,18 @@ public enum GuardLogParser {
                                     since start: Date = GuardHistory.periodStart(hours: 24),
                                     limit: Int = 6,
                                     after clearedAt: Date? = nil) -> [GuardEvent] {
-        guard let data = try? Data(contentsOf: url),
-              let text = String(data: data, encoding: .utf8) else { return [] }
         let cutoff = max(start, clearedAt ?? .distantPast)
+        // read back to the cutoff, as the History screen does — never a fixed number of the log's last lines: on a day with
+        // a thousand pressure readings the last 600 lines are an hour, and a stop from the morning was not there
+        let reading = GuardLogReader.read(url, since: cutoff)
 
         var kills: [GuardEvent] = []
         var others: [GuardEvent] = []
         var latestSpike: [Int: GuardEvent] = [:]
         var killedPIDs: Set<Int> = []
 
-        for line in text.split(separator: "\n").suffix(600) {
-            guard let event = parseLine(String(line)), event.date >= cutoff else { continue }
+        for line in reading.lines {
+            guard let event = parseLine(line), event.date >= cutoff else { continue }
             switch event.kind {
             case .killed:
                 kills.append(event)

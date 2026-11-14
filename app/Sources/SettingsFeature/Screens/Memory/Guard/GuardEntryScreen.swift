@@ -112,11 +112,13 @@ struct GuardEntryScreen: View {
     }
 
     private func load() async {
-        // the list's own read, shared: opening an entry does not read the log again. A group's id carries its first
-        // entry's time, and a group that straddles the period's start begins later in a shorter read, so the entry is
-        // looked up in the same period the list showed; a link from elsewhere (a notification, the panel) whose row
-        // is not in that period falls back to the longest read.
-        var found = await GuardHistoryModel.history(window: GuardHistoryModel.savedWindow())?.row(id: id)
+        // the row the list opened, as the list showed it: nothing is looked up, so a cache that ran out or a period whose
+        // start has moved cannot change or lose it. Reached any other way (a restored window), it is looked up in the
+        // list's own read, shared (opening an entry does not read the log again), and then in the longest read. A group
+        // of alerts has the same id in every read of its day; an episode of pressure that begins before a shorter
+        // read's start is found as the one beginning at that start (`GuardHistory.row(id:)`).
+        var found = GuardOpenedRows.row(id: id)
+        if found == nil { found = await GuardHistoryModel.history(window: GuardHistoryModel.savedWindow())?.row(id: id) }
         if found == nil {
             found = await GuardHistoryModel.history(days: GuardHistory.windowDays)?.row(id: id)
         }

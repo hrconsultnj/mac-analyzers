@@ -202,6 +202,13 @@ import Foundation
               && !folded.contains { $0.hasPrefix("[TRASHED]") || $0.hasPrefix("[DRY]") },
               "\(typed): a standard folder typed with a letter the disk folds is refused and nothing is moved: \(folded.filter { $0.contains("not used") || $0.hasPrefix("[") })")
     }
+    // the refusal names the real folder ("your whole Movies folder"), not the way it was typed or folded
+    for (typed, real) in [("movies", "Movies"), ("MOVIES", "Movies"), ("documents", "Documents"), ("Movieſ", "Movies"), ("DeſkTop", "Desktop")] {
+        config(sources(["custom|on|\(homeBase)/\(typed)"]))
+        let said = lines(run("/bin/bash", ["--recordings-older-than", "30"]))
+        check(said.contains { $0.contains("not used:") && $0.contains("it is your whole \(real) folder") },
+              "\(typed): the engine says \"your whole \(real) folder\": \(said.filter { $0.contains("not used") })")
+    }
     // the second review's repro: the same cloud folder typed in lower case (a case-insensitive disk opens it)
     for typed in ["library/cloudstorage", "LIBRARY/CLOUDSTORAGE", "Library/cloudStorage"] {
         config(sources(["zoom|on|\(homeBase)/\(typed)/GDrive-Test/Zoom"]))

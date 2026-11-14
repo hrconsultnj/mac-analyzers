@@ -133,5 +133,39 @@ func probeGuardRules() -> Never {
     check("the menu-bar panel's last 24 hours and the screen's are the same alerts",
           Set(panel.compactMap(\.pid)) == Set(GuardHistory.load(since: GuardHistory.periodStart(hours: 24, now: Date())).entries.compactMap(\.pid)) && panel.count == 1,
           "panel \(panel.compactMap(\.pid).sorted())")
+    // an entry opens after the list's read has moved on (its cache ran out, the hour turned): a group of alerts and an
+    // episode of pressure that straddle the new start are the same row under the same id, and open
+    let straddleLog = ProbeScratch.folder("ma-probe-guard-straddle").appending(path: "guard.log")
+    guard let base = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: now)) else { exit(2) }
+    func at(_ hour: Int, _ minute: Int) -> Date { calendar.date(bySettingHour: hour, minute: minute, second: 0, of: base) ?? base }
+    var straddle: [String] = []
+    for (hour, minute) in [(10, 0), (11, 0), (12, 0)] {
+        straddle.append("\(formatter.string(from: at(hour, minute))) SPIKE pid=8001 +800MB now 1900MB  node /Users/x/web/node_modules/.bin/vite")
+    }
+    for minute in [0, 5, 10] { straddle.append("\(formatter.string(from: at(14, minute))) PRESSURE warning (level 2)") }
+    straddle.append("\(formatter.string(from: at(15, 0))) KILLED [hard-cap 6144MB] pid=8100 rss=7000MB  node /Users/x/api/node_modules/.bin/next dev")
+    try? (straddle.joined(separator: "\n") + "\n").write(to: straddleLog, atomically: true, encoding: .utf8)
+    GuardHistory.useLog(at: straddleLog)
+    let whole = GuardHistory.load(since: at(0, 0))
+    let wholeRows = whole.days().flatMap(\.rows)
+    check("the straddle log folds into a group of three alerts, an episode of pressure and one stop",
+          wholeRows.contains { $0.kind == .spike && $0.count == 3 } && wholeRows.contains { $0.kind == .pressure && $0.count == 3 }
+            && wholeRows.contains { $0.kind == .stopped }, "\(wholeRows.map { "\($0.kind.rawValue) x\($0.count)" })")
+    for (name, cutoff) in [("11:30, inside the group of alerts", at(11, 30)), ("14:03, inside the episode of pressure", at(14, 3)),
+                           ("15:30, after everything", at(15, 30))] {
+        let moved = GuardHistory.load(since: cutoff)
+        let lost = wholeRows.filter { row in cutoff <= row.start || cutoff <= row.end ? moved.row(id: row.id) == nil : false }
+        check("every row still in the read opens by the id it had before the start moved to \(name)", lost.isEmpty,
+              "\(lost.map { "\($0.kind.rawValue) \($0.id)" })")
+    }
+    // the menu-bar panel reads the last 24 hours back to their start, not the last 600 lines: a stop followed by a
+    // thousand pressure readings the same day is still there
+    let busyLog = ProbeScratch.folder("ma-probe-guard-busy").appending(path: "guard.log")
+    var busy = ["\(formatter.string(from: now.addingTimeInterval(-5 * 3_600))) KILLED [hard-cap 6144MB] pid=8200 rss=7000MB  node /Users/x/old/node_modules/.bin/vite"]
+    for index in 0..<1_000 { busy.append("\(formatter.string(from: now.addingTimeInterval(-4 * 3_600 + Double(index)))) PRESSURE warning (level 2)") }
+    try? (busy.joined(separator: "\n") + "\n").write(to: busyLog, atomically: true, encoding: .utf8)
+    let busyPanel = GuardLogParser.recentEvents(fromLog: busyLog, limit: 5_000, after: nil)
+    check("the panel finds a stop that 1,000 later lines would have pushed out of a 600-line read", busyPanel.contains { $0.pid == 8200 },
+          "\(busyPanel.compactMap(\.pid))")
     exit(failed ? 1 : 0)
 }

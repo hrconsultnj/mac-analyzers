@@ -813,9 +813,10 @@ rec_check() {
         rec_library_allowed "$rel" || { echo "it is in your Library folder, where apps keep their own data and your cloud storage"; return 0; }
         ;;
     esac
-    for name in desktop documents downloads movies music pictures library; do
-      if [[ "$lrel" == "$name" && "$layout" != "files" ]]; then
-        echo "it is your whole ${rel} folder, which holds more than recordings; choose a folder inside it"; return 0
+    # named for the folder it IS (Movies), not for how it was typed (movies, MOVIES)
+    for name in Desktop Documents Downloads Movies Music Pictures Library; do
+      if [[ "$lrel" == "$(rec_lc "$name")" && "$layout" != "files" ]]; then
+        echo "it is your whole ${name} folder, which holds more than recordings; choose a folder inside it"; return 0
       fi
     done
     return 1
