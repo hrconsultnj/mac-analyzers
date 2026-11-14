@@ -30,6 +30,9 @@ public enum DeepLinkRouter {
                           "turnoff:permission": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("permission"))])),
                           "turnoff:earlier": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("earlier"))])),
                           "turnoff:none": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("none"))]))]
+            .merging(Dictionary(uniqueKeysWithValues: SetupFixtures.names.map {
+                ("setup:fixture:\($0)", Resolution.main(Location(OverviewGroup.setup, path: [.overview(.setupFixture($0))])))
+            })) { _, setup in setup }
             .merging(StorageGroup.fixtureTargets) { _, storage in storage }
     }
 

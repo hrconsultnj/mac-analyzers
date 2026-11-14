@@ -20,6 +20,8 @@ enum OverviewRoute: Hashable, Codable {
     /// Turn Off with example permission rows (`TurnOffPermission.example`); linkable only after
     /// `DeepLinkRouter.installFixtures()`.
     case turnOffFixture(String)
+    /// Setup in an example state (`SetupFixtures.names`); linkable only after `DeepLinkRouter.installFixtures()`.
+    case setupFixture(String)
 }
 
 /// Whether anything on this Mac is not working, for the Setup row's badge.
@@ -75,7 +77,7 @@ enum OverviewGroup {
         switch section {
         case overview: OverviewView()
         case activity: ActivityView()
-        case setup: SetupSettingsView()
+        case setup: SetupView()
         default: EmptyView()
         }
     }
@@ -84,6 +86,7 @@ enum OverviewGroup {
         switch route {
         case .turnOff: UninstallView()
         case .turnOffFixture(let name): UninstallView(permissionFixture: TurnOffPermission.example(name))
+        case .setupFixture(let name): SetupView(fixture: name)
         case .newestRun(let raw): RunScreen(newestIn: EngineLog(rawValue: raw))
         case .raw(let subject): RawOutputScreen(subject: subject)
         case .reviewFixture: ReviewFixtureScreen()
@@ -110,6 +113,12 @@ enum OverviewGroup {
         if target.hasPrefix("raw:") {
             guard let log = EngineLog(rawValue: String(target.dropFirst("raw:".count))) else { return nil }
             return .main(Location(activity, path: [.overview(.raw(.log(log.rawValue)))]))
+        }
+        // `setup:permissions|background|protection` or `setup:<row>` (fullDiskAccess, notifications, …): that tab, or that row
+        if target.hasPrefix("setup:") {
+            let rest = String(target.dropFirst("setup:".count))
+            guard !rest.isEmpty, !rest.hasPrefix("fixture:") else { return nil }
+            return .mainWithIntent(Location(setup), SectionIntent(section: setup, payload: rest))
         }
         guard target.hasPrefix("activity:") else { return nil }
         let rest = String(target.dropFirst("activity:".count))

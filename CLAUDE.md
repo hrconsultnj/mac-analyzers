@@ -210,7 +210,11 @@ through `config.local.sh` (never hardcoded).
   it); the owner's screen is not a test fixture. It cannot click: anything
   interactive (a running job, a confirmation, the menu-bar panel) still
   needs an on-screen check, and those are asked for first.
-  `agent-runner --probe-setup` prints the Setup checklist as text.
+  `agent-runner --probe-setup` prints Setup's rows (three tabs, each with its state, evidence and action) as text, read
+  live from this Mac; `--probe-setup-fixtures` judges them on example states and `--probe-fda` is the Full Disk Access
+  spot-check of the folders the product reads, as this program reads them. A Setup row is a READ (`SetupInputs`), and a
+  row that only System Settings can change goes through `SystemSettingsHandoff`: the exact pane, which switch, watched and
+  confirmed. `Setup/ProtectedPlaces.swift` is the list that check reads, as data.
   `agent-runner --probe-memory [--all]` prints the Monitor pane's memory
   census as text (where memory is + every process group with its total).
   The census is the ONE classifier: it gives every group its category AND its

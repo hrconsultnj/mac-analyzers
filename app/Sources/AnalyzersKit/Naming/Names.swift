@@ -240,6 +240,80 @@ public enum Names {
         public static let cancel = "Cancel"
     }
 
+    /// Setup's tabs, rows, states and buttons.
+    public enum Setup {
+        public static let tabPermissions = "Permissions"
+        public static let tabBackground = "Background"
+        public static let tabProtection = "Protection"
+        public static let stateOn = "On"
+        public static let stateOff = "Off"
+        public static let stateNeedsYou = "Needs You"
+        public static let stateNotAskedYet = "Not Asked Yet"
+        public static let stateCantTell = "Can't Tell"
+        public static let stateOnlyApp = "Only the App Can See Them"
+        public static let notifications = "Notifications"
+        public static let fullDiskAccess = "Full Disk Access"
+        public static let timeMachineThinning = "Time Machine Thinning"
+        public static let openAtLogin = "Open at Login"
+        public static let automation = "Automation"
+        public static let analyzerScripts = "Analyzer Scripts"
+        public static let memoryLimit = "Memory Limit"
+        public static let neverClose = "Never Close"
+        public static let mayBeAskedToQuit = "Apps That May Be Asked to Quit"
+        public static let recordingFolders = "Recording Folders"
+        public static let settingsFile = "Settings File"
+        public static let allowNotifications = "Allow Notifications…"
+        public static let sendTest = "Send a Test"
+        public static let openSystemSettings = "Open System Settings…"
+        public static let turnOn = "Turn On"
+        public static let tryAgain = "Try Again"
+        public static let allow = "Allow…"
+        public static let removePermission = "Remove Permission…"
+        public static let install = "Install"
+        public static let reinstall = "Reinstall"
+        public static let showInActivity = "Show in Activity"
+        public static let change = "Change…"
+        public static let createIt = "Create It"
+        public static let turnOffOrRemove = "Turn Off or Remove…"
+        public static let quitAndReopen = "Quit and Reopen"
+        public static let memoryGuardJob = "Memory Guard"
+        public static let memoryAutoClean = "Memory Auto-Clean"
+        public static let storageDailyClean = "Storage Daily Clean"
+        public static let storageDeepClean = "Storage Deep Clean"
+        public static let allSetUp = "Everything is set up"
+
+        /// The name of a background job, by its launchd label.
+        public static func jobTitle(_ label: String) -> String {
+            switch label {
+            case "com.mac-analyzers.memory-guard": memoryGuardJob
+            case "com.mac-analyzers.memory-autoclean.daily": memoryAutoClean
+            case "com.mac-analyzers.storage-autoclean.daily": storageDailyClean
+            case "com.mac-analyzers.storage-autoclean.deep": storageDeepClean
+            default: label
+            }
+        }
+
+        /// What a background job gets the person.
+        public static func jobWhy(_ label: String) -> String {
+            switch label {
+            case "com.mac-analyzers.memory-guard": "Watches memory continuously and steps in when one app holds too much."
+            case "com.mac-analyzers.memory-autoclean.daily": "Closes orphaned developer servers and stale headless browsers once a day."
+            case "com.mac-analyzers.storage-autoclean.daily": "Removes build caches nobody has written to for days."
+            case "com.mac-analyzers.storage-autoclean.deep": "The weekly deeper clean: idle projects' packages, package-manager caches and unused Docker images."
+            default: ""
+            }
+        }
+
+        /// "A", "A and B", "A, B and C".
+        public static func list(_ items: [String]) -> String {
+            switch items.count {
+            case 0: ""
+            case 1: items[0]
+            default: items.dropLast().joined(separator: ", ") + " and " + (items.last ?? "")
+            }
+        }
+    }
+
     /// Where an item found in temp and agent folders lives, and the verdict on it.
     public enum Temp {
         public static let tempFolder = "Temp Folder"
@@ -707,6 +781,14 @@ public enum Names {
                  StorageTab.diskImages, StorageTab.packageManagers, StorageTab.xcodeSimulators,
                  StorageTab.docker, StorageTab.toolCaches].map { ("Storage tab", $0) }
         rows += [Prune.pnpm, Prune.npm, Prune.brew, Prune.simulators, Prune.docker].map { ("Prune", $0) }
+        rows += [Setup.tabPermissions, Setup.tabBackground, Setup.tabProtection, Setup.stateOn, Setup.stateOff, Setup.stateNeedsYou,
+                 Setup.stateNotAskedYet, Setup.stateCantTell, Setup.stateOnlyApp, Setup.notifications, Setup.fullDiskAccess,
+                 Setup.timeMachineThinning, Setup.openAtLogin, Setup.automation, Setup.analyzerScripts, Setup.memoryLimit,
+                 Setup.neverClose, Setup.mayBeAskedToQuit, Setup.recordingFolders, Setup.settingsFile, Setup.allowNotifications,
+                 Setup.sendTest, Setup.openSystemSettings, Setup.turnOn, Setup.tryAgain, Setup.allow, Setup.removePermission,
+                 Setup.install, Setup.reinstall, Setup.showInActivity, Setup.change, Setup.createIt, Setup.turnOffOrRemove,
+                 Setup.quitAndReopen, Setup.memoryGuardJob, Setup.memoryAutoClean, Setup.storageDailyClean, Setup.storageDeepClean]
+            .map { ("Setup", $0) }
         rows += Recordings.sourceTitles.values.sorted().map { ("Recording source", $0) }
         rows += [Recordings.sources, Recordings.sourcesButton, Recordings.chooseFolders, Recordings.addFolder,
                  Recordings.foundOnThisMac, Recordings.yourFolders, Recordings.notOffered, Recordings.keepRecordingsFor,
