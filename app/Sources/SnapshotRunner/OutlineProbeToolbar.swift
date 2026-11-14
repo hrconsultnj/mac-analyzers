@@ -1,5 +1,6 @@
 @_spi(TestSupport) import AnalyzersKit
 import AppKit
+import ToolWindows
 import Foundation
 import SettingsFeature
 import SwiftUI

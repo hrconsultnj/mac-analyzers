@@ -1,29 +1,57 @@
 #!/usr/bin/env bash
-# snapshot-windows-test.sh — `scripts/check.sh snapshot` refuses a development tool that makes a plain NSWindow or NSPanel
-# (AppKit moves it back onto the owner's display) and passes the shared OffscreenWindow. Each case plants one Swift file in a
-# scratch tree and asks the real check. Runs under bash and /bin/bash.
+# snapshot-windows-test.sh — scripts/tool-windows-refuse.sh (what `scripts/check.sh snapshot` runs) refuses every way a development
+# tool can put a window on the owner's display and passes the shared OffscreenWindow. Each case plants a small app folder (a
+# Package.swift plus one Swift file) and asks the real script. Runs under bash and /bin/bash.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-CHECK="$HERE/../scripts/check.sh"
-[[ -x "$CHECK" ]] || { echo "SKIP: no scripts/check.sh"; exit 0; }
+SCAN="$HERE/../scripts/tool-windows-refuse.sh"
+[[ -x "$SCAN" ]] || { echo "SKIP: no scripts/tool-windows-refuse.sh"; exit 0; }
+command -v perl >/dev/null || { echo "SKIP: no perl"; exit 0; }
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 fail=0
-pass() { echo "PASS  $1"; }
-bad() { echo "FAIL  $1 ($2)"; fail=1; }
-# plant <case> <path under Sources> <line>: the check's exit status for that tree (SnapshotRunner needs a main.swift)
-run() {
-  local d="$TMP/$1/Sources"; mkdir -p "$d/$(dirname "$2")" "$d/SnapshotRunner"
-  printf '%s\n' "$3" > "$d/$2"
-  MA_SNAPSHOT_ROOT="$d" "$CHECK" snapshot >/dev/null 2>&1; echo $?
+check() { if [[ "$2" == "ok" ]]; then echo "PASS  $1"; else echo "FAIL  $1 ($2)"; fail=1; fi; }
+MANIFEST='// swift-tools-version: 6.0
+import PackageDescription
+let package = Package(name: "x", targets: [
+    .executableTarget(name: "MacAnalyzersApp", dependencies: ["AnalyzersKit"]),
+    .executableTarget(name: "AgentRunner", dependencies: ["AnalyzersKit"]),
+    .executableTarget(name: "SnapshotRunner", dependencies: ["AnalyzersKit", "ToolWindows"]),
+    .executableTarget(name: "NewTool", dependencies: ["AnalyzersKit"]),
+    .target(name: "ToolWindows"),
+    .target(name: "AnalyzersKit"),
+])'
+# plant <case> <target folder> <swift text> [manifest]: what the script prints for that tree
+plant() {
+  local d="$TMP/$1"; mkdir -p "$d/Sources/$2"; printf '%s\n' "${4:-$MANIFEST}" > "$d/Package.swift"; printf '%s\n' "$3" > "$d/Sources/$2/X.swift"
+  "$SCAN" "$d" 2>&1
 }
-refused() { [[ "$(run "$2" "$3" "$4")" == "1" ]] && pass "$1" || bad "$1" "was NOT refused"; }
-passes()  { [[ "$(run "$2" "$3" "$4")" == "0" ]] && pass "$1" || bad "$1" "was refused"; }
-# the check also reads app/Sources/SnapshotRunner/main.swift of the real tree for top-level await; that part is real, so these
-# cases only vary the window code.
-refused "NSWindow( in SnapshotRunner is refused" A SnapshotRunner/X.swift 'let w = NSWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
-refused "NSPanel( in MenuSnapshot is refused" B MenuSnapshot/X.swift 'let p = NSPanel(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
-refused "a window in AgentRunner is refused" C AgentRunner/X.swift 'window = NSWindow(contentRect: r, styleMask: m, backing: .buffered, defer: false)'
-refused "a subclass of NSWindow in a tool is refused" D SnapshotRunner/X.swift 'final class ProbeWindow: NSWindow {'
-passes  "an OffscreenWindow passes" E SnapshotRunner/X.swift 'let w = OffscreenWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
-passes  "a window in the app itself passes" F SettingsFeature/X.swift 'let w = NSWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
+refused() { [[ -n "$(plant "$2" "$3" "$4" "${5:-}")" ]] && check "$1" ok || check "$1" "was NOT refused"; }
+passes()  { [[ -z "$(plant "$2" "$3" "$4" "${5:-}")" ]] && check "$1" ok || check "$1" "was refused: $(plant "$2" "$3" "$4" "${5:-}" | head -1)"; }
+
+refused "NSWindow( in SnapshotRunner" A SnapshotRunner 'let w = NSWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
+refused "NSPanel( in a tool" B AgentRunner 'let p = NSPanel(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
+refused "NSWindow.init(" C SnapshotRunner 'let w = NSWindow.init(contentRect: r, styleMask: m, backing: .buffered, defer: false)'
+refused "a typed .init" D SnapshotRunner 'let w: NSWindow = .init(contentRect: r, styleMask: m, backing: .buffered, defer: false)'
+refused "a typealias of NSWindow" E SnapshotRunner 'typealias Win = NSWindow'
+refused "a subclass of NSWindow" F SnapshotRunner 'final class ProbeWindow: NSWindow {'
+refused "a subclass whose superclass is on the next line" G SnapshotRunner 'final class ProbeWindow:
+    NSWindow, SomeProtocol {'
+refused "a subclass with several protocols after NSPanel" H SnapshotRunner 'final class P: NSPanel, A, B {'
+refused "NSAlert" I SnapshotRunner 'let a = NSAlert()'
+refused "NSSavePanel" J SnapshotRunner 'let p = NSSavePanel()'
+refused "NSOpenPanel" K SnapshotRunner 'let p = NSOpenPanel()'
+refused "runModal" L SnapshotRunner 'panel.runModal()'
+refused "presentAsModalWindow" M SnapshotRunner 'controller.presentAsModalWindow(other)'
+refused "a window in a tool the script was never told about" N NewTool 'let w = NSWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
+refused "OffscreenWindow used outside the tools" O AnalyzersKit 'let w = OffscreenWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
+refused "import ToolWindows outside the tools" P AnalyzersKit 'import ToolWindows'
+refused "the app depending on ToolWindows" Q AnalyzersKit 'let x = 1' "${MANIFEST/\"AnalyzersKit\"]),
+    .executableTarget(name: \"AgentRunner\"/\"AnalyzersKit\", \"ToolWindows\"]),
+    .executableTarget(name: \"AgentRunner\"}"
+passes  "an OffscreenWindow in a tool" R SnapshotRunner 'let w = OffscreenWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
+passes  "a window in the app itself" S MacAnalyzersApp 'let w = NSWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
+passes  "the type's own definition" T ToolWindows 'public final class OffscreenWindow: NSWindow {}'
+passes  "a mention in a comment" U SnapshotRunner '// an NSWindow( or NSAlert() here would be shown on the display'
+passes  "a mention in a block comment" V SnapshotRunner '/* NSPanel( and
+   runModal() */'
 exit "$fail"

@@ -31,6 +31,7 @@
 // Mac. This process never activates, never appears in the Dock, and its
 // window is never on a display.
 import AppKit
+import ToolWindows
 import UIComponents
 import SwiftUI
 @_spi(TestSupport) import AnalyzersKit

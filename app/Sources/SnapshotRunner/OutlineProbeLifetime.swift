@@ -1,4 +1,5 @@
 import AppKit
+import ToolWindows
 import Foundation
 import SwiftUI
 import UIComponents

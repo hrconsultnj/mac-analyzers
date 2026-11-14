@@ -16,6 +16,7 @@
 // resort, filter10, filterBack, select), `soak`, `perf`, `preserve`, `diff`,
 // `ticks`, `autosave`, `remembered`, `a2:<case>`, `a11:<case>:<n>`, `render <fixture> <out.png>`, `review:<case>`.
 import AppKit
+import ToolWindows
 import Foundation
 import Observation
 import SwiftUI

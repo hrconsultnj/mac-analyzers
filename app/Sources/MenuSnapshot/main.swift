@@ -10,6 +10,7 @@
 // no job and writes no real log: the job store keeps its index in a temporary
 // folder and nothing here enqueues anything.
 import AppKit
+import ToolWindows
 import SwiftUI
 import AnalyzersKit
 import MenuBarFeature

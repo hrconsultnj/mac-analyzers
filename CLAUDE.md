@@ -165,17 +165,21 @@ through `config.local.sh` (never hardcoded).
   `app/.build/debug/SnapshotRunner <target> <out.png> [--size 1100x720] [--wait 3]`
   renders the REAL main window (real stores, real data) for any deep-link
   target into a PNG, in a window placed far outside every display (an
-  `OffscreenWindow`, `UIComponents/OffscreenWindow.swift`: AppKit moves a
-  plain titled window back onto the main display when it is ordered in, so
-  this type returns its frame unchanged and places itself again after
-  ordering in) — it never activates, never shows in the Dock, never moves
-  focus. Placement is enforced, not assumed: before every capture the tool
-  checks the window's frame against every screen and the window server's
-  bounds against every display, and a window that touches one prints why
-  and exits 3 WITHOUT capturing; each render prints the frame and bounds
-  it was taken at. Every window a tool makes (`SnapshotRunner`,
-  `MenuSnapshot`, `AgentRunner`) is an `OffscreenWindow`, and `scripts/check.sh
-  snapshot` fails on a plain `NSWindow(` or `NSPanel(` in those targets.
+  `OffscreenWindow`, `app/Sources/ToolWindows`, a target only the tools use:
+  AppKit moves a plain titled window back onto the main display when it is
+  ordered in, so this type returns its frame unchanged and places itself
+  again after ordering in) — it never activates, never shows in the Dock,
+  never moves focus. Placement is enforced, not assumed: the window refuses
+  to be ordered in when its frame is on a screen, checks the window server's
+  bounds for it the moment it is ordered in, and every tool checks again
+  before each capture; a window on a display, or one the window server will
+  not confirm, prints why and exits 3 WITHOUT capturing, and each render
+  prints the frame and bounds it was taken at. Every window a tool makes
+  (every executable target but the app) is an `OffscreenWindow`:
+  `scripts/check.sh snapshot` (`scripts/tool-windows-refuse.sh`) fails on a
+  plain window or panel however it is made, a subclass, a modal panel
+  (`NSAlert`, `NSSavePanel`, `NSOpenPanel`, `runModal`), and on the type used
+  outside the tools.
   Built by `swift build`, never bundled into the app. Use it while building a screen and
   before calling it done (the blueprint's screen acceptance bar requires
   it); the owner's screen is not a test fixture. It cannot click: anything
