@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--sidebar shown|hidden|peek] [--toolbar-dump] [--escape] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--sidebar shown|hidden|peek] [--toolbar-dump] [--escape] [--toggle-frames] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -132,6 +132,9 @@ let hitTestEdge = arguments.contains("--hit-test-edge")
 let toolbarDump = arguments.contains("--toolbar-dump")
 /// `--escape`: just before the capture, send Escape through the application's event queue, so a render shows whether it puts the hover overlay away.
 let sendEscape = arguments.contains("--escape")
+/// `--toggle-frames`: record the window's frame, hide/show/hide the sidebar the way the menu item does, record it after each,
+/// print them and exit 1 if the window changed size (a sidebar must show and hide INSIDE the window it is in).
+let toggleFrames = arguments.contains("--toggle-frames")
 /// `--sidebar shown|hidden|peek`: how the sidebar starts (peek is hidden with the hover overlay showing). Never remembered.
 let sidebarState: SidebarPresentation = switch option("--sidebar") {
 case "hidden": .hidden
@@ -259,6 +262,25 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
         window.orderFrontRegardless()      // shows the window WITHOUT activating the app
 
+        if toggleFrames {
+            let start = 0.8 + wait
+            var frames: [(String, NSRect)] = []
+            func record(_ name: String) { frames.append((name, window.frame)); print("frame \(name): \(window.frame)") }
+            DispatchQueue.main.asyncAfter(deadline: .now() + start) { record("start") }
+            for (index, name) in ["after first toggle", "after second toggle", "after third toggle"].enumerated() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + start + Double(index) * 1.5 + 0.3) {
+                    NotificationCenter.default.post(name: NotifyChannel.toggleSidebarInternal, object: nil)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + start + Double(index) * 1.5 + 1.5) { record(name) }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + start + 5.2) { [self] in
+                let sizes = Set(frames.map { "\($0.1.size.width)x\($0.1.size.height)" })
+                let origins = Set(frames.map { "\($0.1.origin.x),\($0.1.origin.y)" })
+                let same = sizes.count == 1 && origins.count == 1
+                print(same ? "PASS the window frame did not change" : "FAIL the window frame changed: sizes \(sizes), origins \(origins)")
+                finish(same ? 0 : 1)
+            }
+        }
         if sendEscape {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1.5) { [self] in
                 let escape = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
@@ -310,7 +332,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         if scrollSidebar {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1) { self.scrollLongestToEnd(leftmost: true) }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait) { self.capture() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait + (toggleFrames ? 8 : 0)) { self.capture() }
     }
 
     /// Throwaway jobs run by a test script: one running with one waiting behind

@@ -33,22 +33,24 @@ enum SidebarVisibility {
 /// The sidebar button, next to the traffic lights: on while the sidebar is shown, off while it is hidden, with a
 /// tooltip that says what a press does. A `Toggle`, so VoiceOver reads on or off.
 struct SidebarToggleItem: ToolbarContent {
-    @Binding var visibility: NavigationSplitViewVisibility
+    let shown: Bool
+    /// The window's own show/hide (the same the View menu runs): the button never sets the visibility itself.
+    let toggle: () -> Void
     let peek: SidebarPeek
     /// Where it sits: the content toolbar's navigation placement, or the sidebar column's own toolbar.
     var placement: ToolbarItemPlacement = .navigation
 
-    private var shown: Bool { visibility != .detailOnly }
-
     var body: some ToolbarContent {
         ToolbarItem(placement: placement) {
-            Toggle(isOn: Binding(get: { shown }, set: { visibility = $0 ? .all : .detailOnly })) {
+            Toggle(isOn: Binding(get: { shown }, set: { _ in toggle() })) {
                 Label(Names.Sidebar.title, systemImage: "sidebar.leading")
-                    // on: the accent colour on the icon, so shown and hidden read apart at a glance
-                    .foregroundStyle(shown ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+                    // the icon is the ordinary toolbar icon in both states; "on" is the toolbar's own selected look
+                    .foregroundStyle(.primary)
             }
             .toggleStyle(.button)
             .labelStyle(.iconOnly)
+            // no accent colour: a toggle that is on would fill with the app's accent (blue); neutral keeps it the native grey tile
+            .tint(Color.secondary)
             .help(shown ? Names.Sidebar.hide : Names.Sidebar.show)
             // hovering the button while the sidebar is hidden shows it as an overlay, like the edge does
             .onHover { inside in
