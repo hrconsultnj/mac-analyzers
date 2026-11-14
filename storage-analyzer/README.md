@@ -90,11 +90,20 @@ never touched** — Claude Code prunes its own transcripts after
 `cleanupPeriodDays`; Codex sessions are removed with `codex delete`. Knobs:
 `TEMP_CLEAN_*` and `ANALYZERS_AGENT_DIRS` in `config.local.sh`.
 
-### …prune old dictation recordings (opt-in; set ANALYZERS_RECORDINGS_DIR)
+### …prune old recordings (opt-in; set where to look)
 ```bash
 ./cleanup.sh --recordings-older-than 90            # dry run
-./cleanup.sh --recordings-older-than 90 --execute  # delete recordings >90 days
+./cleanup.sh --recordings-older-than 90 --execute  # move recordings >90 days to the Trash
 ```
+Where to look is `ANALYZERS_RECORDING_SOURCES` in `config.local.sh`: one `id|on|path`
+per source (the app's **Old Recordings → Sources…** window writes it, and finds Zoom,
+Screen Recordings, SuperWhisper and Loom for you). `lib/recording-sources.tsv` says what
+one item is in each: a subfolder, a Zoom meeting folder (kept while it still holds an
+unconverted `.zoom` file), or a `.mov`/`.mp4` file. With no list, the single folder in
+`ANALYZERS_RECORDINGS_DIR` works as before. Never used as a source, whatever the config
+says: your whole home or a disk, your Documents, Desktop, Downloads, Movies, Music,
+Pictures or Library folder itself (for folder sources), anything under
+`~/Library/CloudStorage`, iCloud Drive or another app's container, and a symbolic link.
 
 ---
 

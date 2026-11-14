@@ -27,9 +27,17 @@
 # these in its main pass (App Support dirs, caches, prefs of uninstalled apps).
 #ANALYZERS_DEPRECATED_PATHS=( "$HOME/Library/Application Support/DeadApp" )
 
-# Directory holding dated recording folders (dictation audio etc.) —
-# cleanup.sh --recordings-older-than N prunes subfolders older than N days.
-# Empty/unset disables the feature.
+# Where Old Recordings looks. The Mac Analyzers app writes this for you (Storage,
+# Old Recordings, Sources…); each element is "id|on|path" or "id|off|path", with the
+# path last. ids come from lib/recording-sources.tsv (zoom, screenRecordings,
+# superwhisper, loomTemporary) or `custom` for a folder of yours, where every
+# subfolder is one recording. cleanup.sh --recordings-older-than N prunes what has
+# not been written for N days; ANALYZERS_RECORDINGS_DAYS is the N the app uses.
+#ANALYZERS_RECORDING_SOURCES=( "zoom|on|$HOME/Documents/Zoom" "custom|on|$HOME/Notes/audio" )
+#ANALYZERS_RECORDINGS_DAYS=90
+
+# The older way, still read when there is NO ANALYZERS_RECORDING_SOURCES: one
+# directory holding dated recording folders. Empty/unset disables the feature.
 #ANALYZERS_RECORDINGS_DIR="$HOME/my-dictation-app/recordings"
 
 # Extra cache directory GLOBS for the scheduled storage auto-clean (removed

@@ -14,7 +14,7 @@ struct StorageResultsView<Category: StorageCategory>: View {
 
     @State private var loaded: Loaded?
     @State private var finished = false
-    @State private var category: Category
+    @State private var category: StorageTab
     @Environment(JobStore.self) private var store
 
     private struct Loaded {
@@ -29,11 +29,12 @@ struct StorageResultsView<Category: StorageCategory>: View {
         self.kind = kind
         self.screenKey = screenKey
         self.parse = parse
-        _category = State(initialValue: Category.allCases.first!)
+        let first = Category.allCases.first
+        _category = State(initialValue: StorageTab(id: first?.rawValue ?? "", title: first?.title ?? "", symbol: first?.symbol ?? "folder"))
     }
 
-    private var filled: [Category] { loaded?.rows.filled(Category.self) ?? [] }
-    private var current: Category { filled.contains(category) ? category : (filled.first ?? category) }
+    private var filled: [StorageTab] { loaded?.rows.tabs(Category.self) ?? [] }
+    private var current: StorageTab { filled.first { $0 == category } ?? filled.first ?? category }
 
     var body: some View {
         content
@@ -49,7 +50,7 @@ struct StorageResultsView<Category: StorageCategory>: View {
             } else {
                 ReviewTable(session: loaded.session, readOnly: true,
                             note: loaded.acted ? nil : "This was a preview: nothing was changed.",
-                            only: Set(loaded.rows.rows(in: current).map(\.id)), screen: "run.\(screenKey)")
+                            only: Set(loaded.rows.rows(inTab: current.rawValue).map(\.id)), screen: "run.\(screenKey)")
             }
         } else if finished {
             ContentUnavailableView("Details Weren't Kept", systemImage: "text.alignleft",
@@ -59,9 +60,9 @@ struct StorageResultsView<Category: StorageCategory>: View {
         }
     }
 
-    private var tabItems: [ScopeTabItem<Category>] {
+    private var tabItems: [ScopeTabItem<StorageTab>] {
         guard let rows = loaded?.rows else { return [] }
-        return filled.map { ScopeTabItem(value: $0, title: $0.title, symbol: $0.symbol, count: rows.count(in: $0)) }
+        return filled.map { ScopeTabItem(value: $0, title: $0.title, symbol: $0.symbol, count: rows.count(inTab: $0.rawValue)) }
     }
 
     private func load() async {
@@ -83,10 +84,10 @@ struct StorageResultsView<Category: StorageCategory>: View {
     }
 }
 
-private struct StorageResultTabs<Category: StorageCategory>: ViewModifier {
+private struct StorageResultTabs: ViewModifier {
     let screen: String
-    let items: [ScopeTabItem<Category>]
-    @Binding var selection: Category
+    let items: [ScopeTabItem<StorageTab>]
+    @Binding var selection: StorageTab
 
     @ViewBuilder func body(content: Content) -> some View {
         if (2...6).contains(items.count) {

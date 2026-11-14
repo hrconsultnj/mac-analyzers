@@ -31,6 +31,8 @@ welcome either way.
    never starts or signals Docker.
 4. Nothing auto-deletes user content: no volumes, no Time Machine backups,
    no documents. The sudoers rule stays scoped to one exact command.
+   Recordings are moved to the Trash only on request, from a reviewed list, and
+   never from a folder that syncs to the cloud or that another app indexes.
 5. Anything personal/machine-specific goes through `config.local.sh`
    (gitignored) — never hardcoded. `config.example.sh` documents new knobs.
 

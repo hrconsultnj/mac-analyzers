@@ -1,0 +1,43 @@
+# lib/recording-sources.tsv — the recording apps Old Recordings knows, and how each is treated.
+#
+# ONE list, read by both sides: the engine (storage-analyzer/cleanup.sh, recordings mode) takes each source's
+# layout, extensions, keep rule and warning from here, and the app (RecordingSourceCatalog) takes the rest:
+# where to look, whether it is offered, and its words. `agent-runner --probe-recording-sources` fails if the
+# two sides ever read a line differently. Only the APP discovers where a source is; the engine is told the
+# path (ANALYZERS_RECORDING_SOURCES in config.local.sh) and never looks for one.
+#
+# Adding a recording app is one line here, and needs no code unless it needs a new layout.
+#
+# Columns, separated by TABS (an empty column is a single "-"):
+#   id <TAB> title <TAB> symbol <TAB> layout <TAB> extensions <TAB> keepIf <TAB> offer <TAB> findBy <TAB> warning
+#   title       what a person sees (the app checks it against its own name table)
+#   symbol      an SF Symbol name
+#   layout      what ONE item is:
+#     folders         each subfolder, one level down; old = nothing inside written in N days
+#     meetingFolders  each subfolder that has Zoom's signature (recording.conf, a video*.mp4 + audio*.m4a pair,
+#                     or a *.zoom file), plus loose files at the top with one of the extensions
+#     files           each file at the top level with one of the extensions (comma list, no dots)
+#     -               nothing is ever removed from this source
+#   keepIf      zoomFile: a folder holding a *.zoom file is kept even when old (not converted yet); - none
+#   offer       on | offWithWarning (found, switched off, with its warning) | notOffered (shown with the reason)
+#   findBy      how the app finds it, one or more steps separated by | (the first that exists wins):
+#     defaults:<domain>:<key>:<suffix>   a path stored in the app's own preference, plus the suffix
+#     screencapture                      the Screenshot app's location-screenrecording, then location, then Desktop
+#     home:<path>  documents:<path>  movies:<path>   a folder under the home, Documents or Movies; a step ending @<App>
+#                                        only counts when <App>.app is installed (so a person who never used Zoom is not asked about its folder)
+#     app:<Name>                         the app <Name>.app is installed (nothing inside it is opened)
+#     cloudstorage                       a mount's NAME under ~/Library/CloudStorage (never opened)
+#     always                             present on every Mac
+#     -                                  added by the person
+#   warning     for offWithWarning the sentence shown; for notOffered the reason; - none
+zoom	Zoom	video	meetingFolders	mp4,m4a	zoomFile	on	documents:Zoom@zoom.us	-
+screenRecordings	Screen Recordings	record.circle	files	mov,mp4	-	on	screencapture	-
+superwhisper	SuperWhisper	waveform	folders	-	-	offWithWarning	defaults:com.superduper.superwhisper:appFolderDirectory:/superwhisper/recordings|home:superwhisper/recordings|documents:superwhisper/recordings@superwhisper	SuperWhisper keeps a history of each recording. Removing old ones here leaves entries without audio. SuperWhisper's own Keep Recordings For setting does this inside the app.
+loomTemporary	Loom (Unsent Videos)	video.badge.ellipsis	folders	-	-	offWithWarning	movies:Loom/Temporary	These are videos Loom has not finished uploading. A folder here can be the only copy of a video, so look before you remove one.
+voiceMemos	Voice Memos	mic	-	-	-	notOffered	always	Voice Memos keeps a library synced with iCloud. Removing its files breaks the library and deletes the recordings on your iPhone, so they are never offered here.
+cloudMeetings	Teams and Meet Recordings	icloud	-	-	-	notOffered	cloudstorage	These recordings live in OneDrive or Google Drive. Moving one to the Trash deletes it in the cloud, so they are never offered here.
+macwhisper	MacWhisper	text.bubble	-	-	-	notOffered	app:MacWhisper	MacWhisper keeps a database of transcripts that point at its media. Removing media behind its back leaves transcripts without audio, so use MacWhisper itself.
+rewind	Rewind	clock.arrow.circlepath	-	-	-	notOffered	app:Rewind	Rewind's library is its database. Removing pieces of it breaks it, so it is never offered here.
+granola	Granola	note.text	-	-	-	notOffered	app:Granola	Granola does not keep audio on your Mac, so there is nothing to remove here.
+wisprFlow	Wispr Flow	text.cursor	-	-	-	notOffered	app:Wispr Flow	Wispr Flow does not keep audio on your Mac, so there is nothing to remove here.
+custom	Custom Folder	folder	folders	-	-	on	-	-

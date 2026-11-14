@@ -199,6 +199,35 @@ public enum Names {
         public static let recordings = "Old Recordings"
     }
 
+    /// Old Recordings' sources: the names of the recording apps (the list in `lib/recording-sources.tsv` carries the
+    /// same titles, and `agent-runner --probe-recording-sources` fails if they differ), and the Sources window's words.
+    public enum Recordings {
+        public static let sourceTitles: [String: String] = [
+            "zoom": "Zoom", "screenRecordings": "Screen Recordings", "superwhisper": "SuperWhisper",
+            "loomTemporary": "Loom (Unsent Videos)", "voiceMemos": "Voice Memos",
+            "cloudMeetings": "Teams and Meet Recordings", "macwhisper": "MacWhisper", "rewind": "Rewind",
+            "granola": "Granola", "wisprFlow": "Wispr Flow", "custom": "Custom Folder",
+        ]
+        public static let sources = "Sources"
+        public static let sourcesButton = "Sources…"
+        public static let chooseFolders = "Choose Folders…"
+        public static let addFolder = "Add Folder…"
+        public static let foundOnThisMac = "Found on This Mac"
+        public static let yourFolders = "Your Folders"
+        public static let notOffered = "Not Offered"
+        public static let keepRecordingsFor = "Keep Recordings For"
+        public static let needsAccess = "Needs Access"
+        public static let otherFolders = "Other Folders"
+        public static let noFoldersChosen = "No Recording Folders Chosen"
+        public static let lookInDocuments = "Look in Documents"
+        public static let lookOnDesktop = "Look on the Desktop"
+        public static let lookInDownloads = "Look in Downloads"
+        public static let showInFinder = "Show in Finder"
+        public static let remove = "Remove"
+        public static let save = "Save"
+        public static let cancel = "Cancel"
+    }
+
     /// Where an item found in temp and agent folders lives, and the verdict on it.
     public enum Temp {
         public static let tempFolder = "Temp Folder"
@@ -658,6 +687,12 @@ public enum Names {
                  StorageTab.diskImages, StorageTab.packageManagers, StorageTab.xcodeSimulators,
                  StorageTab.docker, StorageTab.toolCaches].map { ("Storage tab", $0) }
         rows += [Prune.pnpm, Prune.npm, Prune.brew, Prune.simulators, Prune.docker].map { ("Prune", $0) }
+        rows += Recordings.sourceTitles.values.sorted().map { ("Recording source", $0) }
+        rows += [Recordings.sources, Recordings.sourcesButton, Recordings.chooseFolders, Recordings.addFolder,
+                 Recordings.foundOnThisMac, Recordings.yourFolders, Recordings.notOffered, Recordings.keepRecordingsFor,
+                 Recordings.needsAccess, Recordings.otherFolders, Recordings.noFoldersChosen, Recordings.lookInDocuments,
+                 Recordings.lookOnDesktop, Recordings.lookInDownloads, Recordings.showInFinder, Recordings.remove,
+                 Recordings.save, Recordings.cancel].map { ("Recordings", $0) }
         rows += [ToolCacheName.pip, ToolCacheName.uv, ToolCacheName.cargo, ToolCacheName.gradle,
                  ToolCacheName.derivedData, ToolCacheName.bun, ToolCacheName.cipd, ToolCacheName.goModules,
                  ToolCacheName.androidSnapshots, ToolCacheName.aerials].map { ("Tool cache", $0) }

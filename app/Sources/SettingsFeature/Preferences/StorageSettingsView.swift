@@ -2,9 +2,10 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// Storage pane: auto-clean scope lists + recordings folder.
+/// Storage pane: auto-clean scope lists. Where Old Recordings looks is set in its Sources window.
 struct StorageSettingsView: View {
     @Environment(ConfigStore.self) private var config
+    @Environment(Navigator.self) private var navigator
     @State private var backups: [IOSBackup]?
 
     var body: some View {
@@ -23,9 +24,9 @@ struct StorageSettingsView: View {
                     items: $config.storage.staleApps,
                     height: 140
                 )
-                LabeledContent("Recordings Folder") {
-                    TextField("empty = feature disabled", text: $config.storage.recordingsDir)
-                        .textFieldStyle(.roundedBorder)
+                LabeledContent("Recordings") {
+                    // the one editor is Old Recordings' Sources window; this only says what it holds
+                    Button("Choose in Sources…") { navigator.open(target: "recordings:sources") }
                 }
             }
 
