@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--sidebar shown|hidden|peek] [--toolbar-dump] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--sidebar shown|hidden|peek] [--toolbar-dump] [--escape] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -130,6 +130,8 @@ let hitTestEdge = arguments.contains("--hit-test-edge")
 /// `--toolbar-dump`: print each toolbar item's label and where its left edge is, in window points, so a button that must
 /// not move between two states can be measured.
 let toolbarDump = arguments.contains("--toolbar-dump")
+/// `--escape`: just before the capture, send Escape through the application's event queue, so a render shows whether it puts the hover overlay away.
+let sendEscape = arguments.contains("--escape")
 /// `--sidebar shown|hidden|peek`: how the sidebar starts (peek is hidden with the hover overlay showing). Never remembered.
 let sidebarState: SidebarPresentation = switch option("--sidebar") {
 case "hidden": .hidden
@@ -250,6 +252,14 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
         window.orderFrontRegardless()      // shows the window WITHOUT activating the app
 
+        if sendEscape {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1.5) { [self] in
+                let escape = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                              windowNumber: window.windowNumber, context: nil, characters: "\u{1b}",
+                                              charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53)
+                if let escape { NSApp.sendEvent(escape) }
+            }
+        }
         if toolbarDump {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 0.5) { [self] in
                 for item in window.toolbar?.items ?? [] {

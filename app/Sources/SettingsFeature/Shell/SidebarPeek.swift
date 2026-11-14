@@ -17,13 +17,19 @@ final class SidebarPeek {
     private(set) var isShown = false
     private var inside: Set<Region> = []
     private var pending: Task<Void, Never>?
+    /// Escape while the overlay shows. A hover never gives the overlay the keyboard, so `onExitCommand` alone would
+    /// almost never fire: a local key monitor takes Escape for as long as the overlay is up, and only then.
+    @ObservationIgnored nonisolated(unsafe) private var escapeMonitor: Any?
 
     /// How long the pointer must rest before it shows, and how long it must be gone before it hides: enough that
     /// passing over the edge, or leaving for a moment, does not flicker it.
     private static let showDelay: Duration = .milliseconds(120)
     private static let hideDelay: Duration = .milliseconds(350)
 
-    init(showing: Bool = false) { isShown = showing }
+    init(showing: Bool = false) {
+        isShown = showing
+        if showing { installEscapeMonitor() }
+    }
 
     func enter(_ region: Region) {
         inside.insert(region)
@@ -54,7 +60,34 @@ final class SidebarPeek {
         set(false)
     }
 
-    private func set(_ shown: Bool) { if isShown != shown { isShown = shown } }
+    private func set(_ shown: Bool) {
+        guard isShown != shown else { return }
+        isShown = shown
+        if shown { installEscapeMonitor() } else { removeEscapeMonitor() }
+    }
+
+    private func installEscapeMonitor() {
+        guard escapeMonitor == nil else { return }
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == 53 else { return event }                         // Escape
+            // a text field being edited, or a sheet in front, keeps its own Escape
+            let window = event.window ?? NSApp.keyWindow
+            if window?.firstResponder is NSText || window?.attachedSheet != nil { return event }
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard let self, self.isShown else { return false }
+                self.dismiss()
+                return true
+            }
+            return handled ? nil : event
+        }
+    }
+
+    private func removeEscapeMonitor() {
+        if let monitor = escapeMonitor { NSEvent.removeMonitor(monitor) }
+        escapeMonitor = nil
+    }
+
+    deinit { if let monitor = escapeMonitor { NSEvent.removeMonitor(monitor) } }
 }
 
 /// The overlay over the detail content: the hover strip, and while peeking the sidebar itself.
