@@ -82,8 +82,7 @@ func probeProcessArguments() -> Never {
     }
     /// Starts node on a short script that sets its title (so the title's words are in no argument
     /// and the arguments are few and short), waits for the title to show, and returns the row's text.
-    let scripts = FileManager.default.temporaryDirectory.appending(path: "ma-pa-\(getpid())", directoryHint: .isDirectory)
-    try? FileManager.default.createDirectory(at: scripts, withIntermediateDirectories: true)
+    let scripts = ProbeScratch.folder("ma-pa")
     func rowOfRetitled(script name: String, titleExpression: String, startsWith prefix: String) -> String? {
         guard let node else { return nil }
         let script = scripts.appending(path: name)

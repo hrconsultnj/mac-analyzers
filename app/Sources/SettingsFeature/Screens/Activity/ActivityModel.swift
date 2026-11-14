@@ -14,12 +14,44 @@ import UIComponents
 @MainActor @Observable
 final class ActivityModel {
 
+    /// The one model every view of runs reads: Activity, a task screen's run
+    /// history and the run screens. One refresh path, so opening a screen that
+    /// shows runs does not read every log again behind another's back.
+    static let shared = ActivityModel()
+
     private(set) var rows: [ActivityRow] = []
     private(set) var hasLoaded = false
     private(set) var isLoading = false
 
     @ObservationIgnored private var logRuns: [ActivityJoin.LogRuns] = []
     @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var refreshedAt: Date = .distantPast
+    /// The refresh running now: a screen that appears meanwhile awaits it instead of starting its own.
+    @ObservationIgnored private var inFlight: Task<Void, Never>?
+    /// A job changed stage while a refresh was running: it must read once more.
+    @ObservationIgnored private var dirty = false
+
+    /// Refreshes unless the rows were read a moment ago. For screens that merely
+    /// show runs when they appear; a job changing stage calls `refresh` itself.
+    /// `maxAge: 0` is for a job changing stage: it always reads, and one that arrives
+    /// while a read is running makes that read go round once more instead of starting a
+    /// second one beside it.
+    func refreshIfNeeded(store: JobStore, maxAge: TimeInterval = 5) async {
+        if maxAge == 0 { dirty = true }
+        if let inFlight { await inFlight.value; return }
+        guard !hasLoaded || Date().timeIntervalSince(refreshedAt) >= maxAge else { return }
+        // `inFlight` is cleared inside the task, in the same step as the last `dirty` check: a
+        // change that arrives after that sees no read running and starts its own
+        let task = Task {
+            repeat {
+                dirty = false
+                await refresh(store: store)
+            } while dirty
+            inFlight = nil
+        }
+        inFlight = task
+        await task.value
+    }
 
     /// Reads the logs and the index again, then joins them with the store's
     /// jobs. A newer call supersedes an older one still in flight.
@@ -38,6 +70,7 @@ final class ActivityModel {
         guard mine == generation else { return }
         logRuns = logs
         rows = joined
+        refreshedAt = Date()
         hasLoaded = true
         isLoading = false
     }
@@ -66,11 +99,13 @@ final class ActivityModel {
 
     /// The log block behind a logged row.
     func logRun(for row: ActivityRow) -> LogRun? {
-        guard case .logged(let log, let header, let ordinal) = row.source,
-              let runs = logRuns.first(where: { $0.log == log })?.runs else { return nil }
-        return runs.enumerated().first { position, run in
-            run.header == header && runs[(position + 1)...].filter { $0.header == header }.count == ordinal
-        }?.element
+        guard case .logged(let log, let header, let ordinal) = row.source else { return nil }
+        return logRun(for: RunReference(log: log, header: header, ordinal: ordinal))
+    }
+
+    /// The log block a reference names, or nil once the log has moved on.
+    func logRun(for reference: RunReference) -> LogRun? {
+        logRuns.first { $0.log == reference.log }.flatMap { reference.resolve(in: $0.runs) }
     }
 
     /// Whether the log's window may have cut this block off: it is the oldest

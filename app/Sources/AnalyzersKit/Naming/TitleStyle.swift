@@ -32,7 +32,7 @@ public enum TitleStyle {
     /// Begin lowercase wherever they appear.
     public static let alwaysLowercaseStart: Set<String> = [
         "macOS", "iOS", "iPadOS", "iPhone", "iPad", "iCloud", "iMac", "iTunes", "watchOS", "tvOS",
-        "visionOS",
+        "visionOS", "pip", "uv", "npm", "pnpm",
     ]
 
     /// Hyphenated words whose second half stays lowercase (plurals included).
@@ -42,7 +42,7 @@ public enum TitleStyle {
     /// in capitals is a label shouting, which is what this check exists to stop.
     public static let acronyms: Set<String> = [
         "CPU", "GPU", "RAM", "PID", "KB", "MB", "GB", "TB", "I/O", "IO", "AI", "MCP", "UI", "ID",
-        "URL", "VPN", "SSH", "DMG", "OS", "USB", "SSD", "API", "VM", "PDF", "TM", "OK",
+        "URL", "VPN", "SSH", "DMG", "OS", "USB", "SSD", "API", "VM", "PDF", "TM", "OK", "CIPD",
     ]
 
     /// The words of `name` that break the rules, with the reason. Empty when

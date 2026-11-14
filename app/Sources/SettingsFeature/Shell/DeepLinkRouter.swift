@@ -15,8 +15,30 @@ public enum DeepLinkRouter {
 
     private static let log = Logger(subsystem: "com.mac-analyzers.app", category: "router")
 
+    /// Targets that show a screen with example data, for looking at it headless. Empty
+    /// in the app people install: only `SnapshotRunner` calls `installFixtures()`, so
+    /// no URL, `--pane` or notification can reach one.
+    private static var fixtureTargets: [String: Resolution] = [:]
+
+    /// Makes the example screens linkable (`review:fixture`) and, for a run with no app bundle,
+    /// names the changelog What's New reads. Called by SnapshotRunner, nothing else.
+    public static func installFixtures(changelog: URL? = nil) {
+        ReleaseNote.useDevelopmentFile(changelog)
+        fixtureTargets = ["review:fixture": .main(Location(OverviewGroup.activity, path: [.overview(.reviewFixture)])),
+                          "review:fixture:long": .main(Location(OverviewGroup.activity, path: [.overview(.reviewFixtureLong)])),
+                          "job:fixture:finished": .main(Location(OverviewGroup.activity, path: [.overview(.runLinesFixture)])),
+                          "turnoff:permission": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("permission"))])),
+                          "turnoff:earlier": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("earlier"))])),
+                          "turnoff:none": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("none"))]))]
+            .merging(StorageGroup.fixtureTargets) { _, storage in storage }
+    }
+
+    /// Where a link lands, in words, for `SnapshotRunner --probe-links`; nothing else calls it.
+    public static func probeRouting(of target: String) -> String { String(describing: resolve(target)) }
+
     static func resolve(_ target: String) -> Resolution {
         let key = target.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let fixture = fixtureTargets[key] { return fixture }
         for group in SectionRegistry.groups {
             if let resolution = group.aliases[key] { return resolution }
         }

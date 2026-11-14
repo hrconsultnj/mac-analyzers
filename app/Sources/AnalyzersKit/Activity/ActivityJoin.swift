@@ -128,12 +128,10 @@ public enum ActivityJoin {
     }
 
     public static func readRuns(for log: EngineLog) -> [LogRun] {
-        guard log == .forensics else { return LogParser.runs(for: log) }
+        guard log == .forensics else { return LogParser.runs(for: log, includingRestores: true) }
         return AnalyzersPaths.allForensics().prefix(10).enumerated().compactMap { position, url in
-            guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-            let lines = text.split(separator: "\n", omittingEmptySubsequences: true)
-                .map { String($0).trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            let lines = LogLines.lines(in: data)
             // the report names its own moment; that stamp, not the file's mtime, keeps the id fixed
             let stamp = lines.first.flatMap(headerDate).map { stampFormat.string(from: $0) }
                 ?? url.deletingPathExtension().lastPathComponent
@@ -176,14 +174,17 @@ public enum ActivityJoin {
         } else {
             status = .done
         }
-        let who: ActivityRow.Trigger = entry.map { trigger(of: $0.trigger) }
+        let restore = RestoreBlock.isRestore(header: run.header)
+        // a restore is always a person's click in the app; it has no task kind of its own
+        let who: ActivityRow.Trigger = restore ? .you : entry.map { trigger(of: $0.trigger) }
             ?? attribute(log: log, header: run.header, date: date, slots: slots, agentArguments: agentArguments)
         let intent = entry?.intent ?? intent(of: run.header)
         return ActivityRow(
             id: "log:\(log.rawValue):\(run.header)#\(ordinal)",
-            source: .logged(log, header: run.header, ordinal: ordinal), jobID: entry?.id, title: title,
-            kind: entry?.kind ?? kind(for: log), log: log, intent: intent,
-            flavor: flavor(header: run.header, options: JobOptions(), kind: entry?.kind ?? kind(for: log)),
+            source: .logged(log, header: run.header, ordinal: ordinal), jobID: entry?.id,
+            title: restore ? Names.Screen.undo : title,
+            kind: restore ? nil : entry?.kind ?? kind(for: log), log: log, intent: intent,
+            flavor: flavor(header: run.header, options: JobOptions(), kind: restore ? nil : entry?.kind ?? kind(for: log)),
             started: entry?.start ?? date, finished: entry?.end, trigger: who, status: status,
             result: result, reviewResult: review, header: run.header, needsReview: false,
             findings: findings, freedBytes: status == .done ? summary.freedBytes : 0,
@@ -230,7 +231,8 @@ public enum ActivityJoin {
     /// forward is a new preview.
     private static func markNeedsReview(_ rows: inout [ActivityRow], now: Date, dismissed: Set<UUID>) {
         var newest: [String: Int] = [:]
-        for (position, row) in rows.enumerated() where row.status == .done && row.intent != .run {
+        // a restore is not a run of the task: it must not replace the waiting preview before it
+        for (position, row) in rows.enumerated() where row.status == .done && row.intent != .run && !row.isRestore {
             guard let when = row.finished ?? row.started else { continue }
             if let current = newest[row.taskKey],
                let existing = rows[current].finished ?? rows[current].started, existing >= when { continue }
@@ -342,6 +344,9 @@ public enum ActivityJoin {
         case .tempSpace: .tempClean
         case .spotlightAudit: .spotlight
         case .loginItems: .loginItems
+        case .cleanupApps: .unusedApps
+        case .tmReclaim: .tmReclaim
+        case .cleanupRecordings: .recordings
         case .guardLog, .persistence, .forensics: nil
         }
     }

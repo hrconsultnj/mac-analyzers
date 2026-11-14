@@ -7,6 +7,8 @@ extension CensusBuilder {
     private struct Bucket {
         let category: CensusGroup.Category
         let name: String
+        /// The app's bundle, when the group is an app that has one.
+        let appPath: String?
         var members: [LiveProcess] = []
         /// What each member does — keyed by pid.
         var roles: [Int: ProcessRole.Described] = [:]
@@ -15,11 +17,14 @@ extension CensusBuilder {
         var rootTotals: [Int: Int64] = [:]
         /// Top-level processes this user is allowed to quit.
         var quittableRoots: Set<Int> = []
+        /// What each top-level process owns — its program.
+        var rootMembers: [Int: [LiveProcess]] = [:]
     }
 
     /// Largest first.
     func groups() -> [CensusGroup] {
         var buckets: [String: Bucket] = [:]
+        var sessions = SessionLookup(builder: self)
 
         for entry in table.values {
             let rootPid = owner(of: entry.pid)
@@ -32,16 +37,38 @@ extension CensusBuilder {
             let label = isRoot && kind.category == .apps ? kind.name : nil
             let process = liveProcess(entry, label: label, category: kind.category)
 
-            var bucket = buckets[key] ?? Bucket(category: kind.category, name: kind.name)
+            var bucket = buckets[key] ?? Bucket(category: kind.category, name: kind.name, appPath: kind.appPath)
             bucket.members.append(process)
             bucket.roles[entry.pid] = role(of: entry, process: process,
                                            category: kind.category, isRoot: isRoot)
             bucket.rootTotals[rootPid, default: 0] += entry.bytes
-            if isRoot, process.canQuit { bucket.quittableRoots.insert(rootPid) }
+            bucket.rootMembers[rootPid, default: []].append(process)
+            // A helper outside the bundle is shown under its app by name alone (an identifier prefix), which
+            // any process can imitate, so Quit on the app never signals it: it acts on the app's own processes.
+            if isRoot, process.canQuit, !isJoinedHelper(entry) { bucket.quittableRoots.insert(rootPid) }
             buckets[key] = bucket
         }
 
-        return buckets.compactMap { key, bucket in group(id: key, from: bucket) }
+        // which apps host a live coding session: a session root whose ancestry reaches the app
+        var appOf: [Int: String] = [:]
+        for (key, bucket) in buckets where bucket.category == .apps {
+            for member in bucket.members { appOf[member.pid] = key }
+        }
+        var hosted: [String: [String: Int]] = [:]
+        for entry in table.values {
+            guard let agent = sessions.ownAgent(of: entry.pid) else { continue }
+            var current = entry.pid
+            var hops = 0
+            while hops < 40 {
+                if let key = appOf[current] { hosted[key, default: [:]][agent, default: 0] += 1; break }
+                guard let parent = table[current]?.ppid, parent > 1, parent != current else { break }
+                current = parent
+                hops += 1
+            }
+        }
+        return buckets.compactMap { key, bucket in
+            group(id: key, from: bucket, sessions: &sessions, hosted: hosted[key] ?? [:])
+        }
             .sorted { $0.totalBytes != $1.totalBytes ? $0.totalBytes > $1.totalBytes : $0.name < $1.name }
     }
 
@@ -55,7 +82,8 @@ extension CensusBuilder {
         }
     }
 
-    private func group(id: String, from bucket: Bucket) -> CensusGroup? {
+    private func group(id: String, from bucket: Bucket, sessions: inout SessionLookup,
+                       hosted: [String: Int]) -> CensusGroup? {
         let members = bucket.members.sorted(by: Self.largestFirst)
         // lead = the root of the biggest tree (two instances of one app share
         // a group; the bigger one speaks for it)
@@ -63,12 +91,20 @@ extension CensusBuilder {
         guard let lead = members.first(where: { $0.pid == leadPid }) ?? members.first
         else { return nil }
 
+        let match = leadPid.flatMap { table[$0] }.map {
+            self.kind(ofGroup: bucket.name, category: bucket.category, appPath: bucket.appPath, lead: $0)
+        } ?? KindMatch(kind: kinds.fallbackKind(for: bucket.category), basis: .fallback, rule: "no lead process")
         return CensusGroup(
             id: id, name: bucket.name, category: bucket.category,
             role: bucket.category == .system ? ProcessGlossary.systemRole(of: bucket.name) : nil,
             lead: lead, members: members,
             parts: parts(of: members, roles: bucket.roles),
-            quit: quitScope(for: bucket))
+            quit: quitScope(for: bucket),
+            programs: bucket.category == .tools
+                ? programs(rootMembers: bucket.rootMembers, sessions: &sessions) : [],
+            hostedSessions: hosted, kind: match.kind, kindMatch: match,
+            leftAlone: leadPid.flatMap { table[$0] }
+                .flatMap { leftAlone(kind: match.kind, category: bucket.category, lead: $0) })
     }
 
     /// Members grouped by what they do; the app itself first, then by size.
@@ -89,11 +125,13 @@ extension CensusBuilder {
     }
 
     private func quitScope(for bucket: Bucket) -> CensusGroup.QuitScope {
-        let roots = bucket.quittableRoots.sorted()
+        // each root is named with its start time; a root that has already
+        // gone cannot be quit and drops out
+        let roots = bucket.quittableRoots.sorted().compactMap(ProcessIdentity.of(pid:))
         guard !roots.isEmpty else { return .unavailable }
         switch bucket.category {
-        case .apps: return .app(mainPIDs: roots)
-        case .tools: return .tools(rootPIDs: roots)
+        case .apps: return .app(roots)
+        case .tools: return .tools(roots)
         case .system: return .unavailable
         }
     }

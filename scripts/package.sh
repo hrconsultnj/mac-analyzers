@@ -73,6 +73,14 @@ if ! MA_STRICT_WARNINGS=1 MA_NO_INSTALL=1 ./app/build.sh >"$build_log" 2>&1; the
   grep -E "error:" -A4 "$build_log" | tail -30 >&2 || tail -20 "$build_log" >&2
   exit 1
 fi
+# The package turns compiler warnings into errors, but a few diagnostics are
+# not upgraded and a build can succeed while printing one. A download is
+# never made from such a build.
+if grep -a -E '^[^ ].*: warning: ' "$build_log" >"$work/warnings.txt"; then
+  echo "package: the build printed compiler warnings — fix them first (warnings are defects):" >&2
+  cut -c1-300 "$work/warnings.txt" | awk '!seen[$0]++' | head -20 >&2
+  exit 1
+fi
 
 # ── 2. a copy to sign for other people's Macs ──────────────────────────────
 app="$stage/MacAnalyzers.app"
@@ -88,17 +96,12 @@ if [[ "$identity" == "Developer ID Application:"* ]]; then
   level="Developer ID"
   # the notary service wants every executable signed on its own, with the
   # hardened runtime and a secure timestamp — inside out, never --deep
-  for binary in notify agent-runner MacAnalyzersApp; do
-    codesign --force --options runtime --timestamp \
-      --entitlements app/MacAnalyzers.entitlements \
-      --sign "$identity" "$app/Contents/MacOS/$binary"
-  done
-  codesign --force --options runtime --timestamp \
-    --entitlements app/MacAnalyzers.entitlements --sign "$identity" "$app"
+  app/sign-app.sh "$app" "$identity" --timestamp
 else
   level="ad-hoc"
   identity="-"
-  codesign --force --deep --sign - "$app" 2>/dev/null
+  # ad-hoc cannot be notarized, but the hardened runtime applies all the same
+  app/sign-app.sh "$app" -
 fi
 codesign --verify --deep --strict "$app"
 echo "→ signed: $level"

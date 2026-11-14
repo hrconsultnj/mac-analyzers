@@ -44,11 +44,6 @@ public enum LiveStats {
         }
     }
 
-    /// Mirror of the guard's killable-dev-tooling regex (display-only copy —
-    /// the guard's own list in memory-guard.sh stays authoritative for kills).
-    private static let killablePattern =
-        "(^|/)(node|npm|npx|bun|tsx|deno)( |$)|next-server|next dev|vite|esbuild|webpack|turbo|tsup|vitest|jest|playwright|headless_shell|--headless|ms-playwright"
-
     /// Biggest processes RIGHT NOW by resident RAM — every kind, not just dev
     /// tooling (an OrbStack helper at 3.3 GB matters as much as next-server).
     /// `minimumMB` keeps the list to rows worth a decision.
@@ -66,8 +61,8 @@ public enum LiveStats {
         let processes = raw.map { entry in
             LiveProcess(pid: entry.pid, residentMB: entry.residentMB,
                         rawName: CommandLineDisplay.shown(entry.command),
-                        kind: isDevKillable(entry.command) ? .devTool : .app,
-                        ppid: entry.ppid)
+                        kind: isDevTooling(entry.command) ? .devTool : .app,
+                        ppid: entry.ppid, identity: ProcessIdentity.of(pid: entry.pid))
         }.sorted { $0.residentMB > $1.residentMB }
 
         return Sample(
@@ -81,16 +76,16 @@ public enum LiveStats {
         let result = ProcTable.sweep(minimumMB: minimumMB).map { raw in
             LiveProcess(pid: raw.pid, residentMB: raw.residentMB,
                         rawName: CommandLineDisplay.shown(raw.command),
-                        kind: isDevKillable(raw.command) ? .devTool : .app,
-                        ppid: raw.ppid)
+                        kind: isDevTooling(raw.command) ? .devTool : .app,
+                        ppid: raw.ppid, identity: ProcessIdentity.of(pid: raw.pid))
         }
         return Array(result.sorted { $0.residentMB > $1.residentMB }.prefix(limit))
     }
 
-    /// Is this name/command inside the guard's auto-stop scope? (Public for
-    /// the dossier's protection verdict.)
-    public static func isDevKillable(_ raw: String) -> Bool {
-        raw.range(of: killablePattern, options: .regularExpression) != nil
+    /// Whether a command line is developer tooling, by the kind the catalog gives it (`kinds.json`). The one
+    /// reading: the guard's old text pattern is gone from the app, and the engine's own list stays in the script.
+    public static func isDevTooling(_ command: String) -> Bool {
+        KindCatalog.current.isDevTooling(command: command)
     }
 
     /// Dev-only convenience for the Memory tab strip.
@@ -109,7 +104,7 @@ public enum LiveStats {
         let footprint = usage.map { Int64($0.footprint) }
             ?? PrivilegedFootprints.current()[pid32]
         let command = ProcTable.commandLine(of: pid32)
-        let isDev = isDevKillable(command)
+        let isDev = isDevTooling(command)
         let path = ProcTable.executablePath(of: pid32)
         return LiveProcess(pid: pid,
                            residentMB: Int((usage?.resident ?? 0) / 1_048_576),
@@ -121,7 +116,8 @@ public enum LiveStats {
                            label: isDev || path.hasPrefix("pid ")
                                ? nil : (path as NSString).lastPathComponent,
                            canQuit: identity.uid == getuid()
-                               && !MemoryCensus.isSystemPath(path))
+                               && !MemoryCensus.isSystemPath(path),
+                           identity: ProcessIdentity.of(pid: pid))
     }
 
     // MARK: - helper grouping
@@ -175,7 +171,7 @@ public enum LiveStats {
         }
 
         func liveProcess(_ e: Entry) -> LiveProcess {
-            let isDev = e.args.range(of: killablePattern, options: .regularExpression) != nil
+            let isDev = isDevTooling(e.args)
             return LiveProcess(pid: e.pid, residentMB: e.rssMB,
                                rawName: CommandLineDisplay.shown(e.args),
                                kind: isDev ? .devTool : .app, ppid: e.ppid)

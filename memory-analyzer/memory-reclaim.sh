@@ -64,7 +64,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run)    DRY_RUN=1 ;;
     --apps)       QUIT_APPS=1 ;;
     --only-pids)  ONLY_PIDS="${2:?--only-pids needs a file}"; shift ;;
-    --apps-list)  QUIT_APPS=1; APPS_LIST="${2:?--apps-list needs a comma-separated list}"; shift ;;
+    --apps-list)  QUIT_APPS=1; APPS_LIST="${2:?--apps-list needs a list (one name per line, or comma-separated)}"; shift ;;
     -h|--help)    sed -n '2,32p' "$0"; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
@@ -125,9 +125,9 @@ fi
 # The finder lives in lib/live-sessions.sh (shared with memory-auto-clean.sh).
 # Without it there is no exemption, so refuse to sweep rather than run open.
 # shellcheck disable=SC1091
-if ! source "${ANALYZERS_ROOT}/lib/live-sessions.sh" 2>/dev/null; then
-  echo "FATAL: lib/live-sessions.sh is missing — refusing to sweep without the live-session exemption." >&2
-  exit 78
+if ! source "${ANALYZERS_ROOT}/lib/live-sessions.sh"; then
+  echo "FATAL: lib/live-sessions.sh or its list of coding agents (lib/coding-agents.tsv) is missing, unreadable or names no agent — refusing to sweep without the live-session exemption." >&2
+  exit 79
 fi
 SESSION_ROOTS="$(live_session_roots)"
 EXEMPT="$(live_session_exempt "$SESSION_ROOTS"; echo "$$")"
@@ -135,12 +135,35 @@ SESS_COUNT="$(echo "$SESSION_ROOTS" | wc -w | tr -d ' ')"
 
 is_exempt() { echo "$EXEMPT" | grep -qx "$1"; }
 
+# app_hosted_sessions <app name> → how many live coding sessions run under that
+# app: a session root (or one of its ancestors) whose command line is inside
+# /<app>.app/ — Visual Studio Code with Copilot, ChatGPT with Codex, a terminal
+# with `claude` in a tab.
+app_hosted_sessions() {
+  local app="$1"
+  ps axo pid=,ppid=,args= | awk -v roots="$SESSION_ROOTS" -v needle="/${app}.app/" '
+    BEGIN { n = split(roots, r, /[[:space:]]+/); for (i = 1; i <= n; i++) if (r[i] != "") root[r[i]] = 1 }
+    { pid = $1; pp[pid] = $2; line = $0; sub(/^[ \t]*[0-9]+[ \t]+[0-9]+[ \t]+/, "", line); args[pid] = line }
+    END {
+      count = 0
+      for (p in root) {
+        q = p; hops = 0; hit = 0
+        while (q > 1 && q != "" && hops < 40) { if (index(args[q], needle) > 0) { hit = 1; break }; q = pp[q]; hops++ }
+        if (hit) count++
+      }
+      print count + 0
+    }'
+}
+
 # --only-pids <file>: stop ONLY the pids listed in the file, one per line.
 # The sweep still finds its own candidates, so an approved set can only ever
 # SHRINK what gets stopped — never add to it.
 approved_pid() {
   [[ -z "${ONLY_PIDS}" ]] && return 0
-  approved_list_has "$1"
+  case "$1" in
+    *[!0-9]*) approved_list_has "$1" ;;          # a stack key and the like: a whole line
+    *) approved_list_has_process "$1" ;;          # a pid: also the process it was when reviewed
+  esac
 }
 
 # The reviewed list is read once (lib/approved-list.sh): a `grep` per item made a
@@ -176,18 +199,32 @@ state() { top -l 1 -n 0 2>/dev/null | grep PhysMem; sysctl -n vm.swapusage; }
 
 # ---------- header ----------
 log "=================================================================="
-log " memory-reclaim  |  $([[ $DRY_RUN -eq 1 ]] && echo 'DRY RUN' || echo 'APPLY')  |  apps=$([[ $QUIT_APPS -eq 1 ]] && echo "${APPS_LIST}" || echo 'no')  |  $(date '+%Y-%m-%d %H:%M:%S')"
+log " memory-reclaim  |  $([[ $DRY_RUN -eq 1 ]] && echo 'DRY RUN' || echo 'APPLY')  |  apps=$([[ $QUIT_APPS -eq 1 ]] && echo "${APPS_LIST//$'\n'/, }" || echo 'no')  |  $(date '+%Y-%m-%d %H:%M:%S')"
 log " input: ${INVOKED}"
-[[ "$SESS_COUNT" -gt 0 ]] && log " exempt: ${SESS_COUNT} live Claude/Codex session(s) + their MCP servers (roots: ${SESSION_ROOTS})"
+[[ "$SESS_COUNT" -gt 0 ]] && log " exempt: ${SESS_COUNT} live coding session(s) + their tool servers (roots: ${SESSION_ROOTS})"
 log "=================================================================="
 BEFORE="$(state)"
 
 # ---------- 1. quit heavy GUI apps (graceful, optional) ----------
 if [[ "$QUIT_APPS" -eq 1 ]]; then
   group "1. Quitting heavy apps (graceful ⌘Q — save dialogs still appear)"
-  IFS=',' read -ra APPS <<< "$APPS_LIST"
+  # one name per line (a name may hold a comma); a comma-separated list is the
+  # older spelling, still read from config
+  if [[ "$APPS_LIST" == *$'\n'* ]]; then
+    IFS=$'\n' read -r -d '' -a APPS <<< "$APPS_LIST" || true
+  else
+    IFS=',' read -ra APPS <<< "$APPS_LIST"
+  fi
   for app in "${APPS[@]}"; do
     app="$(echo "$app" | sed 's/^ *//;s/ *$//')"
+    [[ -z "$app" ]] && continue
+    # an app that HOSTS a live coding session is never quit for you: ending it
+    # ends the session (and the work in it)
+    hosted="$(app_hosted_sessions "$app")"
+    if [[ "${hosted:-0}" -gt 0 ]]; then
+      log "  [SKIP]    ${app} — hosts ${hosted} live coding session(s); quit it yourself to end them"
+      continue
+    fi
     # aggregate current footprint for the log
     kb=$(ps axo rss,args | grep -F "/Applications/${app}.app/" | grep -v grep | awk '{s+=$1} END{print s+0}')
     if [[ "$kb" -eq 0 ]]; then log "  [SKIP]    ${app} — not running"; continue; fi
@@ -195,7 +232,8 @@ if [[ "$QUIT_APPS" -eq 1 ]]; then
       log "  [DRY]     $(printf '%7s' "$((kb/1024)) MB")  would quit: ${app}"
     else
       log "  [QUIT]    $(printf '%7s' "$((kb/1024)) MB")  ${app}"
-      osascript -e "tell application \"${app}\" to quit" >/dev/null 2>&1 &
+      # the name is an ARGUMENT, never pasted into the script text
+      osascript -e 'on run argv' -e 'tell application (item 1 of argv) to quit' -e 'end run' "$app" >/dev/null 2>&1 &
     fi
     FREED_KB=$((FREED_KB + kb))
   done

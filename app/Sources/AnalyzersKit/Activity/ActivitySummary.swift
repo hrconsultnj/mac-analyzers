@@ -46,7 +46,7 @@ public struct ActivitySummary: Sendable, Hashable {
             let mb = closed.compactMap(\.mb).reduce(0, +)
             return closed.isEmpty
                 ? ActivitySummary("Nothing needed closing")
-                : ActivitySummary("Closed \(closed.count) — freed ~\(mb) MB",
+                : ActivitySummary(mb > 0 ? "Closed \(closed.count) — freed ~\(mb) MB" : "Closed \(closed.count)",
                                   memoryBytes: Int64(mb) * 1_048_576, closed: closed.count)
 
         case .storage(let run):
@@ -120,7 +120,7 @@ public struct ActivitySummary: Sendable, Hashable {
         case .networkSnapshot: "Snapshot taken"
         case .installAgents: "Background jobs installed"
         case .uninstallAgents: "Background jobs turned off"
-        case .sudoersInstall: "Snapshot thinning allowed"
+        case .sudoersInstall: "Deleting snapshots allowed"
         case .eject: "Disk image ejected"
         default: "Done"
         }
@@ -136,12 +136,14 @@ public struct ActivitySummary: Sendable, Hashable {
         case .tempSpace: .temp(TempCleanParser.parse(runHeader: run.header, lines: run.lines))
         case .spotlightAudit: .spotlight(SpotlightAuditParser.parse(runHeader: run.header, lines: run.lines))
         case .loginItems: .loginItems(LoginItemsParser.parse(runHeader: run.header, lines: run.lines))
-        case .guardLog, .persistence, .forensics: .none
+        case .guardLog, .persistence, .forensics, .cleanupApps, .cleanupRecordings, .tmReclaim: .none
         }
     }
 
     /// The result of one block of a log, for a row nobody tracked live.
     public static func of(_ run: LogRun, in log: EngineLog) -> ActivitySummary {
+        // a restore's own block: it freed and found nothing; it put things back
+        if RestoreBlock.isRestore(header: run.header) { return RestoreBlock.summary(run) }
         switch log {
         case .guardLog: return guardDay(run)
         case .persistence:

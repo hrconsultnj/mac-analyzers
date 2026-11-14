@@ -9,6 +9,9 @@ import ProKit
 /// (and deliberately isn't) measured. Same PaneScaffold as every pane.
 struct AboutSettingsView: View {
     @Environment(Navigator.self) private var navigator
+    /// The sections that are open: the first starts open and every one can be opened and closed.
+    /// (The binding used to be a constant, so only the first could ever be read.)
+    @State private var open: Set<String> = ["What the guard measures"]
 
     var body: some View {
         PaneScaffold(symbol: "questionmark.circle.fill", color: .gray, title: Names.Screen.howItWorks,
@@ -36,7 +39,7 @@ struct AboutSettingsView: View {
             #endif
             Section {
                 HStack {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text(Names.Screen.turnOff)
                         Text("Pause it, switch off background protection, or remove it from this Mac — with proof that it worked.")
                             .font(.caption)
@@ -50,7 +53,7 @@ struct AboutSettingsView: View {
             }
             Section("Share") {
                 HStack {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.hair) {
                         Text("Mac Health Report")
                         Text("A one-page HTML summary of the last 30 days — for IT, family, or a buyer. Generated locally.")
                             .font(.caption)
@@ -65,7 +68,7 @@ struct AboutSettingsView: View {
                     Link("README on GitHub",
                          destination: URL(string: "https://github.com/hrconsultnj/mac-analyzers")!)
                     Spacer()
-                    Text("Mac Analyzers \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
+                    Text("Mac Analyzers \(BuildInfo.current.shortVersion)")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -76,12 +79,17 @@ struct AboutSettingsView: View {
     /// having, but scannability beats a wall of text.
     private func section(_ title: String, _ points: [String]) -> some View {
         Section {
-            DisclosureGroup(isExpanded: .constant(title.hasPrefix("What the guard")).animation()) {
-                ForEach(points, id: \.self) { point in
-                    Text(point)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            // one disclosed block, not rows: a section's paragraphs open together
+            DisclosureGroup(isExpanded: Binding(
+                get: { open.contains(title) },
+                set: { if $0 { open.insert(title) } else { open.remove(title) } })) {
+                VStack(alignment: .leading, spacing: Tokens.Space.m) {
+                    ForEach(points, id: \.self) { point in
+                        Text(point)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             } label: {
                 Text(title).font(.callout.weight(.medium))

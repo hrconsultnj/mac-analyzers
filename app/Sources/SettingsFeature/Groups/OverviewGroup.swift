@@ -8,6 +8,18 @@ enum OverviewRoute: Hashable, Codable {
     case turnOff
     /// The newest run of one log (an `EngineLog` raw value), looked up by the screen when it appears.
     case newestRun(String)
+    /// Raw text of a run, a job or a log, shown in the app (`RawOutputScreen`).
+    case raw(RawOutputSubject)
+    /// The review table with example rows; the link exists only after
+    /// `DeepLinkRouter.installFixtures()` (SnapshotRunner), never in the app people install.
+    case reviewFixture
+    /// The same with a few hundred rows (`review:fixture:long`).
+    case reviewFixtureLong
+    /// A finished run's kept lines in the shared lines box (`job:fixture:finished`).
+    case runLinesFixture
+    /// Turn Off with example permission rows (`TurnOffPermission.example`); linkable only after
+    /// `DeepLinkRouter.installFixtures()`.
+    case turnOffFixture(String)
 }
 
 /// Whether anything on this Mac is not working, for the Setup row's badge.
@@ -50,6 +62,7 @@ enum OverviewGroup {
         aliases: [
             "home": .main(Location(overview)),
             "overview": .main(Location(overview)),
+            "activity": .main(Location(activity)),
             "logs": .main(Location(activity)),
             "jobs": .main(Location(activity)),
             "setup": .main(Location(setup)),
@@ -60,7 +73,7 @@ enum OverviewGroup {
 
     @ViewBuilder private static func screen(_ section: SectionID) -> some View {
         switch section {
-        case overview: HomeSettingsView()
+        case overview: OverviewView()
         case activity: ActivityView()
         case setup: SetupSettingsView()
         default: EmptyView()
@@ -70,7 +83,12 @@ enum OverviewGroup {
     @ViewBuilder static func destination(for route: OverviewRoute) -> some View {
         switch route {
         case .turnOff: UninstallView()
+        case .turnOffFixture(let name): UninstallView(permissionFixture: TurnOffPermission.example(name))
         case .newestRun(let raw): RunScreen(newestIn: EngineLog(rawValue: raw))
+        case .raw(let subject): RawOutputScreen(subject: subject)
+        case .reviewFixture: ReviewFixtureScreen()
+        case .reviewFixtureLong: ReviewFixtureScreen(long: true)
+        case .runLinesFixture: RawOutputFixtureScreen()
         }
     }
 
@@ -79,7 +97,8 @@ enum OverviewGroup {
     ///  - `activity:all|running|review|failed` — Activity with that scope chosen;
     ///  - `activity:run:<log>` — the newest run in that log (`storageClean`, `guardLog`, …) pushed;
     ///  - `activity:collapsed` — Activity with every day folded away;
-    ///  - `activity:find:<text>` — Activity with that search typed in.
+    ///  - `activity:find:<text>` — Activity with that search typed in;
+    ///  - `raw:<log>` — the end of that log as raw text, pushed.
     /// Pure: the answer is the Activity root plus a one-shot request, or a pushed route. Nothing is
     /// read and no shared state is written here (the router resolves a link twice),
     /// and the screen applies or looks up what was asked when it appears.
@@ -87,6 +106,10 @@ enum OverviewGroup {
         if target.hasPrefix("job:") {
             guard let id = UUID(uuidString: String(target.dropFirst("job:".count))) else { return nil }
             return .main(Location(activity, path: [.job(id)]))
+        }
+        if target.hasPrefix("raw:") {
+            guard let log = EngineLog(rawValue: String(target.dropFirst("raw:".count))) else { return nil }
+            return .main(Location(activity, path: [.overview(.raw(.log(log.rawValue)))]))
         }
         guard target.hasPrefix("activity:") else { return nil }
         let rest = String(target.dropFirst("activity:".count))

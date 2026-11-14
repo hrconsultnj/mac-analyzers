@@ -17,6 +17,10 @@ struct UninstallView: View {
     /// The uninstall job this screen shows: the store's own, found again by
     /// kind when the window is reopened mid-run.
     @State private var job: Job?
+    /// The Time Machine permission, as the disk says it is now: read when the screen opens and again after any change.
+    @State private var permission = TurnOffPermission.rows()
+    /// Example rows from `SnapshotRunner`'s `turnoff:` targets; nil in the app people use.
+    var permissionFixture: TurnOffPermission.Rows?
 
     enum Level: String, Identifiable {
         case pause, background, everything
@@ -52,9 +56,17 @@ struct UninstallView: View {
         }
     }
 
+    /// What the confirmation says: the password prompt is announced here when the "Remove from this Mac" level
+    /// will show one.
+    private func confirmMessage(for level: Level) -> String {
+        level == .everything && permission.removable
+            ? level.confirmMessage + " " + TurnOffPermission.confirmation
+            : level.confirmMessage
+    }
+
     var body: some View {
-        PaneScaffold(symbol: "power", color: .red, title: Names.Screen.turnOff,
-                     caption: "Three levels, least drastic first. Every one of them reports what actually happened afterwards.") {
+        DataScreen(title: Names.Screen.turnOff, subtitle: "Three levels, least drastic first") {
+        List {
             if let result {
                 Section {
                     Label(result, systemImage: failed ? "exclamationmark.triangle.fill"
@@ -66,14 +78,14 @@ struct UninstallView: View {
             ForEach([Level.pause, .background, .everything]) { level in
                 Section {
                     HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
                             Text(level.title).font(.callout.weight(.medium))
                             Text(level.detail)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        Spacer(minLength: 12)
+                        Spacer(minLength: Tokens.Space.m)
                         Button(level == .pause ? "Pause" : "Continue…",
                                role: level == .pause ? nil : .destructive) {
                             confirming = level
@@ -82,6 +94,7 @@ struct UninstallView: View {
                     }
                 }
             }
+            permissionSection
             if let job, job.isActive {
                 Section {
                     HStack {
@@ -94,10 +107,12 @@ struct UninstallView: View {
                 }
             }
             Section {
-                Text("What stays either way: your reports and logs under ~/mac-analyzers/reports, and anything you configured. This app never deletes your data.")
+                Text("Every level reports what actually happened afterwards. What stays either way: your reports and logs under ~/mac-analyzers/reports, and anything you configured. This app never deletes your data.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+        .listStyle(.inset)
         }
         .confirmationDialog(confirming?.title ?? "", isPresented: .init(
             get: { confirming != nil },
@@ -109,9 +124,56 @@ struct UninstallView: View {
             }
             Button("Cancel", role: .cancel) { confirming = nil }
         } message: {
-            Text(confirming?.confirmMessage ?? "")
+            Text(confirming.map { confirmMessage(for: $0) } ?? "")
         }
-        .task { await adoptRunning() }
+        .task {
+            permission = permissionFixture ?? TurnOffPermission.rows()
+            await adoptRunning()
+        }
+    }
+
+    /// What this app installed with a password and can remove again: the Time Machine permission. Shown only when
+    /// the file is there. The button is the person's click and the prompt is macOS'; nothing here asks on its own.
+    @ViewBuilder private var permissionSection: some View {
+        if permission.removable {
+            Section {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
+                        Text(Names.TimeMachine.permissionRowTitle).font(.callout.weight(.medium))
+                        Text(TurnOffPermission.explanation)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: Tokens.Space.m)
+                    Button(Names.TimeMachine.removePermission) { Task { await removePermissionOnly() } }
+                        .disabled(busy)
+                }
+            }
+        }
+        if let command = permission.earlierCommand {
+            Section {
+                VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
+                    Text(Names.TimeMachine.earlierPermissionTitle).font(.callout.weight(.medium))
+                    Text(Names.TimeMachine.earlierPermissionDetail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(command).font(.caption.monospaced()).textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    /// The row's own button: the permission and nothing else.
+    private func removePermissionOnly() async {
+        busy = true
+        defer { busy = false }
+        let outcome = await TimeMachinePermission.revoke()
+        permission = TurnOffPermission.rows()
+        let said = TurnOffPermission.sentence(after: outcome, stillThere: permission.removable)
+        result = said.text
+        failed = !said.complete
     }
 
     /// The window was closed while the agents were being turned off: show it
@@ -153,8 +215,25 @@ struct UninstallView: View {
             }
             GuardControl.disableLoginItem()
             await reportAgentsOff()
+            let agentsOff = !failed
 
-            if level == .everything, !failed {
+            // The order: everything that asks nothing first, so a cancelled password prompt leaves no
+            // half-done state behind and the sentence below can say exactly what is still there. The
+            // prompt is the only step a person can refuse, so it comes last of the removals; the Finder
+            // window opens after it whatever the answer was.
+            if level == .everything, permission.removable, !agentsOff {
+                // turning the agents off failed: no password prompt on top of a failure
+                result = (result.map { $0 + " " } ?? "")
+                    + "The Time Machine permission was left in place, and no password was asked. Remove it with Remove Permission… on this screen once the background jobs are off."
+            } else if level == .everything, permission.removable {
+                let outcome = await TimeMachinePermission.revoke()
+                permission = TurnOffPermission.rows()
+                let said = TurnOffPermission.sentence(after: outcome, stillThere: permission.removable)
+                result = (result.map { $0 + " " } ?? "") + said.text
+                failed = failed || !said.complete
+            }
+
+            if level == .everything, agentsOff {
                 NSWorkspace.shared.activateFileViewerSelecting([
                     URL(fileURLWithPath: "/Applications/MacAnalyzers.app"),
                     AnalyzersPaths.suiteRoot,

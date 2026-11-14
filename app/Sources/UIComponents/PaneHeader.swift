@@ -16,7 +16,7 @@ public struct PaneHeader: View {
     }
 
     public var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: Tokens.Space.s) {
             IconTile(symbol: symbol, color: color, side: 44)
                 .accessibilityHidden(true)  // decorative — title below already names the pane
             Text(title).font(.title2.weight(.bold))
@@ -27,7 +27,7 @@ public struct PaneHeader: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 10)
-        .padding(.horizontal, 24)
+        .padding(.top, Tokens.Space.l)
+        .padding(.horizontal, Tokens.Space.pane)
     }
 }

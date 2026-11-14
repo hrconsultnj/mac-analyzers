@@ -29,7 +29,12 @@ final class CensusBuilder {
     // memo tables for the extensions (see each file)
     var ownerMemo: [Int: Int] = [:]
     var argvMemo: [Int: String] = [:]
-    var classMemo: [Int: (category: CensusGroup.Category, name: String)] = [:]
+    var classMemo: [Int: (category: CensusGroup.Category, name: String, appPath: String?)] = [:]
+    var appIdentifiersMemo: [(id: String, name: String, path: String)]?
+    var appInfoMemo: [String: (bundleID: String?, category: String?)] = [:]
+    var kindEnvironmentMemo: KindEnvironment?
+    /// The kinds, read once for this census so every answer comes from the same file.
+    let kinds = KindCatalog.current
 
     var unmeasuredCount: Int { table.values.filter { !$0.measured }.count }
 

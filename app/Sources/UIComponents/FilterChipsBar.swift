@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Single-select filter chips with live counts ("Killed (4)") — the same
-/// visual language as BadgeCapsule: tinted when idle, filled when selected.
+/// Single-select filter chips with live counts ("Killed (4)"): the one chip
+/// component every screen uses.
 public struct FilterChipsBar<Option: Hashable>: View {
     public struct Chip {
         let option: Option
@@ -25,25 +25,23 @@ public struct FilterChipsBar<Option: Hashable>: View {
         self._selection = selection
     }
 
+    /// One system toggle button per chip, single-select: the standard bordered
+    /// button height (24 points) and padding, tinted by the chip's colour while
+    /// it is chosen. They were hand-drawn capsules 19 points high with no press,
+    /// focus or keyboard behaviour.
     public var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            HStack {
                 ForEach(chips, id: \.option) { chip in
-                    let selected = chip.option == selection
-                    Button {
-                        selection = chip.option
-                    } label: {
+                    Toggle(isOn: Binding(get: { chip.option == selection },
+                                         set: { if $0 { selection = chip.option } })) {
                         Text(chip.count > 0 ? "\(chip.label) (\(chip.count))" : chip.label)
-                            .font(.caption.weight(selected ? .bold : .medium))
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 3)
-                            .background(selected ? chip.color : chip.color.opacity(Tokens.Surface.tintFill),
-                                        in: Capsule())
-                            .foregroundStyle(selected ? Color.white : chip.color)
                     }
-                    .buttonStyle(.plain)
+                    .toggleStyle(.button)
+                    .tint(chip.color)
                 }
             }
+            .padding(.vertical, Tokens.Space.hair)     // room for the focus ring inside the scroll view
         }
     }
 }

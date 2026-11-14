@@ -5,6 +5,82 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## v2.70.0 — Every screen rebuilt the same way, with tabs and groups
+
+Every screen of the main window has been rebuilt to read the same way: the
+kinds of thing a screen shows are tabs with a count, rows are grouped under
+the app, project or day they belong to with a total, and a group opens to
+show what is in it. Controls are the standard Mac ones throughout.
+
+**Screens**
+
+- Overview is a grid of boxes for memory, storage, the guard, the schedule
+  and the week, with a Needs Attention list only when something needs you.
+- Activity's tabs open with Command-1 to Command-4 (the Go menu moved to
+  Control-Command), and a finished run shows its results in tabs and groups,
+  with its raw output inside the app.
+- Monitor is one table of every app and tool with its memory and processor
+  use and a details panel. It says what kind of thing each group is, why one
+  cannot be stopped, and warns before you stop a remote-access tool such as
+  Tailscale. Each row of "Where Your Memory Is" opens a screen of its own,
+  including a new Swap Used, showing the last half hour.
+- Memory Guard reads as a day-by-day history of what it stopped or flagged.
+  It opens on the last 24 hours, with Last 3 Days, Last 7 Days and Last 90
+  Days to choose from, and remembers your choice. Memory Cleanup is a
+  preview you tick before anything is closed.
+- Caches & Builds, Downloads and Temp & Agents are each one screen: Preview,
+  tick, Apply, with every earlier run under History. A preview keeps its own
+  setting, such as Deep or Delete Permanently, and applies exactly that.
+- Disk now forecasts how long your free space will last. Spotlight lists
+  your developer folders with a checkbox to keep it out of each one.
+- New under Storage: Time Machine lists the local snapshots holding space
+  you have freed, Unused Apps finds apps you have not opened for six months
+  or more, with their support files, and Old Recordings lists recording
+  folders older than 90 days.
+- Login & Startup Items has tabs for Apps, Background Items, Leftovers from
+  removed apps and Changes; Network groups programs by app with your last 60
+  snapshots; Reports open as documents with sections you can fold.
+- Trends adds up what cleanups removed instead of showing 0 KB, and Undo is
+  grouped by day and cleanup, with a removed app coming back whole or one
+  file at a time.
+- The menu-bar panel lists memory by app with icons, and its Memory tab
+  shows the same figures and pressure graph as Activity Monitor.
+
+**Your files and apps**
+
+- Downloads, Unused Apps and Old Recordings move what you approve to the
+  Trash, and Undo can put it back. Each screen says whether it moves to the
+  Trash or deletes for good. Undo restores an item only when it can tell it
+  is still the same one; otherwise Finder's Put Back still works.
+- Files that exist only in iCloud are never moved by any cleanup, scheduled
+  ones included, because emptying the Trash would delete them from iCloud and
+  your other devices. They are listed under "Only in iCloud".
+- Unused Apps never offers an app that is running, runs in the background,
+  opens at login or needs an administrator, and takes only files that belong
+  to the app itself. A recording folder with any part that cannot be read is
+  kept.
+- Deleting Time Machine snapshots cannot be undone; backups on the backup
+  disk are never touched. It needs a one-time permission for that one
+  command, given with "Allow…" and an administrator password, after which
+  any program on your account can delete snapshots. "Remove Permission…" or
+  the Turn Off or Remove screen takes it away. In Terminal, the snapshot
+  script now only looks unless you tell it to apply.
+- Apps are only asked to quit. Stop asks politely first, Force Stop is a
+  separate choice you confirm, and nothing is stopped that is a live coding
+  session or has changed since you looked.
+- The app now runs with macOS's hardened runtime, so macOS may ask once more
+  for a permission you gave before.
+
+**Updates**
+
+- A copy built from your own clone can follow Releases, Beta (when your
+  clone is on the development branch) or This Copy, chosen on the Updates
+  screen. Nothing updates by itself.
+- A copy built between releases shows a development version such as
+  2.70.1-dev.12 and is offered the next release when it comes out.
+
+Minor fixes and improvements throughout.
+
 ## v2.69.2 — Process rows no longer show a program's environment
 
 - A process row could show part of a program's environment after its name,

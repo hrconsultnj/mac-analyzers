@@ -8,9 +8,10 @@ struct DossierRoute: Hashable, Codable, Sendable {
     let pid: Int?
 }
 
-/// The per-app dossier — the screen no competitor has: live footprint,
-/// guard history, network traffic, and the protection verdict, composed
-/// from data every other pane already parses.
+/// The per-app dossier — everything Mac Analyzers knows about one process:
+/// live footprint, guard history, network traffic, and the protection verdict,
+/// composed from data every other screen already parses. A plain form: the
+/// title is in the toolbar and the facts fill the window.
 struct DossierView: View {
 
     let route: DossierRoute
@@ -19,18 +20,19 @@ struct DossierView: View {
     @State private var live: LiveProcess?
     @State private var energy: EnergyEntry?
     @State private var diskIO: DiskIOEntry?
-    @State private var guardEvents: [GuardEvent] = []
+    @State private var guardEntries: [GuardEntry] = []
     @State private var networkRows: [NetworkTalker] = []
 
     var body: some View {
-        PaneScaffold(symbol: "doc.text.magnifyingglass", color: .cyan,
-                     title: route.name,
-                     caption: "Everything Mac Analyzers knows about this process.") {
+        Form {
             liveSection
             protectionSection
             guardSection
             networkSection
         }
+        .formStyle(.grouped)
+        .navigationTitle(route.name)
+        .navigationSubtitle("Everything Mac Analyzers knows about this process")
         .task { await load() }
     }
 
@@ -39,26 +41,18 @@ struct DossierView: View {
     @ViewBuilder private var liveSection: some View {
         Section("Right Now") {
             if let live {
-                DataCard(symbol: "memorychip", color: .blue,
-                         title: "Memory in Use",
-                         subtitle: "pid \(live.pid)",
-                         trailing: live.memoryText,
-                         live: true)
+                LabeledContent("Memory in use", value: live.memoryText)
+                LabeledContent("Process ID", value: String(live.pid))
             } else {
-                DataCard(symbol: "moon.zzz", color: .gray,
-                         title: "Not running",
-                         subtitle: route.pid.map { "last seen as pid \($0)" } ?? "no live process matches")
+                LabeledContent("Status", value: "Not running")
+                if let pid = route.pid {
+                    LabeledContent("Last seen as process ID", value: String(pid))
+                }
             }
-            if let energy {
-                DataCard(symbol: "bolt.fill", color: .yellow,
-                         title: "Energy Since Launch",
-                         trailing: energy.energyText)
-            }
+            if let energy { LabeledContent("Energy since launch", value: energy.energyText) }
             if let diskIO {
-                DataCard(symbol: "internaldrive", color: .indigo,
-                         title: "Disk I/O Since Launch",
-                         subtitle: "↓ \(diskIO.readText) read",
-                         trailing: "↑ \(diskIO.writtenText)")
+                LabeledContent("Read since launch", value: diskIO.readText)
+                LabeledContent("Written since launch", value: diskIO.writtenText)
             }
         }
     }
@@ -70,23 +64,19 @@ struct DossierView: View {
         let protected = config.memory.protectExtra.contains {
             name.contains($0.lowercased()) || $0.lowercased().contains(name)
         }
-        let killable = LiveStats.isDevKillable(route.name)
+        let killable = LiveStats.isDevTooling(route.name)
 
         Section("Protection") {
             if protected {
-                DataCard(symbol: "shield.fill", color: .green,
-                         title: "On your protected list",
-                         subtitle: "The guard and reapers will never touch it.",
-                         badge: ("Protected", .green))
+                Label("On your protected list", systemImage: "shield.fill").foregroundStyle(.green)
+                Text("The guard and the cleanups will never touch it.").foregroundStyle(.secondary)
             } else if killable {
-                DataCard(symbol: "scope", color: .orange,
-                         title: "In the guard's auto-stop scope",
-                         subtitle: "Dev tooling — can be stopped over the cap or at critical pressure.",
-                         badge: ("In Scope", .orange))
+                Label("In the guard's auto-stop scope", systemImage: "scope").foregroundStyle(.orange)
+                Text("It is a developer tool, so the guard can stop it over the memory limit or when memory is critically low.")
+                    .foregroundStyle(.secondary)
             } else {
-                DataCard(symbol: "shield.lefthalf.filled", color: .blue,
-                         title: "Regular app — never auto-stopped",
-                         subtitle: "Only you can stop it (Monitor's Stop/Quit).")
+                Label("Regular app — never auto-stopped", systemImage: "shield.lefthalf.filled")
+                Text("Only you can stop it, from Monitor.").foregroundStyle(.secondary)
             }
         }
     }
@@ -95,17 +85,20 @@ struct DossierView: View {
 
     @ViewBuilder private var guardSection: some View {
         Section("Guard History (90 Days)") {
-            if guardEvents.isEmpty {
+            if guardEntries.isEmpty {
                 Text("No guard events for this process — quiet is good.")
                     .foregroundStyle(.secondary)
             }
-            ForEach(guardEvents.prefix(20)) { event in
-                DataCard(symbol: event.isKill ? "xmark.octagon.fill" : "arrow.up.right",
-                         color: event.isKill ? .red : .orange,
-                         title: event.title,
-                         subtitle: event.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()),
-                         trailing: event.residentText,
-                         badge: event.isKill ? ("Killed", .red) : nil)
+            ForEach(guardEntries.prefix(20)) { entry in
+                LabeledContent {
+                    Text(entry.memoryText ?? "").monospacedDigit()
+                } label: {
+                    VStack(alignment: .leading) {
+                        Text(entry.title)
+                        Text(entry.date.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
             }
         }
     }
@@ -117,10 +110,15 @@ struct DossierView: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(networkRows) { talker in
-                DataCard(symbol: "network", color: .purple,
-                         title: talker.resolvedName,
-                         subtitle: "↓ \(ByteSize.format(talker.inBytes)) · ↑ \(ByteSize.format(talker.outBytes)) · pid \(talker.pid)",
-                         trailing: ByteSize.format(talker.totalBytes))
+                LabeledContent {
+                    Text(ByteSize.format(talker.totalBytes)).monospacedDigit()
+                } label: {
+                    VStack(alignment: .leading) {
+                        Text(talker.resolvedName)
+                        Text("↓ \(ByteSize.format(talker.inBytes)) · ↑ \(ByteSize.format(talker.outBytes)) · process ID \(String(talker.pid))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
             }
         }
     }
@@ -130,7 +128,7 @@ struct DossierView: View {
     private func load() async {
         let name = route.name
         let pid = route.pid
-        await awaitLoad({ () -> (LiveProcess?, EnergyEntry?, DiskIOEntry?, [GuardEvent], [NetworkTalker]) in
+        await awaitLoad({ () -> (LiveProcess?, EnergyEntry?, DiskIOEntry?, [GuardEntry], [NetworkTalker]) in
             let needle = name.lowercased()
             let procs = LiveStats.snapshot(limit: 60, minimumMB: 16)
             // by pid first, at any size and whoever owns it — the ranked
@@ -148,12 +146,12 @@ struct DossierView: View {
                 .first { $0.pid == livePid || $0.name.lowercased() == needle }
             let diskMatch = EnergyStats.diskSnapshot(limit: 200)
                 .first { $0.pid == livePid || $0.name.lowercased() == needle }
-            let events = GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog)
+            let events = GuardHistory.build(events: GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog)
                 .filter {
                     $0.friendlyName.lowercased().contains(needle)
                         || $0.processName.lowercased().contains(needle)
                         || needle.contains($0.friendlyName.lowercased())
-                }
+                }).entries.sorted { $0.date > $1.date }
             let network = NetworkParser.latest(fromLog: AnalyzersPaths.networkLog)?
                 .talkers.filter {
                     $0.pid == livePid
@@ -165,7 +163,7 @@ struct DossierView: View {
             live = $0.0
             energy = $0.1
             diskIO = $0.2
-            guardEvents = $0.3
+            guardEntries = $0.3
             networkRows = $0.4
         }
     }

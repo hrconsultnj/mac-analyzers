@@ -4,7 +4,7 @@ import Foundation
 /// the numbers — 26.7 GB entries buried between 4 KB ones), third-party
 /// passthrough kept raw, Time Machine note, and the freed summary.
 public struct StoragePathItem: Identifiable, Hashable, Sendable {
-    public enum Status: String, Sendable {
+    public enum Status: String, Sendable, CaseIterable {
         case dry = "DRY"
         case deleted = "DELETED"
         case trashed = "TRASHED"     // janitor: moved to Trash, recoverable
@@ -121,7 +121,7 @@ public enum StorageCleanParser {
                 if let sizeRange = rest.range(of: #"^~?[\d.]+ [KMGT]B\s+"#,
                                               options: .regularExpression),
                    let bytes = ByteSize.parse(String(rest[sizeRange]).trimmingCharacters(in: .whitespaces)) {
-                    let path = String(rest[sizeRange.upperBound...])
+                    let path = ReceiptIdentity.split(String(rest[sizeRange.upperBound...])).text
                     items.append(StoragePathItem(
                         status: status, sizeBytes: bytes, path: path,
                         section: zone == .nodeModules ? .nodeModules : .buildCaches))

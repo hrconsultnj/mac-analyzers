@@ -27,14 +27,22 @@ for d in "$TMP/stubs" "$TMP/stubs-nopnpm"; do
   stub "$d" npm 'echo "npm $*" >> "$STUB_LOG"'
   stub "$d" brew 'if [[ "$1" == cleanup && "$2" == -n ]]; then echo "This operation would free approximately 1GB of disk space."; else echo "brew $*" >> "$STUB_LOG"; fi'
   stub "$d" docker '[[ "$1" == info ]] && exit 0; [[ "$1" == context ]] && exit 0; echo "docker $*" >> "$STUB_LOG"'
+  stub "$d" tmutil 'if [[ "$1" == listlocalsnapshots ]]; then echo "com.apple.TimeMachine.2026-11-11-010101.local"; echo "com.apple.TimeMachine.2026-11-11-020202.local"; fi'
+  stub "$d" sudo 'echo "sudo $*" >> "$STUB_LOG"'
   stub "$d" xcrun 'if [[ "$*" == "simctl list devices unavailable" ]]; then echo "    iPhone 14 (A) (Shutdown) (unavailable, runtime profile not found)"; elif [[ "$*" == "simctl delete unavailable" ]]; then echo "xcrun $*" >> "$STUB_LOG"; fi'
 done
 stub "$TMP/stubs" pnpm 'echo "pnpm $*" >> "$STUB_LOG"'
+# a toolbox where npm fails and sudo refuses (no sudoers rule): the run must say what happened
+mkdir -p "$TMP/stubs-fail"
+cp "$TMP/stubs"/* "$TMP/stubs-fail/"
+stub "$TMP/stubs-fail" npm 'echo "npm $*" >> "$STUB_LOG"; exit 1'
+stub "$TMP/stubs-fail" sudo 'echo "sudo $*" >> "$STUB_LOG"; exit 1'
 
 # run <label> <shell> <stubdir> <dry|apply> [listfile]  → calls the tools received, one per line, in $TMP/<label>.calls
 run() {
   local label="$1" sh="$2" stubs="$3" mode="$4" list="${5:-}"
   local args=(--mode deep --roots "$TMP/root" --docker-running-only)
+  [[ -n "${EXTRA:-}" ]] && args+=("$EXTRA")
   [[ "$mode" == apply ]] && args+=(--apply)
   [[ -n "$list" ]] && args+=(--only-paths "$list")
   : > "$TMP/$label.calls"
@@ -47,6 +55,7 @@ calls() { grep -v '^docker context' "$TMP/$1.calls" | tr '\n' ';'; }
 printf 'prune:pnpm\n' > "$TMP/list-pnpm"
 printf '/some/path\n' > "$TMP/list-none"
 printf 'prune:pnpm\nprune:npm\nprune:brew\nprune:simulators\nprune:docker\n' > "$TMP/list-all"
+printf 'prune:snapshots\n' > "$TMP/list-snap"
 ALL='pnpm store prune;npm cache clean --force;brew cleanup --prune=all -s;xcrun simctl delete unavailable;docker system prune -f;'
 
 for sh in bash /bin/bash; do
@@ -63,6 +72,23 @@ for sh in bash /bin/bash; do
   check "[$sh] a list with no prune key: no prune runs" "$([[ -z "$(calls "none-$k")" ]] && echo ok || calls "none-$k")"
   run "all-$k" "$sh" "$TMP/stubs" apply "$TMP/list-all"
   check "[$sh] every key listed: each prune runs once" "$([[ "$(calls "all-$k")" == "$ALL" ]] && echo ok || calls "all-$k")"
+  # Time Machine thinning is a reviewed row too (Deep only, with --prune-snapshots)
+  EXTRA=--prune-snapshots run "snapdry-$k" "$sh" "$TMP/stubs" dry
+  check "[$sh] a deep preview lists the snapshot thinning as a keyed row" "$([[ "$(grep -c '^ *\[DRY\] *prune:snapshots' "$TMP/snapdry-$k.out")" -eq 1 ]] && echo ok || echo "no row")"
+  check "[$sh] a preview thins nothing" "$([[ "$(grep -c '^sudo' "$TMP/snapdry-$k.calls")" -eq 0 ]] && echo ok || echo thinned)"
+  EXTRA=--prune-snapshots run "snapno-$k" "$sh" "$TMP/stubs" apply
+  check "[$sh] no list: snapshots are thinned, as before" "$([[ "$(grep -c 'sudo -n /usr/bin/tmutil thinlocalsnapshots' "$TMP/snapno-$k.calls")" -eq 1 ]] && echo ok || echo "not thinned")"
+  EXTRA=--prune-snapshots run "snapother-$k" "$sh" "$TMP/stubs" apply "$TMP/list-pnpm"
+  check "[$sh] a list without the snapshots key: nothing is thinned, and the run says so" "$([[ "$(grep -c '^sudo' "$TMP/snapother-$k.calls")" -eq 0 && "$(grep -c 'SKIP.*prune:snapshots' "$TMP/snapother-$k.out")" -eq 1 ]] && echo ok || echo "thinned or silent")"
+  EXTRA=--prune-snapshots run "snapyes-$k" "$sh" "$TMP/stubs" apply "$TMP/list-snap"
+  check "[$sh] the snapshots key listed: they are thinned" "$([[ "$(grep -c 'sudo -n /usr/bin/tmutil thinlocalsnapshots' "$TMP/snapyes-$k.calls")" -eq 1 ]] && echo ok || echo "not thinned")"
+  # what a prune did is said, not assumed: done / failed lines, and a thinning that sudo refused is not "thinned"
+  check "[$sh] a prune that worked says done" "$([[ "$(grep -c '^ *done: pnpm store prune' "$TMP/all-$k.out")" -eq 1 ]] && echo ok || echo "no done line")"
+  EXTRA=--prune-snapshots run "failing-$k" "$sh" "$TMP/stubs-fail" apply "$TMP/list-all"
+  check "[$sh] a prune that failed says failed, with its exit status" "$([[ "$(grep -c '^ *failed: npm cache clean --force (exit 1)' "$TMP/failing-$k.out")" -eq 1 ]] && echo ok || echo "no failed line")"
+  EXTRA=--prune-snapshots run "refuse-$k" "$sh" "$TMP/stubs-fail" apply "$TMP/list-snap"
+  check "[$sh] snapshots the sudoers rule refuses are not reported as thinned" "$([[ "$(grep -c 'thinned' "$TMP/refuse-$k.out")" -eq 0 && "$(grep -c 'snapshot thin needs the tmutil-thin sudoers rule' "$TMP/refuse-$k.out")" -ge 1 ]] && echo ok || echo "wrong report")"
+  check "[$sh] snapshots thinned for real are reported as thinned" "$([[ "$(grep -c 'thinned 2 local snapshot' "$TMP/snapyes-$k.out")" -eq 1 ]] && echo ok || echo "no thinned line")"
   run "nop-$k" "$sh" "$TMP/stubs-nopnpm" dry
   check "[$sh] a tool that is not installed has no row" "$([[ "$(grep -c 'prune:pnpm' "$TMP/nop-$k.out")" -eq 0 ]] && echo ok || echo "pnpm row shown")"
 done

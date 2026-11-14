@@ -6,43 +6,39 @@ import UIComponents
 /// The footer shared by every tab, and the small helpers the tabs share.
 extension MenuContentView {
 
-    // MARK: - shared
-
     var footer: some View {
         HStack {
             Button {
                 ActivationPolicy.windowOpening()
                 openWindow(id: "main")
             } label: {
-                Label("Settings…", systemImage: "gearshape")
+                Label("Open \(Names.app)", systemImage: "macwindow")
             }
-            if let latest = latestVersion,
-               UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion) {
-                Button("Upgrade to v\(latest)") { updates.requestInstall() }
+            if let title = updates.availableTitle {
+                Button(title) { updates.requestInstall() }
                     .buttonStyle(.borderedProminent)
                     .help("Update in Terminal, then relaunch; settings are kept")
             } else {
-                Text(updates.build.versionText)
+                Text(updates.build.shortVersionText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .help(updates.build.versionText)        // the full version, build metadata included
             }
             Spacer()
             Button {
                 GuardControl.restartApp()
             } label: {
-                Image(systemName: "arrow.clockwise")
+                Label("Restart", systemImage: "arrow.clockwise")
+                    .labelStyle(.iconOnly)
             }
             .help("Restart this app only — nothing else is touched")
-            .accessibilityLabel("Restart app")
             Button("Quit") { NSApp.terminate(nil) }
         }
-        .controlSize(.regular)
-        .task { latestVersion = await UpdateChecker.latestVersion() }
     }
 
     func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.caption2.weight(.semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(.secondary)
     }
 

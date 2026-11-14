@@ -15,11 +15,16 @@ import AnalyzersKit
 public struct MainWindowView: View {
     /// Holds the navigator so it is built once, on first use, instead of on
     /// every re-creation of this view struct.
-    @State private var session = Session()
+    @State private var session: Session
     @Environment(JobStore.self) private var jobs
+    @Environment(UpdateState.self) private var updates
     private var navigator: Navigator { session.navigator }
 
-    public init() {}
+    /// `restoresLocation: false` starts at the home screen and never reads or writes the
+    /// saved location: for tools (SnapshotRunner) that open a window to look at one target.
+    public init(restoresLocation: Bool = true) {
+        _session = State(initialValue: Session(restores: restoresLocation))
+    }
 
     public var body: some View {
         NavigationSplitView {
@@ -35,6 +40,8 @@ public struct MainWindowView: View {
             JobStatusToolbarItem(store: jobs, navigator: navigator)
         }
         .frame(minWidth: 780, minHeight: 620)
+        // the Updates row's badge reads the one update state
+        .task { UpdateBadge.shared.state = updates }
         .environment(navigator)
         .focusedSceneValue(\.navigator, navigator)
         .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.openPaneInternal)) { note in
@@ -45,10 +52,10 @@ public struct MainWindowView: View {
         // force-quit, or ended by a restart, gets no chance to say goodbye,
         // and would reopen on wherever the window was last CLOSED.
         .onChange(of: navigator.location) { _, location in
-            NavigationPersistence.save(location)
+            if session.restores { NavigationPersistence.save(location) }
         }
         .onDisappear {
-            NavigationPersistence.save(navigator.location)
+            if session.restores { NavigationPersistence.save(navigator.location) }
             ActivationPolicy.windowClosed()
         }
     }
@@ -60,8 +67,13 @@ public struct MainWindowView: View {
         let section = navigator.section
         return NavigationStack(path: pathBinding(for: section)) {
             SectionRegistry.root(for: section)
+                .environment(\.stackDepth, 0)
                 .navigationDestination(for: Route.self) { $0.destination }
         }
+        // The one toolbar rule for every screen: an action shows its icon AND its title (only search
+        // is an icon). Set here, on the screens' stack and not on the split view, so the shell's own
+        // Back and Forward stay icons; a screen's toolbar items read this from where they are declared.
+        .labelStyle(.titleAndIcon)
         .id(section)
     }
 
@@ -73,6 +85,8 @@ public struct MainWindowView: View {
     }
 
     @MainActor private final class Session {
-        lazy var navigator = Navigator(initial: NavigationPersistence.restore())
+        let restores: Bool
+        init(restores: Bool) { self.restores = restores }
+        lazy var navigator = Navigator(initial: restores ? NavigationPersistence.restore() : SectionRegistry.home)
     }
 }

@@ -102,8 +102,12 @@ through `config.local.sh` (never hardcoded).
   tiles/pane headers) · `MacAnalyzersApp` (thin shell) · `NotifierCLI` (the
   bundled `notify` shim) · `AgentRunner` (the compiled launchd entry point —
   `execv`s the engine script for BTM attribution).
-- Every form screen renders inside `PaneScaffold`
-  (`SettingsFeature/Shared/PaneScaffold.swift`). The main window is
+- A screen of settings (a `Form`: the Preferences panes, How It Works,
+  Support) renders inside `PaneScaffold`
+  (`SettingsFeature/Shared/PaneScaffold.swift`); a screen that shows data (a
+  table, a list, a review) is a `DataScreen`
+  (`SettingsFeature/Shared/DataScreen.swift`), which fills the window, carries
+  the title and subtitle, and centres an empty state. The main window is
   `SettingsFeature/Shell/`: `MainWindowView` over one `Navigator` (selection,
   a path per section, ONE back/forward history recorded only in its four
   mutators `select` / `push` / `setPath` / `open`); the sidebar is a plain
@@ -115,12 +119,22 @@ through `config.local.sh` (never hardcoded).
   `open(target: "log:guardLog")`), never by posting a notification.
   `Shell/DeepLinkRouter.swift` resolves every target string (the URL scheme,
   `--pane` and the in-process `com.mac-analyzers.open-pane` notification all
-  land there). Every log gets a
-  STRUCTURED pane (chips/cards/tables — see `GuardLogView`, `LoginItemsView`,
-  `StorageCleanView`, `ReapLogView`, `ForensicsDetailView`) with
-  "Open in TextEdit" as the raw escape hatch; menu rows/components live in
-  `MenuBarFeature/MenuComponents.swift`. The engine stays bash — the app is a
-  control surface over the scripts + launchd, never a reimplementation.
+  land there). No screen shows a log as text: what a task found or did is
+  rows (a table, tabs, groups that open: see the levels rule below), read
+  from the log by a parser in `AnalyzersKit`. The text a run printed is one
+  level down, inside the app, as the shared raw-output screen
+  (`Screens/Shared/RawOutput/RawOutputScreen.swift`, "Show Raw Output":
+  search, copy, the exact lines); nothing opens another app to show output.
+  Menu rows and components live in `MenuBarFeature/MenuComponents.swift`.
+  The engine stays bash — the app is a control surface over the scripts +
+  launchd, never a reimplementation.
+- Every Storage task is one screen (`Screens/Storage/`): Preview, the
+  preview's rows as tabs and groups in the shared review table, one Apply
+  through `JobStore.apply(from:approved:)`, History and Show Raw Output; a
+  finished run's screen shows the same tabs and groups
+  (`StorageGroup.runResults`). `agent-runner --probe-storage <screen>`
+  prints them, `--probe-storage-apply` proves tick-to-engine and
+  `--probe-fence` proves the Spotlight fence marker.
 - Verify: `cd app && swift build`, then `./app/build.sh` (rebuild + reinstall
   to /Applications) and relaunch the app to see it live. Drive navigation with
   `open -g "macanalyzers://pane/<target>"` — the URL scheme reaches a RUNNING
@@ -139,6 +153,16 @@ through `config.local.sh` (never hardcoded).
   `agent-runner --probe-setup` prints the Setup checklist as text.
   `agent-runner --probe-memory [--all]` prints the Monitor pane's memory
   census as text (where memory is + every process group with its total).
+  The census is the ONE classifier: it gives every group its category AND its
+  kind (`CensusGroup.kind`, from `memory-analyzer/rules/kinds.json` through
+  `AnalyzersKit/Memory/Kinds/`); the app's screens read that field and never
+  classify a process a second time. The guard script does not read it yet: it keeps its own `KILLABLE_RE` until the rules engine
+  (phase B) replaces that, and its live-session exemption must first cover every
+  agent in `lib/coding-agents.tsv`.
+  `agent-runner --probe-kinds [--all]` prints every group's kind, the rule that
+  decided it and what the guard may do, with the parity check against the guard
+  script's own pattern; `--probe-kinds-fixture` is the same rules on stand-in
+  processes, in the gate.
   `agent-runner --probe-job <kind> [--cancel-after <s>]` runs one tracked job
   headless through the same kernel the app uses (`AnalyzersKit/Jobs/`) and
   prints its lines, the log block it was matched to and how it ended.
@@ -175,7 +199,12 @@ through `config.local.sh` (never hardcoded).
   store's test hooks (`scriptOverride`, `outcomeOverride`, the clock, the schedule
   reader) are `@_spi(TestSupport)`: only `AgentRunner` and `SnapshotRunner`
   import that interface, `scripts/check.sh spi` fails if anything else does, and
-  it is a compile-time wall between our own targets, not a runtime one. For a
+  it is a compile-time wall between our own targets, not a runtime one. The
+  app people install reads NO environment variable (`scripts/check.sh env`):
+  a tool that never ships (`AgentRunner`, `SnapshotRunner`) reads it and
+  hands the value in. Probes that judge themselves on stand-in data run in
+  the gate (`scripts/check.sh probes`; add one to `PROBES` once it exits
+  non-zero on a broken rule). For a
   scheduled replay the store reads the installed plist's arguments itself. The shell's `.status`
   toolbar item (`JobStatusToolbarItem`, attached to the split view, never to a
   stack) and the menu panel's `MenuJobsStrip` show the running job, and
@@ -200,6 +229,89 @@ through `config.local.sh` (never hardcoded).
   component looks the same in every state — render each state to prove it.
   A fixed size is allowed only where it is the actual job (an icon tile, a
   chart), with a comment saying so.
+- **One way to write a size, by where it is shown** (owner, 2026-11-13): `ByteSize.text(_, style)` and `ByteSize.rate`,
+  never an ad-hoc format at a call site. The decimals are a MAXIMUM, never padding (exactly 5 GB is "5 GB", 5.4 is
+  "5.4 GB", 18.63 is "18.63 GB"): chart axes and crosshair readouts (`.axis`) and figure lists in the style of Activity
+  Monitor's footer (`.figure`) take up to two decimals in gigabytes; headline numbers (`.headline`) and table or list cells
+  (`.cell`, also `MemorySize.text`) one, and none in megabytes; rates one decimal under 10 MB/s, none above.
+- **Native does not mean plainer, and a fix must not take things away**
+  (owner, 2026-11-10: "the icons, they're gone … you guys are just
+  introducing regressions"). A control that names a kind of thing shows its
+  icon AND its title (`Label(title, systemImage:)`) — find the native way to
+  show both, never drop the icon to make the native control easy. Before
+  replacing a screen or a control, list what the old one showed (icons,
+  counts, colour, a state, a shortcut): the new one shows all of it, or the
+  change says what was removed and why. Compare before and after renders for
+  what disappeared, not only for what improved.
+- **Toolbars adapt by priority, the way Activity Monitor's does.** For each
+  screen decide what the person uses most there — it stays visible at every
+  window width — what is secondary and moves into the system's overflow
+  menu first, and let search collapse to its icon. Use toolbar placements,
+  `visibilityPriority`, the system overflow and `.searchable`; nothing is
+  ever clipped at the window edge. With the search field focused, one click
+  anywhere else must take focus away and do what was clicked.
+- **Categories are tabs, groups are rows that open — never one long list**
+  (owner, 2026-11-10, after a run's results came up as about 300 rows in one
+  flat list: "these should be tabs … just like the monitor … a cohesive and
+  consistent scenario to apply uniformly"). The app has one way of going
+  from many things to one, the same on every screen: the screen is a sidebar
+  item; its categories (different kinds of thing) are the shared scope tabs
+  with icon, title and count; inside a category, rows are grouped under the
+  real thing they belong to (a project, an app, a day) as one parent row
+  with its count and total that opens to its members; one thing is a row
+  whose detail is the inspector or its own screen. The row model carries
+  the category and the group as typed data — never recovered by splitting a
+  title — and every level says how much is in it. Biggest or newest first;
+  rows that are nothing (0 KB) fold into one closed row. One tabs control
+  for the whole app: no second segmented control, chips, cards or button
+  rows standing in for tabs. A filter (the same rows, fewer) is a toolbar
+  menu or a search token, not a tab; a screen with one kind of thing has no
+  tabs. A run's screen shows its results in the same categories and groups
+  as the task's own screen. **The tabs are a bar directly under the
+  toolbar, never toolbar items** (2026-11-11): in the toolbar the system
+  sends a tab group to the `»` overflow as soon as a screen has its own
+  buttons, whatever its placement or `visibilityPriority`; SwiftUI has no
+  collapse-to-a-pop-up; macOS 27's tabs picker shows bare icons. So
+  `scopeTabsToolbar(…)` (the name is historical) adds one
+  `safeAreaBar(edge: .top)` holding `ScopeTabs`: icon, title and count,
+  the selected tab distinct even in a window that is not in front; when
+  the titles do not all fit, tabs give them up one at a time and none is
+  ever hidden; a zero count is not drawn. Never measure widths by hand or
+  swap in a menu. A screen's toolbar is for its actions, each with icon
+  and title (only search may be an icon).
+- **One table for rows that open: `OutlineTable`** (2026-11-11, after
+  measuring every SwiftUI hierarchical control — `Table` with
+  `DisclosureTableRow`, `Table(children:)`, `List` with `OutlineGroup`,
+  `DisclosureGroup` rows or `Section(isExpanded:)` — logging AppKit's
+  "reentrant operation in its NSTableView delegate. This warning will become
+  an assert in the future." when all groups open or the rows are re-sorted
+  in place; a flat SwiftUI `Table` re-sorted in place logs it too; the
+  released app logged it on screen). Every table whose rows open to other
+  rows, and every sortable table, is an `OutlineTable`
+  (`UIComponents/OutlineTable/`): columns declared like `Table`, the caller
+  sorts its own rows, and selection, open groups (`RememberedExpansion`,
+  kept per screen), ticks and section headers are the screen's own
+  bindings; cells are SwiftUI or plain text. Inside the component the
+  system view is changed only from its updater and never while AppKit is
+  calling in, and every write back to a binding that arises inside one of
+  AppKit's callbacks (selection, open groups, sort) happens on the next main
+  turn; a tick from a box or the Space key is an event, not a callback, and
+  is delivered at once so ticks reach the screen in the order they were
+  made — a change that breaks either rule is a defect even when no warning
+  shows. It uses the system's standard row height (automatic row heights
+  bring the warning back); a cell that needs more lines declares them.
+  `scripts/check.sh outline` runs the two changes that used to warn
+  (`scripts/outline-probe.sh` has the full set) and every case of the review
+  table, and it refuses the SwiftUI hierarchical controls anywhere under
+  `app/Sources`. A `List` is for a history whose rows
+  push a screen: it never gains more than 200 rows in one update (newest
+  200, then "Show Older"). A `DisclosureGroup` around ONE block of content
+  (raw output, details) is fine and carries the comment
+  `// one disclosed block, not rows` on the line above it. Need something the component does not do?
+  Add it there — never a second grouped table. This is a deliberate
+  departure from "SwiftUI controls only" in the rule above: the system's
+  outline view is the platform's control for hierarchical data, wrapped
+  once.
 - v2.7.1 lesson: NEVER hoist a pane header outside the `Form` (it lands in
   the toolbar backdrop — light band, doubled title); no
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;
@@ -245,3 +357,35 @@ Both are protected (code-owner review required for PRs; owner pushes directly).
 - The app self-checks for releases (launch + every 6 h, `UpdateChecker`) and
   notifies once per new version; the Update pane and menu footer show
   installed vs latest and run `upgrade.command` on Install.
+  A copy built from a git clone can also follow an update channel, picked on
+  the Updates screen (`UpdateChannel`, saved in defaults): **Releases** (the
+  default, as above), **Beta** (the newest commit on `development`, read with
+  two public GitHub requests, a compare of the commit this copy was built from
+  and the changelog on `development`; Install is `upgrade.command`, a `git pull
+  --ff-only` on development plus a rebuild; only offered when the clone is on
+  `development`) and **This Copy** (the clone itself, uncommitted changes
+  included, read with local `git`; "Rebuild from This Copy" runs
+  `rebuild.command`, the same build without the pull). The build stamps
+  `MABuildCommit`, `MABuildBranch`, `MABuildTreeHash` (`scripts/tree-hash.sh`:
+  "clean", a hash of the uncommitted changes and the bytes of untracked files,
+  or "unknown"; the app recomputes the same value) and `MABuildVersion`.
+  **Reading a clone must never run a program the clone names** and a failure
+  is never "clean": every git call (`SourceClone`, `scripts/tree-hash.sh`) turns
+  off fsmonitor, hooks and attributes (`--attr-source` the empty tree), empties
+  every filter and diff driver the clone defines, ignores the person's global
+  and system configuration, runs with a minimal environment, and asks for
+  untracked files whatever the settings say; settings go in as
+  `GIT_CONFIG_COUNT`/`KEY`/`VALUE` pairs (a driver name may contain "="),
+  submodules are never entered (`--ignore-submodules=dirty`; a clone with a
+  submodule and uncommitted work is unknown), a partial clone never fetches
+  (`GIT_NO_LAZY_FETCH`), a non-empty `.git/info/attributes` is unknown, and
+  git failing makes the state "unknown". A downloaded app, or a Mac without the developer tools,
+  runs no git at all (`GitTools`, so Apple's install dialog never appears) and
+  shows Releases only. A development build is never named for the release:
+  `BuildInfo.version` is the next patch, `-dev.<commits since the tag>`,
+  `+<short commit>` and `.local` (or `.unknown`) for uncommitted changes, by
+  semantic-versioning precedence (`2.69.2 < 2.69.3-dev.42 < 2.69.3`); Beta and
+  This Copy decide "newer" by commit and fingerprint, never by that string.
+  Nothing fetches into the person's clone and nothing installs by itself;
+  `agent-runner --probe-channels` (including a hostile clone that writes a
+  marker if anything runs) and `--probe-versions` prove it.

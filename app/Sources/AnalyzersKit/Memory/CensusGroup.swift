@@ -21,11 +21,13 @@ public struct CensusGroup: Identifiable, Sendable {
     /// ("close Opera"), as opposed to ending one of its 30 processes.
     public enum QuitScope: Sendable, Equatable {
         /// An app: ask its main process to quit (⌘Q semantics); the helpers
-        /// leave with it.
-        case app(mainPIDs: [Int])
-        /// Command-line tools: ask each top-level process to stop; what it
-        /// started stops with it.
-        case tools(rootPIDs: [Int])
+        /// leave with it. Each process is named by pid AND start time, so a
+        /// pid that was recycled since the census is never signalled.
+        case app([ProcessIdentity])
+        /// Command-line tools: ask each top-level program to stop; what it
+        /// started stops with it. Which programs, and whether each may be
+        /// stopped, is `CensusGroup.programs`.
+        case tools([ProcessIdentity])
         /// Part of macOS, or owned by another account — never offered.
         case unavailable
     }
@@ -43,6 +45,21 @@ public struct CensusGroup: Identifiable, Sendable {
     /// "Extensions") — how a 30-process app reads as five lines.
     public let parts: [CensusPart]
     public let quit: QuitScope
+    /// A tools group's separate programs (empty for an app or macOS): the top
+    /// process of each and everything it started. A stop is chosen from
+    /// these, never from the group's name.
+    public let programs: [StopTarget]
+    /// Live coding sessions that run inside this app (apps only): agent → how
+    /// many. Quitting the app ends them, so the dialog says so.
+    public let hostedSessions: [String: Int]
+    /// What the group IS inside its category (a browser, a dev server, a macOS service). One reading, from the
+    /// catalog in `memory-analyzer/rules/kinds.json`: the Monitor, the menu-bar panel and the guard all read this.
+    public let kind: ProcessKind
+    /// Which rule decided the kind, and whether it rests on an identity or only on a name.
+    public let kindMatch: KindMatch
+    /// Why this group is left alone or handled with care, in words: part of macOS, another account's, a live coding
+    /// session, a Connection Tool. Says only what Monitor's Stop and Quit do. nil when nothing is held back.
+    public let leftAlone: String?
 
     public var totalBytes: Int64 { members.reduce(0) { $0 + $1.memoryBytes } }
     public var totalText: String { MemorySize.text(totalBytes) }
@@ -70,7 +87,9 @@ public struct CensusGroup: Identifiable, Sendable {
             id: id, name: name, category: category, role: role, lead: lead,
             members: kept,
             parts: parts.compactMap { $0.keeping(keptPIDs) },
-            quit: quit)
+            quit: quit,
+            programs: programs.compactMap { $0.keeping(keptPIDs) },
+            hostedSessions: hostedSessions, kind: kind, kindMatch: kindMatch, leftAlone: leftAlone)
     }
 }
 
@@ -113,5 +132,18 @@ public struct CensusPart: Identifiable, Sendable {
         let kept = members.filter { pids.contains($0.pid) }
         return kept.isEmpty ? nil
             : CensusPart(kind: kind, title: title, one: one, many: many, members: kept)
+    }
+}
+
+extension StopTarget {
+    /// The same program narrowed to some of its processes; nil when none remain.
+    func keeping(_ pids: Set<Int>) -> StopTarget? {
+        let kept = members.filter { pids.contains($0.pid) }
+        return kept.isEmpty ? nil : StopTarget(id: id, identity: identity, name: name,
+                                               whereItRuns: whereItRuns, lockedBy: lockedBy,
+                                               canStop: canStop, members: kept,
+                                               memberIdentities: memberIdentities.filter { pids.contains($0.pid) },
+                                               isInteractiveShell: isInteractiveShell,
+                                               hostedSessions: hostedSessions)
     }
 }

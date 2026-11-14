@@ -33,7 +33,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 ROOT="$(cd "$(dirname "$0")/.." && pwd)" || exit 2
 cd "$ROOT" || exit 2
 
-ALL="syntax lint secrets changelog tests workflows strays spi names app"
+ALL="syntax lint secrets changelog tests workflows strays spi env snapshot names probes outline app"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ma-check.XXXXXX")" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -52,9 +52,13 @@ describe() {
     changelog) echo "CHANGELOG.md has a '## Next' section or an entry for VERSION, and that entry reads as release notes" ;;
     tests)     echo "every executable under memory-analyzer/tests/ and tests/ (macOS only; skipped, visibly, elsewhere)" ;;
     workflows) echo "actionlint on .github/workflows (optional: skipped, visibly, when not installed)" ;;
-    strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root" ;;
+    strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root; no source file hidden by .gitignore" ;;
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
+    env)       echo "the app people install reads no environment variable: ProcessInfo's environment and getenv appear only in AgentRunner, SnapshotRunner and the one file that passes the environment on to the engine scripts" ;;
+    snapshot)  echo "the snapshot tool's main.swift has no top-level await: one makes its top-level code an async task, and an app run inside a task never fires its delayed capture, so every render hangs" ;;
+    probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids, Undo restore safety, the menu-bar panel's Quit and Stop (agent-runner; macOS only)" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
+    outline)   echo "the shared OutlineTable, headless: open all and re-sort with text and with hosted cells log no AppKit reentrancy warning (scripts/outline-probe.sh; macOS only)" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
   esac
 }
@@ -235,8 +239,27 @@ check_strays() {
         fi ;;
     esac
   done
-  if [ "$bad" -gt 0 ]; then DETAIL="$bad stray item(s) at the repository root"; return 1; fi
-  DETAIL="repository root is clean"
+  # A source file that an ignore rule hides is never committed: the app builds
+  # here and fails from any clean copy (an upgrade, a download, a pull request).
+  # It happened with `reports/` matching `Screens/System/Reports/` on a
+  # case-insensitive disk. No file under the app's sources or the engine's
+  # script folders may be ignored.
+  local ignored
+  ignored="$(git ls-files --others --ignored --exclude-standard -- \
+      app/Sources app/Package.swift scripts lib tests \
+      memory-analyzer storage-analyzer network-analyzer 2>/dev/null \
+    | grep -v -E '(^|/)\.[^/]+/' \
+    | grep -E '\.(swift|sh|c|h|m|json|plist|strings|entitlements|command)$' || true)"
+  if [ -n "$ignored" ]; then
+    while IFS= read -r f; do
+      echo "$f — a source file that .gitignore hides, so it would never be committed" >>"$OUT"
+      bad=$((bad + 1))
+    done <<EOF
+$ignored
+EOF
+  fi
+  if [ "$bad" -gt 0 ]; then DETAIL="$bad stray or hidden item(s)"; return 1; fi
+  DETAIL="repository root is clean, no source file is hidden by .gitignore"
   return 0
 }
 
@@ -248,6 +271,10 @@ check_strays() {
 # AnalyzersKit (where the hooks are declared) and in the two targets that are
 # never part of the shipped app's behaviour — AgentRunner's probes and
 # SnapshotRunner's fixtures — and nowhere else.
+# One thing outside this check ON PURPOSE: `ReviewFixtureProbe` (SettingsFeature/Screens/Shared/Review) is a
+# `public` type compiled into the shipped module, with no `@_spi`, that only SnapshotRunner reaches. It builds
+# scenarios from the fixture rows only, exposes `report()` and named steps, and cannot apply anything: the same
+# wall as `DeepLinkRouter.installFixtures()`. Do not copy the pattern for anything that can change a real preview.
 # MA_SPI_ROOT points the check at another copy of app/Sources (used to prove it fails).
 check_spi() {
   local root="${MA_SPI_ROOT:-$ROOT/app/Sources}"
@@ -271,6 +298,94 @@ check_spi() {
 # the runner, asks it to print every name and exits 1 on one that
 # `TitleStyle` rejects. MA_NAMES_APP points the check at another copy of app/
 # (used to prove it fails on a lowercased name).
+# The app reads no environment variable. A variable is a switch nobody can see:
+# a test hook left in shipping code changes what the installed app does for
+# whoever happens to have it set. The two tools that never ship (AgentRunner's
+# probes, SnapshotRunner) may read them and hand the value in; EngineProcess
+# passes the environment on to the engine scripts, which is its job.
+check_env() {
+  if [ ! -d app/Sources ]; then DETAIL="skipped: no app/Sources"; return 2; fi
+  grep -rnE 'processInfo\.environment|(^|[^A-Za-z_])(getenv|setenv|unsetenv|putenv)\(' --include='*.swift' app/Sources 2>/dev/null \
+    | grep -v -E '^app/Sources/(AgentRunner|SnapshotRunner)/' \
+    | grep -v -E '^app/Sources/AnalyzersKit/Jobs/EngineProcess\.swift:' \
+    | grep -v -E '^[^:]+:[0-9]+:[[:space:]]*//' \
+    | cut -c1-300 >"$OUT"
+  if [ -s "$OUT" ]; then
+    DETAIL="shipping code reads the environment — pass the value in from AgentRunner or SnapshotRunner instead"
+    return 1
+  fi
+  DETAIL="no environment read outside AgentRunner, SnapshotRunner and EngineProcess"
+  return 0
+}
+
+# SnapshotRunner renders a screen and captures it after a delay on the main
+# dispatch queue. One `await` in main.swift's top-level code turns that code
+# into an async task; NSApplication.run() started inside a task never services
+# the main dispatch queue, the capture never fires, and every render hangs
+# until something kills it (found 2026-11-11, after a night of renders blamed on
+# a locked screen). A real render cannot be a check (it needs an unlocked
+# screen), so the cause is refused instead: no `await` at the start of a line
+# outside a function, closure or type in that file.
+check_snapshot() {
+  local file="app/Sources/SnapshotRunner/main.swift"
+  if [ ! -f "$file" ]; then DETAIL="skipped: no $file"; return 2; fi
+  grep -nE '^(await|let [A-Za-z_]+ = (try )?await|try await|_ = (try )?await) ' "$file" | cut -c1-300 >"$OUT"
+  if [ -s "$OUT" ]; then
+    DETAIL="a top-level await in the snapshot tool — call it directly (top-level code is on the main actor) or move it into a Task"
+    return 1
+  fi
+  DETAIL="no top-level await in the snapshot tool"
+  return 0
+}
+
+# Probes that judge themselves: each builds its own stand-in data in a temporary
+# folder, reads nothing of the person's, and exits non-zero when a rule breaks.
+# A probe that only prints (review rules, quit, failures) is not here: nothing
+# would fail. Add a probe to PROBES when it has an exit status worth trusting.
+# --probe-stop-targets is not here: it needs a shell outside the system folders, detaches itself, starts
+# processes and takes about a minute, so it is run by hand (and by the person reviewing a stop path).
+PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-login-removal --probe-storage-setting --probe-disk-runway --probe-fence --probe-cleanup-parse --probe-undo-fixture --probe-panel-stop --probe-tm --probe-channels --probe-versions --probe-pressure --probe-memory-kinds --probe-kinds-fixture"
+check_probes() {
+  local app="$ROOT/app"
+  if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
+  if [ ! -f "$app/Package.swift" ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
+  if ! command -v swift >/dev/null 2>&1; then DETAIL="skipped: swift is not installed"; return 2; fi
+  local bin probe started=$SECONDS count=0
+  # no probe makes its own temporary folder: ProbeScratch is the one way, so none can forget to remove it
+  if grep -n 'temporaryDirectory\|NSTemporaryDirectory' "$app"/Sources/AgentRunner/*.swift | grep -v 'ProbeScratch.swift' >"$OUT"; then
+    DETAIL="a probe asks for the temp directory itself — use ProbeScratch.folder so it is removed when the probe ends"
+    return 1
+  fi
+  if ! ( cd "$app" && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0= \
+          swift build --disable-keychain --product AgentRunner ) >"$TMP/probes-build.out" 2>&1; then
+    grep -a -E ': error: ' "$TMP/probes-build.out" | cut -c1-300 | awk '!seen[$0]++' | head -10 >"$OUT"
+    [ -s "$OUT" ] || tail -n 10 "$TMP/probes-build.out" | cut -c1-300 >"$OUT"
+    DETAIL="could not build agent-runner"
+    return 1
+  fi
+  bin="$(cd "$app" && swift build --disable-keychain --show-bin-path 2>/dev/null)/AgentRunner"
+  if [ ! -x "$bin" ]; then DETAIL="agent-runner was not built"; return 1; fi
+  for probe in $PROBES; do
+    rm -rf "$TMP/probe-tmp"; mkdir -p "$TMP/probe-tmp"
+    if ! MA_PROBE_TMP="$TMP/probe-tmp" "$bin" "$probe" >"$TMP/probe.out" 2>&1; then
+      { grep -a -E '^ *(FAIL|✗)' "$TMP/probe.out" | head -15; tail -n 2 "$TMP/probe.out"; } | cut -c1-300 >"$OUT"
+      DETAIL="$probe failed"
+      return 1
+    fi
+    # A probe ends with exit(), which runs no defer: a folder it made and did not register with ProbeScratch stayed in
+    # the temp directory, run after run (481 folders, 5.8 GB, before this check). Each probe gets a private scratch
+    # folder and must leave it empty, so what is left is its own whatever else is running on this Mac.
+    if [ -n "$(ls -A "$TMP/probe-tmp")" ]; then
+      ls -A "$TMP/probe-tmp" | head -10 >"$OUT"
+      DETAIL="$probe left $(ls -A "$TMP/probe-tmp" | wc -l | tr -d ' ') item(s) in its scratch folder: use ProbeScratch"
+      return 1
+    fi
+    count=$((count + 1))
+  done
+  DETAIL="$count probe(s) hold ($((SECONDS - started))s)"
+  return 0
+}
+
 check_names() {
   local app="${MA_NAMES_APP:-$ROOT/app}"
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
@@ -294,6 +409,43 @@ check_names() {
   tail -n 1 "$TMP/names.out" >>"$OUT"
   DETAIL="a name is not in title style"
   return 1
+}
+
+# Every table whose rows open to other rows is an `OutlineTable`
+# (app/Sources/UIComponents/OutlineTable): SwiftUI's hierarchical controls make
+# AppKit log "reentrant operation in its NSTableView delegate" on open-all and
+# on an in-place re-sort. This check runs the headless probes for that
+# (scripts/outline-probe.sh check: open all and re-sort, text and hosted cells,
+# each in a fresh process, counting the warning), so a change to the component
+# that makes it warn fails here.
+#
+# The second half refuses the SwiftUI controls in app/Sources. It is ON: the
+# last screen that used one has moved. A `DisclosureGroup` around ONE block of
+# content is allowed and carries the marker as a comment line of its own directly above it.
+OUTLINE_REFUSE_SWIFTUI_HIERARCHY=1
+check_outline() {
+  if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
+  if [ ! -x scripts/outline-probe.sh ]; then DETAIL="skipped: no scripts/outline-probe.sh"; return 2; fi
+  if ! command -v swift >/dev/null 2>&1; then DETAIL="skipped: swift is not installed"; return 2; fi
+  if ! scripts/outline-probe.sh check >"$TMP/outline.out" 2>&1; then
+    tail -n 25 "$TMP/outline.out" | cut -c1-300 >"$OUT"
+    DETAIL="the outline probe failed or counted a reentrancy warning"
+    return 1
+  fi
+  DETAIL="$(tail -n 1 "$TMP/outline.out")"
+  if [ "$OUTLINE_REFUSE_SWIFTUI_HIERARCHY" = "1" ]; then
+    local marker='// one disclosed block, not rows'
+    # the scan is scripts/outline-refuse.sh (its header lists what is refused; tests/outline-refuse-test.sh plants each form)
+    scripts/outline-refuse.sh app/Sources >"$OUT" 2>&1
+    if [ -s "$OUT" ]; then
+      DETAIL="SwiftUI hierarchical controls in app/Sources — use OutlineTable (a DisclosureGroup around ONE block of content carries: $marker)"
+      return 1
+    fi
+    DETAIL="$DETAIL; no SwiftUI hierarchical control in app/Sources"
+  else
+    DETAIL="$DETAIL; the grep for SwiftUI hierarchical controls is off until the last migration step"
+  fi
+  return 0
 }
 
 check_app() {
@@ -323,7 +475,17 @@ check_app() {
     DETAIL="swift build failed (exit $rc)"
     return 1
   fi
-  DETAIL="swift build ok ($((SECONDS - started))s)"
+  # A build that succeeds while printing a warning is not clean. The package
+  # turns warnings into errors, but some diagnostics are not upgraded (found
+  # 2026-11-11: "cannot use generic struct … was not imported by this file"
+  # printed as a warning, exit 0). Any warning line fails the check. Only
+  # files compiled in this run can warn, so a change is always covered.
+  if grep -a -E '^[^ ].*: warning: ' "$TMP/app.txt" | cut -c1-300 | awk '!seen[$0]++' | head -20 >"$OUT" && [ -s "$OUT" ]; then
+    DETAIL="swift build printed $(wc -l <"$OUT" | tr -d ' ') warning(s) — warnings are defects"
+    return 1
+  fi
+  : >"$OUT"
+  DETAIL="swift build ok, no warnings ($((SECONDS - started))s)"
   return 0
 }
 
@@ -365,14 +527,14 @@ if [ -n "$range" ]; then
         *.sh|*.command|scripts/*|.github/*|tests/*|*/tests/*) want_script=1 ;;
       esac
       case "$f" in CHANGELOG.md|VERSION) want_changelog=1 ;; esac
-      case "$f" in app/*) want_app=1 ;; esac
+      case "$f" in app/*|scripts/outline-probe.sh) want_app=1 ;; esac
     done <"$TMP/changed"
     selected=""
     for n in $scope; do
       case "$n" in
         syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
         changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
-        app|spi|names) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
+        app|spi|env|snapshot|names|probes|outline) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
         secrets|strays) selected="$selected $n" ;;
       esac
     done

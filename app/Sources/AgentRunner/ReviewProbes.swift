@@ -8,9 +8,7 @@ import os
 // job indexes only; nothing here can reach the real engine.
 
 private func scratch(_ name: String) -> URL {
-    let dir = FileManager.default.temporaryDirectory.appending(path: "\(name)-\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    return dir
+    ProbeScratch.folder(name)
 }
 
 private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
@@ -87,6 +85,42 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     print("plist names another copy of the script: " + refusal(store.enqueue(JobRequest(kind: .storageClean, intent: .run), trigger: .schedule(label))))
     store.scheduleReader = { _ in nil }
     print("agent not installed:                    " + refusal(store.enqueue(JobRequest(kind: .storageClean, intent: .run), trigger: .schedule(label))))
+    await idle()
+
+    // Login & Startup Items: a removal is a cleaner apply like the others
+    print("login items:")
+    matched.withLock { $0 = true }
+    store.scriptOverride = script(dir, "audit-echo.sh", """
+    echo "login-items-audit  |  DRY RUN  |  $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "args: $*"
+    if [ "$2" = "--only-paths" ]; then echo "list: $(tr '\\n' ',' < "$3")"; fi
+    """)
+    print("  direct apply, no audit:               " + refusal(store.enqueue(JobRequest(kind: .loginItems, intent: .apply), trigger: .user)))
+    let plists = ["/L/a.plist", "/L/b.plist"]
+    // The reviewed list is always sent, ticked or not: what the confirmation
+    // showed is what the script may touch. A preview can be applied once, so each case has its own audit.
+    for (name, approvable, deselected) in [
+        ("one of two left ticked", plists, Set(["/L/b.plist"])),
+        ("nothing deselected", plists, Set<String>()),
+        ("b appeared after review", ["/L/a.plist"], Set<String>()),   // the review only knew a
+        ("everything deselected", plists, Set(plists)),
+    ] {
+        let own = store.enqueue(JobRequest(kind: .loginItems, intent: .preview), trigger: .user)
+        await wait(for: own)
+        let applied = store.apply(from: own, approved: ApprovedSet(approvable: approvable, deselected: deselected))
+        await wait(for: applied)
+        let lines = applied.lines.filter { $0.hasPrefix("args:") || $0.hasPrefix("list:") }
+        print("  \(name.padding(toLength: 22, withPad: " ", startingAt: 0)) \(lines.isEmpty ? refusal(applied) : lines.joined(separator: " · "))")
+        await idle()
+    }
+    let audit = store.enqueue(JobRequest(kind: .loginItems, intent: .preview), trigger: .user)
+    await wait(for: audit)
+    store.dismiss(audit)
+    print("  audit discarded, apply now:           " + refusal(store.apply(from: audit, approved: ApprovedSet(approvable: plists, deselected: []))))
+    matched.withLock { $0 = false }
+    let fallback = store.enqueue(JobRequest(kind: .loginItems, intent: .preview), trigger: .user)
+    await wait(for: fallback)
+    print("  audit whose own block wasn't found:   " + refusal(store.apply(from: fallback, approved: ApprovedSet(approvable: plists, deselected: []))))
 
     // an apply sends exactly the reviewed list, even with nothing unticked
     matched.withLock { $0 = true }
@@ -102,7 +136,8 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     store.scriptOverride = listing
     print("\nthe reviewed list, nothing unticked (a new item after the review is not in it):")
     for (kind, keys) in [(JobKind.storageClean, ["/p/a/.next", "/p/b/dist"]), (.janitor, ["/d/one.pdf", "/d/two.pdf"]),
-                         (.tempClean, ["/tmp/x", "/tmp/y"]), (.memoryClean, ["4101", "4102"]), (.reclaim, ["4101"])] {
+                         (.tempClean, ["/tmp/x", "/tmp/y"]), (.loginItems, ["/L/a.plist", "/L/b.plist"]),
+                         (.memoryClean, ["4101", "4102"]), (.reclaim, ["4101"])] {
         let review = store.enqueue(JobRequest(kind: kind, intent: .preview), trigger: .user)
         await wait(for: review)
         let apply = store.apply(from: review, approved: ApprovedSet(approvable: keys, deselected: []))
@@ -222,4 +257,212 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     try? leftover.run()
     leftover.waitUntilExit()
     exit(0)
+}
+
+// `--probe-review-session` proves the review table's rules without a screen:
+// a review is tied to its preview, ticks survive leaving and returning, an expired
+// review is refused, and a row that cannot be chosen never reaches the approved list.
+@MainActor func probeReviewSession() -> Never {
+    final class Tally { var failed = 0 }
+    let tally = Tally()
+    func check(_ name: String, _ ok: Bool, _ detail: String = "") {
+        print("\(ok ? "ok  " : "FAIL") \(name)\(detail.isEmpty ? "" : " — \(detail)")")
+        if !ok { tally.failed += 1 }
+    }
+    let first = UUID(), second = UUID()
+    let items: [ReviewSelection.Item] = [
+        .init(id: "/a"), .init(id: "/b"), .init(id: "/c"),
+        .init(id: "/kept", choosable: false),
+    ]
+    var session = ReviewSelection(previewID: first, items: items)
+
+    // 1. a session against a newer preview is refused
+    check("same preview: ready",
+          session.gate(previewID: first, finishedAt: Date()) == .ready)
+    check("newer preview: refused",
+          session.gate(previewID: second, finishedAt: Date()) == .differentPreview,
+          session.gate(previewID: second, finishedAt: Date()).sentence ?? "")
+    check("no preview: no apply", session.gate(previewID: nil, finishedAt: nil) == .noPreview)
+
+    // 2. expired: disabled, with the sentence
+    let late = Date().addingTimeInterval(JobStore.reviewWindow + 60)
+    check("expired: refused", session.gate(previewID: first, finishedAt: Date(), now: late) == .expired,
+          session.gate(previewID: first, finishedAt: Date(), now: late).sentence ?? "")
+
+    // 3. a row that cannot be chosen never reaches the approved list
+    session.selectAll()
+    check("kept row: not ticked after Select All", !session.isTicked("/kept"))
+    session.setTicked("/kept", true)
+    check("kept row: cannot be ticked by hand", !session.isTicked("/kept"))
+    check("kept row: not in the approved list", !session.approved.approved.contains("/kept"),
+          "approved: \(session.approved.approved)")
+    check("all choosable ticked: list is sent (narrowed by the kept row), without it",
+          session.approved.approved == ["/a", "/b", "/c"] && session.approved.isNarrowed)
+    let plain = ReviewSelection(previewID: first, items: [.init(id: "/a"), .init(id: "/b")])
+    check("no kept rows and nothing unticked: not narrowed", !plain.approved.isNarrowed)
+    session.selectNone()
+    check("Select None: nothing approved", session.approved.approved.isEmpty)
+
+    // 4. ticks survive leaving and returning (the store outlives the screen)
+    let store = ReviewTickStore()
+    session.selectAll()
+    session.setTicked("/b", false)
+    store.save(session.deselected, for: first)
+    let returned = ReviewSelection(previewID: first, items: items, deselected: store.deselected(for: first))
+    check("ticks survive leaving and returning",
+          !returned.isTicked("/b") && returned.isTicked("/a") && returned.approved.approved == ["/a", "/c"],
+          "approved: \(returned.approved.approved)")
+    check("another preview starts fully ticked", ReviewTickStore().deselected(for: second) == nil)
+    store.drop(first)
+    check("dropped once applied or discarded", store.deselected(for: first) == nil)
+    store.save(["/x"], for: second)
+    store.keepOnly([first])
+    check("an expired preview's ticks are forgotten", store.deselected(for: second) == nil)
+
+    // folded empty rows start unticked, and Select All returns to that
+    var folded = ReviewSelection(previewID: first, items: [.init(id: "/big"), .init(id: "/empty")], startsUnticked: ["/empty"])
+    check("rows folded out of sight start unticked", folded.isTicked("/big") && !folded.isTicked("/empty"))
+    check("Select All with only the fold unticked: nothing to do, button disabled", folded.isAllSelected)
+    folded.selectAll()
+    check("Select All changes nothing there; the folded row reaches the kernel as deselected",
+          !folded.isTicked("/empty") && folded.approved.approved == ["/big"] && folded.approved.isNarrowed)
+    folded.setTicked("/empty", true)
+    folded.selectAll()
+    check("a hand-ticked folded row survives Select All", folded.isTicked("/empty") && folded.isAllSelected)
+    folded.setTicked("/big", false)
+    check("an unticked visible row enables Select All, which ticks it and leaves the fold alone",
+          !folded.isAllSelected && { folded.selectAll(); return folded.isTicked("/big") && folded.isTicked("/empty") }())
+
+    // a caller's own approval rule can only remove: kept rows, unticked rows and unknown keys never go
+    var rule = ReviewSelection(previewID: first, items: [.init(id: "/a"), .init(id: "/b"), .init(id: "/kept", choosable: false),
+                                                           .init(id: "/empty")], startsUnticked: ["/empty"])
+    rule.setTicked("/b", false)
+    let greedy = ApprovedSet(approvable: ["/a", "/b", "/kept", "/empty", "/stranger"], deselected: [])
+    check("an approval rule cannot add kept, unticked, fold or unknown keys", rule.narrowed(greedy).approved == ["/a"],
+          "sent: \(rule.narrowed(greedy).approved)")
+    check("an approval rule that removes a row is honoured",
+          rule.narrowed(ApprovedSet(approvable: ["/a"], deselected: ["/a"])).approved.isEmpty)
+    check("an unrestricted approval means the ticks", rule.narrowed(.everything).approved == ["/a"])
+
+    // a row the apply acts on without a tick ("will quit"): counted, named, never in the sent set
+    let quit = ReviewAlsoActs(singular: "app", plural: "apps", verb: "will quit", confirmVerb: "Quit")
+    let acting = ReviewSelection(previewID: first, items: [.init(id: "1"), .init(id: "Opera", acts: true),
+                                                             .init(id: "Docker", acts: true), .init(id: "kept", choosable: false)])
+    check("acting rows are never in the approved list",
+          !acting.approved.approved.contains("Opera") && !acting.approved.approved.contains("Docker") && acting.approved.isNarrowed,
+          "approved: \(acting.approved.approved)")
+    check("acting rows are not kept rows", acting.actingIDs == ["Opera", "Docker"] && !acting.isChoosable("Opera"))
+    check("the bar names them: 1 selected · 2 apps will quit · 1 kept",
+          ReviewWording.summary(selected: acting.tickedIDs.count, bytes: nil, outside: 0, tabsSpanned: 0,
+                                acting: acting.actingIDs.count, alsoActs: quit, kept: 1)
+              == "1 selected · 2 apps will quit · 1 kept")
+    check("the confirmation names them",
+          ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: 1, bytes: nil, alsoActs: quit,
+                                          actingNames: ["Opera", "Docker"]) == "Close 1 Item now and Quit Opera and Docker?",
+          ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: 1, bytes: nil, alsoActs: quit,
+                                          actingNames: ["Opera", "Docker"]))
+    check("across tabs: 12 selected across 3 tabs · 3.2 GB",
+          ReviewWording.summary(selected: 12, bytes: 3_200_000_000, outside: 5, tabsSpanned: 3, acting: 0, alsoActs: nil, kept: 0)
+              .hasPrefix("12 selected across 3 tabs · 3"))
+
+    // freezing what is sent when the confirmation opens
+    let onOffer = ReviewFrozen(sent: acting.approved, title: "Close 1 Item now?")
+    var changed = acting
+    changed.setTicked("1", false)
+    check("the dialog's set still holds while nothing changed", onOffer.holds(for: acting.approved))
+    check("the dialog closes when the live set changes under it", !onOffer.holds(for: changed.approved))
+
+    // the clamp is `ApprovedSet.restricted` on the caller's own result (so a field a branch adds to
+    // `ApprovedSet` is carried by the type, in that one method)
+    let direct = ApprovedSet(approvable: ["/a", "/b", "/c"], deselected: ["/b"]).restricted(over: ["/a", "/b", "/c"], keeping: ["/a", "/c", "/zzz"])
+    check("restricted keeps the keys that are in both, in review order, and flags a narrowing",
+          direct.approved == ["/a", "/c"] && direct.isNarrowed && !direct.isUnrestricted, "got \(direct.approved)")
+    check("restricted over a full keep set does not narrow",
+          !ApprovedSet.everything.restricted(over: ["/a"], keeping: ["/a"]).isNarrowed)
+    let frozenValue = ReviewFrozen(sent: rule.narrowed(greedy), title: "t")
+    check("the frozen set is the clamped VALUE that Apply will send", frozenValue.sent == rule.narrowed(greedy) && frozenValue.sent.approved == ["/a"])
+
+    // a program ended while the review is open: updated in place
+    var live = ReviewSelection(previewID: first, items: [.init(id: "p1"), .init(id: "p2"), .init(id: "p3")])
+    live.setTicked("p2", false)
+    live.updateChoosable(["p3": false])
+    check("a row that stops being choosable is unticked and never approved",
+          !live.isTicked("p3") && !live.approved.approved.contains("p3"), "approved: \(live.approved.approved)")
+    check("ticks on rows that stay choosable are untouched", live.isTicked("p1") && !live.isTicked("p2"))
+    let countBefore = live.tickedIDs.count
+    check("a row that becomes choosable starts UNTICKED, so the bar's count does not rise",
+          live.updateChoosable(["p3": true]) && !live.isTicked("p3") && live.tickedIDs.count == countBefore
+              && !live.approved.approved.contains("p3"), "ticked: \(live.tickedIDs)")
+    check("a call that changes nothing says so (the table is not regrouped)", !live.updateChoosable(["p1": true, "p3": true]))
+    live.setTicked("p3", true)
+    check("the person can then tick it", live.isTicked("p3") && live.approved.approved.contains("p3"))
+
+    // only apps to quit, nothing ticked: Apply is on, the title names them, the sent list is empty
+    var onlyActing = ReviewSelection(previewID: first, items: [.init(id: "1"), .init(id: "Opera", acts: true), .init(id: "Docker", acts: true)])
+    onlyActing.selectNone()
+    check("nothing ticked, two acting rows: Apply has work", ReviewWording.hasWork(sent: onlyActing.tickedIDs.count, acting: 2))
+    check("and the title names them", ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: 0, bytes: nil,
+          alsoActs: quit, actingNames: ["Opera", "Docker"]) == "Quit Opera and Docker?")
+    check("and the sent list is explicitly empty", onlyActing.approved.approved.isEmpty && onlyActing.approved.isNarrowed)
+    check("names read as a person says them",
+          ReviewWording.nameList(["Opera"]) == "Opera" && ReviewWording.nameList(["Opera", "Docker"]) == "Opera and Docker",
+          ReviewWording.nameList(["Opera", "Docker"]))
+    let many = (1...12).map { "App\($0)" }
+    check("above three: the first two and a count, the full list stays available",
+          ReviewWording.nameList(many, noun: "apps") == "App1, App2, and 10 more apps",
+          ReviewWording.nameList(many, noun: "apps"))
+    check("the full list names every one", ReviewWording.fullNames(many).contains("App12"))
+    check("without a noun: and 10 more", ReviewWording.nameList(many) == "App1, App2, and 10 more", ReviewWording.nameList(many))
+    check("the message names all of them only when the title shortened the list",
+          ReviewWording.fullActingLine(alsoActs: quit, names: ["Opera", "Docker"]) == nil
+          && ReviewWording.fullActingLine(alsoActs: quit, names: ["A", "B", "C", "D"]) == "Apps to quit: A, B, C, and D.",
+          ReviewWording.fullActingLine(alsoActs: quit, names: ["A", "B", "C", "D"]) ?? "nil")
+    check("the title takes the names the screen supplies (what is sent)",
+          ReviewWording.confirmationTitle(verb: "Close", destination: "now", count: 2, bytes: nil, alsoActs: quit,
+                                          actingNames: ["Opera"]) == "Close 2 Items now and Quit Opera?")
+    check("nothing ticked and nothing acting: no work", !ReviewWording.hasWork(sent: 0, acting: 0))
+
+    // a repeated key is kept once and does not stop a debug build
+    let repeated = ReviewSelection(previewID: first, items: [.init(id: "/a"), .init(id: "/a"), .init(id: "/b")])
+    check("a repeated key is kept once", repeated.items.map(\.id) == ["/a", "/b"])
+
+    // 6. a new review with the SAME number of rows shows its own rows, not the old tree
+    final class Owner {}
+    let memo = IdentityMemo<Owner, Int, [String]>()
+    let reviewOne = Owner(), reviewTwo = Owner()
+    let treeOne = memo.value(for: reviewOne, key: 0) { ["/a", "/b"] }
+    let again = memo.value(for: reviewOne, key: 0) { ["never built"] }
+    check("same review and sort: tree reused (not rebuilt on a tick)", treeOne == again && memo.builds == 1)
+    let treeTwo = memo.value(for: reviewTwo, key: 0) { ["/c", "/d"] }
+    check("same row count, different review: the tree shows the new rows", treeTwo == ["/c", "/d"],
+          "tree: \(treeTwo)")
+    _ = memo.value(for: reviewTwo, key: 1) { ["/d", "/c"] }
+    check("sort changed: tree rebuilt", memo.builds == 3)
+
+    // 7. after Apply, a new preview enables Apply again; an old message never shows against it
+    var applied = PerPreview<String>()
+    applied.set("applied: refused (old)", for: first)
+    check("apply recorded against its own preview", applied.value(for: first) != nil)
+    check("new preview: Apply is enabled again and the old message is gone", applied.value(for: second) == nil)
+    check("no preview: nothing recorded", applied.value(for: nil) == nil)
+    // a key the list cannot carry: every kind of line break, including the pair Swift reads as one character
+    for (name, key) in [("a line feed", "x\n/d/other.zip"), ("a carriage return", "x\r/d/other.zip"),
+                        ("a carriage return and line feed", "x\r\n/d/other.zip"), ("a NUL", "x\u{0}y")] {
+        check("a key with \(name) is not listable", !ApprovedSet.isListable(key))
+    }
+    let crlf = ApprovedSet(approvable: ["/d/a.pdf", "x\r\n/d/other.zip", "/d/other.zip"], deselected: ["/d/other.zip"])
+    check("…and the unticked item it names never reaches the list", crlf.approved == ["/d/a.pdf"], "\(crlf.approved.count) key(s)")
+
+    // a key with a line break is never choosable: not through a screen's item, not through updateChoosable
+    var odd = ReviewSelection(previewID: UUID(), items: [.init(id: "/ok"), .init(id: "/odd\nkey")])
+    check("a key with a line break is not choosable", !odd.isChoosable("/odd\nkey") && odd.isChoosable("/ok"))
+    _ = odd.updateChoosable(["/odd\nkey": true])
+    odd.selectAll()
+    check("and stays so when a screen calls it choosable; Select All leaves it out",
+          !odd.isChoosable("/odd\nkey") && odd.approved.approved == ["/ok"] && odd.choosableCount == 1)
+    let pair = ReviewSelection(previewID: UUID(), items: [.init(id: "/ok"), .init(id: "/odd\r\nkey")])
+    check("a key with a carriage return and line feed is not choosable either", !pair.isChoosable("/odd\r\nkey") && pair.approved.approved == ["/ok"])
+    let broken = tally.failed
+    if broken == 0 { print("all review-session rules hold") } else { print("\(broken) rule(s) broken") }
+    exit(broken == 0 ? 0 : 1)
 }

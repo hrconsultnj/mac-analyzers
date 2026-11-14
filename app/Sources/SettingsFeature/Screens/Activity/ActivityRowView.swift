@@ -16,35 +16,53 @@ struct ActivityRowView: View {
     let onStop: (() -> Void)?
 
     var body: some View {
-        Button(action: onOpen) {
-            HStack(spacing: Tokens.Space.xl) {
-                GlyphTile(glyph: row.glyph, side: 28)
-                VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
-                    Text(row.displayTitle)
-                        .font(Tokens.Typography.rowTitleKey)
-                        .lineLimit(1)
-                    Text(liveLine ?? row.line)
-                        .font(Tokens.Typography.body)
-                        .foregroundStyle(row.isFailed ? Tokens.Status.destructive.tint : .secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+        // The row's own action and its Review and Stop buttons are siblings, not
+        // nested: a button inside a button leaves the outer one to decide whose click it is.
+        HStack(spacing: Tokens.Space.xl) {
+            Button(action: onOpen) {
+                HStack(spacing: Tokens.Space.xl) {
+                    GlyphTile(glyph: row.glyph, side: 28)
+                    VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
+                        // the task's name, then the kind of run as its own secondary text
+                        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.s) {
+                            Text(row.title)
+                                .font(Tokens.Typography.rowTitleKey)
+                            if let kindOfRun = row.kindOfRun {
+                                Text(kindOfRun)
+                                    .font(Tokens.Typography.body)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Text(liveLine ?? row.line)
+                            .font(Tokens.Typography.body)
+                            .foregroundStyle(row.isFailed ? Tokens.Status.destructive.tint : .secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: Tokens.Space.xl)
+                    when
                 }
-                Spacer(minLength: Tokens.Space.xl)
-                trailing
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, Tokens.Space.xxs)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Opens this run")
+            // Regular buttons: a row here is two lines tall, and a smaller button beside
+            // the glyph tile read as a different kind of control.
+            if let onReview {
+                Button("Review", action: onReview)
+                    .tint(Tokens.Status.caution.tint)
+            }
+            if let onStop {
+                Button("Stop", action: onStop)
+            }
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens this run")
     }
 
-    @ViewBuilder private var trailing: some View {
+    @ViewBuilder private var when: some View {
         if row.status == .running, let started = row.started {
             Text(started, style: .timer)
                 .font(Tokens.Typography.value)
@@ -55,15 +73,6 @@ struct ActivityRowView: View {
                 .font(Tokens.Typography.caption)
                 .foregroundStyle(.secondary)
                 .help("\(row.startedBy.map { "\($0). " } ?? "")\(row.exactTime)")
-        }
-        if let onReview {
-            Button("Review", action: onReview)
-                .controlSize(.small)
-                .tint(Tokens.Status.caution.tint)
-        }
-        if let onStop {
-            Button("Stop", action: onStop)
-                .controlSize(.small)
         }
     }
 

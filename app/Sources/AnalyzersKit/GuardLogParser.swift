@@ -13,11 +13,43 @@ public enum GuardLogParser {
         return f
     }()
 
-    public static func parseLine(_ line: String) -> GuardEvent? {
-        let fields = line.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
-        guard fields.count >= 4,
-              let date = timestampFormat.date(from: "\(fields[0]) \(fields[1])")
+    /// "yyyy-MM-dd HH:mm:ss" (local time) read straight from the line's first
+    /// 19 characters. A formatter costs about 60 µs a line, which is four
+    /// seconds across a 90-day log; this is about a microsecond.
+    static func timestamp(of line: String) -> Date? {
+        var chars = line.utf8.prefix(19).makeIterator()
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(19)
+        while let next = chars.next() { bytes.append(next) }
+        guard bytes.count == 19, bytes[4] == 45, bytes[7] == 45, bytes[10] == 32,
+              bytes[13] == 58, bytes[16] == 58 else { return nil }
+        func number(_ range: Range<Int>) -> Int32? {
+            var value: Int32 = 0
+            for index in range {
+                guard bytes[index] >= 48, bytes[index] <= 57 else { return nil }
+                value = value * 10 + Int32(bytes[index] - 48)
+            }
+            return value
+        }
+        guard let year = number(0..<4), let month = number(5..<7), let day = number(8..<10),
+              let hour = number(11..<13), let minute = number(14..<16), let second = number(17..<19)
         else { return nil }
+        var parts = tm()
+        parts.tm_year = year - 1900
+        parts.tm_mon = month - 1
+        parts.tm_mday = day
+        parts.tm_hour = hour
+        parts.tm_min = minute
+        parts.tm_sec = second
+        parts.tm_isdst = -1
+        let seconds = mktime(&parts)
+        return seconds == -1 ? nil : Date(timeIntervalSince1970: TimeInterval(seconds))
+    }
+
+    public static func parseLine(_ line: String) -> GuardEvent? {
+        guard let date = timestamp(of: line) else { return nil }
+        let fields = line.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        guard fields.count >= 4 else { return nil }
 
         let token = fields[2]
         switch token {
@@ -51,6 +83,13 @@ public enum GuardLogParser {
             return GuardEvent(id: line, date: date, kind: .killed(reason: reason),
                               processName: name, pid: pid, residentMB: rss, raw: line)
 
+        case "KILL-FAIL":
+            // "KILL-FAIL pid=N already gone": the guard tried and the process had ended
+            let pid = fields.first { $0.hasPrefix("pid=") }
+                .flatMap { Int($0.dropFirst(4)) }
+            return GuardEvent(id: line, date: date, kind: .stopFailed,
+                              processName: "process", pid: pid, residentMB: nil, raw: line)
+
         case "SPIKE":
             guard fields.count >= 8, fields[3].hasPrefix("pid=") else { return nil }
             let pid = Int(fields[3].dropFirst(4))
@@ -65,8 +104,11 @@ public enum GuardLogParser {
             // "PRESSURE warning (level 2)" · "PRESSURE CRITICAL (level 4)"
             // · "PRESSURE-CRITICAL (kill disabled)"
             let rest = fields[3...].joined(separator: " ")
-            let level = Int(line.range(of: #"level (\d+)"#, options: .regularExpression)
-                .map { String(line[$0]).replacingOccurrences(of: "level ", with: "") } ?? "") ?? 0
+            // "level N": a plain search, not a regular expression — pressure lines
+            // are most of a long log
+            let level = line.range(of: "level ").map {
+                Int(line[$0.upperBound...].prefix { $0.isNumber }) ?? 0
+            } ?? 0
             let kind: GuardEvent.Kind
             if token == "PRESSURE-CRITICAL" || rest.hasPrefix("CRITICAL") {
                 kind = .pressureCritical(level: max(level, 4),
@@ -166,20 +208,19 @@ public enum GuardLogParser {
             .map { $0 }
     }
 
-    /// Full-depth parse for the Logs pane (no per-pid spike dedupe — the log
-    /// screen shows everything; the menu keeps the collapsed view).
+    /// Every event in the window, newest first, read back from the end of the
+    /// log (and its rotated copy) to the cutoff — never a fixed number of
+    /// lines, which is a different number of days on every Mac. `limit`, when
+    /// given, keeps only that many of the newest events.
+    ///
+    /// Blocking; call it off the main actor.
     public static func allEvents(fromLog url: URL,
                                  within interval: TimeInterval = 90 * 86_400,
-                                 limit: Int = 500) -> [GuardEvent] {
-        guard let data = try? Data(contentsOf: url),
-              let text = String(data: data, encoding: .utf8) else { return [] }
-        let cutoff = Date().addingTimeInterval(-interval)
-        return text.split(separator: "\n").suffix(2000)
-            .compactMap { parseLine(String($0)) }
-            .filter { $0.date >= cutoff }
+                                 limit: Int? = nil) -> [GuardEvent] {
+        let reading = GuardLogReader.read(url, since: Date().addingTimeInterval(-interval))
+        let events = reading.lines.compactMap { parseLine($0) }
             .sorted { $0.date > $1.date }
-            .prefix(limit)
-            .map { $0 }
+        return limit.map { Array(events.prefix($0)) } ?? events
     }
 
     public static func killsToday(fromLog url: URL, after clearedAt: Date? = nil) -> Int {

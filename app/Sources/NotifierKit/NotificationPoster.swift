@@ -75,6 +75,20 @@ public final class NotificationPoster: NSObject {
     public func post(title: String, subtitle: String? = nil, message: String,
                      sound: String?, logPath: String?, pid: Int? = nil,
                      paneTarget: String? = nil) {
+        // A notification with a Stop button is about a process that is running now. Its name
+        // is the live process's own and its start time is read from the kernel here, never taken
+        // from the sender's words: anything in the session can send this app a notification.
+        var pid = pid
+        var subtitle = subtitle
+        var born: ProcessTree.Birth?
+        if let wanted = pid {
+            if let live = LiveStats.process(pid: wanted), let identity = live.identity {
+                subtitle = live.friendlyName
+                born = identity.birth
+            } else {
+                pid = nil
+            }
+        }
         let content = UNMutableNotificationContent()
         content.title = title
         if let subtitle { content.subtitle = subtitle }
@@ -91,8 +105,8 @@ public final class NotificationPoster: NSObject {
         if let paneTarget { info["pane"] = paneTarget }
         if let pid {
             info["pid"] = pid
-            // identity check token so a recycled pid is never killed
-            info["token"] = subtitle ?? ""
+            // when the process started (the kernel's own reading): the click stops it only if that is still true
+            if let born { info["start"] = born.seconds; info["startMicro"] = born.microseconds }
         }
         content.userInfo = info
         let request = UNNotificationRequest(identifier: UUID().uuidString,
@@ -134,33 +148,36 @@ public final class NotificationPoster: NSObject {
         SettingsOpener.open()
     }
 
-    /// Verified stop: the pid must still exist AND its command line must
-    /// still contain the token from notification time — a recycled pid never
-    /// gets a stray signal.
-    func stopProcess(pid: Int, token: String) {
-        let ps = Process()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-p", String(pid), "-o", "args="]
-        let pipe = Pipe()
-        ps.standardOutput = pipe
-        ps.standardError = FileHandle.nullDevice
-        guard (try? ps.run()) != nil else { return }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        ps.waitUntilExit()
-        let args = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-        // token is the short name ("next-server (v16.2.6)") — match its first word
-        let needle = token.split(separator: " ").first.map(String.init) ?? token
-        guard !args.isEmpty, !needle.isEmpty, args.contains(needle) else {
-            post(title: "Mac Analyzers",
-                 message: "That process already exited — nothing to stop.",
+    /// The notification's Stop Process. It goes through the same rules as every other stop:
+    /// the process must be the one that was running when the notification was posted (its start
+    /// time, read from the kernel then), a live coding session or something hosting one is never
+    /// stopped, and with no list of coding agents nothing is. When the rules refuse, or the process
+    /// is not the one that was reported, the click opens Monitor on that process with the reason (a code the
+    /// app turns into its own sentence): a notification always leads somewhere a person can act, and
+    /// never acts past the rules.
+    func stopProcess(pid: Int, start: Int?, startMicro: Int?) {
+        guard let live = LiveStats.process(pid: pid) else {
+            post(title: "Mac Analyzers", message: "That process already exited — nothing to stop.",
                  sound: nil, logPath: nil)
             return
         }
-        kill(pid_t(pid), SIGTERM)
-        post(title: "Mac Analyzers", subtitle: token,
-             message: "Stop signal sent (pid \(pid)).",
-             sound: nil, logPath: nil)
+        guard let start, let startMicro, let identity = live.identity,
+              identity.birth.seconds == start, identity.birth.microseconds == startMicro else {
+            // an older notification that carries no start time, or a pid that now belongs to another process
+            let why: StopWhy = start == nil ? .unverifiable : .changed
+            SettingsOpener.open(target: why.target(pid: pid))
+            return
+        }
+        switch GuardControl.stopProcess(live, identity: identity) {
+        case .stopped:
+            post(title: "Mac Analyzers", subtitle: live.friendlyName,
+                 message: "Asked \(live.friendlyName) to stop (process \(pid)).",
+                 sound: nil, logPath: nil)
+        case .gone:
+            post(title: "Mac Analyzers", message: "That process already exited — nothing to stop.",
+                 sound: nil, logPath: nil)
+        case .refused:
+            SettingsOpener.open(target: StopWhy.after(refusedPID: pid).target(pid: pid))
+        }
     }
 }

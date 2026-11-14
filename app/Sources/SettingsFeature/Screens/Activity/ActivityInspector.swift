@@ -4,17 +4,19 @@ import SwiftUI
 import UIComponents
 
 /// One run's screen, pushed from Activity, the toolbar status item, a finish
-/// notification or a link. It holds what the old inspector held and says it
-/// the way a person reads it:
+/// notification or a link. It is a data screen: the run's name and its one-line outcome
+/// in the toolbar, then
 ///
-///  - a header: glyph, name, when, how long, who started it, how it ended;
-///  - while it runs: what step it is on, Stop, and the live output;
+///  - what happened: a line of facts (when, how long, who started it, how it ended);
+///  - while it runs: the step, Stop, and the live output filling the screen;
 ///  - a waiting preview: "Review and Apply", which opens that task's screen;
-///  - the outcome as a list of things — what was freed, found or left alone;
-///  - Open <Task>, Copy Details;
-///  - the raw output, one level down, behind "Show raw output".
+///  - the results: the task's own results view if its group supplied one
+///    (`SidebarGroup.runResults`), otherwise `RunResultsDefault`: the run's categories as
+///    tabs (with counts) and, inside, its rows grouped under what they belong to, in the
+///    shared read-only review table;
+///  - in the toolbar: Open <Task>, Copy Details and Show Raw Output (one level down).
 ///
-/// Nothing here opens another app: the raw output is shown in place.
+/// Nothing here opens another app.
 struct ActivityInspector: View {
     let row: ActivityRow?
     let model: ActivityModel
@@ -22,7 +24,7 @@ struct ActivityInspector: View {
     @Environment(JobStore.self) private var store
     @Environment(Navigator.self) private var navigator
     @State private var outcome: ActivityOutcome?
-    @State private var showRaw = false
+    @State private var tab = RunTab(rawValue: "")
 
     var body: some View {
         if let row {
@@ -37,49 +39,30 @@ struct ActivityInspector: View {
         row.jobID.flatMap { id in store.jobs.first { $0.id == id } }
     }
 
-    @ViewBuilder private func screen(for row: ActivityRow) -> some View {
+    private func screen(for row: ActivityRow) -> some View {
         let live = job(for: row)
-        ScrollView {
-            VStack(alignment: .leading, spacing: Tokens.Space.xxl) {
-                header(row, live: live)
-                if let live, live.isActive {
-                    running(live)
-                } else if row.needsReview || (row.intent == .preview && row.findings > 0) {
-                    review(row)
-                } else if lostItsResults(live) {
-                    lostResults(row, reason: live?.note)
-                }
-                if let outcome, !outcome.isEmpty {
-                    OutcomeList(outcome: outcome, waitingForReview: row.needsReview)
-                }
-                actions(row, live: live)
-                rawOutput(row, live: live)
+        let sections = outcome?.sections.filter { !$0.items.isEmpty } ?? []
+        let tabs = sections.map { RunTab(section: $0) }
+        let current = tabs.contains(tab) ? tab : (tabs.first ?? tab)
+        return DataScreen(title: row.title,
+                          subtitle: [row.kindOfRun, statusSentence(row, live: live)].compactMap { $0 }.joined(separator: " · ")) {
+            VStack(alignment: .leading, spacing: 0) {
+                facts(row).padding([.horizontal, .top]).padding(.bottom, Tokens.Space.m)
+                banners(row, live: live)
+                results(row, live: live, sections: sections, current: current)
             }
-            .padding(Tokens.Space.pane)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            // a run's facts start at the top whatever is under them (a running job's box is shorter than the window);
+            // only an empty state is centred, and it centres itself inside what is left
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .modifier(RunTabsModifier(row: row, tabs: tabs, sections: sections, selection: $tab))
+        .toolbar { actions(row, live: live) }
         .task(id: loadKey(row, live: live)) { await loadOutcome(row, live: live) }
-        .onAppear { showRaw = RawOutputRequest.claim(for: row.id) }
     }
 
-    // MARK: - header
+    // MARK: - what happened
 
-    private func header(_ row: ActivityRow, live: Job?) -> some View {
-        HStack(alignment: .top, spacing: Tokens.Space.xxl) {
-            GlyphTile(glyph: row.glyph, side: 52)
-            VStack(alignment: .leading, spacing: Tokens.Space.s) {
-                Text(row.displayTitle).font(Tokens.Typography.paneTitle)
-                Text(statusSentence(row, live: live))
-                    .font(.title3)
-                    .foregroundStyle(row.isFailed ? Tokens.Status.destructive.tint : .primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                facts(row)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    /// The sentence under the name: what happened, in words.
+    /// The sentence in the toolbar's subtitle: what happened, in words.
     private func statusSentence(_ row: ActivityRow, live: Job?) -> String {
         if let live, live.isActive {
             return live.state.isQueuedOnly ? "Waiting for the running job to finish." : (live.step ?? "Working…")
@@ -107,50 +90,38 @@ struct ActivityInspector: View {
                   systemImage: row.glyph.symbol)
         }
         .font(Tokens.Typography.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(row.isFailed ? Tokens.Status.destructive.tint : .secondary)
         .labelStyle(.titleAndIcon)
     }
 
-    // MARK: - while it runs
+    // MARK: - banners: a waiting preview, results that were lost
 
-    private func running(_ job: Job) -> some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.m) {
-            HStack {
-                ProgressView().controlSize(.small)
-                Text(job.step ?? "Working…").font(Tokens.Typography.rowTitleKey)
-                Spacer()
-                Button("Stop", role: .destructive) { job.cancel() }
-            }
-            Text("If you quit Mac Analyzers while this runs, you will be asked whether to stop it or let it finish in the background.")
-                .font(Tokens.Typography.caption)
-                .foregroundStyle(.secondary)
-            LiveOutputView(job: job)
-                .frame(height: 300)
+    @ViewBuilder private func banners(_ row: ActivityRow, live: Job?) -> some View {
+        if let live, live.isActive {
+            EmptyView()
+        } else if row.needsReview || (row.intent == .preview && row.findings > 0) {
+            review(row).padding(.horizontal).padding(.bottom, Tokens.Space.m)
+        } else if lostItsResults(live) {
+            lostResults(row, reason: live?.note).padding(.horizontal).padding(.bottom, Tokens.Space.m)
         }
-        .padding(Tokens.Space.xl)
-        .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
     }
-
-    // MARK: - a waiting preview
 
     private func review(_ row: ActivityRow) -> some View {
         // waiting only while the app can apply it; an older preview is what it found
-        HStack(spacing: Tokens.Space.xl) {
-            Image(systemName: row.needsReview ? "eye.fill" : "arrow.clockwise")
-                .foregroundStyle(row.needsReview ? Tokens.Status.caution.tint : .secondary)
-            Text(row.needsReview
-                 ? "This preview found something and nothing has been changed yet. Review it, untick anything you want kept, then apply."
-                 : "This preview found something, but it can't be applied as it stands: it is older than \(Int(JobStore.reviewWindow / 60)) minutes, or it was discarded, or it wasn't started from this app. Preview again to see what would be cleaned now.")
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: Tokens.Space.xl)
-            if let target = row.reviewTarget {
-                Button(row.needsReview ? "Review and Apply" : "Preview Again") { navigator.open(target: target) }
-                    .buttonStyle(.glassProminent)
+        GroupBox {
+            HStack(spacing: Tokens.Space.xl) {
+                Image(systemName: row.needsReview ? "eye.fill" : "arrow.clockwise")
+                    .foregroundStyle(row.needsReview ? Tokens.Status.caution.tint : .secondary)
+                Text(row.needsReview
+                     ? "This preview found something and nothing has been changed yet. Review it, untick anything you want kept, then apply."
+                     : "This preview found something, but it can't be applied as it stands: it is older than \(Int(JobStore.reviewWindow / 60)) minutes, or it was discarded, or it wasn't started from this app. Preview again to see what would be cleaned now.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let target = row.reviewTarget {
+                    Button(row.needsReview ? "Review and Apply" : Names.Review.previewAgain) { navigator.open(target: target) }
+                        .buttonStyle(.glassProminent)
+                }
             }
         }
-        .padding(Tokens.Space.xl)
-        .background((row.needsReview ? Tokens.Status.caution.softFill : Color.primary.opacity(0.06)),
-                    in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
     }
 
     /// A finished job whose own block the log did not hold: nothing here may be
@@ -162,18 +133,17 @@ struct ActivityInspector: View {
     }
 
     private func lostResults(_ row: ActivityRow, reason: String?) -> some View {
-        HStack(spacing: Tokens.Space.xl) {
-            Image(systemName: "questionmark.circle").foregroundStyle(.secondary)
-            Text("This run finished, but \(Self.lostSentence(reason)) Nothing from it is shown or can be applied. Preview again to see what would be cleaned now.")
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: Tokens.Space.xl)
-            if let target = row.reviewTarget {
-                Button("Preview Again") { navigator.open(target: target) }
-                    .buttonStyle(.glassProminent)
+        GroupBox {
+            HStack(spacing: Tokens.Space.xl) {
+                Image(systemName: "questionmark.circle").foregroundStyle(.secondary)
+                Text("This run finished, but \(Self.lostSentence(reason)) Nothing from it is shown or can be applied. Preview again to see what would be cleaned now.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let target = row.reviewTarget {
+                    Button(Names.Review.previewAgain) { navigator.open(target: target) }
+                        .buttonStyle(.glassProminent)
+                }
             }
         }
-        .padding(Tokens.Space.xl)
-        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
     }
 
     /// The kernel's reason a run's results are not shown, as the tail of a sentence.
@@ -184,7 +154,60 @@ struct ActivityInspector: View {
         }
     }
 
-    // MARK: - outcome
+    // MARK: - the results
+
+    @ViewBuilder private func results(_ row: ActivityRow, live: Job?, sections: [ActivityOutcome.Section],
+                                      current: RunTab) -> some View {
+        if let live, live.isActive {
+            running(live).padding([.horizontal, .bottom])
+        } else if let slot = SectionRegistry.runResults(for: row) {
+            slot(row)
+        } else if let section = sections.first(where: { RunTab(section: $0) == current }) {
+            RunResultsDefault(section: section, screen: "run.\(row.kind?.rawValue ?? row.log?.rawValue ?? "other")").id(section.id)
+        } else if outcome == nil {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ContentUnavailableView("No Details Were Recorded", systemImage: "text.alignleft",
+                                   description: Text("Show Raw Output has the text this run left."))
+        }
+    }
+
+    /// The step line, Stop and the quit note sit on the screen; the output below them is the one boxed thing
+    /// (`LiveOutputView`'s own `GroupBox`), not a card inside a card.
+    private func running(_ job: Job) -> some View {
+        VStack(alignment: .leading) {
+            HStack {
+                ProgressView().controlSize(.small)
+                Text(job.step ?? "Working…").font(Tokens.Typography.rowTitleKey)
+                Spacer()
+                Button("Stop", role: .destructive) { job.cancel() }
+            }
+            Text("If you quit Mac Analyzers while this runs, you will be asked whether to stop it or let it finish in the background.")
+                .font(Tokens.Typography.caption)
+                .foregroundStyle(.secondary)
+            LiveOutputView(job: job)
+        }
+    }
+
+    // MARK: - actions
+
+    @ToolbarContentBuilder private func actions(_ row: ActivityRow, live: Job?) -> some ToolbarContent {
+        ToolbarItemGroup {
+            if let target = row.ownerTarget {
+                Button("Open \(row.title)", systemImage: "arrow.up.forward.square") { navigator.open(target: target) }
+            }
+            Button("Copy Details", systemImage: "doc.on.doc") {
+                ActivityDetails.copy(row, lines: live?.lines ?? model.lines(for: row))
+            }
+            if (live != nil || !model.lines(for: row).isEmpty), !(live?.isActive ?? false) {
+                Button("Show Raw Output", systemImage: "text.alignleft") {
+                    RunRowActions(store: store, navigator: navigator, model: model).showRaw(row)
+                }
+            }
+        }
+    }
+
+    // MARK: - loading the outcome
 
     private func loadKey(_ row: ActivityRow, live: Job?) -> String {
         "\(row.id)|\(JobStamp(live).stage.map { String($0.rawValue) } ?? "-")|\(model.rows.count)"
@@ -197,7 +220,7 @@ struct ActivityInspector: View {
         let chosenRun: LogRun?
         if let live, case .succeeded(let finished) = live.state {
             // this job's own block was not in the log: nothing here is its result
-            if case .newestFallback = finished.match { outcome = nil; return }
+            if case .newestFallback = finished.match { outcome = ActivityOutcome(sections: []); return }
             known = finished.parsed
             chosenRun = finished.run
         } else if let logged = model.logRun(for: row) {
@@ -205,7 +228,7 @@ struct ActivityInspector: View {
             // the oldest block in the log's window may be cut off by it: read that one whole
             chosenRun = model.cutByWindow(logged, of: row) ? await Self.wholeRun(of: logged, in: log) : logged
         } else {
-            outcome = nil
+            outcome = ActivityOutcome(sections: [])
             return
         }
         outcome = await Task.detached(priority: .userInitiated) {
@@ -226,34 +249,6 @@ struct ActivityInspector: View {
         if case .block(let block) = found { return LogRun(id: run.id, header: run.header, lines: block.lines) }
         return run
     }
-
-    // MARK: - actions
-
-    private func actions(_ row: ActivityRow, live: Job?) -> some View {
-        HStack {
-            if let target = row.ownerTarget {
-                Button("Open \(row.title)") { navigator.open(target: target) }
-            }
-            Button("Copy Details") { ActivityDetails.copy(row, lines: live?.lines ?? model.lines(for: row)) }
-            Spacer(minLength: 0)
-        }
-    }
-
-    // MARK: - raw output
-
-    @ViewBuilder private func rawOutput(_ row: ActivityRow, live: Job?) -> some View {
-        let lines = live?.lines ?? model.lines(for: row)
-        if live != nil || !lines.isEmpty, !(live?.isActive ?? false) {
-            DisclosureGroup("Show Raw Output", isExpanded: $showRaw) {
-                Group {
-                    if let live { LiveOutputView(job: live) } else { RunLinesView(lines: lines) }
-                }
-                .frame(height: 320)
-                .padding(.top, Tokens.Space.s)
-            }
-            .font(Tokens.Typography.rowTitleKey)
-        }
-    }
 }
 
 private func isNone(_ parsed: JobOutcome.Parsed?) -> Bool {
@@ -265,91 +260,11 @@ private extension Job.State {
     var isQueuedOnly: Bool { if case .queued = self { true } else { false } }
 }
 
-// MARK: - the outcome as a list
-
-/// What a run freed, found or left alone: typed rows, never log lines.
-struct OutcomeList: View {
-    let outcome: ActivityOutcome
-    /// Only a preview still waiting for review uses the orange review eye; an older
-    /// one lists what it found under a plain magnifier.
-    var waitingForReview = true
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.xxl) {
-            ForEach(outcome.sections) { section in
-                VStack(alignment: .leading, spacing: Tokens.Space.s) {
-                    HStack(spacing: Tokens.Space.s) {
-                        Image(systemName: symbol(section.tone))
-                            .foregroundStyle(tint(section.tone))
-                        Text(section.title).font(Tokens.Typography.sectionTitle)
-                        Text("\(section.items.count + section.hidden)")
-                            .font(Tokens.Typography.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(section.items) { item in
-                            row(item)
-                            if item.id != section.items.last?.id || section.hidden > 0 { Divider() }
-                        }
-                        if section.hidden > 0 {
-                            Text("and \(section.hidden) more")
-                                .font(Tokens.Typography.caption)
-                                .foregroundStyle(.secondary)
-                                .padding(.vertical, Tokens.Space.m)
-                                .padding(.horizontal, Tokens.Space.xl)
-                        }
-                    }
-                    .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
-                }
-            }
-        }
-    }
-
-    private func row(_ item: ActivityOutcome.Item) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.xl) {
-            VStack(alignment: .leading, spacing: Tokens.Space.hair) {
-                Text(item.title).font(Tokens.Typography.rowTitle).lineLimit(1).truncationMode(.middle)
-                if let detail = item.detail {
-                    Text(detail).font(Tokens.Typography.caption).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.middle)
-                }
-            }
-            Spacer(minLength: Tokens.Space.xl)
-            if let trailing = item.trailing {
-                Text(trailing).font(Tokens.Typography.value).foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, Tokens.Space.m)
-        .padding(.horizontal, Tokens.Space.xl)
-        .help(item.detail ?? item.title)
-    }
-
-    private func symbol(_ tone: ActivityOutcome.Tone) -> String {
-        switch tone {
-        case .done: "checkmark.circle.fill"
-        case .found: waitingForReview ? "eye.fill" : "magnifyingglass"
-        case .alert: "exclamationmark.circle.fill"
-        case .skipped: "minus.circle.fill"
-        case .failed: "exclamationmark.triangle.fill"
-        case .info: "info.circle.fill"
-        }
-    }
-
-    private func tint(_ tone: ActivityOutcome.Tone) -> Color {
-        switch tone {
-        case .done: Tokens.Status.safe.tint
-        case .found: waitingForReview ? Tokens.Status.caution.tint : Tokens.Status.inert.tint
-        case .alert: Tokens.Status.caution.tint
-        case .skipped: Tokens.Status.inert.tint
-        case .failed: Tokens.Status.destructive.tint
-        case .info: Tokens.Status.preview.tint
-        }
-    }
-}
-
 /// A finished run's lines from its log, monospaced like live output.
 struct RunLinesView: View {
     let lines: [String]
+    /// Opens at the newest line (raw output); a run's own lines keep their top.
+    var anchorBottom = false
 
     var body: some View {
         if lines.isEmpty {
@@ -358,6 +273,9 @@ struct RunLinesView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
         } else {
+            // Full-screen lines: a plain scroll view with the screen's own margin. A box that fills the whole
+            // screen is not a box (`LiveOutputView` keeps its `GroupBox`: there the output sits under other
+            // content and the box marks it).
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
@@ -368,9 +286,9 @@ struct RunLinesView: View {
                             .textSelection(.enabled)
                     }
                 }
-                .padding(Tokens.Space.m)
+                .padding()
             }
-            .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.tile))
+            .defaultScrollAnchor(anchorBottom ? .bottom : .top)
         }
     }
 }

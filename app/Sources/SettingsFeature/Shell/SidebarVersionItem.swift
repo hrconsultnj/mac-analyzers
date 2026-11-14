@@ -12,42 +12,24 @@ struct SidebarVersionItem: View {
         Button {
             navigator.select(AppGroup.updates)
         } label: {
-            // Two arrangements, the first that fits: name and version on the
-            // left with the state on the right; or, in a narrow sidebar, the
-            // state on its own line underneath. Nothing is ever cut off — a
-            // line that still does not fit wraps instead of ending in "…".
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 8) {
-                    identity
-                    Spacer(minLength: 4)
-                    stateLabel
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    identity
-                    stateLabel
-                }
+            // One arrangement in every state: the name, the version and, when there is
+            // one, the state, each on its own line. The sidebar is narrow and a state
+            // such as "Update Available" does not fit beside the version, so it has the
+            // whole row to itself and never wraps.
+            VStack(alignment: .leading) {
+                Text(Names.app).font(.subheadline.weight(.semibold))
+                Text(updates.build.sidebarText).font(.caption).foregroundStyle(.secondary)
+                stateLabel
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding()
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .background(.bar)
-        .help("Open \(Names.Screen.updates)")
+        .help("Open \(Names.Screen.updates) · \(updates.build.versionText)")
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens \(Names.Screen.updates)")
-    }
-
-    private var identity: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(Names.app)
-                .font(.callout.weight(.semibold))
-            Text(updates.build.sidebarText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder private var stateLabel: some View {
@@ -55,22 +37,17 @@ struct SidebarVersionItem: View {
             Label(state.text, systemImage: state.symbol)
                 .font(.caption)
                 .foregroundStyle(state.tint)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     /// Nothing until a check has answered: an app that cannot reach the
     /// network says only its version rather than claiming to be current.
     private var state: (text: String, symbol: String, tint: Color)? {
-        if updates.isAvailable {
-            return (Names.State.updateAvailable, "arrow.down.circle.fill", .orange)
+        switch updates.summary {
+        case .updateAvailable?: return (Names.State.updateAvailable, "arrow.down.circle.fill", .orange)
+        case .developmentBuild?: return (Names.State.developmentBuild, "hammer.fill", .blue)
+        case .upToDate?: return (Names.State.upToDate, "checkmark.circle.fill", .secondary)
+        case nil: return nil
         }
-        if updates.build.isDevelopment {
-            return (Names.State.developmentBuild, "hammer.fill", .blue)
-        }
-        if updates.latest != nil {
-            return (Names.State.upToDate, "checkmark.circle.fill", .secondary)
-        }
-        return nil
     }
 }

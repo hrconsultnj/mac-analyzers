@@ -2,6 +2,7 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
+/// One process's whole guard timeline over one period, as a table.
 struct OffenderDetailView: View {
     let name: String
     let period: TrendsModel.Period
@@ -9,56 +10,25 @@ struct OffenderDetailView: View {
     @State private var timeline: OffenderTimeline?
 
     var body: some View {
-        PaneScaffold(symbol: "flame.fill", color: .orange, title: name,
-                     caption: "Full event timeline in the \(period.label.lowercased()) window.") {
+        Group {
             if let timeline {
-                Section {
-                    statRow(timeline)
-                }
-                Section {
-                    if timeline.events.isEmpty {
-                        Text("No events in this window.")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(timeline.events) { event in
-                        DataCard(symbol: event.symbol, color: event.tint,
-                                 title: event.title,
-                                 subtitle: eventSubtitleWithTime(event),
-                                 trailing: event.residentText,
-                                 badge: event.badge,
-                                 live: event.isProcessStillRunning)
-                    }
-                }
+                TrendsEventTable(rows: OverviewModel.eventRows(timeline.events, limit: Int.max),
+                                 emptyTitle: "No Events")
+            } else {
+                ProgressView()
             }
         }
+        .navigationTitle(name)
+        .navigationSubtitle(subtitle)
         .task {
-            let window = period
-            let processName = name
+            let window = period, processName = name
             await awaitLoad({ TrendsModel.offenderTimeline(name: processName, period: window) }) { timeline = $0 }
         }
     }
 
-    private func statRow(_ t: OffenderTimeline) -> some View {
-        HStack(spacing: 10) {
-            statTile("\(t.eventCount)", "Events", .blue)
-            statTile("\(t.killCount)", "Kills", .red)
-            statTile(t.peakResidentMB > 0 ? formatMB(t.peakResidentMB) : "—", "Peak Resident", .purple)
-        }
-        .padding(.vertical, 2)
-    }
-
-    private func statTile(_ value: String, _ label: String, _ color: Color) -> some View {
-        VStack(spacing: 3) {
-            Text(value)
-                .font(.title3.weight(.semibold).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.tile))
+    private var subtitle: String {
+        guard let t = timeline else { return period.label }
+        let peak = t.peakResidentMB > 0 ? ", peak \(formatMB(t.peakResidentMB))" : ""
+        return "\(t.eventCount) \(t.eventCount == 1 ? "event" : "events"), \(t.killCount) stopped\(peak)"
     }
 }

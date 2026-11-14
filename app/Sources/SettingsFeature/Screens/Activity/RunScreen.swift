@@ -16,7 +16,7 @@ struct RunScreen: View {
     init(newestIn log: EngineLog?) { subject = .newest(log) }
 
     @Environment(JobStore.self) private var store
-    @State private var model = ActivityModel()
+    private var model: ActivityModel { .shared }
 
     private var row: ActivityRow? {
         switch subject {
@@ -41,7 +41,7 @@ struct RunScreen: View {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .navigationTitle(row?.displayTitle ?? "Run")
-        .task { await model.refresh(store: store) }
+        .navigationTitle(row?.title ?? "Run")
+        .task { await model.refreshIfNeeded(store: store) }
     }
 }

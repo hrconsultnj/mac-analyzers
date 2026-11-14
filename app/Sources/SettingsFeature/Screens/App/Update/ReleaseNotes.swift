@@ -1,4 +1,6 @@
+import os
 import SwiftUI
+import AnalyzersKit
 import UIComponents
 
 /// One release's What's New entry, from the changelog bundled with the app
@@ -30,11 +32,26 @@ struct ReleaseNote: Identifiable {
     /// A build ahead of the last release (`includeNext`) starts with what is in
     /// it and not yet released: the changelog's "## Next" section.
     static func bundled(includeNext: Bool = false) -> [ReleaseNote] {
-        // MA_CHANGELOG: a development run with no bundle (SnapshotRunner) names the file.
-        let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md")
-            ?? ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fileURLWithPath: $0) }
+        let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md") ?? developmentFile.withLock { $0 }
         guard let url, let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         return parse(text, includeNext: includeNext)
+    }
+
+    /// The changelog for a run that has no bundle (SnapshotRunner), named through
+    /// `DeepLinkRouter.installFixtures(changelog:)`. The app people install always has the
+    /// bundled file and nothing in it sets this: it reads no environment variable.
+    private static let developmentFile = OSAllocatedUnfairLock<URL?>(initialState: nil)
+    static func useDevelopmentFile(_ url: URL?) { developmentFile.withLock { $0 = url } }
+
+    /// The notes for a channel: Releases as always; Beta and This Copy start with the "## Next" section of the
+    /// changelog they follow (what is on development, what is in the clone), then the bundled releases.
+    static func channelNotes(channel: UpdateChannel, changelog: String?, includeNext: Bool) -> [ReleaseNote] {
+        let released = bundled(includeNext: includeNext)
+        guard channel != .releases, let changelog,
+              let next = parse(changelog, includeNext: true).first(where: { $0.title == unreleasedTitle })
+        else { return released }
+        let title = channel == .beta ? "On Development — Not Yet Released" : "In Your Clone — Not Yet Released"
+        return [ReleaseNote(title: title, blocks: next.blocks)] + released.filter { $0.title != unreleasedTitle }
     }
 
     /// What the unreleased section is called on screen.

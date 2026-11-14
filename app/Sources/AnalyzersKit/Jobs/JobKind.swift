@@ -89,7 +89,10 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .tempClean, .eject: .tempSpace
         case .spotlight: .spotlightAudit
         case .loginItems: .loginItems
-        case .tmReclaim, .unusedApps, .recordings, .networkSnapshot, .memoryReport, .storageReport,
+        case .unusedApps: .cleanupApps
+        case .recordings: .cleanupRecordings
+        case .tmReclaim: .tmReclaim
+        case .networkSnapshot, .memoryReport, .storageReport,
              .installAgents, .uninstallAgents, .sudoersInstall: nil
         }
     }
@@ -166,17 +169,14 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
     /// The cleaners that take NO list, each with the reason (turn one on by moving
     /// it into the switch below once its script accepts the flag, and add a case
     /// to `--probe-review-rules`):
-    ///  - `loginItems`: `login-items-audit.sh` takes `--apply` and `--dry-run` only
-    ///    on this branch; it removes the leftovers it finds itself.
     ///  - `spotlight`: `spotlight-audit.sh` fences every unfenced folder under its
     ///    roots; one folder at a time is done by the app writing the marker file.
     ///  - `tmReclaim`: `tm-reclaim.sh` thins snapshots; there are no rows to list.
-    ///  - `unusedApps`, `recordings`: `cleanup.sh` has no list flag.
     public var approvalFlag: String? {
         switch self {
         case .memoryClean, .reclaim: "--only-pids"
-        case .storageClean, .janitor, .tempClean: "--only-paths"
-        case .loginItems, .spotlight, .tmReclaim, .unusedApps, .recordings: nil
+        case .storageClean, .janitor, .tempClean, .loginItems, .unusedApps, .recordings: "--only-paths"
+        case .spotlight, .tmReclaim: nil
         case .networkSnapshot, .memoryReport, .storageReport, .installAgents, .uninstallAgents,
              .sudoersInstall, .eject: nil     // not cleaners: no apply
         }
@@ -184,9 +184,9 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
 
     /// Whether the kind's script takes the reviewed list (`--only-pids` or
     /// `--only-paths`). Those apply only what is in it. The others cannot:
-    /// Spotlight's audit fences every unfenced folder under its roots, the login
-    /// items audit, `tm-reclaim.sh` and `cleanup.sh` (unused apps, recordings)
-    /// have no list flag, so for them the reviewed preview is the only gate.
+    /// Spotlight's audit fences every unfenced folder under its roots, and
+    /// `tm-reclaim.sh` has no list flag, so for them the reviewed preview is
+    /// the only gate.
     public var takesReviewedList: Bool { approvalFlag != nil }
 
     // MARK: - arguments
@@ -195,6 +195,8 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .storageClean: options.deep ? ["--mode", "deep", "--prune-snapshots"] : []
         case .tempClean: options.permanent ? ["--permanent"] : []
+        case .memoryClean: options.includeBusyOrphans ? ["--orphans-all"] : []
+        case .reclaim: options.alsoQuit.isEmpty ? [] : ["--apps-list", options.alsoQuit.joined(separator: "\n")]
         default: []
         }
     }
@@ -224,16 +226,17 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .memoryClean, .reclaim, .storageClean, .janitor, .tempClean:
             return ["--apply"] + modeArgs(options) + approval
-        case .spotlight, .loginItems:
+        case .loginItems:
+            return ["--apply"] + approval
+        case .spotlight:
             return ["--apply"]
         case .tmReclaim:
-            // tm-reclaim.sh acts without a flag today (its dry run is
-            // `--dry-run`); when it gains `--apply` this is the one line to change.
-            return []
+            // looks first (`--dry-run`, the default) and acts only with `--apply`; no list: there is one thing to do
+            return ["--apply"] + (options.startBackup ? [] : ["--no-backup"])
         case .unusedApps:
-            return ["--stale-apps", "--execute", "--yes"]
+            return ["--stale-apps", "--execute", "--yes"] + approval
         case .recordings:
-            return ["--recordings-older-than", String(options.recordingsDays), "--execute", "--yes"]
+            return ["--recordings-older-than", String(options.recordingsDays), "--execute", "--yes"] + approval
         default:
             throw JobKindError.unsupported(self, .apply)
         }

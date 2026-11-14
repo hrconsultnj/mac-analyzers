@@ -1,5 +1,5 @@
 import Foundation
-import AnalyzersKit
+@_spi(TestSupport) import AnalyzersKit
 
 // `agent-runner --probe-run-matcher` proves how a job's own block is found in a
 // log, against stand-in logs written to a temporary folder (the real logs are
@@ -29,9 +29,7 @@ private func describe(_ outcome: JobOutcome) -> String {
 }
 
 func probeRunMatcher() -> Never {
-    let dir = FileManager.default.temporaryDirectory.appending(path: "ma-probe-run-matcher-\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: dir) }
+    let dir = ProbeScratch.folder("ma-probe-run-matcher")
     var failures = 0
     func check(_ name: String, _ ok: Bool, _ detail: String) {
         if !ok { failures += 1 }
@@ -59,6 +57,54 @@ func probeRunMatcher() -> Never {
         check("\(label) run (\(size / 1024) KB log)", isExact && parsedItems(outcome) == items,
               "\(describe(outcome)) in \(took)")
     }
+    // the list of runs (Activity reads the last 256 KB of a log) sees a run bigger than that under ITS OWN banner, with its
+    // lines whole: the window starts at the banner of the run it falls in. Before, the newest run was listed under one of
+    // its own file lines (a Downloads preview of 6,154 items, 600 KB), started at the log's last write, and its screen
+    // looked for a banner that did not exist and said "Details Weren't Kept".
+    for items in [1_000, 6_154, 12_000] {
+        // as the engine writes it: a rule line above each banner
+        let rule = String(repeating: "=", count: 64) + "\n"
+        let url = write("listed-\(items).log", rule + old + rule + block(banner: banner, items: items))
+        let runs = LogParser.runs(at: url)
+        let first = runs.first
+        let isBanner = first.map { RunMatcher.banner(in: $0.header) != nil && $0.header.hasPrefix(banner) } ?? false
+        check("a run of \(items) items is listed under its banner, whole", isBanner && (first?.lines.count ?? 0) >= items,
+              "\(runs.count) runs, header \"\(first?.header.prefix(70) ?? "none")\", \(first?.lines.count ?? 0) lines")
+        if case .block(let found) = WholeRun.find(banner: first?.header.components(separatedBy: " · ").first ?? "", in: url) {
+            check("and its own screen finds that banner and holds every item (\(items))", found.lines.filter { $0.hasPrefix("[DRY]") }.count == items, "\(found.lines.count) lines")
+        } else { check("and its own screen finds that banner (\(items))", false, "not found") }
+    }
+    // ONE grouping of a log into runs, for every reader (Activity's list and the whole-log readers that Trends and Undo's dates use):
+    // two janitor runs back to back (a rule, the banner, the body, no rule between banner and body) are two runs in both, each
+    // with its own banner, and over logs of both shapes the two readers agree run for run
+    do {
+        let rule = String(repeating: "=", count: 64) + "\n"
+        let first = "2026-11-10 17:06 | downloads janitor | DRY RUN | downloads>60d screenshots>60d"
+        let second = "2026-11-10 17:11 | downloads janitor | DRY RUN | downloads>60d screenshots>60d"
+        let back = rule + block(banner: first, items: 3) + rule + block(banner: second, items: 4)
+        let url = write("back-to-back.log", back)
+        let list = LogParser.runs(at: url), whole = LogParser.allRuns(at: url)
+        check("two janitor runs back to back are two runs in the list", list.count == 2 && list[0].header.hasPrefix(second) && list[1].header.hasPrefix(first),
+              "\(list.map { String($0.header.prefix(16)) })")
+        check("and two runs in the whole-log reader, with their own banners and lines", whole.count == 2 && whole[0].header == list[0].header && whole[1].header == list[1].header
+              && whole[0].lines.count == list[0].lines.count && whole[0].lines.filter { $0.hasPrefix("[DRY]") }.count == 4,
+              "\(whole.map { "\($0.header.prefix(16)) \($0.lines.count)" })")
+        let mixed = rule + "input: x | y\n" + rule + block(banner: first, items: 2) + rule + block(banner: second, items: 5) + rule
+            + "2026-11-10 18:00 | downloads janitor | APPLY | x\n" + rule + "[TRASHED] 1 KB  /a  ->  /b\n"
+        let mixedURL = write("mixed-shapes.log", mixed)
+        let a = LogParser.runs(at: mixedURL).map { "\($0.header)|\($0.lines.count)" }, b = LogParser.allRuns(at: mixedURL).map { "\($0.header)|\($0.lines.count)" }
+        check("over a log of both shapes the list and the whole-log reader agree run for run", a == b && !a.isEmpty, "\(a.count) vs \(b.count)")
+    }
+    // an event log (the guard's: no rule lines anywhere) is not read backwards in full to find that out
+    do {
+        var text = ""
+        for index in 0..<300_000 { text += "2026-11-1\(index % 9) 10:\(String(format: "%02d", index % 60)):00  [guard] stopped something \(index)\n" }
+        let url = write("event-style.log", text)
+        let started = ContinuousClock.now
+        let list = LogParser.runs(at: url)
+        let took = started.duration(to: .now)
+        check("a log with no banners is listed without reading it backwards in full (\(text.utf8.count / 1024) KB)", !list.isEmpty && took < .milliseconds(100), "\(list.count) groups in \(took)")
+    }
     // beyond the reach: 33 MB of one run
     let giant = dir.appending(path: "giant.log")
     FileManager.default.createFile(atPath: giant.path, contents: nil)
@@ -70,10 +116,12 @@ func probeRunMatcher() -> Never {
         try? handle.close()
     }
     let giantSize = (try? FileManager.default.attributesOfItem(atPath: giant.path)[.size] as? Int) ?? 0
+    let giantStarted = ContinuousClock.now
     let huge = RunMatcher.outcome(kind: .janitor, in: giant, header: banner, startedAt: began)
+    let giantTook = giantStarted.duration(to: .now)
     var tooLarge = false
     if case .newestFallback(let reason) = huge.match { tooLarge = reason == RunMatcher.Reason.tooLarge }
-    check("run beyond the reach (\(giantSize / 1_048_576) MB log)", tooLarge, "\(describe(huge))")
+    check("run beyond the reach (\(giantSize / 1_048_576) MB log)", tooLarge, "\(describe(huge)) in \(giantTook)")
 
     print("\nthe ordinary case (a small run at the end of a 3 MB log):")
     func ordinary(_ banner: String, items: Int) -> String {
@@ -172,6 +220,121 @@ func probeRunMatcher() -> Never {
     stop.set()
     check("100 reads while a writer appends: every one found the whole run, none mis-matched",
           wrong == 0 && seen == 100, "\(seen) found, \(wrong) wrong")
+
+    // a banner split by a chunk edge: the log is read backwards in chunks of 4096, 8192, 16384 bytes; the banner of
+    // the run being looked for is placed so that each of the first three edges falls at every position in it, from
+    // one byte before it to one byte after it, and it must still be found whole, with its own lines
+    print("\na banner that a chunk edge splits:")
+    let marked = "2026-11-10 22:07 | downloads janitor | DRY RUN | straddle"
+    let markedLength = marked.utf8.count
+    let older = String(repeating: "padding line of an older run\n", count: 3_000)
+    var straddleFailures: [String] = []
+    var straddleCases = 0
+    for edge in [4096, 4096 + 8192, 4096 + 8192 + 16384] {
+        for position in -1...(markedLength + 1) {
+            // `edge` bytes from the end, the chunk edge falls `position` bytes into the banner
+            let tailBytes = edge + position
+            guard tailBytes >= markedLength + 1 else { continue }
+            let body = tailBytes - markedLength - 1            // bytes after the banner line, whole lines of padding
+            let bodyText = body == 0 ? "" : String(repeating: "a", count: body - 1) + "\n"
+            let log = older + marked + "\n" + bodyText
+            let url = write("straddle-\(edge)-\(position).log", log)
+            straddleCases += 1
+            switch WholeRun.find(banner: marked, in: url, firstChunk: 4096) {
+            case .block(let found):
+                let expectLines = body == 0 ? 0 : 1
+                if found.banner != marked || found.lines.count != expectLines || found.offset != UInt64(older.utf8.count) {
+                    straddleFailures.append("edge \(edge) position \(position): banner \(found.banner.prefix(20)), lines \(found.lines.count), offset \(found.offset)")
+                }
+            default:
+                straddleFailures.append("edge \(edge) position \(position): not found")
+            }
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+    check("the banner is found whole when a chunk edge falls anywhere in it (\(straddleCases) cases, 3 edges)",
+          straddleFailures.isEmpty && straddleCases > 150, straddleFailures.prefix(3).joined(separator: "; "))
+
+    // a last line a writer has not finished: it is never part of the newest block, whatever its length
+    // (1 byte, exactly the first chunk, one more, and longer than two chunks)
+    print("\nan unfinished last line:")
+    func linesOf(_ url: URL) -> Int {
+        if case .block(let found) = WholeRun.find(banner: marked, in: url, firstChunk: 4096) { return found.lines.count }
+        return -1
+    }
+    let finished = linesOf(write("finished.log", block(banner: marked, items: 3)))
+    for length in [1, 4096, 4097, 9000, 13_000] {
+        let log = block(banner: marked, items: 3) + String(repeating: "x", count: length)
+        let url = write("unfinished-\(length).log", log)
+        var linesFound = -1
+        var tail = ""
+        if case .block(let found) = WholeRun.find(banner: marked, in: url, firstChunk: 4096) {
+            linesFound = found.lines.count
+            tail = found.lines.last ?? ""
+        }
+        check("an unfinished last line of \(length) byte(s) is not in the block", linesFound == finished && finished > 0 && !tail.hasPrefix("xx"),
+              "\(linesFound) lines (\(finished) without it), last begins \"\(tail.prefix(8))\"")
+    }
+
+    // line endings: a log is cut on the byte 0x0A and one 0x0D before it is dropped. Over generated logs with LF endings the
+    // lines and the offsets are exactly what splitting the text on the Character "\n" gave; CRLF and mixed endings give
+    // separate lines; U+2028 and the other separators inside a line leave it whole
+    print("\nline endings:")
+    func oldSplit(_ text: String, base: UInt64) -> (lines: [String], offsets: [UInt64]) {
+        var lines: [String] = []
+        var offsets: [UInt64] = []
+        var position = base
+        for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = raw.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty { lines.append(trimmed); offsets.append(position) }
+            position += UInt64(raw.utf8.count) + 1
+        }
+        return (lines, offsets)
+    }
+    var seed: UInt64 = 0x9E37_79B9_7F4A_7C15
+    func next(_ bound: Int) -> Int {
+        seed = seed &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+        return Int((seed >> 33) % UInt64(bound))
+    }
+    let pieces = ["a", "bc", " ", "\t", "|", "====", "2026-11-10 22:07", "é", "漢字", "🙂", "e\u{301}", "\u{2028}", "\u{2029}", "\u{85}", "\u{0B}", "\u{0C}",
+                  "\r", "\u{200B}", "# group", "[DRY] 4 KB  /p/x", "DRY RUN", "\n", "\n", "\n"]
+    var textDifferences = 0
+    var offsetDifferences = 0
+    var logs = 0
+    var lineCount = 0
+    for _ in 0..<4_000 {
+        var text = ""
+        for _ in 0..<(1 + next(60)) { text += pieces[next(pieces.count)] }
+        text = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "")   // LF logs only
+        let base = UInt64(next(1_000_000))
+        let old = oldSplit(text, base: base)
+        let new = LogLines.split(Data(text.utf8), base: base)
+        logs += 1
+        lineCount += old.lines.count
+        if old.lines != new.lines { textDifferences += 1 }
+        if old.offsets != new.offsets { offsetDifferences += 1 }
+    }
+    check("generated LF logs: the same lines as splitting the text on \"\\n\" (\(logs) logs, \(lineCount) lines)", textDifferences == 0, "\(textDifferences) differ")
+    check("generated LF logs: the same byte offsets", offsetDifferences == 0, "\(offsetDifferences) differ")
+    var invalidDifferences = 0
+    for _ in 0..<2_000 {
+        var bytes = Data()
+        for _ in 0..<(1 + next(80)) { bytes.append(contentsOf: [UInt8(next(256))].map { $0 == 13 ? 32 : $0 }) }
+        let old = oldSplit(String(decoding: bytes, as: UTF8.self), base: 0).lines
+        if old != LogLines.split(bytes).lines { invalidDifferences += 1 }
+    }
+    check("generated bytes, invalid UTF-8 among them: the same lines", invalidDifferences == 0, "\(invalidDifferences) differ")
+    let crlf = LogLines.split(Data("one\r\ntwo\r\n\r\nthree".utf8))
+    check("CRLF lines are separate lines", crlf.lines == ["one", "two", "three"], "\(crlf.lines)")
+    let mixed = LogLines.split(Data("a\nb\r\nc\n\r\nd\re\n".utf8))
+    check("mixed endings: each line separate; a lone CR stays in its line", mixed.lines == ["a", "b", "c", "d\re"], "\(mixed.lines)")
+    let crlfOffsets = LogLines.split(Data("one\r\ntwo\r\nthree".utf8), base: 100)
+    check("CRLF offsets count the carriage return", crlfOffsets.offsets == [100, 105, 110], "\(crlfOffsets.offsets)")
+    let separators = LogLines.split(Data("name with\u{2028}a line separator\nnext\u{85}one\n".utf8))
+    check("U+2028 and U+0085 inside a line leave it whole", separators.lines == ["name with\u{2028}a line separator", "next\u{85}one"], "\(separators.lines)")
+    let crlfLog = write("crlf.log", block(banner: marked, items: 3).replacingOccurrences(of: "\n", with: "\r\n"))
+    let crlfLines = linesOf(crlfLog)
+    check("a banner is found in a log with CRLF endings, with the same lines as with LF", crlfLines == finished && finished > 0, "\(crlfLines) lines, \(finished) with LF")
 
     print(failures == 0 ? "\nall hold" : "\n\(failures) FAILED")
     exit(failures == 0 ? 0 : 1)

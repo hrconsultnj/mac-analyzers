@@ -11,6 +11,9 @@ import Foundation
 
 let args = Array(CommandLine.arguments.dropFirst())
 
+// a probe that judges itself runs in a throwaway home, never in the person's (see ProbeSandbox.swift)
+if let first = args.first, ProbeSandbox.names.contains(first) { ProbeSandbox.enter(first) }
+
 // `agent-runner --probe-setup` prints the same checklist the Setup screen
 // shows, as plain text. Support can ask for its output, and it is the only
 // way to see the verdicts on a Mac you cannot click through.
@@ -23,6 +26,7 @@ if args.first == "--probe-setup" {
         loginItem: SetupCheck(id: "login", title: "Opens at login",
                               why: "", verdict: .unset,
                               detail: "not queryable outside the app"))
+    print("version: \(BuildInfo.current.versionText)")
     print("engine: \(engine.summary)  root: \(AnalyzersPaths.suiteRoot.path)")
     print("bundled: \(AnalyzersPaths.usingBundledEngine)")
     for check in report.checks {
@@ -43,10 +47,22 @@ if args.first == "--probe-setup" {
 // the menu footer and What's New will say for THIS copy, read from its own
 // Info.plist and bundled changelog — so a development build can be told from a
 // release without opening a window.
+// `agent-runner --build-version <release> <commits after the tag | -> <local changes 0|1|?> <commit | -> [release tag counted from]`
+// prints the version of that build: `app/build.sh` stamps it into the app (MABuildVersion), so the build
+// script and the app build the string in the one place, BuildInfo.
+if args.first == "--build-version", args.count >= 5 {
+    // the third value: 0 clean, 1 uncommitted changes, ? git could not say (the version says .unknown)
+    let build = BuildInfo(release: args[1], commitsAfter: Int(args[2]), localChanges: args[3] == "1",
+                          commit: args[4] == "-" ? nil : args[4], treeHash: args[3] == "?" ? "unknown" : nil,
+                          releaseTag: args.count > 5 && args[5] != "-" ? args[5] : nil)
+    print(build.version)
+    exit(0)
+}
 if args.first == "--probe-build" {
     let build = BuildInfo.current
     print("stamp: release v\(build.release), commits after: \(build.commitsAfter.map(String.init) ?? "none (reads as a release)"), local changes: \(build.localChanges)")
     print("build line:            \(UpdateChecker.installedBuild ?? "(none)")")
+    print("version:               \(build.version)   (short: \(build.shortVersion); stamped: \(Bundle.main.object(forInfoDictionaryKey: "MABuildVersion") as? String ?? "none"))")
     print("Installed Version:     \(build.versionText)")
     if build.isDevelopment {
         print("status line:           \(build.developmentSentence(latest: "\(build.release)"))")
@@ -56,7 +72,7 @@ if args.first == "--probe-build" {
         print("sidebar state:         \(Names.State.upToDate)")
     }
     print("sidebar version:       \(build.sidebarText)")
-    print("menu footer:           \(build.versionText)")
+    print("menu footer:           \(build.shortVersionText)")
     let changelog = Bundle.main.resourceURL?.appending(path: "CHANGELOG.md")
     let text = changelog.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
     let headings = text.split(separator: "\n").filter { $0.hasPrefix("## ") }.prefix(2).map { String($0) }
@@ -64,6 +80,13 @@ if args.first == "--probe-build" {
     print("  (shown first, open: \(build.isDevelopment && headings.first == "## Next" ? "In This Build — Not Yet Released" : "the newest release"))")
     exit(0)
 }
+
+// Overview-track probes (trends totals, undo history, overview rows, menu panel): OverviewProbes.swift.
+if args.first == "--probe-trends" { probeTrends(args) }
+if args.first == "--probe-undo" { probeUndo(args) }
+if args.first == "--probe-overview" { probeOverview(args) }
+if args.first == "--probe-menu" { probeMenu(args) }
+if args.first == "--probe-undo-fixture" { probeUndoFixture(args) }
 
 // `agent-runner --probe-names` prints every name in the central name table
 // (`Names.all`) and checks it against title-style capitalization
@@ -176,6 +199,36 @@ if args.first == "--probe-activity-ids" {
 if args.first == "--probe-failures" {
     await probeFailures()
 }
+// `--probe-storage <caches|downloads|temp|spotlight|disk> [--log <file>]` prints the rows a
+// Storage screen would list, from the newest preview in the real logs. See
+// StorageProbes.swift.
+if args.first == "--probe-storage" {
+    probeStorage(args.count > 1 ? args[1] : "",
+                 logOverride: args.firstIndex(of: "--log").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil })
+}
+// `--probe-storage-apply` proves a tick in a Storage review becomes exactly the
+// `--only-paths` file the engine gets, against a test script. See StorageApplyProbe.swift.
+if args.first == "--probe-storage-apply" {
+    await probeStorageApply()
+}
+// `--probe-storage-setting` judges itself: what a Storage screen shows, asks and sends for every
+// pairing of a preview's setting and the screen's own. See StorageSettingProbe.swift.
+if args.first == "--probe-storage-setting" {
+    await probeStorageSetting()
+}
+if args.first == "--probe-disk-runway" {
+    probeDiskRunway()
+}
+// `--probe-cleanup-parse` runs the real cleanup.sh as a dry run in a throwaway HOME and checks the screens' rows
+// agree with what it printed. See CleanupParseProbe.swift.
+// `--probe-tm` runs the real tm-reclaim.sh against stand-in tmutil/sudo/df and checks what the Time Machine screen
+// reads and what the app sends. See TimeMachineProbe.swift.
+if args.first == "--probe-tm" {
+    await probeTimeMachine()
+}
+if args.first == "--probe-cleanup-parse" {
+    await probeCleanupParse()
+}
 // `--probe-run-matcher` proves how a job's own block is found in a log (very large
 // runs, identical banners, a growing log) against stand-in logs. See RunMatcherProbes.swift.
 if args.first == "--probe-run-matcher" {
@@ -185,13 +238,89 @@ if args.first == "--probe-run-matcher" {
 if args.first == "--probe-activity-log", args.count > 1 {
     probeActivityLog(args[1])
 }
+// `--probe-fence` proves the Spotlight fence marker's rules on folders it makes itself. See FenceProbe.swift.
+if args.first == "--probe-fence" {
+    probeFence()
+}
 // `--probe-review-rules` shows what `apply(from:)` itself refuses; `--probe-quit`
 // shows what each choice of the quit dialog does to the store. See ReviewProbes.swift.
+if args.first == "--probe-review-session" {
+    probeReviewSession()
+}
 if args.first == "--probe-review-rules" {
     await probeReviewRules()
 }
+if args.first == "--probe-login-removal" {
+    await probeLoginRemoval()
+}
 if args.first == "--probe-quit" {
     await probeQuit()
+}
+
+// System screens: `--probe-startup [--file <login-items.tsv>]` (Login & Startup
+// Items), `--probe-startup-changes [--log <persistence.log>]` (its Changes scope),
+// `--probe-network [--log <top-talkers.log>] [--history]` and `--probe-reports
+// [--read <n>]` print what each screen's rows would say. See SystemProbes.swift.
+if args.first == "--probe-startup" { probeStartup(args) }
+if args.first == "--probe-startup-changes" { probeStartupChanges(args) }
+if args.first == "--probe-network" { probeNetwork(args) }
+if args.first == "--probe-reports" { probeReports(args) }
+
+// `--probe-guard-history` prints Memory Guard's history as the screen groups it.
+// See GuardHistoryProbe.swift.
+// `--probe-channels` runs the Beta and This Copy update logic against a throwaway git repository.
+// See ChannelProbes.swift.
+if args.first == "--probe-channels" {
+    probeChannels()
+}
+// `--probe-versions`: the version a build is, how versions compare, and the owner's This Copy flow.
+// See VersionProbes.swift.
+if args.first == "--probe-versions" {
+    await probeVersions()
+}
+if args.first == "--probe-guard-rules" {
+    probeGuardRules()
+}
+if args.first == "--probe-guard-history" {
+    probeGuardHistory(args)
+}
+
+// `--probe-cleanup-review [reclaim]` prints Memory Cleanup's review as the table
+// shows it. See CleanupReviewProbe.swift.
+if args.first == "--probe-cleanup-review" {
+    probeCleanupReview(args)
+}
+
+// `--probe-cleanup-apply` proves what the engine is given when a review is applied.
+if args.first == "--probe-cleanup-apply" {
+    await probeCleanupApply()
+}
+
+// `--probe-monitor` prints Monitor's table; `--probe-stop-targets` what a group
+// Stop offers and the guards behind it. See MonitorProbes.swift.
+if args.first == "--probe-monitor" {
+    probeMonitor()
+}
+// `--probe-memory-kinds` prints each kind of memory's screen as text and judges its rules. See MemoryKindsProbe.swift.
+if args.first == "--probe-memory-kinds" {
+    await probeMemoryKinds()
+}
+// `--probe-kinds [--all]` prints every running group's kind and the guard-pattern parity; `--probe-kinds-fixture`
+// judges the rules on stand-in processes and fails when one breaks. See KindProbes.swift.
+if args.first == "--probe-kinds" { probeKinds(args) }
+if args.first == "--probe-kinds-fixture" { probeKindsFixture(args) }
+if args.first == "--probe-agents" {
+    probeAgents(args)
+}
+if args.first == "--probe-stop-targets" {
+    await probeStopTargets(args)
+}
+// `--probe-panel` prints the panel's Monitor groups and Memory figures as text (PanelProbes.swift).
+if args.first == "--probe-pressure" { await MainActor.run { probePressure() } }
+if args.first == "--probe-panel" { await MainActor.run { probePanel() } }
+// `--probe-panel-stop` proves the menu-bar panel's Quit and Stop go through MemoryStop (PanelStopProbes.swift).
+if args.first == "--probe-panel-stop" {
+    await probePanelStop(args)
 }
 
 // `agent-runner --probe-procargs` proves a process's arguments are read without its

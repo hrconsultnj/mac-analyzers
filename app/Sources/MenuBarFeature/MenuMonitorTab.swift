@@ -3,91 +3,81 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// The Monitor tab: the biggest processes right now.
+/// The Monitor tab: who is using memory, from the same census, names and footprint numbers as Monitor. A small
+/// tab bar picks the category (All, Apps, Tools, macOS: the shared `ScopeTabs`); the groups are rows of the app's
+/// one table for rows that open (`OutlineTable`), each opening to its parts (an app) or its separate programs (a
+/// tool), with Quit, Stop or a lock in a column on the right. One file per job:
+///   MenuMonitorTable.swift   the table and its cells
+///   MenuPanelStopFlow.swift  the confirmation and notices under it
 extension MenuContentView {
 
-    // MARK: - Monitor tab
-
-    /// Mini live monitor: what the guard can see and act on — resident RAM
-    /// across ALL big processes (apps, helpers, dev tools), stoppable per row.
     @ViewBuilder var monitorTab: some View {
-        HStack(spacing: 6) {
-            Image(systemName: pressureSymbol)
-                .foregroundStyle(pressureColor)
-                .font(.caption2)
-                .accessibilityHidden(true)  // decorative — the label text already says the state
-            Text("Pressure: \(store.pressure.label)")
-                .font(.callout)
-                .foregroundStyle(store.pressure == .normal ? .secondary : .primary)
+        HStack {
+            pressureRow
             Spacer()
-            // Activity-Monitor-style update frequency
-            Picker("", selection: $monitorRefresh) {
-                Text("5 s").tag(5)
-                Text("15 s").tag(15)
-                Text("60 s").tag(60)
-                Text("Off").tag(0)
+            Picker("Refresh", selection: $monitorRefresh) {
+                Text("Every 5 Seconds").tag(5)
+                Text("Every 15 Seconds").tag(15)
+                Text("Every Minute").tag(60)
+                Text("Never").tag(0)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
-            .frame(width: 150)
+            .pickerStyle(.menu)
+            .fixedSize()
             .help("How often this list refreshes while open")
         }
-        .task(id: monitorRefresh) {
-            guard monitorRefresh > 0 else { return }
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(Double(monitorRefresh)))
-                store.reload()
-            }
-        }
+        .task(id: monitorRefresh) { await refreshCensus() }
 
-        // same family grouping as the Monitor pane — one row per app,
-        // helpers rolled underneath, expandable in place
-        if !store.monitorGroups.isEmpty {
-            sectionLabel("Processes")
-            ForEach(store.monitorGroups) { group in
-                if group.children.isEmpty {
-                    ProcessRow(proc: group.parent) { store.reload() }
-                } else {
-                    DisclosureGroup {
-                        ProcessRow(proc: group.parent) { store.reload() }
-                        ForEach(group.children) { child in
-                            ProcessRow(proc: child) { store.reload() }
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Group {
-                                if let app = NSRunningApplication(processIdentifier: pid_t(group.parent.pid)),
-                                   let icon = app.icon {
-                                    Image(nsImage: icon).resizable().frame(width: 16, height: 16)
-                                } else {
-                                    IconTile(symbol: "square.stack.3d.up.fill", color: .orange)
-                                }
-                            }
-                            .accessibilityHidden(true)  // decorative — friendlyName below already names it
-                            Text(group.parent.friendlyName)
-                                .font(.callout.weight(.medium))
-                            Text("\(group.children.count) helpers")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer(minLength: 6)
-                            Text(group.totalText)
-                                .font(.callout.monospacedDigit().weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
+        if let panel {
+            ScopeTabs(selection: $monitorScope, items: monitorScopeItems(panel))
+                .controlSize(.small)
+                .scopeTabMemory(key: "panel.monitor", selection: $monitorScope, items: monitorScopeItems(panel))
+            let shown = panel.nodes(in: monitorScope.category)
+            MenuMonitorTable(nodes: shown.nodes, scope: monitorScope, flow: stopFlow,
+                             reload: { Task { await refreshCensus(once: true) } })
+            MenuStopPrompt(flow: stopFlow, reload: { Task { await refreshCensus(once: true) } })
+            if shown.more > 0 {
+                MenuRowButton(action: { SettingsOpener.open(target: monitorScope.category?.monitorLink ?? "monitor") }) {
+                    HStack {
+                        Text("\(shown.more) more in \(Names.Screen.monitor)")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)  // decorative disclosure arrow
                     }
                 }
             }
+        } else {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Reading every process…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
-        if store.monitorGroups.isEmpty {
-            Text("No process is holding more than 256 MB right now.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
+    }
 
-        Text("Sizes show memory in use right now — the same number the guard acts on. Stop sends the same polite quit request Activity Monitor's Quit does.")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+    /// The tabs with the number of groups in each; a category with none is not drawn.
+    private func monitorScopeItems(_ panel: MenuPanelModel) -> [ScopeTabItem<MonitorScope>] {
+        MonitorScope.allCases.compactMap { scope in
+            let count = panel.groupCount(in: scope.category)
+            return scope == .all || count > 0
+                ? ScopeTabItem(value: scope, title: scope.title, symbol: scope.symbol, count: count == 0 ? nil : count) : nil
+        }
+    }
+
+    /// One census, off the main actor, then again every `monitorRefresh`
+    /// seconds while this tab stays open (the task is cancelled when it does not).
+    func refreshCensus(once: Bool = false) async {
+        repeat {
+            let taken = await Task.detached(priority: .userInitiated) {
+                MenuPanelModel(census: MemoryCensus.take())
+            }.value
+            panel = taken
+            guard !once, monitorRefresh > 0 else { return }
+            try? await Task.sleep(for: .seconds(Double(monitorRefresh)))
+        } while !Task.isCancelled && !once
     }
 }
