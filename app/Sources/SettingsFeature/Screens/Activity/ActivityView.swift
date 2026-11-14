@@ -127,16 +127,16 @@ struct ActivityView: View {
             switch filter.scope {
             case .all where filter.query.isEmpty:
                 EmptyState("Nothing Has Run Yet", systemImage: "list.bullet.rectangle",
-                                       description: Text("Cleanups, checks and reports appear here as they run."))
+                           description: Text("Cleanups, checks and reports appear here as they run."))
             case .running:
                 EmptyState("Nothing Is Running", systemImage: "play.circle",
-                                       description: Text("A cleanup or check that is running shows here, with a Stop button."))
+                           description: Text("A cleanup or check that is running shows here, with a Stop button."))
             case .needsReview:
                 EmptyState("Nothing Is Waiting for Review", systemImage: "eye",
-                                       description: Text("A preview you ran in the last \(Int(JobStore.reviewWindow / 60)) minutes that found something shows here until you apply or discard it. Older ones stay in the list as what they found."))
+                           description: Text("A preview you ran in the last \(Int(JobStore.reviewWindow / 60)) minutes that found something shows here until you apply or discard it. Older ones stay in the list as what they found."))
             case .failed:
                 EmptyState("Nothing Has Failed", systemImage: "checkmark.circle",
-                                       description: Text("Runs that could not finish are listed here, with the reason."))
+                           description: Text("Runs that could not finish are listed here, with the reason."))
             default:
                 EmptyState.search(text: filter.query)
             }

@@ -31,7 +31,7 @@ struct ActivityInspector: View {
             screen(for: row)
         } else {
             EmptyState("Select a Run", systemImage: "list.bullet.rectangle",
-                                   description: Text("Pick a run to see what it did."))
+                       description: Text("Pick a run to see what it did."))
         }
     }
 
@@ -168,7 +168,7 @@ struct ActivityInspector: View {
             LoadingState()
         } else {
             EmptyState("No Details Were Recorded", systemImage: "text.alignleft",
-                                   description: Text("Show Raw Output has the text this run left."))
+                       description: Text("Show Raw Output has the text this run left."))
         }
     }
 

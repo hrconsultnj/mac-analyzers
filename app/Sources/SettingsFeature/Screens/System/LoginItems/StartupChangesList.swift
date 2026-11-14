@@ -62,7 +62,7 @@ struct StartupChangesList: View {
         .overlay {
             if changes.isEmpty {
                 EmptyState("No Changes Yet", systemImage: "clock.arrow.circlepath",
-                                       description: Text("Anything that adds itself to startup will be listed here."))
+                           description: Text("Anything that adds itself to startup will be listed here."))
             }
         }
     }

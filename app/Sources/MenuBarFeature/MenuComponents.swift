@@ -28,23 +28,27 @@ struct MenuEventRow: View {
 
     var body: some View {
         MenuRowButton(action: { SettingsOpener.open(target: "log:guardLog") }) {
+            // Two nested rows: the OUTER one centres only the icon on the whole two-line block; the INNER one keeps the
+            // text, the live-state chip and the time on the title's first baseline, where they were.
             HStack(alignment: .center, spacing: 8) {
                 Image(systemName: row.event.symbol)
                     .foregroundStyle(row.event.tint)
                     .accessibilityHidden(true)  // decorative — the title already says what happened
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(row.title).font(.callout)
-                    Text(row.outcome)
-                        .font(.caption)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(row.title).font(.callout)
+                        Text(row.outcome)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    // is this spike or hog still going, or already over?
+                    if let live = row.event.isProcessStillRunning { LiveStateChip(active: live) }
+                    Text(row.when, format: .dateTime.hour().minute())
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
-                .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                // is this spike or hog still going, or already over?
-                if let live = row.event.isProcessStillRunning { LiveStateChip(active: live) }
-                Text(row.when, format: .dateTime.hour().minute())
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
             }
         }
         .help(row.event.raw)

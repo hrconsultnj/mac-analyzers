@@ -113,7 +113,7 @@ struct RawOutputScreen: View {
         } else if let found {
             if found.lines.isEmpty {
                 EmptyState(Names.Raw.noOutput, systemImage: "text.alignleft",
-                                       description: Text("This one has no text to show."))
+                           description: Text("This one has no text to show."))
             } else if matching.isEmpty {
                 EmptyState.search(text: query)
             } else {

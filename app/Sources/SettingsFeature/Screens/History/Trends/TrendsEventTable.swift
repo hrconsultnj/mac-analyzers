@@ -39,7 +39,7 @@ struct TrendsEventTable: View {
     var body: some View {
         if rows.isEmpty {
             EmptyState(emptyTitle, systemImage: "checkmark.circle",
-                                   description: Text("Nothing was recorded in this period."))
+                       description: Text("Nothing was recorded in this period."))
         } else {
             OutlineTable(shown, children: \.children, selection: $selection, sortOrder: $sortOrder,
                          expanded: $open, autosave: "trends.events") {

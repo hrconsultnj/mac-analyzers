@@ -212,7 +212,7 @@ struct MonitorView: View {
         if model.hasLoaded, visibleRows.isEmpty {
             if search.isEmpty {
                 EmptyState(Names.Monitor.nothingInScope, systemImage: "memorychip",
-                                       description: Text("Choose another scope to see more of what is running."))
+                           description: Text("Choose another scope to see more of what is running."))
             } else {
                 EmptyState.search(text: search)
             }

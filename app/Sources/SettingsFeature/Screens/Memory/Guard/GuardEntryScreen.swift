@@ -20,7 +20,7 @@ struct GuardEntryScreen: View {
                 content(for: row)
             } else if loaded {
                 EmptyState(Names.Guard.eventGone, systemImage: "clock.arrow.circlepath",
-                                       description: Text("It has aged out of the log, so there is nothing more to show."))
+                           description: Text("It has aged out of the log, so there is nothing more to show."))
             } else {
                 LoadingState()
             }

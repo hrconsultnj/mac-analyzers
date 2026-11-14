@@ -45,7 +45,7 @@ struct CleanupRunResults: View {
                 CleanupResultsView(review: review, screen: "run.\(row.kind?.rawValue ?? "memoryClean")")
             } else if looked {
                 EmptyState("No Details Were Recorded", systemImage: "text.alignleft",
-                                       description: Text("Show Raw Output has the text this run left."))
+                           description: Text("Show Raw Output has the text this run left."))
             } else {
                 LoadingState()
             }

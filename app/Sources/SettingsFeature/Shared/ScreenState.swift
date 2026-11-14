@@ -40,14 +40,17 @@ extension EmptyState where Label == SwiftUI.Label<Text, Image>, Description == T
     }
 }
 
-/// A screen that is still reading: a spinner, with what it is doing under it when it has something to say and a
-/// button after that when the work can be stopped, centred in the space the screen has.
+/// A screen that is still reading or working: a spinner, with what it is doing under it when it has something to say
+/// (`title`, and a sentence of `detail`) and a button after that when the work can be stopped, centred in the space the
+/// screen has.
 struct LoadingState<Actions: View>: View {
     private let title: String?
+    private let detail: String?
     private let actions: Actions
 
-    init(_ title: String? = nil, @ViewBuilder actions: () -> Actions = { EmptyView() }) {
+    init(_ title: String? = nil, detail: String? = nil, @ViewBuilder actions: () -> Actions = { EmptyView() }) {
         self.title = title
+        self.detail = detail
         self.actions = actions()
     }
 
@@ -55,6 +58,7 @@ struct LoadingState<Actions: View>: View {
         VStack {
             ProgressView()
             if let title { Text(title).foregroundStyle(.secondary) }
+            if let detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
             actions
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

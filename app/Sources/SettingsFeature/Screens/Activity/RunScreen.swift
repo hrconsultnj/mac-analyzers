@@ -36,7 +36,7 @@ struct RunScreen: View {
                 ActivityInspector(row: row, model: model)
             } else if model.hasLoaded {
                 EmptyState("This Run Is No Longer Recorded", systemImage: "questionmark.folder",
-                                       description: Text("The log has moved on since this entry was listed."))
+                           description: Text("The log has moved on since this entry was listed."))
             } else {
                 LoadingState()
             }

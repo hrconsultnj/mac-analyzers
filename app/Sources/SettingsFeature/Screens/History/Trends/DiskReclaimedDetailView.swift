@@ -34,7 +34,7 @@ struct DiskReclaimedDetailView: View {
         Group {
             if loaded && rows.isEmpty {
                 EmptyState("Nothing Removed", systemImage: "internaldrive",
-                                       description: Text("A cleanup has not deleted anything in this period."))
+                           description: Text("A cleanup has not deleted anything in this period."))
             } else {
                 OutlineTable(sorted(rows), children: \.children, selection: $selection, sortOrder: $sortOrder,
                              expanded: open.binding, autosave: "trends.removed") {

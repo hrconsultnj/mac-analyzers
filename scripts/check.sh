@@ -59,7 +59,7 @@ describe() {
     probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids, Undo restore safety, the menu-bar panel's Quit and Stop (agent-runner; macOS only)" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
     outline)   echo "the shared OutlineTable, headless: open all and re-sort with text and with hosted cells log no AppKit reentrancy warning (scripts/outline-probe.sh; macOS only)" ;;
-    states)    echo "no screen draws its own empty, failed or loading state: a bare ContentUnavailableView or screen-state ProgressView outside Shared/ScreenState.swift is refused (scripts/states-refuse.sh; tests/states-refuse-test.sh plants each form)" ;;
+    states)    echo "no screen draws its own empty, failed or loading state: a bare ContentUnavailableView or screen-state ProgressView outside SettingsFeature/Shared/ScreenState.swift is refused, in every target (scripts/states-refuse.sh; tests/states-refuse-test.sh plants each form)" ;;
     app)       echo "swift build of app/ (macOS only; skipped, visibly, elsewhere)" ;;
   esac
 }
@@ -451,7 +451,7 @@ check_outline() {
 
 check_states() {
   if [ ! -x scripts/states-refuse.sh ]; then DETAIL="skipped: no scripts/states-refuse.sh"; return 2; fi
-  scripts/states-refuse.sh app/Sources/SettingsFeature >"$OUT" 2>&1
+  scripts/states-refuse.sh app/Sources >"$OUT" 2>&1
   if [ -s "$OUT" ]; then
     DETAIL="$(wc -l <"$OUT" | tr -d ' ') screen state(s) drawn without EmptyState / LoadingState (Shared/ScreenState.swift)"
     return 1

@@ -28,7 +28,7 @@ struct ReclaimableNowDetailView: View {
         Group {
             if loaded && rows.isEmpty {
                 EmptyState("Nothing to Reclaim", systemImage: "sparkles",
-                                       description: Text("The latest check found nothing a cleanup would remove."))
+                           description: Text("The latest check found nothing a cleanup would remove."))
             } else {
                 OutlineTable(sorted(rows), children: \.children, selection: $selection, sortOrder: $sortOrder,
                              expanded: open.binding, autosave: "trends.reclaimable") {

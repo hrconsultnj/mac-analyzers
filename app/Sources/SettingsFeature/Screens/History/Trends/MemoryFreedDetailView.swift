@@ -24,7 +24,7 @@ struct MemoryFreedDetailView: View {
         Group {
             if loaded && rows.isEmpty {
                 EmptyState("No Memory Freed", systemImage: "memorychip",
-                                       description: Text("Nothing was closed in this period."))
+                           description: Text("Nothing was closed in this period."))
             } else {
                 OutlineTable(rows.sorted(using: sortOrder), children: \.children, selection: $selection,
                              sortOrder: $sortOrder, expanded: $open, autosave: "trends.memoryFreed") {

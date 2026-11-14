@@ -110,7 +110,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
         if let rows = model.rows, let session = model.session {
             if rows.rows.isEmpty {
                 EmptyState("Nothing to Clean", systemImage: "checkmark.circle",
-                                       description: Text("This preview found nothing to remove."))
+                           description: Text("This preview found nothing to remove."))
             } else {
                 ReviewTable(session: session, preview: model.phase == .lastKnown ? nil : model.job,
                             applyTitle: applyTitle, confirmation: confirmation, readOnly: model.phase == .lastKnown,

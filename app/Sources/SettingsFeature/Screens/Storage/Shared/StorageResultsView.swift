@@ -45,7 +45,7 @@ struct StorageResultsView<Category: StorageCategory>: View {
         if let loaded {
             if loaded.rows.rows.isEmpty {
                 EmptyState("Nothing Was Found", systemImage: "checkmark.circle",
-                                       description: Text("This run found nothing to list."))
+                           description: Text("This run found nothing to list."))
             } else {
                 ReviewTable(session: loaded.session, readOnly: true,
                             note: loaded.acted ? nil : "This was a preview: nothing was changed.",
@@ -53,7 +53,7 @@ struct StorageResultsView<Category: StorageCategory>: View {
             }
         } else if finished {
             EmptyState("Details Weren't Kept", systemImage: "text.alignleft",
-                                   description: Text("Show Raw Output has the text this run left."))
+                       description: Text("Show Raw Output has the text this run left."))
         } else {
             LoadingState()
         }
