@@ -477,7 +477,8 @@ guard let script = args.first,
     exit(2)
 }
 // launchd started this for a job: say what the BACKGROUND jobs can read, as they see it, for Setup (BackgroundAccess)
-BackgroundAccess.recordIfDue()
+// at most half a second, at most once per five minutes: a job's start is never held up by this check
+BackgroundAccess.recordIfDue(timeout: 0.5)
 var cArgs: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
 cArgs.append(nil)
 execv(script, &cArgs)   // the kernel honors the script's shebang
