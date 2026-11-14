@@ -33,7 +33,9 @@ public struct WelcomeFlowView: View {
             if let plan = model.plan, let step = model.step {
                 header(plan, step)
                 Divider()
+                // the step's form scrolls inside what is left, so nothing ever sits under the bottom bar
                 content(step)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 Divider()
                 WelcomeBottomBar(position: model.index + 1, count: model.steps.count, isFirst: model.index == 0, isLast: model.index == model.steps.count - 1,
                                  step: step, primary: primaryTitle(step), busy: working,
@@ -95,7 +97,7 @@ public struct WelcomeFlowView: View {
     private func primaryTitle(_ step: WelcomeStep) -> String {
         switch step {
         case .background: model.isSatisfied(.background) ? Names.Welcome.next : Names.Welcome.turnOn
-        case .guardPreview: Names.Welcome.useTheseSettings
+        case .guardPreview: Names.Welcome.next
         case .timeMachine: model.item("timeMachine")?.state == .on ? Names.Welcome.next : Names.Setup.allow
         case .done: Names.Welcome.openMacAnalyzers
         default: Names.Welcome.next

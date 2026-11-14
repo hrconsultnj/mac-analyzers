@@ -73,12 +73,15 @@ public enum SetupFixtures {
     public static func welcome(_ name: String) -> (setup: SetupInputs, welcome: WelcomeInputs) {
         switch name {
         case "upgraded":
-            // an update from the release before the flow: the guard preview is new, Full Disk Access is off
+            // an update that brought a step to set up (Full Disk Access, pretended to be new): the flow shows only that
             var setup = inputs("waiting")
             setup.notifications = .allowed
             setup.login = .enabled
-            let welcome = WelcomeSatisfaction.inputs(setup: setup, state: SetupState(seenVersion: WelcomePlanner.baseline),
+            var welcome = WelcomeSatisfaction.inputs(setup: setup, state: SetupState(seenVersion: WelcomePlanner.baseline),
                                                       hasTimeMachine: true, version: "2.72.0")
+            // no step but the welcome and the guard preview is new in this release, so a later release is pretended here: the one
+            // that first asks for Full Disk Access, which this Mac has not given
+            welcome.specs = WelcomeSpec.all.map { $0.step == .fullDiskAccess ? WelcomeSpec(step: .fullDiskAccess, introducedIn: "2.72.0") : $0 }
             return (setup, welcome)
         case "continuing":
             // flow left half-way: notifications answered, Full Disk Access skipped and still off

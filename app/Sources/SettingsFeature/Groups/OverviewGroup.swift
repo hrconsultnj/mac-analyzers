@@ -34,7 +34,12 @@ final class SetupBadge {
     private(set) var needsAttention = false
 
     func refresh() async {
-        needsAttention = SetupItems.build(await SetupInputs.read()).contains(where: \.needsYou)
+        let setup = await SetupInputs.read()
+        // a real problem, or an update that brought a step to set up (which never takes focus: this badge is how it says so)
+        let welcome = WelcomeSatisfaction.inputs(setup: setup, state: SetupState.load(), hasTimeMachine: false, version: BuildInfo.current.release,
+                                                 neverOpen: UserDefaults.standard.bool(forKey: WelcomePlanner.neverOpenKey))
+        needsAttention = SetupItems.build(setup).contains(where: \.needsYou)
+            || WelcomePlanner.launchAction(welcome) == .badgeSetup
     }
 }
 

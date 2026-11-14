@@ -13,7 +13,7 @@ Setup is now one screen of your current configuration, in three tabs: Permission
 
 **A welcome when you first open Mac Analyzers**
 
-On a new install Mac Analyzers now opens a short Welcome window. It shows what it will do on your Mac with your own numbers, turns on the background protection, previews what Memory Guard would do right now, and walks you through notifications and Full Disk Access, with Not Now on every step. After an update it only shows the steps that are new and not yet set up. Continue Setup… on the Setup screen picks up where you left off, and Show Welcome Again… in the Help menu starts it over.
+On a new install Mac Analyzers now opens a short Welcome window. It shows what it will do on your Mac with your own numbers, turns on the background protection, previews what Memory Guard would do right now, and walks you through notifications and Full Disk Access, with Not Now on every step. After an update, anything new that needs setting up is marked on Setup, without a window taking over your screen. Continue Setup… on the Setup screen picks up where you left off, and Show Welcome Again… in the Help menu starts it over.
 
 ## v2.71.0 — Recording sources, one period menu and a sidebar you can tuck away
 

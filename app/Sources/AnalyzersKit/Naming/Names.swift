@@ -256,7 +256,6 @@ public enum Names {
         public static let setUpLater = "Set Up Later"
         public static let notNow = "Not Now"
         public static let turnOn = "Turn On"
-        public static let useTheseSettings = "Use These Settings"
         public static let openMacAnalyzers = "Open Mac Analyzers"
         public static let continueSetup = "Continue Setup…"
         public static let showWelcomeAgain = "Show Welcome Again…"
@@ -805,7 +804,7 @@ public enum Names {
         rows += [Prune.pnpm, Prune.npm, Prune.brew, Prune.simulators, Prune.docker].map { ("Prune", $0) }
         rows += [Welcome.windowTitle, Welcome.newInThisVersion, Welcome.stepWelcome, Welcome.stepBackground, Welcome.stepGuard,
                  Welcome.stepNotifications, Welcome.stepFullDiskAccess, Welcome.stepTimeMachine, Welcome.stepDone, Welcome.next,
-                 Welcome.back, Welcome.setUpLater, Welcome.notNow, Welcome.turnOn, Welcome.useTheseSettings, Welcome.openMacAnalyzers,
+                 Welcome.back, Welcome.setUpLater, Welcome.notNow, Welcome.turnOn, Welcome.openMacAnalyzers,
                  Welcome.continueSetup, Welcome.showWelcomeAgain].map { ("Welcome", $0) }
         rows += [Setup.tabPermissions, Setup.tabBackground, Setup.tabProtection, Setup.stateOn, Setup.stateOff, Setup.stateNeedsYou,
                  Setup.stateNotAskedYet, Setup.stateCantTell, Setup.stateOnlyApp, Setup.notifications, Setup.fullDiskAccess,

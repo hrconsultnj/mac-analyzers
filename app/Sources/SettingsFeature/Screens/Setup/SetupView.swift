@@ -24,19 +24,13 @@ struct SetupView: View {
     @State var tab = SetupTab.permissions
     @State var actions = SetupActions()
     @State var handoff = SystemSettingsHandoff()
+    /// A step of the Welcome flow is still open, or an update brought one: Continue Setup… is offered. Worked out when the Mac is read, not on every draw.
+    @State private var continuing = false
     @State private var highlighted: String?
     /// An example state for `SnapshotRunner` (`SetupFixtures.names`); nil in the app, which reads this Mac.
     var fixture: String?
 
     private var items: [SetupItem] { inputs.map(SetupItems.build) ?? [] }
-
-    /// A step of the Welcome flow is still open: Continue Setup… is offered. (Not from an example state.)
-    private var continuing: Bool {
-        guard fixture == nil, let inputs else { return false }
-        let welcome = WelcomeSatisfaction.inputs(setup: inputs, state: SetupState.load(), hasTimeMachine: false, version: BuildInfo.current.release)
-        // Time Machine is optional: only the steps that matter make "Continue Setup…" worth offering
-        return WelcomePlanner.continuePlan(welcome) != nil && SetupState.exists()
-    }
 
     var body: some View {
         DataScreen(title: Names.Screen.setup, subtitle: inputs == nil ? nil : SetupItems.subtitle(items)) {
@@ -115,7 +109,11 @@ struct SetupView: View {
     /// Reads this Mac again (or takes the example state).
     func load() async {
         if let fixture { inputs = SetupFixtures.inputs(fixture); return }
-        inputs = await SetupInputs.read()
+        let read = await SetupInputs.read()
+        inputs = read
+        // Time Machine is optional: only the steps that matter make "Continue Setup…" worth offering
+        let welcome = WelcomeSatisfaction.inputs(setup: read, state: SetupState.load(), hasTimeMachine: false, version: BuildInfo.current.release)
+        continuing = WelcomePlanner.launchAction(welcome) == .badgeSetup || (WelcomePlanner.continuePlan(welcome) != nil && SetupState.exists())
     }
 
     /// A deep link: a tab (`setup:permissions`) or a row (`setup:fullDiskAccess`).

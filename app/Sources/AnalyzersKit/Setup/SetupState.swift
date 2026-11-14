@@ -39,5 +39,13 @@ public struct SetupState: Codable, Equatable, Sendable {
         return (try? data.write(to: url, options: .atomic)) != nil
     }
 
+    /// Deletes the record: Turn Off › Remove from this Mac does, so a reinstall is a new install and gets the Welcome flow again.
+    /// (It is the app's own memory of what it has shown, not the person's records: reports, logs, Undo receipts and settings stay.)
+    @discardableResult
+    public static func remove(at url: URL = file) -> Bool {
+        guard FileManager.default.fileExists(atPath: url.path) else { return true }
+        return (try? FileManager.default.removeItem(at: url)) != nil
+    }
+
     public mutating func record(_ step: WelcomeStep, _ answer: Answer) { answers[step.rawValue] = answer }
 }

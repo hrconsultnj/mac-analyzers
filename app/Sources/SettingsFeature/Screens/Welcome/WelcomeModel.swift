@@ -52,7 +52,7 @@ final class WelcomeModel {
         state = saved ?? SetupState(seenVersion: version)
         // the flow has been shown: an update is not shown the same steps again, and a new install's What's New card is not
         // needed (the version it came with is the one it is already running)
-        state.seenVersion = version
+        state.seenVersion = WelcomePlanner.stampVersion(current: version)
         state.save()
         if plan.reason == .firstLaunch, mode == .automatic { WelcomePlanner.markWhatsNewSeen(version: version) }
         await loadPreviewIfNeeded()

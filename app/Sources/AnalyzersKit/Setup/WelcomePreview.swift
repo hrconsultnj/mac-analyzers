@@ -69,14 +69,20 @@ public struct GuardPreview: Sendable, Equatable {
         return GuardPreview(sections: sections, limitBytes: limit)
     }
 
+    /// A long preview (four kinds in each category, the most the screen ever shows): longer than the window, so it must scroll.
     public static let fixture = GuardPreview(sections: [
         Section(title: "Apps", rows: [
             Row(kind: "Meeting & Chat", count: 2, bytes: 2_100_000_000, guardMay: "Asks to quit only when you choose; never stopped on its own.", wouldStop: false),
-            Row(kind: "Browsers", count: 3, bytes: 4_800_000_000, guardMay: "Never stopped by the guard.", wouldStop: false)]),
+            Row(kind: "Browsers", count: 3, bytes: 4_800_000_000, guardMay: "Never stopped by the guard.", wouldStop: false),
+            Row(kind: "Editors & IDEs", count: 2, bytes: 3_300_000_000, guardMay: "Never stopped by the guard.", wouldStop: false),
+            Row(kind: "Other Apps", count: 9, bytes: 1_900_000_000, guardMay: "Never stopped by the guard.", wouldStop: false)]),
         Section(title: "Tools", rows: [
             Row(kind: "Dev Servers", count: 3, bytes: 7_200_000_000, guardMay: "May be stopped when one holds more than your limit.", wouldStop: true),
-            Row(kind: "Databases", count: 1, bytes: 900_000_000, guardMay: "Watched only.", wouldStop: false)]),
+            Row(kind: "Databases", count: 1, bytes: 900_000_000, guardMay: "Watched only.", wouldStop: false),
+            Row(kind: "Containers & VMs", count: 2, bytes: 2_600_000_000, guardMay: "Watched only.", wouldStop: false),
+            Row(kind: "Coding-Agent Sessions", count: 4, bytes: 1_400_000_000, guardMay: "Always spared while a session is live.", wouldStop: false)]),
         Section(title: "macOS", rows: [
-            Row(kind: "Background Services", count: 24, bytes: 3_000_000_000, guardMay: "Never touched.", wouldStop: false)])],
+            Row(kind: "Background Services", count: 24, bytes: 3_000_000_000, guardMay: "Never touched.", wouldStop: false),
+            Row(kind: "Terminals", count: 3, bytes: 600_000_000, guardMay: "Never stopped by the guard.", wouldStop: false)])],
         limitBytes: 6_700_000_000)
 }

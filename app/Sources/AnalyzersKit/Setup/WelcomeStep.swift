@@ -43,6 +43,9 @@ public enum WelcomeStep: String, CaseIterable, Codable, Sendable, Hashable {
 
     /// The step has nothing to answer: an introduction or a summary.
     public var isFraming: Bool { self == .welcome || self == .done }
+    /// The step only informs (the guard preview shows what would happen and changes nothing): it is part of the flow on a new
+    /// install, and never a reason to open the window after an update.
+    public var isInformational: Bool { self == .welcome || self == .guardPreview || self == .done }
     /// Only offered, never nagged about after an update.
     public var isOptional: Bool { self == .timeMachine }
 }
@@ -56,7 +59,18 @@ public struct WelcomeSpec: Sendable, Equatable {
         self.introducedIn = introducedIn
     }
 
-    public static let all: [WelcomeSpec] = WelcomeStep.allCases.map { WelcomeSpec(step: $0, introducedIn: "2.72.0") }
+    /// The release that FIRST had the thing each step asks for, so an install that already has it is not asked again: Setup
+    /// (background jobs, notifications, Full Disk Access) came in 2.61.0, Time Machine thinning in 2.70.0; only the welcome, the
+    /// guard preview and the summary are new in 2.72.0.
+    public static let all: [WelcomeSpec] = [
+        WelcomeSpec(step: .welcome, introducedIn: "2.72.0"),
+        WelcomeSpec(step: .background, introducedIn: "2.61.0"),
+        WelcomeSpec(step: .guardPreview, introducedIn: "2.72.0"),
+        WelcomeSpec(step: .notifications, introducedIn: "2.61.0"),
+        WelcomeSpec(step: .fullDiskAccess, introducedIn: "2.61.0"),
+        WelcomeSpec(step: .timeMachine, introducedIn: "2.70.0"),
+        WelcomeSpec(step: .done, introducedIn: "2.72.0"),
+    ]
 }
 
 /// Which steps show, and why.
@@ -123,9 +137,30 @@ public enum WelcomePlanner {
         let seen = i.state?.seenVersion ?? baseline
         let answered = Set((i.state?.answers ?? [:]).keys)
         let new = i.specs.filter { isNewer($0.introducedIn, than: seen) }.map(\.step)
-            .filter { !$0.isFraming && !$0.isOptional && !i.satisfied.contains($0) && !answered.contains($0.rawValue) }
+            .filter { !$0.isInformational && !$0.isOptional && !i.satisfied.contains($0) && !answered.contains($0.rawValue) }
         guard !new.isEmpty else { return nil }
         return WelcomePlan(reason: .newInThisVersion, steps: new + [.done], start: 0)
+    }
+
+    /// What to do at launch: a new install opens the window (it is the first launch, and the flow is what the person came for);
+    /// an update that has something new does NOT take focus, it badges Setup and waits for the person to open the app; anything
+    /// else does nothing.
+    public enum LaunchAction: Equatable, Sendable {
+        case openWindow(WelcomePlan)
+        case badgeSetup
+        case nothing
+    }
+
+    public static func launchAction(_ i: WelcomeInputs) -> LaunchAction {
+        guard let plan = autoPlan(i) else { return .nothing }
+        return plan.reason == .firstLaunch ? .openWindow(plan) : .badgeSetup
+    }
+
+    /// The version to save when the flow is shown: the current release, or the newest version that introduced a step if that is
+    /// later. A development build is numbered as the release before the one it is heading to, so saving only the release would
+    /// leave steps "newer" than the saved version and the flow would come back on every launch.
+    public static func stampVersion(current: String, specs: [WelcomeSpec] = WelcomeSpec.all) -> String {
+        specs.map(\.introducedIn).reduce(current) { isNewer($1, than: $0) ? $1 : $0 }
     }
 
     /// Setup's Continue Setup…: the steps still not satisfied, from the first one with no answer, else the first skipped.
