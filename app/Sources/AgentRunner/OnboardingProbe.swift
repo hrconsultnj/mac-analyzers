@@ -146,6 +146,12 @@ func probeOnboarding(state: String?) -> Never {
     check("what was answered is saved and read back", state.save(to: file) && SetupState.load(at: file) == state)
     check("Remove deletes the record (and a missing one is fine), so a reinstall is a new install",
           SetupState.remove(at: file) && !SetupState.exists(at: file) && SetupState.remove(at: file))
+    // Remove, then the next launch: with the record gone (and the settings and jobs removed) it is a new install again
+    state.save(to: file)
+    SetupState.remove(at: file)
+    let afterRemove = base { i in i.state = SetupState.load(at: file) }
+    check("after Remove the next launch is a fresh install and gets the whole flow",
+          WelcomePlanner.isFreshInstall(afterRemove) && WelcomePlanner.autoPlan(afterRemove)?.reason == .firstLaunch)
     try? "not json".write(to: file, atomically: true, encoding: .utf8)
     check("a damaged record is no record", SetupState.load(at: file) == nil)
     let defaults = UserDefaults(suiteName: "ma-probe-onboarding-\(UUID().uuidString)")!
