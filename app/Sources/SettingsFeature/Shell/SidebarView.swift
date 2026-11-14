@@ -9,6 +9,8 @@ import ProKit
 /// the groups; this view only draws what they say.
 struct SidebarView: View {
     let navigator: Navigator
+    /// Shown as the hover overlay: one sheet of glass, so the footer has no bar behind it.
+    var floating = false
 
     var body: some View {
         List(selection: selection) {
@@ -28,7 +30,7 @@ struct SidebarView: View {
                 ProBadgeSlot()
                 #endif
                 Divider()
-                SidebarVersionItem(navigator: navigator)
+                SidebarVersionItem(navigator: navigator, floating: floating)
             }
         }
         .task {

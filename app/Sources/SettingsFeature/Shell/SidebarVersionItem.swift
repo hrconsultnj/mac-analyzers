@@ -6,6 +6,8 @@ import AnalyzersKit
 /// It is part of the sidebar, so it goes when the sidebar is collapsed.
 struct SidebarVersionItem: View {
     let navigator: Navigator
+    /// In the hover overlay the footer sits on the panel's glass with the same material, not the sidebar's opaque bar.
+    var floating = false
     @Environment(UpdateState.self) private var updates
 
     var body: some View {
@@ -26,7 +28,7 @@ struct SidebarVersionItem: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(.bar)
+        .background(floating ? AnyShapeStyle(.regularMaterial) : AnyShapeStyle(.bar))
         .help("Open \(Names.Screen.updates) · \(updates.build.versionText)")
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens \(Names.Screen.updates)")

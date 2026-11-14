@@ -41,6 +41,10 @@ public struct MainWindowView: View {
             SidebarView(navigator: navigator)
                 // our own button below stands in for the system's, which cannot show whether the sidebar is shown
                 .toolbar(removing: .sidebarToggle)
+                // shown: the button is declared in the sidebar's own toolbar ...
+                .toolbar {
+                    if visibility != .detailOnly { SidebarToggleItem(visibility: $visibility, peek: peek, placement: .primaryAction) }
+                }
                 .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 260)
         } detail: {
             detail
@@ -55,14 +59,14 @@ public struct MainWindowView: View {
         // to a NavigationStack itself (rather than to something inside it) is
         // dropped, which left the window with no Back or Forward button at all.
         .toolbar {
-            SidebarToggleItem(visibility: $visibility, peek: peek)
+            // ... hidden: in the content's. One button, one place beside the traffic lights, whichever state it is in.
+            if visibility == .detailOnly { SidebarToggleItem(visibility: $visibility, peek: peek) }
             HistoryToolbar(navigator: navigator)
             JobStatusToolbarItem(store: jobs, navigator: navigator)
         }
         .frame(minWidth: 780, minHeight: 620)
-        // full screen has the system's own edge reveal, which the hover strip must not fight
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in isFullScreen = true }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in isFullScreen = false }
+        // full screen has the system's own edge reveal, which the hover strip must not fight; read from THIS window
+        .background { FullScreenWatcher(isFullScreen: $isFullScreen) }
         // remembered, and a sidebar shown for real, or a row chosen, ends the overlay
         .onChange(of: visibility) { _, now in
             if session.restores { SidebarVisibility.save(now) }
@@ -75,9 +79,7 @@ public struct MainWindowView: View {
         .focusedSceneValue(\.navigator, navigator)
         .focusedSceneValue(\.sidebarCommands, SidebarCommandState(
             shown: visibility != .detailOnly,
-            toggle: { visibility = visibility == .detailOnly ? .all : .detailOnly },
-            isFullScreen: isFullScreen,
-            toggleFullScreen: { NSApp.keyWindow?.toggleFullScreen(nil) }))
+            toggle: { visibility = visibility == .detailOnly ? .all : .detailOnly }))
         .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.openPaneInternal)) { note in
             guard let target = note.userInfo?["target"] as? String else { return }
             DeepLinkRouter.open(target, in: navigator)

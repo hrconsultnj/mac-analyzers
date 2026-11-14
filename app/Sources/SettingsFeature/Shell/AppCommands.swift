@@ -15,17 +15,12 @@ public struct AppCommands: Commands {
     public var body: some Commands {
         // The system's Show/Hide Sidebar acts through the responder chain on a split view controller; the window's own
         // visibility state is what the toolbar button and the hover overlay read, so the menu flips THAT, with the
-        // platform's shortcut (Control-Command-S; Command-B is Bold). Enter/Exit Full Screen lives in the same
-        // group, so it is kept here.
+        // platform's shortcut (Control-Command-S; Command-B is Bold). Enter/Exit Full Screen is not re-added: AppKit
+        // supplies its own for a window that can go full screen, so a second one here would show twice.
         CommandGroup(replacing: .sidebar) {
             Button(sidebar?.shown == false ? Names.Sidebar.show : Names.Sidebar.hide) { sidebar?.toggle() }
                 .keyboardShortcut("s", modifiers: [.command, .control])
                 .disabled(sidebar == nil)
-            Button(sidebar?.isFullScreen == true ? Names.Sidebar.exitFullScreen : Names.Sidebar.enterFullScreen) {
-                sidebar?.toggleFullScreen()
-            }
-            .keyboardShortcut("f", modifiers: [.command, .control])
-            .disabled(sidebar == nil)
         }
         ToolbarCommands()
 

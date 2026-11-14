@@ -35,11 +35,13 @@ enum SidebarVisibility {
 struct SidebarToggleItem: ToolbarContent {
     @Binding var visibility: NavigationSplitViewVisibility
     let peek: SidebarPeek
+    /// Where it sits: the content toolbar's navigation placement, or the sidebar column's own toolbar.
+    var placement: ToolbarItemPlacement = .navigation
 
     private var shown: Bool { visibility != .detailOnly }
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
+        ToolbarItem(placement: placement) {
             Toggle(isOn: Binding(get: { shown }, set: { visibility = $0 ? .all : .detailOnly })) {
                 Label(Names.Sidebar.title, systemImage: "sidebar.leading")
                     // on: the accent colour on the icon, so shown and hidden read apart at a glance
@@ -58,14 +60,12 @@ struct SidebarToggleItem: ToolbarContent {
     }
 }
 
-/// What the View menu needs from the main window: whether the sidebar is shown and how to flip it, and the same for
-/// full screen. Published through `focusedSceneValue`, so the menu items always act on the window in front and read
-/// its state; the sidebar item is the window's own visibility, not a second flag.
+/// What the View menu needs from the main window: whether the sidebar is shown and how to flip it. Published through
+/// `focusedSceneValue`, so the menu item always acts on the window in front and reads its state; it is the window's own
+/// visibility, not a second flag.
 struct SidebarCommandState {
     let shown: Bool
     let toggle: () -> Void
-    let isFullScreen: Bool
-    let toggleFullScreen: () -> Void
 }
 
 extension FocusedValues {

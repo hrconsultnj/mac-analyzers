@@ -75,6 +75,7 @@ struct SidebarPeekOverlay: View {
                 HoverEdge(enter: { peek.enter(.edge) }, exit: { peek.exit(.edge) })
                     .frame(width: 8)
                     .frame(maxHeight: .infinity)
+                    .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
             if peek.isShown {
@@ -86,7 +87,7 @@ struct SidebarPeekOverlay: View {
     }
 
     private var panel: some View {
-        SidebarView(navigator: navigator)
+        SidebarView(navigator: navigator, floating: true)
             .frame(width: Self.width)
             .frame(maxHeight: .infinity)
             .glassEffect(.regular, in: .rect(cornerRadius: 18))
@@ -97,13 +98,8 @@ struct SidebarPeekOverlay: View {
             // in the tree only while shown, and named, for VoiceOver
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Names.Sidebar.title)
-            .background {
-                // Escape puts it away
-                Button("") { peek.dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                    .opacity(0)
-                    .accessibilityHidden(true)
-            }
+            // Escape puts it away only when the overlay itself has the keyboard; a search field or a sheet keeps its own Escape
+            .onExitCommand { peek.dismiss() }
     }
 }
 
@@ -140,5 +136,48 @@ private struct HoverEdge: NSViewRepresentable {
 
         override func mouseEntered(with event: NSEvent) { enter?() }
         override func mouseExited(with event: NSEvent) { exit?() }
+    }
+}
+
+/// Whether the window this view is in is in full screen, kept current. Only THIS window's notifications count, and the
+/// first value is read from the window itself, so a window restored in full screen starts right.
+struct FullScreenWatcher: NSViewRepresentable {
+    @Binding var isFullScreen: Bool
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = WindowView()
+        let coordinator = context.coordinator
+        view.onWindow = { [binding = $isFullScreen] window in coordinator.watch(window) { binding.wrappedValue = $0 } }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private final class WindowView: NSView {
+        var onWindow: ((NSWindow?) -> Void)?
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            onWindow?(window)
+        }
+    }
+
+    @MainActor final class Coordinator {
+        private var tasks: [Task<Void, Never>] = []
+
+        func watch(_ window: NSWindow?, _ set: @escaping @MainActor (Bool) -> Void) {
+            tasks.forEach { $0.cancel() }
+            tasks = []
+            guard let window else { return }
+            set(window.styleMask.contains(.fullScreen))
+            for (name, value) in [(NSWindow.didEnterFullScreenNotification, true), (NSWindow.didExitFullScreenNotification, false)] {
+                tasks.append(Task { @MainActor in
+                    for await _ in NotificationCenter.default.notifications(named: name, object: window) { set(value) }
+                })
+            }
+        }
+
+        deinit { tasks.forEach { $0.cancel() } }
     }
 }
