@@ -152,7 +152,7 @@ struct ReviewTable: View {
                         session: readOnly ? nil : session, expansion: expansions.expansion(for: screenKey),
                         screen: screenKey, nameTitle: nameTitle, valueTitle: valueTitle, rowMenu: rowMenu,
                         rowsFor: { ids in session.rows.filter { ids.contains($0.id) } })
-            .safeAreaInset(edge: .bottom, spacing: 0) { bar(offer) }
+            .safeAreaBar(edge: .bottom, spacing: 0) { bar(offer) }
             .confirmationDialog(frozen?.title ?? applyTitle, isPresented: $asking, titleVisibility: .visible) {
                 Button(applyTitle, role: .destructive) { chosen() }
             } message: {
@@ -203,8 +203,8 @@ struct ReviewTable: View {
                     .disabled(offer.map(applyDisabled) ?? true)
             }
         }
+        // the system draws the bar's material and the scroll-edge effect (`safeAreaBar`); only the margin is ours
         .padding()
-        .background(.bar)
     }
 
     // MARK: - applying

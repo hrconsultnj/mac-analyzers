@@ -13,6 +13,7 @@ import AppKit
 import SwiftUI
 import AnalyzersKit
 import MenuBarFeature
+import UIComponents
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard arguments.count >= 2 else {
@@ -27,6 +28,28 @@ func option(_ name: String) -> Double? {
 }
 let wait = option("--wait") ?? 4
 let width = option("--width") ?? 420
+func word(_ name: String) -> String? {
+    guard let index = arguments.firstIndex(of: name), arguments.indices.contains(index + 1) else { return nil }
+    return arguments[index + 1]
+}
+
+// A render starts from nothing remembered (the chosen tab, the opened groups): clear this tool's own defaults
+// domain, never the app's. Then, for the Monitor tab: `--scope all|apps|tools|macos` picks its category tab and
+// `--open N` opens the first N groups that have something inside, the way the person's own clicks would have
+// (the open groups are remembered per tab; this writes that memory before the panel is built).
+if let domain = Bundle.main.bundleIdentifier ?? Optional(ProcessInfo.processInfo.processName), domain != "com.mac-analyzers.app" {
+    UserDefaults.standard.removePersistentDomain(forName: domain)
+}
+if tab == "monitor" {
+    let scope = word("--scope") ?? "all"
+    UserDefaults.standard.set(scope, forKey: "scopeTab.panel.monitor")   // where the shared tabs remember their choice
+    if let count = option("--open").map(Int.init), count > 0 {
+        let category: CensusGroup.Category? = ["apps": .apps, "tools": .tools, "macos": .system][scope]
+        let ids = MenuPanelModel(census: MemoryCensus.take()).nodes(in: category).nodes
+            .filter { $0.children != nil }.prefix(count).map(\.id)
+        UserDefaults.standard.set(Array(ids), forKey: "outline.expanded.panel.monitor.\(scope)")
+    }
+}
 
 @MainActor
 final class Host: NSObject, NSApplicationDelegate {
@@ -35,7 +58,13 @@ final class Host: NSObject, NSApplicationDelegate {
     let scratch = FileManager.default.temporaryDirectory
         .appending(path: "ma-menu-snapshot-\(UUID().uuidString)", directoryHint: .isDirectory)
     lazy var jobs = JobStore(ledger: JobLedger(url: scratch.appending(path: "app-jobs.jsonl")))
-    let updates = UpdateState()
+    /// This tool has no Info.plist, so the installed version a bundled app reads from its bundle comes from the
+    /// repository's VERSION file here: the footer then compares like the installed app would, and says the truth.
+    let updates: UpdateState = {
+        let version = (try? String(contentsOf: AnalyzersPaths.suiteRoot.appending(path: "VERSION"), encoding: .utf8))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? "0"
+        return UpdateState(build: BuildInfo(release: version, commitsAfter: 0, localChanges: false))
+    }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)

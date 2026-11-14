@@ -92,6 +92,15 @@ struct NetworkView: View {
     }
 
     @ViewBuilder private var content: some View {
+        if !model.loaded {
+            // reading the saved snapshots: say nothing is saved only once that is known
+            ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            loadedContent
+        }
+    }
+
+    @ViewBuilder private var loadedContent: some View {
         switch scope {
         case .snapshot:
             if model.viewing == nil {
@@ -103,7 +112,7 @@ struct NetworkView: View {
                 }
             } else {
                 NetworkTable(groups: groups, selection: $selection, expansion: expansion, onShowInFinder: reveal)
-                    .safeAreaInset(edge: .top, spacing: 0) { totalsBar }
+                    .safeAreaBar(edge: .top, spacing: 0) { totalsBar }
             }
         case .history:
             NetworkHistoryList(snapshots: model.snapshots, selection: $historySelection,
@@ -128,8 +137,8 @@ struct NetworkView: View {
                 Label(failure, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             }
         }
+        // the system draws the bar's material and the scroll-edge effect (`safeAreaBar`); only the margin is ours
         .padding()
-        .background(.bar)
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {

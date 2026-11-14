@@ -153,6 +153,16 @@ through `config.local.sh` (never hardcoded).
   `agent-runner --probe-setup` prints the Setup checklist as text.
   `agent-runner --probe-memory [--all]` prints the Monitor pane's memory
   census as text (where memory is + every process group with its total).
+  The census is the ONE classifier: it gives every group its category AND its
+  kind (`CensusGroup.kind`, from `memory-analyzer/rules/kinds.json` through
+  `AnalyzersKit/Memory/Kinds/`); the app's screens read that field and never
+  classify a process a second time. The guard script does not read it yet: it keeps its own `KILLABLE_RE` until the rules engine
+  (phase B) replaces that, and its live-session exemption must first cover every
+  agent in `lib/coding-agents.tsv`.
+  `agent-runner --probe-kinds [--all]` prints every group's kind, the rule that
+  decided it and what the guard may do, with the parity check against the guard
+  script's own pattern; `--probe-kinds-fixture` is the same rules on stand-in
+  processes, in the gate.
   `agent-runner --probe-job <kind> [--cancel-after <s>]` runs one tracked job
   headless through the same kernel the app uses (`AnalyzersKit/Jobs/`) and
   prints its lines, the log block it was matched to and how it ended.
@@ -219,6 +229,11 @@ through `config.local.sh` (never hardcoded).
   component looks the same in every state — render each state to prove it.
   A fixed size is allowed only where it is the actual job (an icon tile, a
   chart), with a comment saying so.
+- **One way to write a size, by where it is shown** (owner, 2026-11-13): `ByteSize.text(_, style)` and `ByteSize.rate`,
+  never an ad-hoc format at a call site. The decimals are a MAXIMUM, never padding (exactly 5 GB is "5 GB", 5.4 is
+  "5.4 GB", 18.63 is "18.63 GB"): chart axes and crosshair readouts (`.axis`) and figure lists in the style of Activity
+  Monitor's footer (`.figure`) take up to two decimals in gigabytes; headline numbers (`.headline`) and table or list cells
+  (`.cell`, also `MemorySize.text`) one, and none in megabytes; rates one decimal under 10 MB/s, none above.
 - **Native does not mean plainer, and a fix must not take things away**
   (owner, 2026-11-10: "the icons, they're gone … you guys are just
   introducing regressions"). A control that names a kind of thing shows its

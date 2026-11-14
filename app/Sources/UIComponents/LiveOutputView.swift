@@ -19,20 +19,21 @@ public struct LiveOutputView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(rows) { row in
-                    Text(row.text.isEmpty ? " " : row.text)
-                        .font(Tokens.Typography.mono)
-                        .foregroundStyle(row.text.hasPrefix("### ") ? .primary : .secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
+        // a GroupBox is the system's grouped surface: its own inset and fill, no hand-drawn card
+        GroupBox {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(rows) { row in
+                        Text(row.text.isEmpty ? " " : row.text)
+                            .font(Tokens.Typography.mono)
+                            .foregroundStyle(row.text.hasPrefix("### ") ? .primary : .secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
                 }
             }
-            .padding(Tokens.Space.m)
+            .defaultScrollAnchor(.bottom)
         }
-        .defaultScrollAnchor(.bottom)
-        .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.tile))
         .accessibilityLabel("Output of \(job.kind.title)")
     }
 }

@@ -13,6 +13,13 @@ enum OverviewRoute: Hashable, Codable {
     /// The review table with example rows; the link exists only after
     /// `DeepLinkRouter.installFixtures()` (SnapshotRunner), never in the app people install.
     case reviewFixture
+    /// The same with a few hundred rows (`review:fixture:long`).
+    case reviewFixtureLong
+    /// A finished run's kept lines in the shared lines box (`job:fixture:finished`).
+    case runLinesFixture
+    /// Turn Off with example permission rows (`TurnOffPermission.example`); linkable only after
+    /// `DeepLinkRouter.installFixtures()`.
+    case turnOffFixture(String)
 }
 
 /// Whether anything on this Mac is not working, for the Setup row's badge.
@@ -76,9 +83,12 @@ enum OverviewGroup {
     @ViewBuilder static func destination(for route: OverviewRoute) -> some View {
         switch route {
         case .turnOff: UninstallView()
+        case .turnOffFixture(let name): UninstallView(permissionFixture: TurnOffPermission.example(name))
         case .newestRun(let raw): RunScreen(newestIn: EngineLog(rawValue: raw))
         case .raw(let subject): RawOutputScreen(subject: subject)
         case .reviewFixture: ReviewFixtureScreen()
+        case .reviewFixtureLong: ReviewFixtureScreen(long: true)
+        case .runLinesFixture: RawOutputFixtureScreen()
         }
     }
 

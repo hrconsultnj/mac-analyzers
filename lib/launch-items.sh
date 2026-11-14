@@ -236,6 +236,20 @@ nested_app_names() {  # app -> prints "N<TAB>name; name"
   printf '%s\t%s\n' "$count" "$names"
 }
 
+# Is a program of an app running? Matching a pattern against every command line also matches the `pgrep` of ANOTHER
+# run that holds the same pattern in its own command line (two previews at once, a person's own `pgrep -f`), which
+# made an app look "RUNNING" when it was not. The pattern wants the path at the start of the command line OR after a
+# space (a program run through an interpreter, `/bin/sh /…/X.app/Contents/MacOS/X`, `/usr/bin/env python3 …`, has the
+# interpreter first) and every special character is escaped, so the text of a pattern never matches the command
+# line that carries it (it holds `Name\.app` and `\/`, the pattern wants `Name.app` and `/`).
+_ere_escape() { printf '%s' "$1" | sed 's/[][\\.*^$(){}?+|\/]/\\&/g'; }
+
+# a program inside this bundle (the path of the .app) is running
+bundle_is_running() { pgrep -f -- "(^| )$(_ere_escape "$1")/Contents/MacOS/" >/dev/null 2>&1; }
+
+# a process called exactly this, or a program of an app of this name in any folder, is running
+app_name_is_running() { pgrep -x -- "$1" >/dev/null 2>&1 || pgrep -f -- "(^| )/.*/$(_ere_escape "$1")\\.app/Contents/MacOS/" >/dev/null 2>&1; }
+
 # Was this app opened within the window (ANALYZERS_STALE_APP_DAYS, 180) by its own Spotlight last-used date?
 _used_within_window() {  # app
   local days="${ANALYZERS_STALE_APP_DAYS:-180}" lu ts
@@ -255,7 +269,7 @@ _nested_in_use() {  # app
   while IFS= read -r n; do
     [[ -n "$n" ]] || continue
     bid="$(defaults read "$n/Contents/Info" CFBundleIdentifier 2>/dev/null)"
-    if pgrep -f -- "$n/Contents/MacOS/" >/dev/null 2>&1 || _used_within_window "$n" \
+    if bundle_is_running "$n" || _used_within_window "$n" \
        || _registered_to_run "$n" "$bid" >/dev/null || _nested_in_use "$n" >/dev/null; then
       echo "${n##*/}"; return 0
     fi

@@ -5,9 +5,17 @@ import AnalyzersKit
 /// (`SnapshotRunner review:fixture`; the link exists only after
 /// `DeepLinkRouter.installFixtures()`, which only SnapshotRunner calls). Nothing here
 /// can apply anything: no preview job is behind it, so Apply stays dimmed.
+///
+/// `long: true` (`review:fixture:long`) is 200 rows across five groups (the most the table opens by default), for looking at rows
+/// passing under the Apply bar when the table is scrolled to its end (`--scroll-end`).
 struct ReviewFixtureScreen: View {
-    @State private var session = ReviewSession(previewID: UUID(), rows: ReviewFixtureScreen.examples,
-                                               ticks: ReviewTickStore())
+    @State private var session: ReviewSession
+
+    init(long: Bool = false) {
+        _session = State(initialValue: ReviewSession(previewID: UUID(),
+                                                     rows: long ? ReviewFixtureScreen.longExamples : ReviewFixtureScreen.examples,
+                                                     ticks: ReviewTickStore()))
+    }
 
     var body: some View {
         DataScreen(title: "Review Example", subtitle: session.summary) {
@@ -15,6 +23,14 @@ struct ReviewFixtureScreen: View {
                         confirmation: ReviewConfirmation(verb: "Move", destination: "to the Trash",
                                                          message: "You can put them back from Undo."),
                         screen: "fixture")
+        }
+    }
+
+    static let longExamples: [ReviewRow] = (1...5).flatMap { project in
+        (1...40).map { item in
+            let path = "/Users/example/project-\(project)/cache-\(item)"
+            return ReviewRow(id: path, name: "cache-\(item)", detail: path, group: "project-\(project)",
+                             bytes: Int64(project * 40_000_000 + item * 1_500_000), iconPath: "/Applications", keptReason: nil)
         }
     }
 

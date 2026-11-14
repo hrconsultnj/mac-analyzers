@@ -5,51 +5,20 @@ import Foundation
 /// `LogParser.runs(for:)` reads the last 256 KB and keeps the newest 20 runs:
 /// the right size for a list, the wrong one for a 30-day sum, because a log that
 /// is previewed every few minutes pushes the runs that freed space out of both
-/// limits within a day. The grouping below is the same as `LogParser`'s block
-/// parse (a short block containing "|" is a banner; a banner-less block closes
-/// the run above); it is a separate copy only so this file adds to `LogParser`
-/// without editing it, and the two should become one.
+/// limits within a day. The grouping is `LogParser.runBlocks`, the one the list
+/// uses, so a run begins in the same place for every reader.
 extension LogParser {
 
     /// Newest first, no window, no cap. Day-style logs (the guard) have no
     /// block structure and read as `runs(for:)` does.
     public static func allRuns(for kind: EngineLog, includingRestores: Bool = false) -> [LogRun] {
-        guard let url = kind.url,
-              let data = try? Data(contentsOf: url, options: .mappedIfSafe),
-              let text = String(data: data, encoding: .utf8) else { return [] }
-        guard text.contains("====") else { return runs(for: kind) }
+        kind.url.map { allRuns(at: $0, includingRestores: includingRestores) } ?? []
+    }
 
-        let all = LogLines.lines(in: data)
-        // a restore's block is taken out first, so the rest parses exactly as it would without it
-        let (lines, restores) = RestoreBlock.split(all)
-        var blocks: [[String]] = []
-        var current: [String] = []
-        for line in lines {
-            if line.allSatisfy({ $0 == "=" }) {
-                if !current.isEmpty { blocks.append(current); current = [] }
-                continue
-            }
-            current.append(line)
-        }
-        if !current.isEmpty { blocks.append(current) }
-
-        var result: [LogRun] = []
-        var pendingHeader: String?
-        for block in blocks {
-            if block.count <= 3, let first = block.first, first.contains("|") {
-                pendingHeader = block.joined(separator: " · ")
-                continue
-            }
-            if pendingHeader == nil, let last = result.last {
-                result[result.count - 1] = LogRun(id: last.id, header: last.header, lines: last.lines + block)
-                continue
-            }
-            let header = pendingHeader ?? block.first ?? "Run"
-            let body = pendingHeader == nil ? Array(block.dropFirst()) : block
-            result.append(LogRun(id: result.count, header: header, lines: body))
-            pendingHeader = nil
-        }
-        let newestFirst = Array(result.reversed())
-        return includingRestores ? RestoreBlock.merge(restores: restores, into: newestFirst) : newestFirst
+    /// The same over any file (a probe reads a copy the way the real one is read).
+    public static func allRuns(at url: URL, includingRestores: Bool = false) -> [LogRun] {
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return [] }
+        guard data.range(of: Data("====".utf8)) != nil else { return runs(at: url, includingRestores: includingRestores) }
+        return runBlocks(LogLines.lines(in: data), includingRestores: includingRestores, limit: nil)
     }
 }

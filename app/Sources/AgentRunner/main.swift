@@ -301,12 +301,23 @@ if args.first == "--probe-cleanup-apply" {
 if args.first == "--probe-monitor" {
     probeMonitor()
 }
+// `--probe-memory-kinds` prints each kind of memory's screen as text and judges its rules. See MemoryKindsProbe.swift.
+if args.first == "--probe-memory-kinds" {
+    await probeMemoryKinds()
+}
+// `--probe-kinds [--all]` prints every running group's kind and the guard-pattern parity; `--probe-kinds-fixture`
+// judges the rules on stand-in processes and fails when one breaks. See KindProbes.swift.
+if args.first == "--probe-kinds" { probeKinds(args) }
+if args.first == "--probe-kinds-fixture" { probeKindsFixture(args) }
 if args.first == "--probe-agents" {
     probeAgents(args)
 }
 if args.first == "--probe-stop-targets" {
     await probeStopTargets(args)
 }
+// `--probe-panel` prints the panel's Monitor groups and Memory figures as text (PanelProbes.swift).
+if args.first == "--probe-pressure" { await MainActor.run { probePressure() } }
+if args.first == "--probe-panel" { await MainActor.run { probePanel() } }
 // `--probe-panel-stop` proves the menu-bar panel's Quit and Stop go through MemoryStop (PanelStopProbes.swift).
 if args.first == "--probe-panel-stop" {
     await probePanelStop(args)

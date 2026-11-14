@@ -69,15 +69,23 @@ struct MonitorView: View {
     }
 
     var body: some View {
-        DataScreen(title: Names.Screen.monitor, subtitle: subtitle) { content }
-            .safeAreaInset(edge: .top, spacing: 0) { strip }
+        // The memory strip is the first row of the content, so it sits below the tabs' bar in the safe area
+        // that bar leaves (a second inset stacked beside the bar was drawn under it). The tabs belong to the
+        // table's column and are applied before the inspector: a bar outside the inspector spans the inspector
+        // too and covers its title row.
+        DataScreen(title: Names.Screen.monitor, subtitle: subtitle) {
+            VStack(spacing: 0) {
+                strip
+                content
+            }
+        }
+            .scopeTabsToolbar(screen: "monitor", items: scopeItems, selection: $scope)
             .inspector(isPresented: $inspectorShown) {
                 MonitorInspector(model: model, row: model.row(selection),
                                  begin: stopFlow.begin, showDetails: showDetails)
-                    .inspectorColumnWidth(min: 240, ideal: 280, max: 420)
+                    .inspectorColumnWidth(min: 240, ideal: 240, max: 420)
             }
             .searchable(text: $search, prompt: "Search processes")
-            .scopeTabsToolbar(screen: "monitor", items: scopeItems, selection: $scope)
             .searchFocused($searchFocused)
             .toolbar { MonitorToolbar(model: model, refreshSeconds: $refreshSeconds,
                                       selected: model.row(selection), begin: stopFlow.begin,
