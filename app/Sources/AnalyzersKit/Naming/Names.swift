@@ -25,6 +25,16 @@ public enum Names {
         public static let app = Names.app
     }
 
+    // MARK: - the sidebar's own button and menu words
+
+    public enum Sidebar {
+        public static let title = "Sidebar"
+        public static let show = "Show Sidebar"
+        public static let hide = "Hide Sidebar"
+        public static let enterFullScreen = "Enter Full Screen"
+        public static let exitFullScreen = "Exit Full Screen"
+    }
+
     // MARK: - screens (the sidebar rows, and the title of the screen each opens)
 
     public enum Screen {
@@ -668,6 +678,7 @@ public enum Names {
         rows += EngineLog.allCases.map { ("Log \($0.rawValue)", log($0)) }
         rows += [Review.selectAll, Review.selectNone, Review.previewAgain, Review.preview, Review.stop, Review.history,
                  Review.showRawOutput, Review.showInFinder, Review.copyPath, Review.copyPaths].map { ("Review", $0) }
+        rows += [Sidebar.title, Sidebar.show, Sidebar.hide, Sidebar.enterFullScreen, Sidebar.exitFullScreen].map { ("Sidebar", $0) }
         rows += [Channel.heading, Channel.releases, Channel.beta, Channel.thisCopy, Channel.installBeta, Channel.rebuild].map { ("Channel", $0) }
         rows += [TimeMachine.removePermission, TimeMachine.permissionRowTitle].map { ("Time Machine", $0) }
         rows += [Raw.screen, Raw.searchPrompt, Raw.copy, Raw.noOutput, Raw.showAll, Raw.showOlder].map { ("Raw", $0) }

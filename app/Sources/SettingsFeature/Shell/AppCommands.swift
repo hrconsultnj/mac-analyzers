@@ -8,11 +8,25 @@ public struct AppCommands: Commands {
     @FocusedValue(\.navigator) private var navigator
     @FocusedValue(\.screenActions) private var screen
     @FocusedValue(\.scopeTabs) private var tabs
+    @FocusedValue(\.sidebarCommands) private var sidebar
 
     public init() {}
 
     public var body: some Commands {
-        SidebarCommands()
+        // The system's Show/Hide Sidebar acts through the responder chain on a split view controller; the window's own
+        // visibility state is what the toolbar button and the hover overlay read, so the menu flips THAT, with the
+        // platform's shortcut (Control-Command-S; Command-B is Bold). Enter/Exit Full Screen lives in the same
+        // group, so it is kept here.
+        CommandGroup(replacing: .sidebar) {
+            Button(sidebar?.shown == false ? Names.Sidebar.show : Names.Sidebar.hide) { sidebar?.toggle() }
+                .keyboardShortcut("s", modifiers: [.command, .control])
+                .disabled(sidebar == nil)
+            Button(sidebar?.isFullScreen == true ? Names.Sidebar.exitFullScreen : Names.Sidebar.enterFullScreen) {
+                sidebar?.toggleFullScreen()
+            }
+            .keyboardShortcut("f", modifiers: [.command, .control])
+            .disabled(sidebar == nil)
+        }
         ToolbarCommands()
 
         // a plain Window scene does not get Cmd-, for free the way the

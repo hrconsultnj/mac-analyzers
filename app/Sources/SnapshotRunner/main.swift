@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--sidebar shown|hidden|peek] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -124,6 +124,12 @@ let fakeFailed = arguments.contains("--fake-failed")
 let fakeReview = arguments.contains("--fake-review")
 /// `--fake-pressure`: the memory screens' history holds a stretch of warning and critical pressure (the Mac is at normal when it renders).
 let fakePressure = arguments.contains("--fake-pressure")
+/// `--sidebar shown|hidden|peek`: how the sidebar starts (peek is hidden with the hover overlay showing). Never remembered.
+let sidebarState: SidebarPresentation = switch option("--sidebar") {
+case "hidden": .hidden
+case "peek": .peeking
+default: .shown
+}
 let scrollToEnd = arguments.contains("--scroll-end")
 /// `--scroll-sidebar`: scroll the sidebar (the narrowest scrollable view) to its last row.
 let scrollSidebar = arguments.contains("--scroll-sidebar")
@@ -215,7 +221,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         if let fixture = option("--startup-inventory") { StartupInventory.useFile(URL(fileURLWithPath: fixture)) }
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
         if updateStateOption == nil { Task { await updates.check() } }
-        let root = MainWindowView(restoresLocation: false)
+        let root = MainWindowView(restoresLocation: false, sidebar: sidebarState)
             .environment(store)
             .environment(config)
             .environment(jobs)
