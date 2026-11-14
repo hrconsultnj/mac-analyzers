@@ -13,7 +13,7 @@ import UIComponents
 /// This file is the screen's state and composition. Next to it:
 ///   SetupItemRow.swift             one row: state, evidence, the one button, and the hand-off guidance in place
 ///   SystemSettingsHandoff.swift    opening the exact pane, watching for the change, confirming
-///   SetupView+Repairs.swift        the action behind each row's button
+///   SetupActions.swift             the action behind each row's button (shared with the Welcome flow)
 ///   UninstallView.swift            Turn Off or Remove, reached from this screen's toolbar
 struct SetupView: View {
 
@@ -22,17 +22,21 @@ struct SetupView: View {
     @Environment(JobStore.self) var jobs
     @State var inputs: SetupInputs?
     @State var tab = SetupTab.permissions
-    @State var working: String?
-    /// The install job this screen shows: the store's own, found again by kind when the window is reopened mid-run.
-    @State var installJob: Job?
-    @State var message: String?
-    @State var messageIsError = false
+    @State var actions = SetupActions()
     @State var handoff = SystemSettingsHandoff()
     @State private var highlighted: String?
     /// An example state for `SnapshotRunner` (`SetupFixtures.names`); nil in the app, which reads this Mac.
     var fixture: String?
 
     private var items: [SetupItem] { inputs.map(SetupItems.build) ?? [] }
+
+    /// A step of the Welcome flow is still open: Continue Setup… is offered. (Not from an example state.)
+    private var continuing: Bool {
+        guard fixture == nil, let inputs else { return false }
+        let welcome = WelcomeSatisfaction.inputs(setup: inputs, state: SetupState.load(), hasTimeMachine: false, version: BuildInfo.current.release)
+        // Time Machine is optional: only the steps that matter make "Continue Setup…" worth offering
+        return WelcomePlanner.continuePlan(welcome) != nil && SetupState.exists()
+    }
 
     var body: some View {
         DataScreen(title: Names.Screen.setup, subtitle: inputs == nil ? nil : SetupItems.subtitle(items)) {
@@ -41,7 +45,7 @@ struct SetupView: View {
             } else {
                 ScrollViewReader { proxy in
                     List {
-                        if let installJob, installJob.isActive {
+                        if let installJob = actions.installJob, installJob.isActive {
                             HStack {
                                 ProgressView().controlSize(.small)
                                 Text(installJob.step ?? "Installing the background jobs…").foregroundStyle(.secondary)
@@ -49,15 +53,15 @@ struct SetupView: View {
                                 Button("Stop") { installJob.cancel() }
                             }
                         }
-                        if let message {
-                            Label(message, systemImage: messageIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                                .foregroundStyle(messageIsError ? Tokens.Status.destructive.tint : Tokens.Status.safe.tint)
+                        if let message = actions.message {
+                            Label(message, systemImage: actions.messageIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                                .foregroundStyle(actions.messageIsError ? Tokens.Status.destructive.tint : Tokens.Status.safe.tint)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         ForEach(SetupItems.items(items, in: tab)) { item in
-                            SetupItemRow(item: item, working: working == item.id, busy: working != nil,
+                            SetupItemRow(item: item, working: actions.working == item.id, busy: actions.working != nil,
                                          session: handoff.session(item.id), confirmed: handoff.confirmed.contains(item.id),
-                                         onAction: { Task { await perform(item) } },
+                                         onAction: { Task { await actions.perform(item) } },
                                          onCloseGuidance: { handoff.dismiss(item.id) })
                                 .id(item.id)
                                 .listRowBackground(highlighted == item.id ? Color.accentColor.opacity(0.12) : nil)
@@ -75,6 +79,15 @@ struct SetupView: View {
         }
         .scopeTabsToolbar(screen: "setup", items: tabItems, selection: $tab)
         .toolbar {
+            // carry on with the steps still open (a skipped one that is still not satisfied), where the flow left off
+            if continuing {
+                ToolbarItem {
+                    Button { WelcomeRequest.open(.continuing) } label: { Label(Names.Welcome.continueSetup, systemImage: "arrow.right.circle") }
+                        .labelStyle(.titleAndIcon)
+                        .help("Carry on with the steps of the Welcome flow you haven't finished")
+                }
+                .toolbarRank(.primary)
+            }
             ToolbarItem {
                 Button { navigator.push(.overview(.turnOff)) } label: { Label(Names.Setup.turnOffOrRemove, systemImage: "power") }
                     .labelStyle(.titleAndIcon)
@@ -83,8 +96,10 @@ struct SetupView: View {
             .toolbarRank(.secondary)
         }
         .task {
+            actions.bind(jobs: jobs, store: store, navigator: navigator, handoff: handoff, reload: { await load() })
+            actions.isFixture = fixture != nil
             handoff.onChange = { await load() }
-            await adoptRunningInstall()
+            await actions.adoptRunningInstall()
             await load()
             applyPendingLink()
         }

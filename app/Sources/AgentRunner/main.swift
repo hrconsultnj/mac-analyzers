@@ -24,6 +24,11 @@ if args.first == "--probe-setup" {
 if args.first == "--probe-setup-fixtures" {
     probeSetupFixtures()
 }
+// `--probe-onboarding [--state fresh|upgraded|continuing|lostFDA]` judges when the Welcome flow appears and with which steps
+// (exits non-zero when a rule breaks; in the gate). See OnboardingProbe.swift.
+if args.first == "--probe-onboarding" {
+    probeOnboarding(state: args.firstIndex(of: "--state").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil })
+}
 if args.first == "--probe-fda" {
     probeFullDiskAccess()
 }

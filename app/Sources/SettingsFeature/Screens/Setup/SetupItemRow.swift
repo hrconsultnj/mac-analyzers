@@ -12,6 +12,8 @@ struct SetupItemRow: View {
     let confirmed: Bool
     let onAction: () -> Void
     let onCloseGuidance: () -> Void
+    /// The Welcome flow shows a row's state and evidence and puts its action in the bottom bar.
+    var showsAction = true
 
     var body: some View {
         HStack(alignment: .top, spacing: Tokens.Space.m) {
@@ -43,7 +45,7 @@ struct SetupItemRow: View {
                 }
             }
             Spacer(minLength: Tokens.Space.m)
-            if let title = item.actionTitle, item.action != nil, session == nil {
+            if showsAction, let title = item.actionTitle, item.action != nil, session == nil {
                 Button(working ? "Working…" : title, action: onAction)
                     .disabled(busy)
             }

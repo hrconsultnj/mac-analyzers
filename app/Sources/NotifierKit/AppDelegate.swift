@@ -57,7 +57,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                self.openSetupIfUnconfigured()
+                self.presentWelcomeOrSetup()
             }
         }
     }

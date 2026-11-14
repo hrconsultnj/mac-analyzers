@@ -154,6 +154,15 @@ through `config.local.sh` (never hardcoded).
   `ANALYZERS_RECORDING_SOURCES` and refuses the folders the Sources window refuses: a source must
   be inside the home folder (not the Library or a hidden folder) or on `/Volumes/<disk>/…`, checked on the path
   as written AND where it really leads (`RecordingFolderRule`; `rec_refusal` in `cleanup.sh`).
+- The **Welcome flow** is its own `Window` scene (`id: "welcome"`, `Screens/Welcome/`), opened through the open-window signal like the main
+  window (`SettingsOpener.open(target: "welcome")`, deep link `welcome`; `WelcomeRequest.open(.automatic|.continuing|.again)` says why).
+  WHEN it opens by itself is `WelcomePlanner` (`AnalyzersKit/Setup/WelcomeStep.swift`): a new install (no `~/mac-analyzers/setup-state.json`,
+  no settings file, no background job) gets every step; an update gets only the steps introduced after `seenVersion` that are not satisfied
+  and not answered; a finished flow, a permission lost after an update, and anything when the defaults key `welcome.neverOpen` is set
+  (the tools set it) get nothing. What each step shows is the SAME reading Setup uses (`SetupInputs`, `SetupItems`,
+  `SystemSettingsHandoff`, `SetupActions`): never a second checker. A new install also marks the version it came with as seen for the
+  What's New card (`whatsNew.seenVersion`). `agent-runner --probe-onboarding [--state …]` judges the rules; render a step with
+  `SnapshotRunner welcome:fixture:<fresh|upgraded|continuing>:<step>`.
 - Every Storage task is one screen (`Screens/Storage/`): Preview, the
   preview's rows as tabs and groups in the shared review table, one Apply
   through `JobStore.apply(from:approved:)`, History and Show Raw Output; a

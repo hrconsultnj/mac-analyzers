@@ -1,24 +1,31 @@
 import AppKit
 import AnalyzersKit
 
-/// First run: opening Setup when the Mac is new to the app or broken.
+/// First run: the Welcome flow when the Mac is new to the app or an update has something new to set up, else Setup when
+/// something is broken.
 extension AppDelegate {
 
-    /// First run, or a Mac where the background jobs are not installed: open
-    /// Setup instead of leaving someone on an Overview that reports nothing.
-    func openSetupIfUnconfigured() {
+    /// Decided from what is on this Mac now and what the person has already been shown (`WelcomePlanner`):
+    /// - a new install: the whole Welcome flow;
+    /// - an update that adds steps that are not satisfied: the flow, with only those;
+    /// - an update on a Mac that is already set up: nothing;
+    /// - a Mac whose background jobs are not installed: Setup, instead of an Overview that reports nothing.
+    /// A tool that sets the defaults key `welcome.neverOpen` (a test, a render) never gets a window from this.
+    func presentWelcomeOrSetup() {
         Task { @MainActor in
-            let engine = await Task.detached(priority: .userInitiated) {
-                EngineStatus.probe()
-            }.value
-            // A window that opens itself has to earn it: either this Mac is
-            // genuinely new to the app, or something is genuinely broken.
-            // An upgrade on a healthy Mac gets nothing.
-            let fresh = !UserDefaults.standard.bool(forKey: "setupSeen")
-                && !FileManager.default.fileExists(atPath: AnalyzersPaths.configLocal.path)
-            UserDefaults.standard.set(true, forKey: "setupSeen")
-            guard fresh || !engine.isFullyInstalled else { return }
-            SettingsOpener.open(target: "setup")
+            let setup = await SetupInputs.read()
+            let reach = await TimeMachineDestination.current()
+            let inputs = WelcomeSatisfaction.inputs(
+                setup: setup, state: SetupState.load(), hasTimeMachine: WelcomeSatisfaction.hasTimeMachine(reach),
+                version: BuildInfo.current.release,
+                neverOpen: UserDefaults.standard.bool(forKey: WelcomePlanner.neverOpenKey))
+            if WelcomePlanner.autoPlan(inputs) != nil {
+                WelcomeRequest.open(.automatic)
+                return
+            }
+            guard !inputs.neverOpen, !WelcomePlanner.isFreshInstall(inputs) else { return }
+            let engine = await Task.detached(priority: .userInitiated) { EngineStatus.probe() }.value
+            if !engine.isFullyInstalled { SettingsOpener.open(target: "setup") }
         }
     }
 }

@@ -13,6 +13,8 @@ private func openLinkWindow(for note: Notification, using openWindow: OpenWindow
     switch DeepLinkRouter.window(for: note.userInfo?["target"] as? String) {
     case .main, .preferences:
         openWindow(id: "main")
+    case .welcome:
+        openWindow(id: "welcome")
     }
 }
 
@@ -143,5 +145,18 @@ struct MacAnalyzersApp: App {
         .defaultSize(width: 1100, height: 720)
         .defaultLaunchBehavior(.suppressed)
         .commands { AppCommands() }
+
+        // The Welcome flow: a window of its own sized to its content, so the main window and the menu-bar panel keep
+        // working beside it. Never opens at launch by itself: `AppDelegate` asks for it when a new install or an update
+        // has something to set up (and a tool that sets `welcome.neverOpen` never sees it).
+        Window(Names.Welcome.windowTitle, id: "welcome") {
+            WelcomeFlowView()
+                .environment(store)
+                .environment(config)
+                .environment(jobs)
+                .environment(updates)
+        }
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
     }
 }

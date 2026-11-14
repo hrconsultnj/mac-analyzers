@@ -31,6 +31,11 @@ public struct AppCommands: Commands {
                 .keyboardShortcut(",", modifiers: .command)
         }
 
+        // Help: the Welcome flow again, from the first step
+        CommandGroup(after: .help) {
+            Button(Names.Welcome.showWelcomeAgain) { WelcomeRequest.open(.again) }
+        }
+
         CommandGroup(after: .toolbar) {
             Divider()
             Button("Refresh") { screen?.refresh?() }

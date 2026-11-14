@@ -10,6 +10,8 @@ enum Resolution: Equatable {
     /// shell never looks inside it.
     case mainWithIntent(Location, SectionIntent)
     case preferences(tab: String)
+    /// The Welcome window (its own window, not a place in the main one). Navigation only: the window decides its own steps.
+    case welcome
     case unknown
 }
 

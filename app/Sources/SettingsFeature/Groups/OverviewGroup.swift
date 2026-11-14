@@ -22,6 +22,8 @@ enum OverviewRoute: Hashable, Codable {
     case turnOffFixture(String)
     /// Setup in an example state (`SetupFixtures.names`); linkable only after `DeepLinkRouter.installFixtures()`.
     case setupFixture(String)
+    /// The Welcome flow in an example state and step (`fresh:3`), inside the main window; linkable only after `installFixtures()`.
+    case welcomeFixture(String)
 }
 
 /// Whether anything on this Mac needs you, for the Setup row's badge: the same rows Setup shows, counting only real
@@ -67,6 +69,8 @@ enum OverviewGroup {
             "logs": .main(Location(activity)),
             "jobs": .main(Location(activity)),
             "setup": .main(Location(setup)),
+            // the Welcome window, not a place in this one
+            "welcome": .welcome,
             "uninstall": .main(Location(setup, path: [.overview(.turnOff)])),
         ],
         resolveDynamic: resolveDynamic,
@@ -86,6 +90,7 @@ enum OverviewGroup {
         case .turnOff: UninstallView()
         case .turnOffFixture(let name): UninstallView(permissionFixture: TurnOffPermission.example(name))
         case .setupFixture(let name): SetupView(fixture: name)
+        case .welcomeFixture(let name): WelcomeFlowView(fixture: name)
         case .newestRun(let raw): RunScreen(newestIn: EngineLog(rawValue: raw))
         case .raw(let subject): RawOutputScreen(subject: subject)
         case .reviewFixture: ReviewFixtureScreen()

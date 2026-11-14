@@ -30,6 +30,11 @@ public enum DeepLinkRouter {
                           "turnoff:permission": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("permission"))])),
                           "turnoff:earlier": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("earlier"))])),
                           "turnoff:none": .main(Location(OverviewGroup.setup, path: [.overview(.turnOffFixture("none"))]))]
+            .merging(Dictionary(uniqueKeysWithValues: SetupFixtures.welcomeStates.flatMap { state in
+                (1...7).map { step in
+                    ("welcome:fixture:\(state):\(step)", Resolution.main(Location(OverviewGroup.setup, path: [.overview(.welcomeFixture("\(state):\(step)"))])))
+                }
+            })) { _, welcome in welcome }
             .merging(Dictionary(uniqueKeysWithValues: SetupFixtures.names.map {
                 ("setup:fixture:\($0)", Resolution.main(Location(OverviewGroup.setup, path: [.overview(.setupFixture($0))])))
             })) { _, setup in setup }
@@ -60,12 +65,19 @@ public enum DeepLinkRouter {
     public enum LinkWindow: Equatable {
         case main
         case preferences(tab: String)
+        /// The Welcome window.
+        case welcome
     }
 
     public static func window(for target: String?) -> LinkWindow {
-        guard let target, case .preferences(let tab) = resolve(target) else { return .main }
-        log.notice("preferences tab \(tab, privacy: .public) has no window of its own yet — using the main window")
-        return .main
+        guard let target else { return .main }
+        switch resolve(target) {
+        case .welcome: return .welcome
+        case .preferences(let tab):
+            log.notice("preferences tab \(tab, privacy: .public) has no window of its own yet — using the main window")
+            return .main
+        default: return .main
+        }
     }
 
     /// Resolves and navigates; an unknown target is logged and ignored.
@@ -79,6 +91,8 @@ public enum DeepLinkRouter {
         case .preferences(let tab):
             // no Settings window yet: the interim row stands in for the tab
             navigator.open(PreferencesGroup.interimLocation(forTab: tab))
+        case .welcome:
+            break      // the window is opened by whoever receives the open-window signal; nothing in the main window changes
         case .unknown:
             log.notice("ignored unknown deep-link target \(target, privacy: .public)")
         }
