@@ -141,6 +141,14 @@ through `config.local.sh` (never hardcoded).
   Menu rows and components live in `MenuBarFeature/MenuComponents.swift`.
   The engine stays bash — the app is a control surface over the scripts +
   launchd, never a reimplementation.
+- Old Recordings reads every place a recording app saves, not one folder: the
+  sources are `lib/recording-sources.tsv` (read by `cleanup.sh` and by
+  `RecordingSourceCatalog`; `agent-runner --probe-recording-sources` fails if they
+  differ), each is a tab, and ONLY THE APP DISCOVERS a folder (never inside
+  Documents, Desktop or Downloads before a click): the engine is told the paths in
+  `ANALYZERS_RECORDING_SOURCES` and refuses the folders the Sources window refuses: a source must
+  be inside the home folder (not the Library or a hidden folder) or on `/Volumes/<disk>/…`, checked on the path
+  as written AND where it really leads (`RecordingFolderRule`; `rec_refusal` in `cleanup.sh`).
 - Every Storage task is one screen (`Screens/Storage/`): Preview, the
   preview's rows as tabs and groups in the shared review table, one Apply
   through `JobStore.apply(from:approved:)`, History and Show Raw Output; a

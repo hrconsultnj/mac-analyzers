@@ -41,7 +41,10 @@ enum StorageGroup {
          "unused:detail": .main(Location(unused, path: [.storage(.fixture("unused-detail"))])),
          "unused:login": .main(Location(unused, path: [.storage(.fixture("unused-login"))])),
          "unused:loginunreadable": .main(Location(unused, path: [.storage(.fixture("unused-loginunreadable"))])),
-         "recordings:fixture": .main(Location(recordings, path: [.storage(.fixture("recordings"))]))]
+         "recordings:fixture": .main(Location(recordings, path: [.storage(.fixture("recordings"))])),
+         "recordings:fixture:many": .main(Location(recordings, path: [.storage(.fixture("recordings-many"))])),
+         "recordings:empty:none": .main(Location(recordings, path: [.storage(.fixture("recordings-none"))])),
+         "recordings:sources": .main(Location(recordings, path: [.storage(.fixture("recordings-sources"))]))]
     }
 
     private static func log(_ log: EngineLog) -> Route { .overview(.raw(.log(log.rawValue))) }
@@ -77,6 +80,7 @@ enum StorageGroup {
             "unused": .main(Location(unused)),
             "log:cleanupApps": .main(Location(unused, path: [log(.cleanupApps)])),
             "recordings": .main(Location(recordings)),
+            "recordings:sources": .mainWithIntent(Location(recordings), SectionIntent(section: recordings, payload: "sources")),
             "log:cleanupRecordings": .main(Location(recordings, path: [log(.cleanupRecordings)])),
         ],
         // `<screen>:<tab>`: choose the tab, then go to the screen
@@ -127,7 +131,7 @@ enum StorageGroup {
                 }.id(row.id))
             },
             .recordings: { row in
-                AnyView(StorageResultsView<RecordingCategory>(row: row, kind: .recordings, screenKey: "recordings") { block, results in
+                AnyView(StorageResultsView<StorageTab>(row: row, kind: .recordings, screenKey: "recordings") { block, results in
                     UnusedReview.recordings(lines: block.lines, results: results)
                 }.id(row.id))
             },
@@ -169,6 +173,9 @@ enum StorageGroup {
             case "unused-login": UnusedAppsScreen(fixture: StorageFixtures.unusedAppsLoginFirst(unreadable: false))
             case "unused-loginunreadable": UnusedAppsScreen(fixture: StorageFixtures.unusedAppsLoginFirst(unreadable: true))
             case "recordings": RecordingsScreen(fixture: StorageFixtures.recordings())
+            case "recordings-many": RecordingsScreen(fixture: StorageFixtures.recordingsMany())
+            case "recordings-none": RecordingsScreen(fixtureNoneOn: true)
+            case "recordings-sources": RecordingSourcesFixtureScreen()
             default: CachesScreen(fixture: StorageFixtures.caches())
             }
         }

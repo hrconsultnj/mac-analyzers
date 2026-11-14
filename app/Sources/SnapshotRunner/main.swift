@@ -234,6 +234,11 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         jobs.scriptOverride = nothing
         // `--startup-inventory <file>` shows Login & Startup Items from a fixture
         if let fixture = option("--startup-inventory") { StartupInventory.useFile(URL(fileURLWithPath: fixture)) }
+        // the recording sources of the checkout this tool was built from: the person's own clone may be older
+        var checkout = URL(fileURLWithPath: #filePath)
+        for _ in 0..<4 { checkout.deleteLastPathComponent() }
+        let sources = checkout.appending(path: "lib/recording-sources.tsv")
+        if FileManager.default.fileExists(atPath: sources.path) { RecordingSourceCatalog.useList(at: sources) }
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
         if updateStateOption == nil { Task { await updates.check() } }
         let root = MainWindowView(restoresLocation: false, sidebar: sidebarState)

@@ -7,6 +7,30 @@ public protocol StorageCategory: RawRepresentable, CaseIterable, Hashable, Senda
     var symbol: String { get }
 }
 
+/// A tab built from data, for a screen whose tabs are not a fixed list (Old Recordings: one tab per recording source the
+/// person has). Its raw value is the tab's id, which a row carries as its `category`, the remembered tab and a deep link
+/// use. Two tabs are the same tab when their ids are.
+public struct StorageTab: StorageCategory {
+    public let rawValue: String
+    public let title: String
+    public let symbol: String
+
+    public init(id: String, title: String, symbol: String) {
+        rawValue = id
+        self.title = title
+        self.symbol = symbol
+    }
+
+    /// A tab known only by its id (the remembered tab, read back): the screen matches it to a real one by id.
+    public init?(rawValue: String) { self.init(id: rawValue, title: rawValue, symbol: "folder") }
+
+    /// A tab built from data has no fixed list.
+    public static var allCases: [StorageTab] { [] }
+
+    public static func == (lhs: StorageTab, rhs: StorageTab) -> Bool { lhs.rawValue == rhs.rawValue }
+    public func hash(into hasher: inout Hasher) { hasher.combine(rawValue) }
+}
+
 /// One thing a Storage review or a finished run shows, in the shape every Storage
 /// screen shares: its tab (`category`), the real thing it belongs to (`group`: a
 /// project, an app, an agent, an age), and what it is called for a person. Built
@@ -54,13 +78,29 @@ public struct StorageRows: Sendable {
     public let facts: [String]
     /// Sentences that belong to one tab only (a category's `rawValue`), said over that tab.
     public let tabNotes: [String: [String]]
+    /// The tabs, when they come from data instead of a screen's enum: in the order to show them. Nil for the screens
+    /// whose `StorageCategory` lists them.
+    public let dataTabs: [StorageTab]?
 
-    public init(_ rows: [StorageRow], notes: [String] = [], facts: [String] = [], tabNotes: [String: [String]] = [:]) {
+    public init(_ rows: [StorageRow], notes: [String] = [], facts: [String] = [], tabNotes: [String: [String]] = [:],
+                tabs: [StorageTab]? = nil) {
         self.rows = rows
         self.notes = notes
         self.facts = facts
         self.tabNotes = tabNotes
+        self.dataTabs = tabs
     }
+
+    /// The tabs to show: those with rows, from the data when the screen has data tabs, else from its `StorageCategory`.
+    public func tabs<C: StorageCategory>(_ type: C.Type) -> [StorageTab] {
+        if let dataTabs { return dataTabs.filter { count(inTab: $0.rawValue) > 0 } }
+        return filled(type).map { StorageTab(id: $0.rawValue, title: $0.title, symbol: $0.symbol) }
+    }
+
+    public func rows(inTab id: String) -> [StorageRow] { rows.filter { $0.category == id } }
+    public func count(inTab id: String) -> Int { rows(inTab: id).count }
+    /// What is said over one tab: the notes for the whole review, then that tab's own.
+    public func notes(forTab id: String) -> [String] { notes + (tabNotes[id] ?? []) }
 
     /// What is said over a tab: the notes for the whole review, then the tab's own.
     public func notes<C: StorageCategory>(for category: C) -> [String] { notes + (tabNotes[category.rawValue] ?? []) }
