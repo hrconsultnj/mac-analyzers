@@ -62,7 +62,7 @@ struct OverviewView: View {
         .navigationSubtitle("Your Mac at a glance")
         .task {
             store.reload()
-            await awaitLoad({ TrendsModel.snapshot(period: .day7) }) { week = $0 }
+            await awaitLoad({ TrendsModel.snapshot(period: .week) }) { week = $0 }
             await awaitLoad({ ForecastModel.diskRunway() }) { runway = $0 }
         }
         .task {

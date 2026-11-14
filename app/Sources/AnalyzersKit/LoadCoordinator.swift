@@ -21,6 +21,13 @@ public actor LoadCoordinator {
 
     private var cache: [String: (stamp: Date, value: any Sendable)] = [:]
 
+    /// Test support: every read whose key starts with one of `prefixes` takes `seconds` longer, so a screenshot tool can
+    /// look at a screen while its data is on the way. Never set by the app.
+    @_spi(TestSupport) public func slowDown(prefixes: [String], by seconds: TimeInterval) {
+        delay = (prefixes, seconds)
+    }
+    private var delay: (prefixes: [String], seconds: TimeInterval) = ([], 0)
+
     /// Fresh-enough cached value, else produce it here (on the actor, off
     /// the main thread, one at a time). `nil` means the caller was cancelled
     /// while it waited — the pane it belonged to is gone.
@@ -34,6 +41,7 @@ public actor LoadCoordinator {
         // quickly and the last one used to wait out three sweeps for screens
         // already off-stage; now the abandoned ones simply never run.
         guard !Task.isCancelled else { return nil }
+        if delay.seconds > 0, delay.prefixes.contains(where: key.hasPrefix) { Thread.sleep(forTimeInterval: delay.seconds) }
         let fresh = produce()
         cache[key] = (Date(), fresh)
         return fresh

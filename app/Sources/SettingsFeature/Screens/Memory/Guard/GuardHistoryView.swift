@@ -27,7 +27,7 @@ struct GuardHistoryView: View {
     var body: some View {
         let days = model.days(scope: scope, search: appliedSearch)
         let page = model.page(of: days)
-        DataScreen(title: Names.Screen.memoryGuard, subtitle: subtitle(page)) { list(days: days, page: page) }
+        DataScreen(title: Names.Screen.memoryGuard, subtitle: periodSubtitle(loading: model.loadingWindow, subtitle(page))) { list(days: days, page: page) }
             .searchable(text: $search, prompt: "Search by name or process ID")
             .scopeTabsToolbar(screen: "guard", items: scopeItems, selection: $scope)
             .toolbar { toolbar }
@@ -78,7 +78,7 @@ struct GuardHistoryView: View {
                     Text("\(page.olderRows) earlier \(page.olderRows == 1 ? "row" : "rows")")
                         .foregroundStyle(.secondary)
                 }
-                .help("Show the next days of the \(model.window.title.lowercased())")
+                .help("Show the next days of \(model.window.phrase)")
             }
         }
         .listStyle(.inset)
@@ -111,12 +111,12 @@ struct GuardHistoryView: View {
             let since = "Since \(oldest.formatted(.dateTime.month(.abbreviated).day()))"
             // a search reads the whole period; only how much of the result is shown is paged
             parts = appliedSearch.isEmpty ? [since]
-                : ["Searching the \(model.window.title.lowercased())", "showing \(since.lowercased())"]
+                : ["Searching \(model.window.phrase)", "showing \(since.lowercased())"]
         } else if !appliedSearch.isEmpty {
-            parts = ["Searching the \(model.window.title.lowercased())"]
+            parts = ["Searching \(model.window.phrase)"]
         }
         let stopped = history.stoppedCount
-        if stopped > 0 { parts.append(page.isComplete ? "\(stopped) stopped" : "\(stopped) stopped in the \(model.window.title.lowercased())") }
+        if stopped > 0 { parts.append(page.isComplete ? "\(stopped) stopped" : "\(stopped) stopped in \(model.window.phrase)") }
         // honest about how far back it goes when that is less than the period named
         if !history.coverage.reachedWindow, let oldest = history.coverage.oldest {
             parts = ["Since \(oldest.formatted(date: .abbreviated, time: .omitted))"] + parts.dropFirst()
@@ -125,32 +125,22 @@ struct GuardHistoryView: View {
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .secondaryAction) {
-            Menu {
-                Picker(Names.Guard.show, selection: $model.window) {
-                    ForEach(GuardHistoryModel.Window.allCases) { Text($0.title).tag($0) }
-                }
-                Divider()
-                Button(Names.Monitor.refresh, systemImage: "arrow.clockwise") { Task { await model.refresh(force: true) } }
-            } label: {
-                // the period in force, with its icon: the same control as Monitor's lens
-                Label(model.window.title, systemImage: "calendar")
-            }
-            .labelStyle(.titleAndIcon)
-            .help("Choose how far back to look")
+        PeriodToolbar(period: $model.window, loading: model.loadingWindow, placement: .secondaryAction) {
+            Divider()
+            Button(Names.Monitor.refresh, systemImage: "arrow.clockwise") { Task { await model.refresh(force: true) } }
         }
     }
 
     @ViewBuilder private func emptyState(_ days: [GuardHistory.Day]) -> some View {
-        if model.hasLoaded, days.isEmpty {
+        if model.hasLoaded, model.loadingWindow == nil, days.isEmpty {
             if !appliedSearch.isEmpty {
                 ContentUnavailableView.search(text: appliedSearch)
             } else if model.history.entries.isEmpty {
                 ContentUnavailableView(Names.Guard.nothingToReport, systemImage: "shield.lefthalf.filled",
-                                       description: Text("The guard has not stopped or flagged anything in the \(model.window.title.lowercased()). Quiet is good."))
+                                       description: Text("The guard has not stopped or flagged anything in \(model.window.phrase). Quiet is good."))
             } else {
                 ContentUnavailableView(Names.Guard.nothingHere, systemImage: scope == .crisisReports ? "stethoscope" : "line.3.horizontal.decrease",
-                                       description: Text("Nothing in this view in the \(model.window.title.lowercased()). Try another."))
+                                       description: Text("Nothing in this view in \(model.window.phrase). Try another."))
             }
         }
     }

@@ -5,14 +5,6 @@ import AnalyzersKit
 /// actually done for me" numbers. Reads the same parsers the log panes use;
 /// nothing leaves the Mac.
 struct TrendsSnapshot {
-    struct DayCount: Identifiable {
-        let day: Date
-        let kills: Int
-        let spikes: Int
-        let other: Int
-        var id: Date { day }
-    }
-
     struct Offender: Identifiable {
         let name: String
         let count: Int
@@ -29,7 +21,10 @@ struct TrendsSnapshot {
     /// nil when the newest storage run was an apply: nothing is waiting to be reclaimed.
     let latestReclaimableBytes: Int64?
     let cleanRuns: Int
-    let days: [DayCount]
+    /// The period these numbers are for: the screen keeps showing the previous snapshot while the next one loads.
+    let period: ReportPeriod
+    /// One bar per hour (the last 24 hours) or per day, oldest first.
+    let buckets: [TrendBucket]
     let offenders: [Offender]
     let headline: String
 
@@ -82,79 +77,28 @@ struct OffenderTimeline {
 
 enum TrendsModel {
 
-    enum Period: CaseIterable, Codable, Sendable {
-        case day1, day3, day7, day14, day30, day90, all
-
-        /// The full-width tabs; everything else lives behind the ellipsis.
-        static let primary: [Period] = [.day3, .day7, .day30]
-        static let extended: [Period] = [.day1, .day14, .day90, .all]
-
-        var label: String {
-            switch self {
-            case .day1: "24 Hours"
-            case .day3: "3 Days"
-            case .day7: "7 Days"
-            case .day14: "14 Days"
-            case .day30: "30 Days"
-            case .day90: "90 Days"
-            case .all: "All Time"
-            }
-        }
-
-        var interval: TimeInterval {
-            switch self {
-            case .day1: 86_400
-            case .day3: 3 * 86_400
-            case .day7: 7 * 86_400
-            case .day14: 14 * 86_400
-            case .day30: 30 * 86_400
-            case .day90: 90 * 86_400
-            case .all: 3650 * 86_400
-            }
-        }
-
-        var headlinePrefix: String {
-            switch self {
-            case .day1: "Last 24 hours"
-            case .all: "All time"
-            default: "Last \(label.lowercased())"
-            }
-        }
-    }
-
-    static func snapshot(period: Period) -> TrendsSnapshot {
-        let cutoff = Date().addingTimeInterval(-period.interval)
-        let events = GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
-                                              within: period.interval)
+    static func snapshot(period: ReportPeriod, now: Date = Date()) -> TrendsSnapshot {
+        let start = period.start(now: now)
+        let events = GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog, since: start)
 
         var kills = 0, spikes = 0, pressure = 0, cpuHogs = 0
         var guardFreedMB = 0
-        var perDay: [Date: (kills: Int, spikes: Int, other: Int)] = [:]
         var perProcess: [String: (count: Int, kills: Int)] = [:]
-        let calendar = Calendar.current
 
         for event in events {
-            let day = calendar.startOfDay(for: event.date)
-            var bucket = perDay[day] ?? (0, 0, 0)
             switch event.kind {
             case .killed:
                 kills += 1
-                bucket.kills += 1
                 guardFreedMB += event.residentMB ?? 0
             case .spike:
                 spikes += 1
-                bucket.spikes += 1
             case .cpuHog:
                 cpuHogs += 1
-                bucket.other += 1
             case .capExceeded, .pressureWarning, .pressureCritical, .warning:
                 pressure += 1
-                bucket.other += 1
             case .forensics, .stopFailed:   // a stop that found the process already gone is not a kill
-                bucket.other += 1
+                break
             }
-            perDay[day] = bucket
-
             if event.pid != nil {
                 var entry = perProcess[event.displayName] ?? (0, 0)
                 entry.count += 1
@@ -163,25 +107,15 @@ enum TrendsModel {
             }
         }
 
-        // memory reaps: actual closures only (dry rows are intent, not effect)
-        let reapFreedMB = TrendTotals.reapedMemoryMB(within: period.interval)
+        // memory reaps: actual closures only (dry rows are intent, not effect); storage: deleted bytes across real runs
+        let reaped = TrendTotals.reapedMemory(since: start)
+        let removed = TrendTotals.removedStorage(since: start)
+        let reapFreedMB = reaped.reduce(0) { $0 + $1.mb }
+        let storageFreed = removed.reduce(Int64(0)) { $0 + $1.bytes }
+        let cleanRuns = removed.count
 
-        // storage: deleted bytes across real runs; latest run's identified total
-        var storageFreed: Int64 = 0
-        var cleanRuns = 0
-        let storageRuns = LogParser.allRuns(for: .storageClean)
-        for run in storageRuns {
-            guard let date = runDate(run.header), date >= cutoff else { continue }
-            cleanRuns += 1
-            let parsed = StorageCleanParser.parse(runHeader: run.header, lines: run.lines)
-            storageFreed += parsed.items.filter { $0.status == .deleted }
-                .map(\.sizeBytes).reduce(0, +)
-        }
-
-        let days = perDay.map {
-            TrendsSnapshot.DayCount(day: $0.key, kills: $0.value.kills,
-                                    spikes: $0.value.spikes, other: $0.value.other)
-        }.sorted { $0.day < $1.day }
+        let buckets = TrendBuckets.make(period: period, now: now, events: events,
+                                        freed: reaped, removed: removed)
 
         let offenders = perProcess.map {
             TrendsSnapshot.Offender(name: $0.key, count: $0.value.count, kills: $0.value.kills)
@@ -197,34 +131,32 @@ enum TrendsModel {
         }
         if storageFreed > 0 { claims.append("\(ByteSize.format(storageFreed)) removed from disk by cleanups") }
         let headline = claims.isEmpty
-            ? "\(period.headlinePrefix): all quiet — nothing needed defending."
-            : "\(period.headlinePrefix): \(claims.joined(separator: ", "))."
+            ? "\(period.title): all quiet — nothing needed defending."
+            : "\(period.title): \(claims.joined(separator: ", "))."
 
         return TrendsSnapshot(kills: kills, spikes: spikes, pressure: pressure,
                               cpuHogs: cpuHogs, memoryFreedMB: memoryFreedMB,
                               storageFreedBytes: storageFreed,
                               latestReclaimableBytes: TrendTotals.latestPreview()?.bytes,
-                              cleanRuns: cleanRuns, days: days,
+                              cleanRuns: cleanRuns, period: period, buckets: buckets,
                               offenders: offenders, headline: headline)
     }
 
     /// Guard events scoped to `period` and filtered to one category — the
     /// drill-down list behind each Defended tile.
-    static func events(period: Period, category: GuardEvent.Category) -> [GuardEvent] {
-        GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
-                                 within: period.interval)
+    static func events(period: ReportPeriod, category: GuardEvent.Category) -> [GuardEvent] {
+        GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog, since: period.start())
             .filter { $0.category == category }
     }
 
     /// Per-process memory recovered in the window: guard kills' resident size
     /// plus reap runs' actual closures (KILLED/QUIT — dry rows are intent,
     /// not effect, same rule as snapshot()).
-    static func memoryFreedByProcess(period: Period) -> [MemoryFreedEntry] {
-        let cutoff = Date().addingTimeInterval(-period.interval)
+    static func memoryFreedByProcess(period: ReportPeriod) -> [MemoryFreedEntry] {
+        let cutoff = period.start()
         var perProcess: [String: Int] = [:]
 
-        for event in GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
-                                              within: period.interval)
+        for event in GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog, since: cutoff)
         where event.isKill {
             perProcess[freedName(event.displayName), default: 0] += event.residentMB ?? 0
         }
@@ -261,8 +193,8 @@ enum TrendsModel {
 
     /// Deleted storage items across real runs in the window, grouped by
     /// project and sorted by size — the receipts behind "Disk reclaimed."
-    static func diskReclaimedByProject(period: Period) -> [DiskReclaimedGroup] {
-        let cutoff = Date().addingTimeInterval(-period.interval)
+    static func diskReclaimedByProject(period: ReportPeriod) -> [DiskReclaimedGroup] {
+        let cutoff = period.start()
         var deleted: [StoragePathItem] = []
         for run in LogParser.allRuns(for: .storageClean) {
             guard let date = runDate(run.header), date >= cutoff else { continue }
@@ -289,9 +221,8 @@ enum TrendsModel {
 
     /// One process's full guard timeline in the window, across every event
     /// kind, plus the stat row the offender drill-down leads with.
-    static func offenderTimeline(name: String, period: Period) -> OffenderTimeline {
-        let events = GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog,
-                                              within: period.interval)
+    static func offenderTimeline(name: String, period: ReportPeriod) -> OffenderTimeline {
+        let events = GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog, since: period.start())
             .filter { $0.displayName == name }
         return OffenderTimeline(events: events,
                                 eventCount: events.count,

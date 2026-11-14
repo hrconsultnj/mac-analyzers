@@ -7,7 +7,7 @@ import UIComponents
 /// The dashboard's project rows push this screen with their project opened and
 /// selected, so the dashboard holds no second opening list over the same data.
 struct DiskReclaimedDetailView: View {
-    let period: TrendsModel.Period
+    let period: ReportPeriod
     /// A project to open and select when the table first shows (from a dashboard row).
     var project: String?
 
@@ -50,10 +50,10 @@ struct DiskReclaimedDetailView: View {
             }
         }
         .navigationTitle("Removed by Cleanups")
-        .navigationSubtitle("Everything cleanups deleted, \(period.label.lowercased()), including folders that were rebuilt and removed again — not the net space gained")
+        .navigationSubtitle("Everything cleanups deleted, \(period.phrase), including folders that were rebuilt and removed again — not the net space gained")
         .task {
             let window = period
-            await awaitLoad({ TrendsModel.diskReclaimedByProject(period: window) }) { groups in
+            await awaitLoad({ TrendsModel.diskReclaimedByProject(period: window) }, key: "trends.projects.\(window.rawValue)") { groups in
                 rows = groups.map { group in
                     Row(id: group.project, name: group.project,
                         detail: "\(group.items.count) \(group.items.count == 1 ? "item" : "items")",

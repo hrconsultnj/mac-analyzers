@@ -217,7 +217,12 @@ public enum GuardLogParser {
     public static func allEvents(fromLog url: URL,
                                  within interval: TimeInterval = 90 * 86_400,
                                  limit: Int? = nil) -> [GuardEvent] {
-        let reading = GuardLogReader.read(url, since: Date().addingTimeInterval(-interval))
+        allEvents(fromLog: url, since: Date().addingTimeInterval(-interval), limit: limit)
+    }
+
+    /// The same from a date on: the log is read backwards only as far as `start`, so a short period costs a short read.
+    public static func allEvents(fromLog url: URL, since start: Date, limit: Int? = nil) -> [GuardEvent] {
+        let reading = GuardLogReader.read(url, since: start)
         let events = reading.lines.compactMap { parseLine($0) }
             .sorted { $0.date > $1.date }
         return limit.map { Array(events.prefix($0)) } ?? events

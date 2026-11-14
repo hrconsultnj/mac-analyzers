@@ -99,13 +99,20 @@ func probeGuardRules() -> Never {
     let chronological = Array(periodLines.reversed())      // oldest first: 100 days, 40 days, 6 days, 3.5 days, 30 h, 2 h
     try? ((Array(chronological[0..<2]) + filler + Array(chronological[2...])).joined(separator: "\n") + "\n").write(to: periodLog, atomically: true, encoding: .utf8)
     GuardHistory.useLog(at: periodLog)
+    // the one period type: the same five choices on Trends and Memory Guard, in order, with the names the menu shows
+    check("the period menu offers six choices", ReportPeriod.allCases.map(\.rawValue) == [24, 72, 168, 336, 720, 2_160]
+          && ReportPeriod.allCases.map(\.title) == Names.Period.all, ReportPeriod.allCases.map(\.title).joined(separator: ", "))
+    check("a stored length that is not offered becomes the nearest longer one",
+          ReportPeriod.nearest(atLeast: 336) == .fortnight && ReportPeriod.nearest(atLeast: 200) == .fortnight && ReportPeriod.nearest(atLeast: 24) == .day
+            && ReportPeriod.nearest(atLeast: 100) == .week && ReportPeriod.nearest(atLeast: 9_999) == nil, "200 hours is \(ReportPeriod.nearest(atLeast: 200)?.title ?? "none")")
     func inPeriod(_ hours: Int) -> [Int] {
         let begin = hours == 24 ? now.addingTimeInterval(-86_400)
             : (calendar.date(byAdding: .day, value: -(hours / 24), to: calendar.startOfDay(for: now)) ?? now)
         return ages.indices.filter { now.addingTimeInterval(-ages[$0] * 3_600) >= begin }
     }
-    for (name, hours) in [("last 24 hours", 24), ("last 3 days", 72), ("last 7 days", 168), ("last 90 days", 2_160)] {
-        let loaded = GuardHistory.load(since: GuardHistory.periodStart(hours: hours, now: now))
+    for period in ReportPeriod.allCases {
+        let (name, hours) = (period.title.lowercased(), period.rawValue)
+        let loaded = GuardHistory.load(since: period.start(now: now))
         let wanted = Set(inPeriod(hours).map { 7_000 + $0 })
         let got = Set(loaded.entries.compactMap(\.pid).filter { $0 < 8_000 })     // the filler is not what is being counted
         check("the \(name) holds exactly the alerts inside it", got == wanted && !wanted.isEmpty,
@@ -113,7 +120,7 @@ func probeGuardRules() -> Never {
     }
     // an entry screen looks a row up in the same period the list showed (GuardEntryScreen): every row of every
     // period must be found again by its id in that period's read, including a group that straddles the period's start
-    for hours in [24, 72, 168, 2_160] {
+    for hours in ReportPeriod.allCases.map(\.rawValue) {
         let read = GuardHistory.load(since: GuardHistory.periodStart(hours: hours, now: now))
         let ids = read.days(scope: .all, search: "").flatMap { $0.rows.map(\.id) }
         let lost = ids.filter { read.row(id: $0) == nil }

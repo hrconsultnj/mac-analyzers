@@ -14,7 +14,11 @@ import UIComponents
 struct TrendsSettingsView: View {
 
     @Environment(Navigator.self) var navigator
-    @State var period: TrendsModel.Period = .day30
+    /// Remembered between launches; the last 30 days to begin with.
+    @State var period = ReportPeriod.saved(key: Self.periodKey, fallback: .month)
+    static let periodKey = "trends.periodHours"
+    /// The period whose numbers are being read; the previous ones stay on screen until they arrive.
+    @State var loadingPeriod: ReportPeriod?
     @State var snapshot: TrendsSnapshot?
     /// The tab shown; the shared tabs remember it across launches and
     /// `trends:memory` / `trends:storage` choose it.
@@ -29,33 +33,29 @@ struct TrendsSettingsView: View {
     }
 
     var body: some View {
-        DataScreen(title: Names.Screen.trends, subtitle: period.headlinePrefix) {
+        DataScreen(title: Names.Screen.trends, subtitle: periodSubtitle(loading: loadingPeriod, period.title)) {
             // a new list per tab, and once the logs have been read: the system list keeps the height it
             // measured for a row position, so the one-line "Reading the logs…" row would otherwise
             // leave the tiles and the chart that replace it a few points tall
             list.id("\(category.rawValue)-\(snapshot != nil)")
         }
             .scopeTabsToolbar(screen: "trends", items: tabItems, selection: $category)
-            .toolbar {
-                // A menu `Picker` in the toolbar draws an empty capsule (it does not show the
-                // selected title there); a `Menu` shows its icon, and the period is in the subtitle.
-                ToolbarItem {
-                    Menu {
-                        Picker("Period", selection: $period) {
-                            ForEach(TrendsModel.Period.allCases, id: \.self) { Text($0.label).tag($0) }
-                        }
-                        .pickerStyle(.inline)
-                    } label: {
-                        Label(period.label, systemImage: "calendar")
-                    }
-                }
-            }
-            .task {
-                if let payload = navigator.takeIntent(for: HistoryGroup.trends),
-                   let requested = TrendCategory(rawValue: payload) { category = requested }
+            .toolbar { PeriodToolbar(period: $period, loading: loadingPeriod) }
+            .task(id: period) {
+                applyPendingLink()
+                period.remember(key: Self.periodKey)
                 await load()
             }
-            .onChange(of: period) { Task { await load() } }
+            // a link opened while Trends is already showing
+            .onChange(of: navigator.pendingIntent) { applyPendingLink() }
+    }
+
+    /// A deep link's tab, and its period when it names one (`memory` or `memory|168`).
+    private func applyPendingLink() {
+        guard let payload = navigator.takeIntent(for: HistoryGroup.trends) else { return }
+        let parts = payload.split(separator: "|").map(String.init)
+        if let name = parts.first, let requested = TrendCategory(rawValue: name) { category = requested }
+        if parts.count > 1, let hours = Int(parts[1]), let requested = ReportPeriod(rawValue: hours) { period = requested }
     }
 
     private var list: some View {
@@ -91,7 +91,13 @@ struct TrendsSettingsView: View {
 
     private func load() async {
         let window = period
-        await awaitLoad({ TrendsModel.snapshot(period: window) }) { snapshot = $0 }
-        await awaitLoad({ TrendsModel.diskReclaimedByProject(period: window) }) { projects = $0 }
+        loadingPeriod = window
+        // keyed by the period: the coordinator serves a key for a few seconds, and one key for every period
+        // answered a period chosen right after another with the first one's numbers
+        await awaitLoad({ TrendsModel.snapshot(period: window) }, key: "trends.snapshot.\(window.rawValue)") { snapshot = $0 }
+        await awaitLoad({ TrendsModel.diskReclaimedByProject(period: window) },
+                        key: "trends.projects.\(window.rawValue)") { projects = $0 }
+        // a load that was superseded leaves the indicator to the one that replaced it
+        if !Task.isCancelled, loadingPeriod == window { loadingPeriod = nil }
     }
 }

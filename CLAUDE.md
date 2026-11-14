@@ -214,6 +214,14 @@ through `config.local.sh` (never hardcoded).
   --probe-activity [--real]` prints the sections, `--probe-activity-ids` proves
   ids survive a log growing, `--probe-failures` prints the failure sentences, and
   `--probe-pid-recycle` proves a stop refuses a recycled pid.
+- **One period, one loader.** A screen with a period (Trends, Memory Guard) takes it from the shared
+  `ReportPeriod` (`AnalyzersKit/History/`: 24 hours, 3, 7, 14, 30, 90 days, begun by `GuardHistory.periodStart`; a
+  chart's bars are `TrendBuckets`: hourly for 24 hours, daily after) and shows it with `PeriodToolbar` in
+  `SettingsFeature/Shared/PeriodMenu.swift`: a change starts its load with `.task(id: period)`, keys every cached read
+  by the period (`LoadCoordinator` serves a key for seconds), keeps the old content in place and shows a small
+  progress indicator beside the menu with the subtitle "Loading Last 3 Days…" (`periodSubtitle`). Render it with
+  `SnapshotRunner trends:memory:24h out.png --then trends:memory:7d --load-delay 8` (`guard:period:3d` and
+  `trends:<tab>:<24h|3d|7d|14d|30d|90d>` are the period links); `agent-runner --probe-trend-buckets` judges the buckets.
 - **Native controls, native padding, one layout per component** (owner,
   2026-11-10, after three screenshots of v2.69.0: "stop fabricating and just
   use native … buttons"). A button is a `Button` with a system `buttonStyle`;
