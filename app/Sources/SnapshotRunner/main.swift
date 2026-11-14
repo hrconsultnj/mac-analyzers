@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--sidebar shown|hidden|peek] [--toolbar-dump] [--escape] [--toggle-frames] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--view-tree] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--sidebar shown|hidden|peek] [--toolbar-dump] [--escape] [--toggle-frames] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--view-tree] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>] [--welcome <fresh|upgraded|continuing>:<step>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -253,11 +253,16 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         if FileManager.default.fileExists(atPath: sources.path) { RecordingSourceCatalog.useList(at: sources) }
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
         if updateStateOption == nil { Task { await updates.check() } }
-        let root = MainWindowView(restoresLocation: false, sidebar: sidebarState)
+        // `--welcome <state:step>` (`fresh:3`) draws the Welcome window's own content at the size it has (use `--size 560x680`), not
+        // the example inside the main window: the target is then only a placeholder
+        let root: AnyView = option("--welcome").map { example in
+            AnyView(WelcomeFlowView(fixture: example)
+                .environment(store).environment(config).environment(jobs).environment(updates))
+        } ?? AnyView(MainWindowView(restoresLocation: false, sidebar: sidebarState)
             .environment(store)
             .environment(config)
             .environment(jobs)
-            .environment(updates)
+            .environment(updates))
         let controller = NSHostingController(rootView: root)
         controller.sceneBridgingOptions = [.toolbars, .title]   // SwiftUI toolbars become the window's
 

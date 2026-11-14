@@ -41,7 +41,7 @@ struct UninstallView: View {
             case .background:
                 "Unloads the scheduled jobs and the guard, and stops the app opening at login. The app and your logs stay put; you can set it up again any time."
             case .everything:
-                "Everything above, plus reveals the app and its folder in Finder so you can drag them to the Trash. Your reports and settings are left alone unless you delete that folder."
+                "Everything above, plus Mac Analyzers forgets that it has welcomed you (so a reinstall starts fresh) and reveals the app and its folder in Finder so you can drag them to the Trash. Your reports and settings are left alone unless you delete that folder."
             }
         }
 
@@ -51,7 +51,7 @@ struct UninstallView: View {
             case .background:
                 "Your Mac will no longer be watched or cleaned automatically. Nothing you have is deleted."
             case .everything:
-                "Background protection stops and Finder opens at the app and its folder. Deleting those is your call — this app never deletes itself or your reports."
+                "Background protection stops, Mac Analyzers forgets that it has welcomed you, and Finder opens at the app and its folder. Deleting those is your call: this app never deletes itself or your reports."
             }
         }
     }
@@ -233,6 +233,8 @@ struct UninstallView: View {
                 failed = failed || !said.complete
             }
 
+            // the app's note that it has shown the Welcome flow goes with it, so a reinstall starts fresh
+            if level == .everything, agentsOff { SetupState.remove() }
             if level == .everything, agentsOff {
                 NSWorkspace.shared.activateFileViewerSelecting([
                     URL(fileURLWithPath: "/Applications/MacAnalyzers.app"),

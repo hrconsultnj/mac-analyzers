@@ -66,4 +66,39 @@ public enum SetupFixtures {
         }
         return inputs
     }
+
+    /// The Welcome flow in an example state (`fresh`, `upgraded`, `continuing`): its steps and what the Mac says.
+    public static let welcomeStates = ["fresh", "upgraded", "continuing"]
+
+    public static func welcome(_ name: String) -> (setup: SetupInputs, welcome: WelcomeInputs) {
+        switch name {
+        case "upgraded":
+            // an update that brought a step to set up (Full Disk Access, pretended to be new): the flow shows only that
+            var setup = inputs("waiting")
+            setup.notifications = .allowed
+            setup.login = .enabled
+            var welcome = WelcomeSatisfaction.inputs(setup: setup, state: SetupState(seenVersion: WelcomePlanner.baseline),
+                                                      hasTimeMachine: true, version: "2.72.0")
+            // no step but the welcome and the guard preview is new in this release, so a later release is pretended here: the one
+            // that first asks for Full Disk Access, which this Mac has not given
+            welcome.specs = WelcomeSpec.all.map { $0.step == .fullDiskAccess ? WelcomeSpec(step: .fullDiskAccess, introducedIn: "2.72.0") : $0 }
+            return (setup, welcome)
+        case "continuing":
+            // flow left half-way: notifications answered, Full Disk Access skipped and still off
+            var setup = inputs("waiting")
+            setup.notifications = .allowed
+            var state = SetupState(seenVersion: "2.72.0")
+            state.record(.welcome, .done); state.record(.background, .done); state.record(.guardPreview, .done)
+            state.record(.notifications, .done); state.record(.fullDiskAccess, .skipped)
+            let welcome = WelcomeSatisfaction.inputs(setup: setup, state: state, hasTimeMachine: true, version: "2.72.0")
+            return (setup, welcome)
+        default:
+            // a new install: nothing set up yet
+            var setup = inputs("allOff")
+            setup.jobs = setup.jobs.map { SetupInputs.Job(label: $0.label, loaded: false, schedule: nil, lastActivity: nil) }
+            setup.settingsFileExists = false
+            let welcome = WelcomeSatisfaction.inputs(setup: setup, state: nil, hasTimeMachine: true, version: "2.72.0")
+            return (setup, welcome)
+        }
+    }
 }

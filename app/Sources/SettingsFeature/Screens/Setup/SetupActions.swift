@@ -5,13 +5,39 @@ import UserNotifications
 import AnalyzersKit
 import NotifierKit
 
-/// The action behind each row's button: what it does, and the sentence that says what came of it.
-extension SetupView {
+/// The action behind each Setup row's button, and the sentence that says what came of it. Setup and the Welcome flow both
+/// use this one, so a row does the same thing wherever it appears. The screen binds the stores it was given
+/// (`bind`) and passes what to do after an action (`reload`: read the Mac again).
+@MainActor @Observable
+final class SetupActions {
+
+    var working: String?
+    /// The install job being shown: the store's own, found again by kind when the window is reopened mid-run.
+    var installJob: Job?
+    var message: String?
+    var messageIsError = false
+    /// An example state is only looked at: nothing is changed on this Mac from it.
+    var isFixture = false
+
+    @ObservationIgnored private var jobs: JobStore?
+    @ObservationIgnored private var store: GuardLogStore?
+    @ObservationIgnored private var navigator: Navigator?
+    @ObservationIgnored private var handoff: SystemSettingsHandoff?
+    @ObservationIgnored private var reload: () async -> Void = {}
+
+    func bind(jobs: JobStore, store: GuardLogStore, navigator: Navigator?, handoff: SystemSettingsHandoff,
+              reload: @escaping () async -> Void) {
+        self.jobs = jobs
+        self.store = store
+        self.navigator = navigator
+        self.handoff = handoff
+        self.reload = reload
+    }
+
 
     func perform(_ item: SetupItem) async {
-        guard let action = item.action else { return }
-        // an example state is only looked at: nothing is changed on this Mac from it
-        if fixture != nil, !isNavigation(action) { return }
+        guard let action = item.action, let handoff else { return }
+        if isFixture, !isNavigation(action) { return }
         working = item.id
         message = nil
         defer { working = nil }
@@ -77,15 +103,15 @@ extension SetupView {
             }
 
         case .change(let target), .showInActivity(let target):
-            navigator.open(target: target)
+            navigator?.open(target: target)
 
         case .openSettings(let pane):
             // the row turns into the guidance, and watches for the change
             handoff.begin(item.id, pane: pane)
         }
 
-        await load()
-        store.reload()
+        await reload()
+        store?.reload()
     }
 
     private func isNavigation(_ action: SetupAction) -> Bool {
@@ -107,6 +133,7 @@ extension SetupView {
     /// finishes even if this window closes. They are sudo-free by design: everything they touch is in the person's own
     /// launchd domain.
     private func installAgents() async -> (ok: Bool, text: String) {
+        guard let jobs else { return (false, "Couldn't start the install.") }
         let job = jobs.enqueue(JobRequest(kind: .installAgents, intent: .run), trigger: .user)
         installJob = job
         return await finishInstall(job)
@@ -115,14 +142,14 @@ extension SetupView {
     /// The window was closed while the agents were being installed: show the install still working, then say what is true
     /// once it ends.
     func adoptRunningInstall() async {
-        guard let running = jobs.latest(.installAgents, intents: [.run]), running.isActive else { return }
+        guard let running = jobs?.latest(.installAgents, intents: [.run]), running.isActive else { return }
         installJob = running
         working = "adopted"
         defer { working = nil }
         let outcome = await finishInstall(running)
         messageIsError = !outcome.ok
         message = outcome.text
-        await load()
+        await reload()
     }
 
     private func finishInstall(_ job: Job) async -> (ok: Bool, text: String) {

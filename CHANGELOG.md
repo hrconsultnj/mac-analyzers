@@ -11,6 +11,10 @@ without an entry here — see `scripts/cut-release.sh`.
 
 Setup is now one screen of your current configuration, in three tabs: Permissions, Background and Protection. Each thing has its own row with where it stands, what was found, and one button. When something can only be changed in System Settings, the row opens the right page, says exactly which switch to turn on, and confirms when you have done it. Full Disk Access is checked by trying the folders Mac Analyzers really reads, instead of guessing. Turn Off or Remove is now on Setup's toolbar, and Old Recordings' folders have a row here too.
 
+**A welcome when you first open Mac Analyzers**
+
+On a new install Mac Analyzers now opens a short Welcome window. It shows what it will do on your Mac with your own numbers, turns on the background protection, previews what Memory Guard would do right now, and walks you through notifications and Full Disk Access, with Not Now on every step. After an update, anything new that needs setting up is marked on Setup, without a window taking over your screen. Continue Setup… on the Setup screen picks up where you left off, and Show Welcome Again… in the Help menu starts it over.
+
 **Memory Guard**
 
 - Memory Guard has tabs now, the same way Monitor has: When Memory Runs Out, Apps,
