@@ -19,6 +19,8 @@ struct TrendsSettingsView: View {
     static let periodKey = "trends.periodHours"
     /// The period whose numbers are being read; the previous ones stay on screen until they arrive.
     @State var loadingPeriod: ReportPeriod?
+    /// Which load is the newest (see `load`).
+    @State var loadGeneration = 0
     @State var snapshot: TrendsSnapshot?
     /// The tab shown; the shared tabs remember it across launches and
     /// `trends:memory` / `trends:storage` choose it.
@@ -92,13 +94,20 @@ struct TrendsSettingsView: View {
 
     private func load() async {
         let window = period
+        loadGeneration += 1
+        let mine = loadGeneration
         loadingPeriod = window
-        // keyed by the period: the coordinator serves a key for a few seconds, and one key for every period
-        // answered a period chosen right after another with the first one's numbers
-        await awaitLoad({ TrendsModel.snapshot(period: window) }, key: "trends.snapshot.\(window.rawValue)") { snapshot = $0 }
-        await awaitLoad({ TrendsModel.diskReclaimedByProject(period: window) },
-                        key: "trends.projects.\(window.rawValue)") { projects = $0 }
-        // a load that was superseded leaves the indicator to the one that replaced it
-        if !Task.isCancelled, loadingPeriod == window { loadingPeriod = nil }
+        // The snapshot and the project rows are read together and assigned together, so the rows are never of another
+        // period than the numbers beside them. A result is kept only if its load is still the newest and its period the
+        // one chosen: a load that was superseded can finish after the one that replaced it. Keyed by the period too: the
+        // coordinator serves a key for a few seconds, and one key for every period answered a period chosen right after
+        // another with the first one's numbers.
+        await awaitLoad({ (TrendsModel.snapshot(period: window), TrendsModel.diskReclaimedByProject(period: window)) },
+                        key: "trends.\(window.rawValue)") { loaded in
+            guard mine == loadGeneration, window == period else { return }
+            snapshot = loaded.0
+            projects = loaded.1
+        }
+        if !Task.isCancelled, mine == loadGeneration { loadingPeriod = nil }
     }
 }

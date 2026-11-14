@@ -13,8 +13,10 @@ import Foundation
 ///      fast clicks cost one sweep at a time instead of ten at once.
 ///   2. DEDUPED + CACHED — a key that was produced within its TTL returns
 ///      instantly, so re-entering a pane (or a 5s refresh tick) is free.
-///   3. KEYED PER CALL SITE — callers get a key for free from #fileID and
-///      #line, so panes never collide or invalidate each other.
+///   3. KEYED BY THE CALLER — a key names the load AND every input of it (a
+///      period, a process, a channel), so panes never collide and a request with
+///      other inputs is never answered with a cached one's data. `awaitLoad`
+///      has no default key for that reason.
 public actor LoadCoordinator {
 
     public static let shared = LoadCoordinator()

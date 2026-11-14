@@ -159,7 +159,7 @@ struct DossierView: View {
                         || needle.contains($0.name.lowercased())
                 } ?? []
             return (liveMatch, energyMatch, diskMatch, events, network)
-        }) {
+        }, key: "dossier.\(pid.map(String.init) ?? "-").\(name)") {
             live = $0.0
             energy = $0.1
             diskIO = $0.2

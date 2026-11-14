@@ -176,12 +176,12 @@ public enum GuardLogParser {
     /// kills always show; only the LATEST spike per pid shows, and spikes from
     /// pids that were later killed are dropped. Newest first.
     public static func recentEvents(fromLog url: URL,
-                                    within interval: TimeInterval = 86_400,
+                                    since start: Date = GuardHistory.periodStart(hours: 24),
                                     limit: Int = 6,
                                     after clearedAt: Date? = nil) -> [GuardEvent] {
         guard let data = try? Data(contentsOf: url),
               let text = String(data: data, encoding: .utf8) else { return [] }
-        let cutoff = max(Date().addingTimeInterval(-interval), clearedAt ?? .distantPast)
+        let cutoff = max(start, clearedAt ?? .distantPast)
 
         var kills: [GuardEvent] = []
         var others: [GuardEvent] = []

@@ -31,6 +31,9 @@ final class GuardHistoryModel {
     }
     /// The period whose history is being read; the previous one stays on screen until it arrives.
     private(set) var loadingWindow: Window?
+    /// Which read is the newest. A result is kept only if its read is still the newest and its period is the one chosen:
+    /// a read that was superseded can finish after the one that replaced it, and must not overwrite it.
+    @ObservationIgnored private var generation = 0
 
     /// The history for a window, read once and shared: the list and every
     /// entry screen opened from it use the same read (about a second on a
@@ -82,11 +85,13 @@ final class GuardHistoryModel {
 
     func refresh(force: Bool = false) async {
         let wanted = window
+        generation += 1
+        let mine = generation
         loadingWindow = wanted
-        guard let loaded = await Self.history(window: wanted, force: force), !Task.isCancelled else { return }
+        guard let loaded = await Self.history(window: wanted, force: force), !Task.isCancelled,
+              mine == generation, wanted == window else { return }
         history = loaded
         hasLoaded = true
-        // a read that was superseded leaves the indicator to the one that replaced it
-        if loadingWindow == wanted { loadingWindow = nil }
+        loadingWindow = nil
     }
 }

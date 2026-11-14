@@ -14,7 +14,7 @@ extension TrendsSettingsView {
                 ("arrow.up.right", .orange, "\(snap.spikes)", "Spikes Caught", .spikes(snap.period)),
                 ("exclamationmark.triangle.fill", .orange, "\(snap.pressure)", "Pressure Alerts", .pressure(snap.period)),
                 ("cpu", .purple, "\(snap.cpuHogs)", "CPU Hogs Flagged", .cpuHogs(snap.period)),
-                ("memorychip", .blue, MemorySize.text(Int64(snap.memoryFreedMB) * 1_048_576),
+                ("memorychip", .blue, MemorySize.text(Int64(snap.memoryFreedMB) * 1_048_576, .headline),
                  "Memory Freed", .memoryFreed(snap.period)),
             ])
         }
@@ -28,7 +28,7 @@ extension TrendsSettingsView {
             Section("Memory Freed per \(snap.period.bucket == .hour ? "Hour" : "Day")") {
                 ValueChart(buckets: snap.buckets, period: snap.period, name: "Memory Freed", color: .blue,
                            value: { Double($0.freedMB) },
-                           format: { MemorySize.text(Int64($0) * 1_048_576) })
+                           format: { MemorySize.text(Int64($0) * 1_048_576, .axis) })
             }
         }
         if !snap.offenders.isEmpty {
@@ -55,9 +55,9 @@ extension TrendsSettingsView {
     @ViewBuilder func storageSections(_ snap: TrendsSnapshot) -> some View {
         Section {
             tiles([
-                ("internaldrive.fill", .indigo, ByteSize.format(snap.storageFreedBytes),
+                ("internaldrive.fill", .indigo, ByteSize.text(snap.storageFreedBytes, .headline),
                  "Removed by Cleanups", .diskReclaimed(snap.period)),
-                ("sparkles", .teal, snap.latestReclaimableBytes.map(ByteSize.format) ?? "—",
+                ("sparkles", .teal, snap.latestReclaimableBytes.map { ByteSize.text($0, .headline) } ?? "—",
                  "Reclaimable Now", .reclaimableNow),
             ])
         } header: {
@@ -68,7 +68,7 @@ extension TrendsSettingsView {
         if snap.storageFreedBytes > 0 {
             Section("Removed per \(snap.period.bucket == .hour ? "Hour" : "Day")") {
                 ValueChart(buckets: snap.buckets, period: snap.period, name: "Removed", color: .indigo,
-                           value: { Double($0.removedBytes) }, format: { ByteSize.format(Int64($0)) })
+                           value: { Double($0.removedBytes) }, format: { ByteSize.text(Int64($0), .axis) })
             }
         }
         if !projects.isEmpty {
@@ -81,7 +81,7 @@ extension TrendsSettingsView {
                             Text("\(group.items.count) \(group.items.count == 1 ? "item" : "items")")
                                 .font(.caption).foregroundStyle(.secondary)
                             Spacer(minLength: 8)
-                            Text(ByteSize.format(group.totalBytes)).monospacedDigit().foregroundStyle(.secondary)
+                            Text(ByteSize.text(group.totalBytes, .cell)).monospacedDigit().foregroundStyle(.secondary)
                         }
                     }
                 }

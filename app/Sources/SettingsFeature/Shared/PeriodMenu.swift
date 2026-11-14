@@ -1,7 +1,7 @@
 import SwiftUI
 import AnalyzersKit
 
-/// The period control every screen with a period shares (Trends, Memory Guard): the same five choices from
+/// The period control every screen with a period shares (Trends, Memory Guard): the same six choices from
 /// `ReportPeriod`, one menu in the toolbar showing the period in force with its icon, and, while the data for a
 /// newly chosen period is loading, a small native progress indicator beside it. The old content stays on screen
 /// while that happens (no flash to empty); `periodSubtitle` says what is loading.

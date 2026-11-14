@@ -4,9 +4,9 @@ import Foundation
 /// same six and a period means the same thing everywhere. The raw value is the length in hours (what each screen
 /// remembers and what a link carries).
 ///
-/// A period begins where `GuardHistory.periodStart` says: the last 24 hours back from now, a longer one from the start
-/// of that day, so its oldest day is whole. What a chart draws is one bar per `bucket`: hourly for the last 24 hours,
-/// daily for every longer period.
+/// A period begins where `GuardHistory.periodStart` says: the last 24 hours begins on the hour (the current clock hour and
+/// the 23 before it), "Last N Days" at the start of the day N-1 days back (N days counting today). What a chart draws is
+/// one bar per `bucket`: 24 hourly bars for the last 24 hours, N daily bars for N days.
 public enum ReportPeriod: Int, CaseIterable, Identifiable, Codable, Sendable {
     case day = 24
     case threeDays = 72

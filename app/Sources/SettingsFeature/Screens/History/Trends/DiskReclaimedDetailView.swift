@@ -41,7 +41,7 @@ struct DiskReclaimedDetailView: View {
                     OutlineColumn("name", Names.Column.name, text: \.name,
                                   sortUsing: KeyPathComparator(\Row.name, comparator: .localizedStandard))
                     OutlineColumn("items", Names.Column.items, text: \.detail).textStyle { _ in .secondary }
-                    OutlineColumn("removed", Names.Column.removed, text: { ByteSize.format($0.bytes) },
+                    OutlineColumn("removed", Names.Column.removed, text: { ByteSize.text($0.bytes, .cell) },
                                   sortUsing: KeyPathComparator(\Row.bytes))
                         .alignment(.trailing).monospacedDigits()
                         .width(min: 90, ideal: 110, max: 160)

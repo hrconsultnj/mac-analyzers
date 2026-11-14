@@ -3,7 +3,7 @@ import Foundation
 
 // `agent-runner --probe-trend-buckets` judges how a period's events become the bars of a Trends chart, on a guard log
 // it writes itself at a fixed moment (nothing of the person's is read): the last 24 hours is 24 hourly buckets, every
-// longer period is one bucket per calendar day from the day it begins through today, every event inside a period is in
+// longer period is one bucket per calendar day, "Last N Days" being N buckets with today the last, every event inside a period is in
 // exactly one bucket of it (the hour or day it happened in), nothing outside is, and what the guard and the cleaners
 // freed or removed lands in the same buckets. Exits non-zero when a rule breaks.
 
@@ -43,11 +43,14 @@ func probeTrendBuckets() -> Never {
         let unit = period.bucket == .hour ? "hourly" : "daily"
 
         // the number of bars
-        let wantedCount = period == .day ? 24
-            : (calendar.dateComponents([.day], from: calendar.startOfDay(for: period.start(now: now, calendar: calendar)),
-                                       to: calendar.startOfDay(for: now)).day ?? -1) + 1
+        // 24 hours is 24 bars; "Last N Days" is N bars, today included
+        let wantedCount = period == .day ? 24 : period.rawValue / 24
         check("\(period.title) is \(wantedCount) \(unit) buckets", buckets.count == wantedCount,
-              "\(buckets.count) buckets, \(period.bucket == .hour ? "the last 24 clock hours" : "from the day it begins through today")")
+              "\(buckets.count) buckets, \(period.bucket == .hour ? "the current clock hour and the 23 before it" : "today and the \(wantedCount - 1) days before it")")
+        // the period begins exactly where its first bar does, so no bar covers more than its own hour or day
+        check("\(period.title) begins where its first bar does", starts.first == (period.bucket == .hour
+              ? period.start(now: now, calendar: calendar) : calendar.startOfDay(for: period.start(now: now, calendar: calendar))),
+              starts.first.map { formatter.string(from: $0) } ?? "no bars")
 
         // contiguous, oldest first, each one hour or one calendar day after the one before, the last holding now
         let step = period.bucket.component

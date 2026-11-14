@@ -13,9 +13,9 @@ public struct TrendBucket: Identifiable, Sendable, Equatable {
 }
 
 /// Puts a period's events into the buckets its chart draws: the last 24 hours as 24 clock hours ending with the
-/// current one, a longer period as one bucket per calendar day from the day the period begins through today (the
-/// period begins at the start of its first day, so that day is whole and today is the part so far). Everything inside
-/// the period lands in a bucket; nothing is dropped and nothing is counted twice.
+/// current one (the period begins on the hour: 24 equal bars), "Last N Days" as N buckets, one per calendar day from the
+/// day it begins through today (today is the part so far). Everything inside the period lands in a bucket; nothing is
+/// dropped and nothing is counted twice.
 public enum TrendBuckets {
 
     public static func starts(for period: ReportPeriod, now: Date = Date(), calendar: Calendar = .current) -> [Date] {
@@ -36,8 +36,7 @@ public enum TrendBuckets {
         }
     }
 
-    /// The bucket a moment belongs to: the latest bucket start at or before it, and the first bucket for a moment
-    /// before them all (the part of the first hour that the rolling 24 hours reaches back into).
+    /// The bucket a moment belongs to: the latest bucket start at or before it (the first bucket for a moment before them all).
     private static func index(of date: Date, in starts: [Date]) -> Int? {
         guard !starts.isEmpty else { return nil }
         var low = 0, high = starts.count - 1

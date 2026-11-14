@@ -129,7 +129,7 @@ enum TrendsModel {
         if memoryFreedMB > 0 {
             claims.append("\(String(format: "%.1f", Double(memoryFreedMB) / 1024)) GB of memory freed")
         }
-        if storageFreed > 0 { claims.append("\(ByteSize.format(storageFreed)) removed from disk by cleanups") }
+        if storageFreed > 0 { claims.append("\(ByteSize.text(storageFreed, .headline)) removed from disk by cleanups") }
         let headline = claims.isEmpty
             ? "\(period.title): all quiet — nothing needed defending."
             : "\(period.title): \(claims.joined(separator: ", "))."

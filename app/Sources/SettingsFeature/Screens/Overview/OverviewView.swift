@@ -62,8 +62,8 @@ struct OverviewView: View {
         .navigationSubtitle("Your Mac at a glance")
         .task {
             store.reload()
-            await awaitLoad({ TrendsModel.snapshot(period: .week) }) { week = $0 }
-            await awaitLoad({ ForecastModel.diskRunway() }) { runway = $0 }
+            await awaitLoad({ TrendsModel.snapshot(period: .week) }, key: "overview.week") { week = $0 }
+            await awaitLoad({ ForecastModel.diskRunway() }, key: "overview.runway") { runway = $0 }
         }
         .task {
             panel = await Task.detached(priority: .utility) {

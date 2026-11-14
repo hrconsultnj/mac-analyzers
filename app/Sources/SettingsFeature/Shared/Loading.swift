@@ -3,12 +3,17 @@ import Foundation
 import SwiftUI
 
 /// Every pane's load goes through the shared query cache: serialized (one
-/// expensive producer at a time), deduped by call site, and served from a
-/// short TTL so re-entering a pane or a refresh tick costs nothing. The
-/// key comes free from the call site — nothing to pass, nothing to collide.
+/// expensive producer at a time), deduped by key, and served from a short TTL so
+/// re-entering a pane or a refresh tick costs nothing.
+///
+/// The `key` is REQUIRED and carries everything the load depends on (a period, a
+/// process, a channel): a key that names only the call site answers a second request
+/// with different inputs, made within the TTL, with the first one's data. That
+/// was a bug on Trends (every period), the Dossier (every process) and Update (every
+/// channel) before the key stopped having a default.
 func detachedLoad<T: Sendable>(_ work: @escaping @Sendable () -> T,
                                ttl: TimeInterval = 3,
-                               key: String = "\(#fileID):\(#line)",
+                               key: String,
                                assign: @escaping @MainActor (T) -> Void) {
     Task {
         guard let value = await LoadCoordinator.shared.value(key: key, ttl: ttl, produce: work),
@@ -26,7 +31,7 @@ func detachedLoad<T: Sendable>(_ work: @escaping @Sendable () -> T,
 @MainActor
 func awaitLoad<T: Sendable>(_ work: @escaping @Sendable () -> T,
                             ttl: TimeInterval = 3,
-                            key: String = "\(#fileID):\(#line)",
+                            key: String,
                             assign: @MainActor (T) -> Void) async {
     guard let value = await LoadCoordinator.shared.value(key: key, ttl: ttl, produce: work),
           !Task.isCancelled else { return }
