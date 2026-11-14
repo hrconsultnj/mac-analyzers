@@ -300,7 +300,9 @@ the kinds of thing it shows are tabs with a count, rows are grouped under
 the app, project or day they belong to with a total, and a group opens to
 show what is in it.
 
-- **The main window** — a sidebar you can hide, Back and Forward across
+- **The main window** — a sidebar you can hide (its button shows whether it
+  is open, and resting the pointer at the window's left edge shows it over
+  the content while it is hidden), Back and Forward across
   every screen (Command-[ and Command-]), and a Go menu for the most-used
   screens:
   - **Overview** (a grid of boxes for memory, storage, the guard, the
@@ -317,15 +319,18 @@ show what is in it.
     **Caches & Builds**, **Downloads**, **Temp & Agents**, **Time Machine**
     (local snapshots), **Spotlight** (fence developer folders out of the
     index), **Unused Apps** (apps not opened for six months or more, with
-    their files) and **Old Recordings**. Each is one screen: Preview, untick
+    their files) and **Old Recordings** (recordings older than the age you
+    set, one tab per recording app it found or folder you added, chosen in
+    its Sources window). Each is one screen: Preview, untick
     what to keep, Apply, and every earlier run under History. Each says
     whether what it clears goes to the Trash or is deleted for good.
   - **System** — **Network**, **Login & Startup Items** (apps that open at
     login, their background items, leftovers from removed apps, and what was
     added day by day) and **Reports** (memory and storage reports, opened as
     documents with sections you can fold).
-  - **History** — **Trends** (memory and storage over a period, including
-    what cleanups removed) and **Undo** (what cleanups moved to the Trash,
+  - **History** — **Trends** (memory and storage over the last 24 hours to
+    90 days, hourly or daily, including what cleanups removed; Memory Guard
+    uses the same period menu) and **Undo** (what cleanups moved to the Trash,
     by day and cleanup, to put back whole or one item at a time).
 - **The menu-bar panel** — today's guard activity on the menu-bar icon; a
   Monitor tab listing what uses memory by app, heaviest first, with real app
@@ -372,7 +377,7 @@ today, recent events, click-to-open logs.
 
 Personal/machine values live in `config.local.sh` (gitignored). The app's
 Settings manage their own clearly-marked block in that file; everything else —
-never-kill apps, stale-app list, deprecated-app leftovers, recordings dir,
+never-kill apps, stale-app list, deprecated-app leftovers,
 extra cache globs — comes from copying `config.example.sh` and filling it in
 by hand. The two coexist: the app never touches what you wrote outside its
 markers. Everything runs with neutral defaults without any of it.
