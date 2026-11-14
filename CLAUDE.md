@@ -280,7 +280,8 @@ through `config.local.sh` (never hardcoded).
   minute while the app runs and `RuleEvaluator` says what each rule would do; the only thing written is a would-have row
   in `reports/memory/rule-outcomes.jsonl`. NOTHING in the app stops, quits or signals anything: a rule that reads Acting is
   one the guard SCRIPT already carries out (the dev-tooling cap and the critical-pressure step), and the engine writes no
-  row for it. The script reads only `.guard-fallback.tsv` (`lib/guard-select.sh`) and its own `KILLABLE_RE`, and spares
+  row for it. The script reads from the app only `.guard-fallback.tsv` (`lib/guard-select.sh`: the Never Close names and paths and a
+  pause, which can only NARROW what it does; the cap and the stop switches are `config.local.sh`'s alone) and its own `KILLABLE_RE`, and spares
   every live coding session of `lib/coding-agents.tsv` (`memory-analyzer/tests/guard-exemption-test.sh`). Acting rules and
   CONTRIBUTING's invariant text are a later phase. `agent-runner --check-rules`, `--compare-legacy [--real]` (the script's
   set against the engine's: the engine's must be inside) and `--rules-once` show it; `--probe-rules-fixture` judges it.

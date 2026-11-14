@@ -18,10 +18,16 @@ public actor RulesEngine {
 
     private var state = RulesState()
     private var watching = false
+    private var seeded = false
 
     /// One look at the real process table. With `write`, the would-have rows are added to the file; without it (the screen
     /// asking what matches now) nothing is written.
     public func look(frontApps: Set<String> = [], write: Bool) -> RulesLook {
+        if write, !seeded {
+            // a relaunch does not write the day's rows again: what today's file holds counts as written
+            state.seed(from: RuleOutcomes.read(since: Calendar.current.startOfDay(for: Date())), now: Date())
+            seeded = true
+        }
         let rules = GuardRules.load()
         let groups = MemoryCensus.take().groups
         let result = RuleEvaluator.evaluate(rules: rules, groups: groups, facts: .live(frontApps: frontApps), state: &state)

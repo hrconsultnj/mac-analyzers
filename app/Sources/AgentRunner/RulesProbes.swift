@@ -382,11 +382,35 @@ func probeRulesFixture(_ args: [String]) -> Never {
             && !lines.contains { $0.text.contains(" stopped ") && !$0.text.contains("would have stopped") }, "\(lines.map(\.text))")
     check("a day with nothing has no lines", RuleOutcomes.todayLines([]).isEmpty)
 
-    // 6. what the guard script reads
-    let text = GuardFallbackFile.contents(hardCapMB: 8192, hardCapStop: true, pressureStop: false,
-                                          neverClosePaths: ["/Users/x/bin/a.b[1](x)+", "relative/path", "/Users/x/tab\tname", "/Users/x/ok"])
-    check("the fallback file holds the numbers, the pause line and only the full paths that are safe to write",
-          text == "hardCapMB\t8192\nhardCapStop\t1\npressureStop\t0\nneverClosePath\t/Users/x/bin/a.b[1](x)+\nneverClosePath\t/Users/x/ok\npause\t0\n", text.replacingOccurrences(of: "\t", with: "<TAB>"))
+    // the log is cut past a size, whole lines, and the day's rows are not written twice after a relaunch
+    let bigLog = scratch.appending(path: "big.jsonl")
+    RuleOutcomes.append(Array(repeating: everyRow[0], count: 40), to: bigLog)
+    let bigSize = (try? FileManager.default.attributesOfItem(atPath: bigLog.path)[.size] as? NSNumber)?.intValue ?? 0
+    RuleOutcomes.trim(bigLog, maxBytes: 4_000, keepBytes: 2_000)
+    let cutSize = (try? FileManager.default.attributesOfItem(atPath: bigLog.path)[.size] as? NSNumber)?.intValue ?? 0
+    check("a log past its size keeps only its newest rows, every one whole", bigSize > 4_000 && cutSize <= 2_000 && cutSize > 0
+            && RuleOutcomes.read(since: .distantPast, from: bigLog).count == (try? String(contentsOf: bigLog, encoding: .utf8))?.split(separator: "\n").count,
+          "\(bigSize) -> \(cutSize) bytes")
+    var relaunched = RulesState()
+    relaunched.seed(from: back, now: start.addingTimeInterval(700))
+    let again = RuleEvaluator.evaluate(rules: rules, groups: groups, facts: facts(10, front: ["frontapp"]), state: &relaunched)
+    check("after a relaunch what the file already holds for today is not written again", again.outcomes.isEmpty, "\(again.outcomes.map(\.rule))")
+    var longRunning = RulesState()
+    _ = RuleEvaluator.evaluate(rules: rules, groups: groups, facts: facts(0), state: &longRunning)
+    let tomorrow = RuleEvaluator.evaluate(rules: rules, groups: groups, facts: facts(2 * 86_400), state: &longRunning)
+    let today = Int(Calendar.current.startOfDay(for: start.addingTimeInterval(2 * 86_400)).timeIntervalSince1970)
+    check("a new day starts again: yesterday's keys are dropped and the units are written once more",
+          longRunning.written.allSatisfy { $0.hasSuffix("|\(today)") } && !tomorrow.outcomes.isEmpty, "\(longRunning.written.count) keys")
+
+    // 6. what the guard script and the cleanups read: the Never Close list and a pause, and nothing that could widen anything
+    let text = GuardFallbackFile.contents(neverClosePaths: ["/Users/x/bin/a.b[1](x)+", "relative/path", "/Users/x/tab\tname", "/Users/x/ok",
+                                                           "/x\nhardCapStop\t1", "/x\ry"],
+                                          neverCloseNames: ["Slack", "bad\tname", "/looks/like/a/path", "Zoom\nhardCapMB\t1"], pause: false)
+    check("the file holds the Never Close paths and names that are safe to write, a pause line, and no number",
+          text == "neverClosePath\t/Users/x/bin/a.b[1](x)+\nneverClosePath\t/Users/x/ok\nneverCloseName\tSlack\npause\t0\n"
+            && !text.contains("hardCap") && !text.contains("pressureStop"), text.replacingOccurrences(of: "\t", with: "<TAB>"))
+    check("a pause is written as 1", GuardFallbackFile.contents(neverClose: [], pause: true) == "pause\t1\n")
+    check("the person's list is split into paths and names", GuardFallbackFile.contents(neverClose: ["/a/b", "Slack"]) == "neverClosePath\t/a/b\nneverCloseName\tSlack\npause\t0\n")
 
     // 7. the guard script's choice against the engine's, on a recorded table
     let comparison = compare(readTable(recordedTable), root: root, rules: rules)

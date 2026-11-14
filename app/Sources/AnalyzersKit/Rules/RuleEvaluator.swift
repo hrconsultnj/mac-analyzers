@@ -43,6 +43,14 @@ public struct RulesState: Sendable {
     /// Rows already written, so a unit is written once a day for a rule: "rule|pid|start|day".
     public var written: Set<String> = []
     public init() {}
+
+    /// What today's file already holds: a relaunch does not write the day's rows again.
+    public mutating func seed(from rows: [RuleOutcome], now: Date) {
+        let day = Int(Calendar.current.startOfDay(for: now).timeIntervalSince1970)
+        for row in rows where Int(Calendar.current.startOfDay(for: row.time).timeIntervalSince1970) == day {
+            written.insert(RuleOutcomes.key(rule: row.rule, result: row.result, pid: row.pid, name: row.name, start: row.startSeconds, day: day))
+        }
+    }
 }
 
 /// A thing a rule looks at: a process, a program (a process and what it started) or a whole app or service.
@@ -222,6 +230,8 @@ public enum RuleEvaluator {
     private static func outcomes(from matches: [RuleMatch], facts: RuleFacts, state: inout RulesState) -> [RuleOutcome] {
         var rows: [RuleOutcome] = []
         let day = Int(Calendar.current.startOfDay(for: facts.now).timeIntervalSince1970)
+        // yesterday's keys are of no use to today: the set does not grow for as long as the app runs
+        state.written = state.written.filter { $0.hasSuffix("|\(day)") }
         for match in matches where match.state == .watching {
             let result: String, because: String?
             switch match.status {
@@ -230,7 +240,7 @@ public enum RuleEvaluator {
             case .waiting, .tooNew: continue
             }
             let start = match.unit.pid.flatMap(facts.start)
-            let key = "\(match.rule.id)|\(result)|\(match.unit.pid.map(String.init) ?? match.unit.group)|\(start.map(String.init) ?? "-")|\(day)"
+            let key = RuleOutcomes.key(rule: match.rule.id, result: result, pid: match.unit.pid, name: match.unit.name, start: start, day: day)
             guard state.written.insert(key).inserted else { continue }
             rows.append(RuleOutcome(ref: UUID().uuidString, time: facts.now, rule: match.rule.id, mode: "watching", result: result,
                                     category: match.kind.category.rawValue, kind: match.kind.id, name: match.unit.name,

@@ -78,12 +78,14 @@ included (`lib/live-sessions.sh`, the same list the app and the cleaners read). 
 list cannot be read the guard stops nothing and logs `KILL-SKIPPED`; it still alerts.
 `memory-analyzer/tests/guard-exemption-test.sh` proves it for every agent in the list.
 
-**What the app tells the guard:** `~/mac-analyzers/reports/memory/.guard-fallback.tsv`,
-plain `key<TAB>value` lines the app writes whenever a setting changes (`hardCapMB`,
-`hardCapStop`, `pressureStop`, `neverClosePath` once per path, `pause`) and the guard
-re-reads every tick (`lib/guard-select.sh`, bash 3.2). A Never Close path is matched as
-plain text with `index()`, never as a pattern. With no file, the guard uses the values it
-always had.
+**What the app tells the scripts:** `~/mac-analyzers/reports/memory/.guard-fallback.tsv`,
+plain `key<TAB>value` lines the app writes whenever your Never Close list changes
+(`neverClosePath`, `neverCloseName`, `pause`), read by the guard every tick, by the dev pass
+and the leftover sweep of `memory-auto-clean.sh` and by `memory-reclaim.sh`'s sweep
+(`lib/guard-select.sh`, bash 3.2). Paths and names are matched as plain text, never as a
+pattern. The file can only NARROW what the scripts do: the hard cap and the stop switches
+come from `config.local.sh` alone, and a line with a stray field, a carriage return or a
+key the scripts do not know is ignored. With no file nothing extra is protected.
 
 **The rules engine (the app).** `rules/kinds.json`, `rules/plan.json` and
 `rules/protected.json` describe what each kind of process may be asked, as data. In this

@@ -53,9 +53,32 @@ public enum RuleOutcomes {
         return decoder
     }()
 
-    /// Adds the rows to the end of the file (made if it is not there). Never rewrites what is already in it.
+    /// Past this size the file keeps only its newest `keepBytes`, whole lines, like the guard's own log: the file is a week's
+    /// reading, not an archive.
+    public static let maxBytes = 5 * 1_048_576
+    public static let keepBytes = 3 * 1_048_576
+
+    /// Cuts the oldest rows off a file that has grown past `maxBytes`. Atomic: the file is replaced, never half-written.
+    public static func trim(_ url: URL = file, maxBytes: Int = maxBytes, keepBytes: Int = keepBytes) {
+        guard let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue, size > maxBytes,
+              let handle = try? FileHandle(forReadingFrom: url) else { return }
+        defer { try? handle.close() }
+        try? handle.seek(toOffset: UInt64(size - keepBytes))
+        var tail = (try? handle.readToEnd()) ?? Data()
+        if let newline = tail.firstIndex(of: 0x0A) { tail = tail[tail.index(after: newline)...] }   // the first line of a cut read is a piece
+        try? tail.write(to: url, options: .atomic)
+    }
+
+    /// The key a row is written under, so a unit is written once a day for a rule, in this run and after a relaunch.
+    public static func key(rule: String, result: String, pid: Int?, name: String, start: Int?, day: Int) -> String {
+        "\(rule)|\(result)|\(pid.map(String.init) ?? name)|\(start.map(String.init) ?? "-")|\(day)"
+    }
+
+    /// Adds the rows to the end of the file (made if it is not there). Never rewrites what is already in it, except to cut
+    /// off its oldest days once it is past `maxBytes`.
     public static func append(_ outcomes: [RuleOutcome], to url: URL = file) {
         guard !outcomes.isEmpty else { return }
+        trim(url)
         let lines = outcomes.compactMap { try? encoder.encode($0) }.compactMap { String(data: $0, encoding: .utf8) }
         guard !lines.isEmpty else { return }
         let text = lines.joined(separator: "\n") + "\n"

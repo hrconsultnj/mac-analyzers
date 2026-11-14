@@ -104,19 +104,15 @@ if [[ -r "${ANALYZERS_ROOT}/lib/guard-select.sh" ]] && source "${ANALYZERS_ROOT}
   GUARD_SELECT_OK=1
 fi
 
-# What the rules engine wrote for this script, when it wrote anything: the same values as the managed block of
-# config.local.sh. Missing or unreadable, or a value that is not what it should be: today's constants stay.
-# Read again at every tick: the app writes the file whenever the rules change.
+# What the app's rules engine tells this script, when it tells anything: only that the guard is paused (the Never Close
+# list is read where the candidates are chosen). The file can narrow what the guard does and nothing else: the cap and the
+# stop switches come from config.local.sh alone, so an old or wrong file cannot lower a cap or turn a stop on.
+# Read again at every tick: the app writes the file whenever the lists change.
 FALLBACK_PAUSE=0
-HARD_CAP_FROM_ARG=0
 read_fallback() {
   [[ "$GUARD_SELECT_OK" -eq 1 && -r "$FALLBACK_FILE" ]] || return 0
   local fb
-  fb="$(guard_fallback_value "$FALLBACK_FILE" hardCapMB)"
-  [[ "$HARD_CAP_FROM_ARG" -eq 0 && "$fb" =~ ^[0-9]+$ && "$fb" -gt 0 ]] && HARD_CAP_MB="$fb"
-  fb="$(guard_fallback_value "$FALLBACK_FILE" hardCapStop)";  [[ "$fb" == 0 || "$fb" == 1 ]] && HARDCAP_KILL="$fb"
-  fb="$(guard_fallback_value "$FALLBACK_FILE" pressureStop)"; [[ "$fb" == 0 || "$fb" == 1 ]] && PRESSURE_KILL="$fb"
-  fb="$(guard_fallback_value "$FALLBACK_FILE" pause)";        FALLBACK_PAUSE=0; [[ "$fb" == 1 ]] && FALLBACK_PAUSE=1
+  fb="$(guard_fallback_value "$FALLBACK_FILE" pause)"; FALLBACK_PAUSE=0; [[ "$fb" == 1 ]] && FALLBACK_PAUSE=1
   return 0
 }
 
@@ -128,7 +124,7 @@ while [[ $# -gt 0 ]]; do
     --once)         ONCE=1 ;;
     --verbose)      VERBOSE=1 ;;
     --interval)     INTERVAL="${2:-15}"; shift ;;
-    --hard-cap-mb)  HARD_CAP_MB="${2:-6144}"; HARD_CAP_FROM_ARG=1; shift ;;
+    --hard-cap-mb)  HARD_CAP_MB="${2:-6144}"; shift ;;
     -h|--help)      sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
@@ -212,8 +208,9 @@ short_name() {
 kill_proc() {
   local pid="$1" rsskb="$2" reason="$3" args="$4" name
   name="$(short_name "$args")"
-  # fail closed: without the list of coding agents no process can be told from a live session's, so none is stopped
-  if [[ "$LIVE_SESSIONS_OK" -ne 1 ]]; then
+  # fail closed: without the list of coding agents no process can be told from a live session's, so none is stopped. Asked
+  # again at the moment of the stop (not only at start): the list can be gone or emptied while the guard runs.
+  if [[ "$LIVE_SESSIONS_OK" -ne 1 ]] || ! live_session_list_ok; then
     log "KILL-SKIPPED [$reason] pid=$pid  the list of coding agents could not be read  $args"
     return 1
   fi

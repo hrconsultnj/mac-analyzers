@@ -129,6 +129,13 @@ if ! source "${ANALYZERS_ROOT}/lib/live-sessions.sh"; then
   echo "FATAL: lib/live-sessions.sh or its list of coding agents (lib/coding-agents.tsv) is missing, unreadable or names no agent — refusing to sweep without the live-session exemption." >&2
   exit 79
 fi
+# What the person asked never to be closed (the app's Never Close list: names and paths, plain text). Not there: nothing extra.
+NEVER_FILE=""
+# shellcheck disable=SC1091
+if [[ -r "${ANALYZERS_ROOT}/lib/guard-select.sh" ]] && source "${ANALYZERS_ROOT}/lib/guard-select.sh" 2>/dev/null \
+   && [[ -r "${LOG_DIR}/.guard-fallback.tsv" ]]; then
+  NEVER_FILE="${LOG_DIR}/.guard-fallback.tsv"
+fi
 SESSION_ROOTS="$(live_session_roots)"
 EXEMPT="$(live_session_exempt "$SESSION_ROOTS"; echo "$$")"
 SESS_COUNT="$(echo "$SESSION_ROOTS" | wc -w | tr -d ' ')"
@@ -246,6 +253,8 @@ FOUND=0
 while IFS=$'\t' read -r pid rss args; do
   [[ -z "${pid:-}" ]] && continue
   is_exempt "$pid" && { log "  [EXEMPT]  pid=$pid  $args"; continue; }
+  # on the person's Never Close list (names and paths, plain text; the app writes the file)
+  if [[ -n "$NEVER_FILE" ]] && guard_is_never_closed "$NEVER_FILE" "$args"; then log "  [NEVER]   pid=$pid  $args"; continue; fi
   reap "$pid" "$rss" "$args"; FOUND=1
 done < <(ps axo pid=,rss=,args= | awk -v re="$SWEEP_RE" -v protre="$PROTECT_RE" '
   { pid=$1; rss=$2; $1=$2=""; sub(/^ +/,"");

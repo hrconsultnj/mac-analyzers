@@ -35,10 +35,8 @@ public enum GuardLocalWriter {
         return .success(current)
     }
 
-    /// Tell the guard script about a change to the Never Close paths (it reads the fallback file, not this one).
-    @MainActor public static func refreshFallback() {
-        let config = ConfigStore()
-        GuardFallbackFile.write(hardCapMB: config.memory.hardCapMB, hardCapStop: config.memory.hardCapKill, pressureStop: config.memory.pressureKill,
-                                neverClosePaths: GuardRules.load().local.neverClose.filter { $0.hasPrefix("/") })
+    /// Tell the guard script and the cleanups about a change to the Never Close list (they read the fallback file, not this one).
+    public static func refreshFallback() {
+        GuardFallbackFile.write(neverClose: GuardRules.load().local.neverClose)
     }
 }

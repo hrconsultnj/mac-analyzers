@@ -79,6 +79,11 @@ if ! awk -F'\t' '{ sub(/\r$/, "") } /^#/ || NF < 3 { next } $2 == "exe" || $2 ==
   return 1
 fi
 
+# Whether the list can be read and names an agent right now: asked again at the moment a stop is about to be sent.
+live_session_list_ok() {
+  [[ -r "$_LIVE_SESSION_LIST" ]] && awk -F'\t' '{ sub(/\r$/, "") } /^#/ || NF < 3 { next } $2 == "exe" || $2 == "fragment" { found = 1 } END { exit !found }' "$_LIVE_SESSION_LIST" 2>/dev/null
+}
+
 # live_session_roots from stdin lines is for tests; with no arguments it reads
 # the process table.
 live_session_roots() {

@@ -204,6 +204,16 @@ if ! source "${ANALYZERS_ROOT}/lib/live-sessions.sh"; then
   exit 79
 fi
 
+# What the person asked never to be closed (the app's Never Close list: names and paths, plain text; lib/guard-select.sh).
+# Not there or unreadable: nothing extra is protected, and nothing else changes. It can only narrow what this script does.
+NEVER_FILE=""
+# shellcheck disable=SC1091
+if [[ -r "${ANALYZERS_ROOT}/lib/guard-select.sh" ]] && source "${ANALYZERS_ROOT}/lib/guard-select.sh" 2>/dev/null \
+   && [[ -r "${HOME_DIR}/mac-analyzers/reports/memory/.guard-fallback.tsv" ]]; then
+  NEVER_FILE="${HOME_DIR}/mac-analyzers/reports/memory/.guard-fallback.tsv"
+fi
+NEVER_PIDS=""
+
 # ---------- helpers ----------
 FREED_KB=0
 KILL_COUNT=0
@@ -352,10 +362,12 @@ SNAP="$(ps axo pid=,ppid=,rss=,etime=,args= | awk '
     printf "%s\t%s\t%s\t%s\t%.400s\n", pid, ppid, rss, etime2s(et), $0 }')"
 
 # candidates <filter_re> <exclude_protect=1> — rows of SNAP matching re
+[[ -n "$NEVER_FILE" ]] && NEVER_PIDS="$(echo "$SNAP" | guard_never_pids "$NEVER_FILE" 5 | tr '\n' ' ')"
 candidates() {
   local re="$1"
-  echo "$SNAP" | awk -F'\t' -v re="$re" -v protre="$PROTECT_RE" -v self="$$" '
-    $1+0 > 500 && $1 != self && $5 ~ re && $5 !~ protre'
+  echo "$SNAP" | awk -F'\t' -v re="$re" -v protre="$PROTECT_RE" -v self="$$" -v never="$NEVER_PIDS" '
+    BEGIN { n = split(never, nv, " "); for (i = 1; i <= n; i++) NV[nv[i]] = 1 }
+    $1+0 > 500 && $1 != self && $5 ~ re && $5 !~ protre && !($1 in NV)'
 }
 
 before_state() { top -l 1 -n 0 2>/dev/null | grep PhysMem; sysctl -n vm.swapusage; }
@@ -404,6 +416,8 @@ dev_build_units() {
   local launchd_pids exempt
   launchd_pids="$(launchctl list 2>/dev/null | awk 'NR>1 && $1 ~ /^[0-9]+$/ {printf "%s ", $1}')"
   exempt="$(live_session_exempt "$DEV_SESSION_ROOTS" | tr '\n' ' ')"
+  local never_dev=""
+  [[ -n "$NEVER_FILE" ]] && never_dev="$(echo "$DSNAP" | guard_never_pids "$NEVER_FILE" 8 | tr '\n' ' ')"
   {
     lsof -nP -iTCP -sTCP:LISTEN,ESTABLISHED -FpnT 2>/dev/null | awk '
       /^p/ { pid=substr($0,2); next } /^n/ { name=substr($0,2); next }
@@ -412,7 +426,7 @@ dev_build_units() {
   } | RE_SELF="$DEV_SELF_RE" RE_PROTECT="$PROTECT_RE" RE_MCP="$MCP_RE" RE_SERVER="$DEV_PASS_SERVER_RE" \
       RE_METRO="$DEV_METRO_RE" RE_DEV="$DEV_TOOL_RE" RE_XCODE="$DEV_XCODE_RE" \
       RE_ANDROID="$DEV_ANDROID_DRIVER_RE" RE_IOS="$DEV_IOS_DRIVER_RE" \
-    awk -F'\t' -v launchd="$launchd_pids" -v exempt="$exempt" -v roots="$DEV_SESSION_ROOTS" \
+    awk -F'\t' -v launchd="$launchd_pids" -v exempt="$exempt" -v never="$never_dev" -v roots="$DEV_SESSION_ROOTS" \
         -v self="$$" -v reapsession="$DEV_REAP_SESSION_SERVERS" '
     BEGIN {
       # patterns come through ENVIRON: awk -v would turn their \. into "any character"
@@ -421,6 +435,7 @@ dev_build_units() {
       xcodere = ENVIRON["RE_XCODE"]; androidre = ENVIRON["RE_ANDROID"]; iosre = ENVIRON["RE_IOS"]
       n = split(launchd, lst, " "); for (i = 1; i <= n; i++) LD[lst[i]] = 1
       n = split(exempt, lst, " ");  for (i = 1; i <= n; i++) EX[lst[i]] = 1
+      n = split(never, lst, " ");   for (i = 1; i <= n; i++) NV[lst[i]] = 1       # the Never Close list
       n = split(roots, lst, " ");   for (i = 1; i <= n; i++) SR[lst[i]] = 1
     }
     $1 == "S" {
@@ -469,7 +484,7 @@ dev_build_units() {
     function emit(cls, root, members, label, allow,   m, n, i, rss, cpu, pc) {
       n = split(members, m, " ")
       for (i = 1; i <= n; i++) {
-        if (ARGS[m[i]] ~ protre) return                               # the protect list always wins
+        if (ARGS[m[i]] ~ protre || (m[i] in NV)) return               # the protect list and the Never Close list always win
         if ((m[i] in SR) || exe(m[i]) == "claude") return             # a session itself is never in a unit
         if ((m[i] in EX) && !allow) return                            # live-session exemption
         if (allow && ARGS[m[i]] ~ mcpre) return                       # never an MCP server of a session
@@ -568,6 +583,11 @@ dev_booted_sims() {
     [[ -z "$lpid" ]] && continue
     # protect list wins here too (e.g. ANALYZERS_PROTECT_EXTRA='Simulator' or a device name)
     if printf '%s\n%s\n' "$name" "$(echo "$DSNAP" | awk -F'\t' -v p="$lpid" '$1 == p {print $8}')" | grep -qE -- "$PROTECT_RE"; then
+      continue
+    fi
+    # ... and what the person asked never to close, by the device's name or the simulator's own command
+    if [[ -n "$NEVER_FILE" ]] && { guard_is_never_closed "$NEVER_FILE" "$name" \
+         || guard_is_never_closed "$NEVER_FILE" "$(echo "$DSNAP" | awk -F'\t' -v p="$lpid" '$1 == p {print $8}')"; }; then
       continue
     fi
     # the simulator's process tree, as an array so each pid is its own argument
@@ -900,6 +920,7 @@ if [[ "$DEV_SIMS_SHUT" -eq 1 && -n "${DEV_FLAG[simapp]:-}" && "$DEV_FRONT" != Si
   simapp_args="$(ps -o args= -p "$simapp_pid" 2>/dev/null)"
   if [[ "$simapp_args" == *Simulator.app/Contents/MacOS/Simulator* ]] \
      && ! grep -qE -- "$PROTECT_RE" <<<"$simapp_args" \
+     && ! { [[ -n "$NEVER_FILE" ]] && guard_is_never_closed "$NEVER_FILE" "$simapp_args"; } \
      && approved_pid "$simapp_pid" && kill -TERM "$simapp_pid" 2>/dev/null; then
     log "  [QUIT]    $(printf '%7s' "$(( ${simapp_kb:-0} / 1024 )) MB")  pid=$simapp_pid  Simulator app (no simulator left running)"
   fi

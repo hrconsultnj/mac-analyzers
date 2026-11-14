@@ -33,7 +33,7 @@ struct GuardPlanTab: View {
                 }
                 list(.mayQuit, Names.Guard.mayQuitList, "Apps you list here may be asked to quit, as ⌘Q does, only when memory has run out. None is listed.",
                      choices: model.groups.filter { $0.category == .apps }.map(\.name))
-                list(.neverClose, Names.Guard.neverCloseList, "Nothing here is ever stopped or closed by a rule. Names of apps and programs, or the full path of a program.",
+                list(.neverClose, Names.Guard.neverCloseList, "Memory Guard and the cleanups that sweep developer tools and leftover helpers never touch what is listed here: a name of an app or program, or the full path of a program. Quitting apps by name in Memory Cleanup is your own choice and is not checked against this list.",
                      choices: model.groups.filter { $0.category != .system }.map(\.name))
             }
             .formStyle(.grouped)
