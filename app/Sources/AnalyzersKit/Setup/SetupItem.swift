@@ -86,20 +86,16 @@ public enum SetupPane: String, Sendable, Equatable {
     /// the app on its own).
     public var offersDrag: Bool { self == .fullDiskAccess }
 
-    /// The links to try in order: the form of the current macOS, the older one, then System Settings itself.
-    public var links: [String] {
+    /// The link that opens the pane. System Settings opens ANY `x-apple.systempreferences:` link (a wrong anchor lands on
+    /// its front page without an error), so there is no way to tell that a link failed and no chain of fallbacks to try:
+    /// the row's own words say the path and the switch, which is what carries the person the rest of the way.
+    public var link: String {
         switch self {
-        case .fullDiskAccess:
-            ["x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles",
-             "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles", "x-apple.systempreferences:"]
-        case .notifications:
-            ["x-apple.systempreferences:com.apple.Notifications-Settings.extension", "x-apple.systempreferences:"]
-        case .loginItems:
-            // the app asks `SMAppService.openSystemSettingsLoginItems()` instead; these are the fallback
-            ["x-apple.systempreferences:com.apple.LoginItems-Settings.extension", "x-apple.systempreferences:"]
-        case .automation:
-            ["x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Automation",
-             "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation", "x-apple.systempreferences:"]
+        case .fullDiskAccess: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles"
+        case .notifications: "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+        // the app asks `SMAppService.openSystemSettingsLoginItems()` instead; this is only for a probe to name
+        case .loginItems: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension"
+        case .automation: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Automation"
         }
     }
 }
@@ -136,6 +132,14 @@ public enum SetupSource: Sendable, Equatable {
     public var isRead: Bool { if case .remembered = self { false } else { true } }
 }
 
+/// Whether a row that is not On is a PROBLEM (something that stops or weakens what Mac Analyzers does for you, so it counts
+/// as a thing that needs you) or a CHOICE you have not made, or have made the other way (an optional permission, a list you
+/// have not filled in). Only problems count in the tab badges and in "N things need you".
+public enum SetupWeight: Sendable, Equatable {
+    case problem
+    case choice
+}
+
 /// One thing Setup shows: its state, the evidence for it, and at most one action.
 public struct SetupItem: Identifiable, Sendable, Equatable {
     public let id: String
@@ -149,9 +153,15 @@ public struct SetupItem: Identifiable, Sendable, Equatable {
     public let action: SetupAction?
     public let actionTitle: String?
     public let source: SetupSource
+    /// What it is when it is not On. Rows that are On are never counted either way.
+    public let weight: SetupWeight
+
+    /// A real problem that needs the person: counted in the badges and the subtitle.
+    public var needsYou: Bool { weight == .problem && state.needsPerson }
 
     public init(id: String, tab: SetupTab, title: String, why: String, state: SetupItemState, evidence: String,
-                action: SetupAction? = nil, actionTitle: String? = nil, source: SetupSource) {
+                action: SetupAction? = nil, actionTitle: String? = nil, source: SetupSource, weight: SetupWeight = .problem) {
+        self.weight = weight
         self.id = id
         self.tab = tab
         self.title = title

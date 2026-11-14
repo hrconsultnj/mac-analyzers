@@ -3,7 +3,8 @@ import Foundation
 /// The places the product really reads that macOS protects, as DATA: the protected set changes between macOS releases,
 /// and Full Disk Access has no API to ask about, so the honest check is to try these (Apple's own advice). The
 /// folder that holds the permission database is deliberately not here: reading it fails on macOS 27 even with the
-/// permission granted.
+/// permission granted. Another app's container (`~/Library/Containers/…`) is not here either: opening one can raise macOS's
+/// "would like to access data from other apps" prompt, and this check must never ask the person anything.
 public struct ProtectedPlace: Sendable, Equatable {
     public let id: String
     public let name: String
@@ -25,8 +26,6 @@ public enum ProtectedPlaces {
         ProtectedPlace(id: "mail", name: "Mail", path: "Library/Mail", hides: "Mail downloads"),
         ProtectedPlace(id: "messages", name: "Messages Attachments", path: "Library/Messages/Attachments", hides: "Messages attachments"),
         ProtectedPlace(id: "safari", name: "Safari", path: "Library/Safari", hides: "Safari's data"),
-        ProtectedPlace(id: "mailContainer", name: "Mail's Container", path: "Library/Containers/com.apple.mail",
-                       hides: "other apps' data"),
     ]
 }
 
@@ -65,9 +64,10 @@ public enum FullDiskAccessProbe {
         return result
     }
 
-    /// What the two readers (the app, and `agent-runner` as the background jobs run) add up to.
-    public static func verdict(app: [String: PlaceOutcome], agent: [String: PlaceOutcome]?,
-                               places: [ProtectedPlace] = ProtectedPlaces.all) -> (state: SetupItemState, evidence: String) {
+    /// What the two readers add up to: the app, in its own process, and the background jobs, as THEY last saw it
+    /// (`BackgroundAccess`, written by `agent-runner` when launchd starts a job). Without a job's answer the row says so.
+    public static func verdict(app: [String: PlaceOutcome], agent: [String: PlaceOutcome]?, agentChecked: Date? = nil,
+                               now: Date = Date(), places: [ProtectedPlace] = ProtectedPlaces.all) -> (state: SetupItemState, evidence: String) {
         let present = places.filter { app[$0.id] != .missing && app[$0.id] != nil }
         guard !present.isEmpty else {
             return (.cantTell, "None of the folders Mac Analyzers checks exist on this Mac yet, so it can't tell.")
@@ -77,13 +77,21 @@ public enum FullDiskAccessProbe {
         if !denied.isEmpty {
             return (.off, "Mac Analyzers can't read \(Names.Setup.list(denied.map(\.name))), so \(hidden(denied)) are left out of the storage report.")
         }
-        if let agent {
-            let agentDenied = places.filter { agent[$0.id] == .denied }
-            if !agentDenied.isEmpty {
-                return (.onlyApp, "The app can read \(Names.Setup.list(present.map(\.name))), but the background jobs can't read \(Names.Setup.list(agentDenied.map(\.name))), so their reports leave \(hidden(agentDenied)) out.")
-            }
-            return (.on, "\(present.count == 1 ? "The folder" : "All \(present.count) folders") the storage report reads can be read, by the app and by the background jobs.")
+        let readable = "\(present.count == 1 ? "The folder" : "All \(present.count) folders") the storage report reads can be read by the app"
+        guard let agent else {
+            return (.cantTell, "\(readable). The background jobs haven't reported yet: they check these folders each time they start, so this fills in after their next run.")
         }
-        return (.on, "\(present.count == 1 ? "The folder" : "All \(present.count) folders") the storage report reads can be read by the app. The background jobs weren't checked here.")
+        let when = agentChecked.map { " \(relative($0, now: now))" } ?? ""
+        let agentDenied = places.filter { agent[$0.id] == .denied }
+        if !agentDenied.isEmpty {
+            return (.onlyApp, "The app can read \(Names.Setup.list(present.map(\.name))), but the background jobs couldn't read \(Names.Setup.list(agentDenied.map(\.name)))\(when), so their reports leave \(hidden(agentDenied)) out.")
+        }
+        return (.on, "\(readable) and by the background jobs (they checked\(when)).")
+    }
+
+    private static func relative(_ date: Date, now: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: date, relativeTo: now)
     }
 }

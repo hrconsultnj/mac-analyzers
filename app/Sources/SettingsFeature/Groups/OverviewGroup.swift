@@ -24,16 +24,15 @@ enum OverviewRoute: Hashable, Codable {
     case setupFixture(String)
 }
 
-/// Whether anything on this Mac is not working, for the Setup row's badge.
+/// Whether anything on this Mac needs you, for the Setup row's badge: the same rows Setup shows, counting only real
+/// problems (a choice left off is not one).
 @MainActor @Observable
 final class SetupBadge {
     static let shared = SetupBadge()
     private(set) var needsAttention = false
 
     func refresh() async {
-        // cheap version of the checklist: is anything actually broken?
-        let engine = await Task.detached(priority: .utility) { EngineStatus.probe() }.value
-        needsAttention = !engine.isFullyInstalled
+        needsAttention = SetupItems.build(await SetupInputs.read()).contains(where: \.needsYou)
     }
 }
 

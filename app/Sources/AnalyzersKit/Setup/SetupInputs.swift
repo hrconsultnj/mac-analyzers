@@ -42,8 +42,9 @@ public struct SetupInputs: Sendable {
     public var notifications = Notifications.allowed
     public var login = Login.enabled
     public var fdaApp: [String: PlaceOutcome] = [:]
-    /// What `agent-runner` read, as the background jobs run; nil when it could not be asked.
+    /// What the background jobs last saw of them (`BackgroundAccess`); nil until a job has run and said.
     public var fdaAgent: [String: PlaceOutcome]?
+    public var fdaAgentChecked: Date?
     public var timeMachineAllowed = false
     /// The Automation row is a remembered flag, not a read: it goes with the check behind gate G1 (blueprint §2.5).
     public var automationProven = false
@@ -61,12 +62,11 @@ public struct SetupInputs: Sendable {
 
     /// The real answers. Slow reads run off the main actor.
     @MainActor
-    public static func read(agentRunner: URL? = nil) async -> SetupInputs {
+    public static func read() async -> SetupInputs {
         var inputs = SetupInputs()
         let config = ConfigStore()
-        let readings = await Task.detached(priority: .userInitiated) { () -> (EngineStatus, [String: PlaceOutcome], [String: PlaceOutcome]?) in
-            let engine = EngineStatus.probe()
-            return (engine, FullDiskAccessProbe.check(), agentRunner.flatMap(Self.askAgent))
+        let readings = await Task.detached(priority: .userInitiated) { () -> (EngineStatus, [String: PlaceOutcome], (checked: Date, places: [String: PlaceOutcome])?) in
+            (EngineStatus.probe(), FullDiskAccessProbe.check(), BackgroundAccess.read())
         }.value
         let engine = readings.0
         inputs.engineFound = engine.suiteRootExists && engine.scriptsPresent
@@ -82,7 +82,8 @@ public struct SetupInputs: Sendable {
                        lastActivity: modified)
         }
         inputs.fdaApp = readings.1
-        inputs.fdaAgent = readings.2
+        inputs.fdaAgent = readings.2?.places
+        inputs.fdaAgentChecked = readings.2?.checked
 
         inputs.notifications = await notificationReading()
         switch SMAppService.mainApp.status {
@@ -121,33 +122,6 @@ public struct SetupInputs: Sendable {
         case .denied: return .denied
         default: return .notAsked
         }
-    }
-
-    /// `agent-runner --probe-fda`: one line per place, `id outcome`. Nil when it cannot be run or says nothing.
-    static func askAgent(_ runner: URL) -> [String: PlaceOutcome]? {
-        guard FileManager.default.isExecutableFile(atPath: runner.path) else { return nil }
-        let process = Process()
-        process.executableURL = runner
-        process.arguments = ["--probe-fda"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        var result: [String: PlaceOutcome] = [:]
-        for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
-            let parts = line.split(separator: " ")
-            guard parts.count >= 2, parts[0] != "place" else { continue }
-            switch parts[1] {
-            case "readable": result[String(parts[0])] = .readable
-            case "denied": result[String(parts[0])] = .denied
-            case "missing": result[String(parts[0])] = .missing
-            default: result[String(parts[0])] = .other(Int32(parts.count > 2 ? parts[2] : "0") ?? 0)
-            }
-        }
-        return result.isEmpty ? nil : result
     }
 }
 

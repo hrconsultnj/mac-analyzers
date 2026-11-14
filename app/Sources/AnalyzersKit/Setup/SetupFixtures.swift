@@ -4,7 +4,7 @@ import Foundation
 /// from the same function as the live ones and can never show a shape the screen does not get.
 public enum SetupFixtures {
 
-    public static let names = ["allOn", "allOff", "waiting", "appOnly"]
+    public static let names = ["allOn", "allOff", "waiting", "appOnly", "noReport"]
 
     private static func jobs(loaded: Bool) -> [SetupInputs.Job] {
         let now = Date()
@@ -27,6 +27,7 @@ public enum SetupFixtures {
         inputs.jobs = jobs(loaded: true)
         inputs.fdaApp = places(.readable)
         inputs.fdaAgent = places(.readable)
+        inputs.fdaAgentChecked = Date().addingTimeInterval(-3 * 3600)
         inputs.timeMachineAllowed = true
         inputs.automationProven = true
         inputs.neverClose = ["superwhisper", "MacAnalyzers", "Logic Pro"]
@@ -39,6 +40,7 @@ public enum SetupFixtures {
             inputs.login = .notRegistered
             inputs.fdaApp = places(.denied)
             inputs.fdaAgent = nil
+            inputs.fdaAgentChecked = nil
             inputs.timeMachineAllowed = false
             inputs.automationProven = false
             inputs.settingsFileExists = false
@@ -56,6 +58,10 @@ public enum SetupFixtures {
             // the app can read the folders, the background jobs can't
             inputs.fdaAgent = places(.denied)
             inputs.notifications = .allowedAlertsOff
+        case "noReport":
+            // the app can read the folders; no background job has run since the report was added, so nothing is known of them
+            inputs.fdaAgent = nil
+            inputs.fdaAgentChecked = nil
         default: break
         }
         return inputs

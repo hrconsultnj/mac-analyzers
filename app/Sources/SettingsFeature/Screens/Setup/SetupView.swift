@@ -62,6 +62,11 @@ struct SetupView: View {
                                 .id(item.id)
                                 .listRowBackground(highlighted == item.id ? Color.accentColor.opacity(0.12) : nil)
                         }
+                        // what the old checklist said at its foot, in one line
+                        Text("Come back here whenever something stops working: permissions can be withdrawn in System Settings at any time, and macOS can switch background jobs off.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .listStyle(.inset)
                     .onChange(of: highlighted) { _, id in if let id { withAnimation { proxy.scrollTo(id, anchor: .center) } } }
@@ -95,12 +100,7 @@ struct SetupView: View {
     /// Reads this Mac again (or takes the example state).
     func load() async {
         if let fixture { inputs = SetupFixtures.inputs(fixture); return }
-        inputs = await SetupInputs.read(agentRunner: Self.agentRunner)
-    }
-
-    /// The `agent-runner` the background jobs run as, next to this app's own program.
-    private static var agentRunner: URL? {
-        Bundle.main.executableURL?.deletingLastPathComponent().appending(path: "agent-runner")
+        inputs = await SetupInputs.read()
     }
 
     /// A deep link: a tab (`setup:permissions`) or a row (`setup:fullDiskAccess`).

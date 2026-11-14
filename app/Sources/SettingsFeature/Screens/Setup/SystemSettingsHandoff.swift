@@ -95,23 +95,10 @@ final class SystemSettingsHandoff {
 
     // MARK: - opening
 
-    /// The login item has its own documented call; everything else is a link, tried newest form first, down to System Settings itself.
+    /// The login item has its own documented call; everything else is the pane's one link.
     private func open(_ pane: SetupPane) {
         if pane == .loginItems { SMAppService.openSystemSettingsLoginItems(); return }
-        Task { @MainActor in
-            for link in pane.links {
-                guard let url = URL(string: link) else { continue }
-                if await Self.open(url) { return }
-            }
-        }
-    }
-
-    private static func open(_ url: URL) async -> Bool {
-        await withCheckedContinuation { continuation in
-            NSWorkspace.shared.open(url, configuration: NSWorkspace.OpenConfiguration()) { app, _ in
-                continuation.resume(returning: app != nil)
-            }
-        }
+        if let url = URL(string: pane.link) { NSWorkspace.shared.open(url) }
     }
 
     /// Quits this app and opens it again: Full Disk Access applies to a program that was started after it was granted.

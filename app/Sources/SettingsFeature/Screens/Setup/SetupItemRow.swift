@@ -55,7 +55,9 @@ struct SetupItemRow: View {
         switch item.state {
         case .on: Tokens.Status.safe
         case .needsYou: Tokens.Status.destructive
-        case .off, .onlyApp, .notAskedYet: Tokens.Status.caution
+        case .onlyApp, .notAskedYet: Tokens.Status.caution
+        // Off is a warning only for a real problem; an optional choice left off is not one
+        case .off: item.weight == .problem ? Tokens.Status.caution : Tokens.Status.inert
         case .cantTell: Tokens.Status.inert
         }
     }

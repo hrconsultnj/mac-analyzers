@@ -8,18 +8,19 @@ public enum SetupItems {
         let all = permissions(inputs) + background(inputs) + protection(inputs)
         return SetupTab.allCases.flatMap { tab in
             let rows = all.filter { $0.tab == tab }
-            return rows.filter(\.state.needsPerson) + rows.filter { !$0.state.needsPerson }
+            // problems first, then the choices still open, then what is On or can't be told
+            return rows.filter(\.needsYou) + rows.filter { !$0.needsYou && $0.state.needsPerson } + rows.filter { !$0.state.needsPerson }
         }
     }
 
     public static func items(_ items: [SetupItem], in tab: SetupTab) -> [SetupItem] { items.filter { $0.tab == tab } }
 
-    /// How many rows of a tab need the person: the number on its tab.
-    public static func needing(_ items: [SetupItem], in tab: SetupTab) -> Int { self.items(items, in: tab).filter(\.state.needsPerson).count }
+    /// How many rows of a tab are problems that need the person: the number on its tab. A choice is not counted.
+    public static func needing(_ items: [SetupItem], in tab: SetupTab) -> Int { self.items(items, in: tab).filter(\.needsYou).count }
 
     /// The toolbar subtitle.
     public static func subtitle(_ items: [SetupItem]) -> String {
-        let count = items.filter(\.state.needsPerson).count
+        let count = items.filter(\.needsYou).count
         return count == 0 ? Names.Setup.allSetUp : count == 1 ? "1 thing needs you" : "\(count) things need you"
     }
 
@@ -49,7 +50,7 @@ public enum SetupItems {
     }
 
     static func fullDiskAccess(_ inputs: SetupInputs) -> SetupItem {
-        let verdict = FullDiskAccessProbe.verdict(app: inputs.fdaApp, agent: inputs.fdaAgent)
+        let verdict = FullDiskAccessProbe.verdict(app: inputs.fdaApp, agent: inputs.fdaAgent, agentChecked: inputs.fdaAgentChecked, now: inputs.now)
         let acts = verdict.state != .on && verdict.state != .cantTell
         return SetupItem(id: "fullDiskAccess", tab: .permissions, title: Names.Setup.fullDiskAccess,
                          why: "Without it the storage report skips whole folders and under-reports what is using your disk.",
@@ -66,14 +67,16 @@ public enum SetupItems {
                       ? "One command is allowed without a password: deleting Time Machine's local snapshots. Nothing else is."
                       : "Not allowed. Thinning snapshots asks for your administrator password each time.",
                   action: inputs.timeMachineAllowed ? .timeMachineRemove : .timeMachineAllow,
-                  actionTitle: inputs.timeMachineAllowed ? Names.Setup.removePermission : Names.Setup.allow, source: .system)
+                  actionTitle: inputs.timeMachineAllowed ? Names.Setup.removePermission : Names.Setup.allow, source: .system,
+                  weight: .choice)      // optional: it only saves typing a password
     }
 
     static func login(_ inputs: SetupInputs) -> SetupItem {
         let why = "Puts the menu-bar icon back after a restart. The background protection runs either way."
+        // opening at login is a choice; being stuck half-way (waiting for approval, not recognised) is not
         func item(_ state: SetupItemState, _ evidence: String, _ action: SetupAction? = nil, _ title: String? = nil) -> SetupItem {
             SetupItem(id: "login", tab: .permissions, title: Names.Setup.openAtLogin, why: why, state: state, evidence: evidence,
-                      action: action, actionTitle: title, source: .system)
+                      action: action, actionTitle: title, source: .system, weight: state == .off ? .choice : .problem)
         }
         switch inputs.login {
         case .enabled: return item(.on, "Mac Analyzers opens when you log in.")
@@ -97,7 +100,7 @@ public enum SetupItems {
                   evidence: inputs.automationProven ? "Allowed: apps can be asked to quit rather than force-stopped."
                                                     : "macOS asks the first time it is needed. Until then this can't be told.",
                   action: .openSettings(.automation), actionTitle: Names.Setup.openSystemSettings,
-                  source: .remembered(pendingRemoval: true))
+                  source: .remembered(pendingRemoval: true), weight: .choice)
     }
 
     // MARK: - Background
@@ -166,7 +169,9 @@ public enum SetupItems {
             evidence: on.isEmpty ? "No folders chosen, so Old Recordings has nothing to look through."
                 : "\(Names.Setup.list(on)) \(on.count == 1 ? "is" : "are") looked through" + (inputs.recordingSourcesNeedAccess > 0
                     ? ", and \(inputs.recordingSourcesNeedAccess) \(inputs.recordingSourcesNeedAccess == 1 ? "needs" : "need") your permission to look in a folder macOS protects." : "."),
-            action: .change("recordings:sources"), actionTitle: Names.Recordings.sourcesButton, source: .file))
+            action: .change("recordings:sources"), actionTitle: Names.Recordings.sourcesButton, source: .file,
+            // no folders chosen is a choice; folders chosen that macOS won't let it look in is not
+            weight: on.isEmpty ? .choice : .problem))
         rows.append(SetupItem(
             id: "config", tab: .protection, title: Names.Setup.settingsFile,
             why: "Holds your memory limit, your protected apps and your schedule. An update never overwrites it.",
@@ -174,14 +179,14 @@ public enum SetupItems {
             evidence: inputs.settingsFileExists ? "Saved at ~/mac-analyzers/config.local.sh."
                                                 : "Not created yet. It is written the first time you save a setting.",
             action: inputs.settingsFileExists ? nil : .writeConfig, actionTitle: inputs.settingsFileExists ? nil : Names.Setup.createIt,
-            source: .file))
+            source: .file, weight: .choice))
         return rows
     }
 
     private static func listRow(_ id: String, _ title: String, _ why: String, _ list: [String], empty: String) -> SetupItem {
         SetupItem(id: id, tab: .protection, title: title, why: why, state: list.isEmpty ? .off : .on,
                   evidence: list.isEmpty ? empty : "\(list.count) \(list.count == 1 ? "app" : "apps"): \(Names.Setup.list(Array(list.prefix(3))))\(list.count > 3 ? " and \(list.count - 3) more" : "").",
-                  action: .change("memory"), actionTitle: Names.Setup.change, source: .file)
+                  action: .change("memory"), actionTitle: Names.Setup.change, source: .file, weight: .choice)
     }
 
     private static func relative(_ date: Date, now: Date) -> String {

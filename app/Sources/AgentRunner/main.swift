@@ -476,6 +476,8 @@ guard let script = args.first,
         Data("usage: agent-runner /absolute/path/engine-script.sh [args…]\n".utf8))
     exit(2)
 }
+// launchd started this for a job: say what the BACKGROUND jobs can read, as they see it, for Setup (BackgroundAccess)
+BackgroundAccess.recordIfDue()
 var cArgs: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
 cArgs.append(nil)
 execv(script, &cArgs)   // the kernel honors the script's shebang
