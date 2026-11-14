@@ -6,9 +6,17 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# --no-pull: rebuild from this clone as it is (rebuild.command), for work that is not committed yet
+pull=1
+[[ "${1:-}" == "--no-pull" ]] && pull=0
+
 echo "── Mac Analyzers upgrade ──────────────────────────"
-echo "→ pulling the latest version…"
-git pull --ff-only
+if [[ "$pull" -eq 1 ]]; then
+  echo "→ pulling the latest version…"
+  git pull --ff-only
+else
+  echo "→ building this clone as it is (nothing is pulled)…"
+fi
 
 echo "→ rebuilding the app (this takes a minute)…"
 # The build's full output goes to a file; the screen shows the result, or the

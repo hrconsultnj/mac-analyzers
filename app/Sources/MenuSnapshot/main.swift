@@ -63,7 +63,7 @@ final class Host: NSObject, NSApplicationDelegate {
     let updates: UpdateState = {
         let version = (try? String(contentsOf: AnalyzersPaths.suiteRoot.appending(path: "VERSION"), encoding: .utf8))
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? "0"
-        return UpdateState(installed: version, build: BuildInfo(release: version, commitsAfter: 0, localChanges: false))
+        return UpdateState(build: BuildInfo(release: version, commitsAfter: 0, localChanges: false))
     }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {

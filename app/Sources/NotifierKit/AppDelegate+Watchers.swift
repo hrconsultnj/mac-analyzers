@@ -35,12 +35,12 @@ extension AppDelegate {
         Task { @MainActor in
             while true {
                 if let latest = await UpdateChecker.latestVersion(),
-                   UpdateChecker.isNewer(latest, than: UpdateChecker.installedVersion),
+                   UpdateChecker.isNewer(latest, than: BuildInfo.current.version),
                    UserDefaults.standard.string(forKey: "updateNotifiedFor") != latest {
                     NotificationPoster.shared.post(
                         title: "\(Names.app) \(Names.State.updateAvailable)",
                         subtitle: "v\(latest)",
-                        message: "You're on v\(UpdateChecker.installedVersion). Click to open \(Names.Screen.updates) and install with one click.",
+                        message: "You're on v\(BuildInfo.current.shortVersion). Click to open \(Names.Screen.updates) and install with one click.",
                         sound: nil, logPath: nil, paneTarget: "update")
                     UserDefaults.standard.set(latest, forKey: "updateNotifiedFor")
                 }

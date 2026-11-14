@@ -68,7 +68,7 @@ struct AboutSettingsView: View {
                     Link("README on GitHub",
                          destination: URL(string: "https://github.com/hrconsultnj/mac-analyzers")!)
                     Spacer()
-                    Text("Mac Analyzers \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
+                    Text("Mac Analyzers \(BuildInfo.current.shortVersion)")
                         .foregroundStyle(.secondary)
                 }
             }

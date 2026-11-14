@@ -14,14 +14,15 @@ extension MenuContentView {
             } label: {
                 Label("Open \(Names.app)", systemImage: "macwindow")
             }
-            if updates.isAvailable, let latest = updates.latest {
-                Button("Update to v\(latest)") { updates.requestInstall() }
+            if let title = updates.availableTitle {
+                Button(title) { updates.requestInstall() }
                     .buttonStyle(.borderedProminent)
                     .help("Update in Terminal, then relaunch; settings are kept")
             } else {
-                Text(updates.build.versionText)
+                Text(updates.build.shortVersionText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .help(updates.build.versionText)        // the full version, build metadata included
             }
             Spacer()
             Button {

@@ -63,35 +63,41 @@ REVISION="$(git -C .. rev-parse --short HEAD 2>/dev/null || echo "unknown")"
 [[ -n "$(git -C .. status --porcelain 2>/dev/null)" ]] && REVISION="$REVISION, with local changes"
 /usr/libexec/PlistBuddy -c "Add :MABuildRevision string $REVISION" \
   -c "Add :MABuildDate string $(date '+%b %-d at %H:%M')" "$APP/Contents/Info.plist" 2>/dev/null || true
+# What this build was made from, for the update channels (Updates screen): the full commit, the
+# branch, and "clean" or a hash of the uncommitted changes (scripts/tree-hash.sh: the diff and the
+# bytes of untracked files). The app computes the same hash from a clone, so a copy built from a
+# working tree and that working tree compare equal; a copy with no git history gets no stamp.
+if git -C .. rev-parse --git-dir >/dev/null 2>&1; then
+  BUILD_COMMIT="$(git -C .. rev-parse HEAD 2>/dev/null || true)"
+  BUILD_BRANCH="$(git -C .. rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  [[ "$BUILD_BRANCH" == "HEAD" ]] && BUILD_BRANCH=""
+  # "clean", a hash of the uncommitted changes, or "unknown" when git could not say (never read as clean)
+  BUILD_TREE="$(../scripts/tree-hash.sh .. 2>/dev/null)" || BUILD_TREE="unknown"
+  # whether the tree had uncommitted changes, whether or not a release tag is in reach
+  /usr/libexec/PlistBuddy -c "Add :MABuildLocalChanges bool $([[ "$BUILD_TREE" == "clean" || "$BUILD_TREE" == "unknown" ]] && echo false || echo true)" \
+    "$APP/Contents/Info.plist" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Add :MABuildCommit string $BUILD_COMMIT" \
+    -c "Add :MABuildBranch string $BUILD_BRANCH" \
+    -c "Add :MABuildTreeHash string $BUILD_TREE" "$APP/Contents/Info.plist" 2>/dev/null || true
+fi
 # How far this build is from the release it is named after, so a development
 # build can say so on screen: that release's tag, the commits made since it,
 # and whether the tree had local changes. A copy with no git history gets no
 # stamp and reads as a release.
 #
-# Counted from the tag of the version in VERSION (`v2.69.0..HEAD`), not from
-# `git describe`: describe only finds a tag on this branch's own history, and
-# a release is tagged on main's merge commit, which development does not
-# contain — so right after a release it would name the release BEFORE and call
-# an identical tree a development build. Counting from the version's own tag
-# gives 0 for that tree whatever the branch layout. Only when that tag is not
-# known here (not fetched yet) does it fall back to the nearest tag in history.
+# Counted from the tag of the version in VERSION, else the nearest version tag (app/release-tag.sh says why).
 BUILD_AHEAD=""
 BUILD_DIRTY=0
-BUILD_TAG="v$(tr -d ' \n' < ../VERSION)"
-if git -C .. rev-parse -q --verify "refs/tags/$BUILD_TAG" >/dev/null 2>&1; then
-  BUILD_AHEAD="$(git -C .. rev-list --count "$BUILD_TAG..HEAD" 2>/dev/null || true)"
-else
-  BUILD_DESCRIBE="$(git -C .. describe --tags --long --match 'v[0-9]*' 2>/dev/null || true)"
-  if [[ "$BUILD_DESCRIBE" =~ ^(v[0-9][^-]*)-([0-9]+)-g[0-9a-f]+$ ]]; then
-    BUILD_TAG="${BASH_REMATCH[1]}"
-    BUILD_AHEAD="${BASH_REMATCH[2]}"
-  fi
+BUILD_TAG=""
+TAG_AND_COUNT="$(./release-tag.sh .. "$(tr -d ' \n' < ../VERSION)" 2>/dev/null || true)"
+if [[ "$TAG_AND_COUNT" =~ ^(v[0-9.]+)\ ([0-9]+)$ ]]; then
+  BUILD_TAG="${BASH_REMATCH[1]}"
+  BUILD_AHEAD="${BASH_REMATCH[2]}"
 fi
 if [[ "$BUILD_AHEAD" =~ ^[0-9]+$ ]]; then
   [[ -n "$(git -C .. status --porcelain 2>/dev/null)" ]] && BUILD_DIRTY=1
   /usr/libexec/PlistBuddy -c "Add :MABuildReleaseTag string $BUILD_TAG" \
     -c "Add :MABuildCommitsAfter integer $BUILD_AHEAD" \
-    -c "Add :MABuildLocalChanges bool $([[ "$BUILD_DIRTY" == 1 ]] && echo true || echo false)" \
     "$APP/Contents/Info.plist" 2>/dev/null || true
 else
   BUILD_AHEAD=""
@@ -99,6 +105,12 @@ fi
 cp "$BIN/MacAnalyzersApp" "$APP/Contents/MacOS/MacAnalyzersApp"
 cp "$BIN/NotifierCLI" "$APP/Contents/MacOS/notify"
 cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"
+# The version this build IS, asked of BuildInfo (the app builds the same string from the same stamps):
+# the release's number for a build exactly at its tag with a clean tree, else the next patch with
+# -dev.<commits since the tag>+<commit>[.local]. CFBundleShortVersionString stays the plain release.
+BUILD_VERSION="$("$BIN/AgentRunner" --build-version "$(tr -d ' \n' < ../VERSION)" "${BUILD_AHEAD:--}" \
+  "$(case "${BUILD_TREE:-clean}" in clean) echo 0 ;; unknown) echo '?' ;; *) echo 1 ;; esac)" "${BUILD_COMMIT:--}" "${BUILD_TAG:--}" 2>/dev/null || true)"
+[[ -n "$BUILD_VERSION" ]] && /usr/libexec/PlistBuddy -c "Add :MABuildVersion string $BUILD_VERSION" "$APP/Contents/Info.plist" 2>/dev/null || true
 
 [[ -f AppIcon.icns ]] || ./make-icon.sh
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"

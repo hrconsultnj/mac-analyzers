@@ -1,5 +1,6 @@
 import os
 import SwiftUI
+import AnalyzersKit
 import UIComponents
 
 /// One release's What's New entry, from the changelog bundled with the app
@@ -41,6 +42,17 @@ struct ReleaseNote: Identifiable {
     /// bundled file and nothing in it sets this: it reads no environment variable.
     private static let developmentFile = OSAllocatedUnfairLock<URL?>(initialState: nil)
     static func useDevelopmentFile(_ url: URL?) { developmentFile.withLock { $0 = url } }
+
+    /// The notes for a channel: Releases as always; Beta and This Copy start with the "## Next" section of the
+    /// changelog they follow (what is on development, what is in the clone), then the bundled releases.
+    static func channelNotes(channel: UpdateChannel, changelog: String?, includeNext: Bool) -> [ReleaseNote] {
+        let released = bundled(includeNext: includeNext)
+        guard channel != .releases, let changelog,
+              let next = parse(changelog, includeNext: true).first(where: { $0.title == unreleasedTitle })
+        else { return released }
+        let title = channel == .beta ? "On Development — Not Yet Released" : "In Your Clone — Not Yet Released"
+        return [ReleaseNote(title: title, blocks: next.blocks)] + released.filter { $0.title != unreleasedTitle }
+    }
 
     /// What the unreleased section is called on screen.
     static let unreleasedTitle = "In This Build — Not Yet Released"

@@ -37,7 +37,7 @@ struct OverviewView: View {
             disk: store.disk, runwayText: runway?.text, runwayUrgent: runway?.urgent ?? false,
             reclaimableBytes: week?.latestReclaimableBytes ?? 0,
             thermalElevated: ThermalWatcher.shared.isElevated,
-            update: (updates.isAvailable, updates.latest, updates.installed),
+            update: (updates.channel == .releases && updates.isAvailable, updates.latest, updates.installed),
             events: store.events, guardPaused: store.guardPaused))
     }
 
