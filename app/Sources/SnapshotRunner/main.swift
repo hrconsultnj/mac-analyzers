@@ -1,7 +1,7 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--sidebar shown|hidden|peek] [--toolbar-dump] [--escape] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
@@ -124,6 +124,20 @@ let fakeFailed = arguments.contains("--fake-failed")
 let fakeReview = arguments.contains("--fake-review")
 /// `--fake-pressure`: the memory screens' history holds a stretch of warning and critical pressure (the Mac is at normal when it renders).
 let fakePressure = arguments.contains("--fake-pressure")
+/// `--hit-test-edge`: hit-test the content 4 points in from the window's leading edge (where the hover strip is) and
+/// print what answers, so a control there is shown to still get the click; with `--sidebar hidden`.
+let hitTestEdge = arguments.contains("--hit-test-edge")
+/// `--toolbar-dump`: print each toolbar item's label and where its left edge is, in window points, so a button that must
+/// not move between two states can be measured.
+let toolbarDump = arguments.contains("--toolbar-dump")
+/// `--escape`: just before the capture, send Escape through the application's event queue, so a render shows whether it puts the hover overlay away.
+let sendEscape = arguments.contains("--escape")
+/// `--sidebar shown|hidden|peek`: how the sidebar starts (peek is hidden with the hover overlay showing). Never remembered.
+let sidebarState: SidebarPresentation = switch option("--sidebar") {
+case "hidden": .hidden
+case "peek": .peeking
+default: .shown
+}
 let scrollToEnd = arguments.contains("--scroll-end")
 /// `--scroll-sidebar`: scroll the sidebar (the narrowest scrollable view) to its last row.
 let scrollSidebar = arguments.contains("--scroll-sidebar")
@@ -215,7 +229,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         if let fixture = option("--startup-inventory") { StartupInventory.useFile(URL(fileURLWithPath: fixture)) }
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
         if updateStateOption == nil { Task { await updates.check() } }
-        let root = MainWindowView(restoresLocation: false)
+        let root = MainWindowView(restoresLocation: false, sidebar: sidebarState)
             .environment(store)
             .environment(config)
             .environment(jobs)
@@ -238,6 +252,35 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
         window.orderFrontRegardless()      // shows the window WITHOUT activating the app
 
+        if sendEscape {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1.5) { [self] in
+                let escape = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                              windowNumber: window.windowNumber, context: nil, characters: "\u{1b}",
+                                              charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53)
+                if let escape { NSApp.sendEvent(escape) }
+            }
+        }
+        if toolbarDump {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 0.5) { [self] in
+                for item in window.toolbar?.items ?? [] {
+                    guard let view = item.view else { continue }
+                    let frame = view.convert(view.bounds, to: nil)
+                    print("toolbar item \(item.itemIdentifier.rawValue) label=\(item.label) x=\(Int(frame.minX)) width=\(Int(frame.width))")
+                }
+            }
+        }
+        if hitTestEdge {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 0.5) { [self] in
+                guard let content = window.contentView else { return }
+                for y in [content.bounds.height * 0.3, content.bounds.height * 0.5, content.bounds.height * 0.7] {
+                    let point = content.convert(NSPoint(x: 4, y: y), to: content.superview)
+                    var chain: [String] = []
+                    var view = content.hitTest(point)
+                    while let current = view, chain.count < 4 { chain.append(String(describing: type(of: current))); view = current.superview }
+                    print("hit at x=4, y=\(Int(y)): \(chain.joined(separator: " <- "))")
+                }
+            }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             NotificationCenter.default.post(name: NotifyChannel.openPaneInternal, object: nil,
                                             userInfo: ["target": target])

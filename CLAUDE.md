@@ -123,6 +123,13 @@ through `config.local.sh` (never hardcoded).
   parallel work edits one group file each. Screens navigate through the
   `Navigator` in the environment (`push(.memory(.dossier(…)))`,
   `open(target: "log:guardLog")`), never by posting a notification.
+  The sidebar's visibility is ONE state, the split view's `columnVisibility` held by
+  `MainWindowView` (remembered across launches): the toolbar button
+  (`SidebarVisibility.swift`, a `Toggle`, accent icon when shown), its tooltip and the
+  View menu item (Control-Command-S, through `focusedSceneValue`) all derive from it, and
+  while the sidebar is hidden resting the pointer on the leading edge or the button shows
+  it as an overlay over the content (`SidebarPeek.swift`; the content never resizes; in
+  full screen the system's own edge reveal is left alone).
   `Shell/DeepLinkRouter.swift` resolves every target string (the URL scheme,
   `--pane` and the in-process `com.mac-analyzers.open-pane` notification all
   land there). No screen shows a log as text: what a task found or did is
