@@ -82,6 +82,7 @@ struct GuardHistoryView: View {
             }
         }
         .listStyle(.inset)
+        .runHistoryRows()   // two-line rows at Activity's 44 points, the list's own minimum (not padding on each row)
         .overlay { emptyState(days) }
     }
 

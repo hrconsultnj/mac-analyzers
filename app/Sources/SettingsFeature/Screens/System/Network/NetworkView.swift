@@ -138,7 +138,7 @@ struct NetworkView: View {
             }
         }
         // the system draws the bar's material and the scroll-edge effect (`safeAreaBar`); only the margin is ours
-        .padding()
+        .barMargin()
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {

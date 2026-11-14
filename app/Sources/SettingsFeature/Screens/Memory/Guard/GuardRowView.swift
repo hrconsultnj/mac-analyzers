@@ -33,7 +33,6 @@ struct GuardRowView: View {
                     .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
-            .padding(.vertical, Tokens.Space.xxs)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

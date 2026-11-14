@@ -132,8 +132,7 @@ struct SpotlightScreen: View {
                 Label("\(review.status) \(review.verdictSentence)", systemImage: "magnifyingglass").font(.callout)
                 ForEach(review.statusDetails, id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            .barMargin()
         }
     }
 
