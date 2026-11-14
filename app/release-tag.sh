@@ -17,7 +17,7 @@ if git -C "$repo" rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1; then
   echo "$tag $(git -C "$repo" rev-list --count "$tag..HEAD" 2>/dev/null || echo 0)"
   exit 0
 fi
-described="$(git -C "$repo" describe --tags --long --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || true)"
+described="$(git -C "$repo" describe --tags --long --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude '*-*' 2>/dev/null || true)"
 if [[ "$described" =~ ^(v[0-9]+\.[0-9]+\.[0-9]+)-([0-9]+)-g[0-9a-f]+$ ]]; then
   echo "${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"
 fi
