@@ -76,6 +76,43 @@ refused "a ProgressView after a raw string is still found" R4c 'let s = #"a "b" 
 passes  "a ProgressView<…> type annotation passes" R4d 'var spinner: ProgressView<Text, EmptyView>?'
 refused "a ProgressView<…>() construction is refused" R4e 'let v = ProgressView<Text, EmptyView>()'
 passes  "the word ProgressViewStyle passes" R4f 'ProgressViewStyle()'
+# a small spinner that is the whole body of a view is the screen state itself
+refused "a small spinner as a view body is refused" S1 'var body: some View {
+    ProgressView().controlSize(.small)
+}'
+passes  "a small spinner that is all of an if branch (an indicator that comes and goes) passes" S2 'ToolbarItem {
+    if loading {
+        ProgressView().controlSize(.small)
+    }
+}'
+passes  "a small spinner in the else branch of a row passes" S3 'if ready { Text("x") } else {
+    ProgressView().controlSize(.mini)
+}'
+passes  "a small spinner inside a toolbar item passes" S5 'ToolbarItem { ProgressView().controlSize(.small) }'
+passes  "a small spinner beside other content passes" S6 'var body: some View {
+    HStack {
+        ProgressView().controlSize(.small)
+        Text("Loading")
+    }
+}'
+# the size set on the container that wraps the spinner
+passes  "a container-level .controlSize(.small) around the spinner passes" S7 'HStack {
+    ProgressView()
+    Text("Loading")
+}
+.controlSize(.small)'
+passes  "a container with only the spinner and a small size passes" S8 'HStack { ProgressView() }.controlSize(.small)'
+refused "a container-level .controlSize(.large) is refused" S9 'HStack {
+    ProgressView()
+    Text("Loading")
+}
+.controlSize(.large)'
+# a ternary size is judged by every branch
+passes  "a ternary of small and mini passes" S10 'ProgressView().controlSize(compact ? .small : .mini)'
+refused "a ternary with a regular branch is refused" S11 'ProgressView().controlSize(compact ? .small : .regular)'
+# value: nil is an indeterminate bar, a state; a real value is a gauge
+refused "an indeterminate value: nil bar is refused" S12 'ProgressView("Loading", value: nil, total: 1)'
+passes  "a gauge with a value passes" S13 'ProgressView("Copying", value: done, total: all)'
 passes  "EmptyState and LoadingState pass" E 'EmptyState("Nothing", systemImage: "x"); LoadingState("Reading…")'
 passes  "a gauge passes" F 'ProgressView(value: 0.5, total: 1)'
 passes  "an inline spinner passes" G 'ProgressView().controlSize(.small)'

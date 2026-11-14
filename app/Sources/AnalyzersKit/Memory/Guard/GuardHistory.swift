@@ -168,19 +168,16 @@ public struct GuardHistory: Sendable {
     ///   - a stop or a crisis report: its own entry (one log line);
     ///   - a group of alerts about one program: the day and the program, so the same group has the same id in a read that
     ///     begins later (a list whose cache ran out, an hour that turned) and loses the group's earliest alerts;
-    ///   - an episode of pressure: the time of its first reading. A read that begins inside the episode drops that reading,
-    ///     so the episode is then found as the pressure row that begins at the read's own start (`coverage.oldest`), within an
-    ///     hour of the time the id names.
+    ///   - an episode of pressure: the time of its first reading. A read that begins INSIDE an episode drops that reading and
+    ///     so does not have the id: it answers nil rather than guess, because the pressure row that begins at that read's
+    ///     start can be a different episode. The screen shows the row the list opened (`GuardOpenedRows`), and anything
+    ///     else is looked up in the longest read, which has the whole episode.
     public func row(id: String, calendar: Calendar = .current) -> Row? {
         let parts = id.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: false)
         guard parts.count == 3, let epoch = TimeInterval(parts[1]) else { return nil }
-        let moment = Date(timeIntervalSince1970: epoch)
-        let day = calendar.startOfDay(for: moment)
+        let day = calendar.startOfDay(for: Date(timeIntervalSince1970: epoch))
         let sameDay = entries.filter { calendar.startOfDay(for: $0.date) == day }
-        let rows = GuardHistory.rows(from: sameDay, calendar: calendar)
-        if let exact = rows.first(where: { $0.id == id }) { return exact }
-        guard parts[0] == GuardEntry.Kind.pressure.rawValue, let oldest = coverage.oldest else { return nil }
-        return rows.first { $0.kind == .pressure && $0.start == oldest && $0.start > moment && $0.start.timeIntervalSince(moment) <= 3_600 }
+        return GuardHistory.rows(from: sameDay, calendar: calendar).first { $0.id == id }
     }
 
     // MARK: - reading

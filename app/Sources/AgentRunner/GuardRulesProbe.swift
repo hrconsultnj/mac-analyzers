@@ -151,13 +151,29 @@ func probeGuardRules() -> Never {
     check("the straddle log folds into a group of three alerts, an episode of pressure and one stop",
           wholeRows.contains { $0.kind == .spike && $0.count == 3 } && wholeRows.contains { $0.kind == .pressure && $0.count == 3 }
             && wholeRows.contains { $0.kind == .stopped }, "\(wholeRows.map { "\($0.kind.rawValue) x\($0.count)" })")
-    for (name, cutoff) in [("11:30, inside the group of alerts", at(11, 30)), ("14:03, inside the episode of pressure", at(14, 3)),
-                           ("15:30, after everything", at(15, 30))] {
+    for (name, cutoff) in [("11:30, inside the group of alerts", at(11, 30)), ("15:30, after everything", at(15, 30))] {
         let moved = GuardHistory.load(since: cutoff)
-        let lost = wholeRows.filter { row in cutoff <= row.start || cutoff <= row.end ? moved.row(id: row.id) == nil : false }
-        check("every row still in the read opens by the id it had before the start moved to \(name)", lost.isEmpty,
+        let lost = wholeRows.filter { $0.kind != .pressure && (cutoff <= $0.start || cutoff <= $0.end) && moved.row(id: $0.id) == nil }
+        check("every group of alerts and every stop still in the read opens by the id it had before the start moved to \(name)", lost.isEmpty,
               "\(lost.map { "\($0.kind.rawValue) \($0.id)" })")
     }
+    // an episode of pressure that begins before a shorter read's start is never answered with another episode: that read has
+    // no such row, the longest read has the whole one, and a later episode starting right at the read's start is its own row
+    let episode = wholeRows.first { $0.kind == .pressure }
+    let inside = GuardHistory.load(since: at(14, 3))
+    check("a read that begins inside an episode of pressure does not open it under its old id", episode.map { inside.row(id: $0.id) == nil } == true,
+          "\(episode.map { inside.row(id: $0.id)?.id ?? "nil" } ?? "no episode")")
+    check("the whole read still opens the episode", episode.map { whole.row(id: $0.id)?.count == 3 } == true, "\(episode?.count ?? -1) readings")
+    let laterLog = ProbeScratch.folder("ma-probe-guard-later").appending(path: "guard.log")
+    let early = [at(9, 20), at(9, 25), at(9, 30)].map { "\(formatter.string(from: $0)) PRESSURE warning (level 2)" }
+    let late = [at(10, 0), at(10, 5)].map { "\(formatter.string(from: $0)) PRESSURE warning (level 2)" }
+    try? ((early + late).joined(separator: "\n") + "\n").write(to: laterLog, atomically: true, encoding: .utf8)
+    GuardHistory.useLog(at: laterLog)
+    let both = GuardHistory.load(since: at(0, 0)).days().flatMap(\.rows).filter { $0.kind == .pressure }.sorted { $0.start < $1.start }
+    let fromTen = GuardHistory.load(since: at(10, 0))
+    check("an episode that ended before a read began does not open as the one that starts at the read's start",
+          both.count == 2 && fromTen.row(id: both[0].id) == nil && fromTen.row(id: both[1].id)?.count == 2,
+          "\(both.map { $0.count }), earlier id -> \(fromTen.row(id: both.first?.id ?? "")?.id ?? "nil")")
     // the menu-bar panel reads the last 24 hours back to their start, not the last 600 lines: a stop followed by a
     // thousand pressure readings the same day is still there
     let busyLog = ProbeScratch.folder("ma-probe-guard-busy").appending(path: "guard.log")
@@ -167,5 +183,22 @@ func probeGuardRules() -> Never {
     let busyPanel = GuardLogParser.recentEvents(fromLog: busyLog, limit: 5_000, after: nil)
     check("the panel finds a stop that 1,000 later lines would have pushed out of a 600-line read", busyPanel.contains { $0.pid == 8200 },
           "\(busyPanel.compactMap(\.pid))")
+    // and a stop is kept in the few slots the panel has, whatever the later readings: stops and crisis reports first,
+    // pressure and alerts fill what is left, newest first
+    let panelSix = GuardLogParser.recentEvents(fromLog: busyLog, after: nil)
+    check("a stop followed by 1,000 pressure readings is still one of the panel's six", panelSix.count == 6 && panelSix.contains { $0.pid == 8200 }
+          && panelSix.dropFirst().allSatisfy { $0.date >= (panelSix.last?.date ?? .distantPast) } && panelSix.map(\.date) == panelSix.map(\.date).sorted(by: >),
+          "\(panelSix.map { "\($0.pid.map(String.init) ?? "-")" }) newest first")
+    let pressureCount = panelSix.filter { $0.category == .pressure }.count
+    check("the five other slots go to the newest pressure readings", pressureCount == 5, "\(pressureCount) pressure readings")
+    var many = (0..<8).map { "\(formatter.string(from: now.addingTimeInterval(-Double(20 - $0) * 3_600))) KILLED [hard-cap 6144MB] pid=\(8300 + $0) rss=7000MB  node /Users/x/s\($0)/node_modules/.bin/vite" }
+    many.append("\(formatter.string(from: now.addingTimeInterval(-60))) PRESSURE warning (level 2)")
+    many.append("\(formatter.string(from: now.addingTimeInterval(-600))) FORENSICS written: /tmp/guard-critical-1.log")
+    let manyLog = ProbeScratch.folder("ma-probe-guard-many").appending(path: "guard.log")
+    try? (many.joined(separator: "\n") + "\n").write(to: manyLog, atomically: true, encoding: .utf8)
+    let crowded = GuardLogParser.recentEvents(fromLog: manyLog, after: nil)
+    check("more stops and reports than slots: the newest six of them, and no pressure reading takes a slot",
+          crowded.count == 6 && crowded.allSatisfy { $0.isKill || $0.category == .reports } && crowded.contains { $0.category == .reports },
+          "\(crowded.map { $0.pid.map(String.init) ?? "report" })")
     exit(failed ? 1 : 0)
 }
