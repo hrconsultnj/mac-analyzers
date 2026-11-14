@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import QuartzCore
 
 /// The one window type every development tool uses (`SnapshotRunner`, `MenuSnapshot`, the outline
 /// probes): a window that is drawn by the window server far outside every display, seen by nobody.
@@ -28,35 +29,66 @@ public final class OffscreenWindow: NSWindow {
     /// ordered in at all.
     public func placeOffscreen() {
         setFrameOrigin(Self.origin)
-        if let reason = frameReason() { stop("show the window", reason) }
+        let framed = Self.reasons(frame: frame, screenFrames: NSScreen.screens.map(\.frame), isOrderedIn: false,
+                                  serverBounds: nil, displayBounds: [])
+        if !framed.isEmpty { stop("show the window", framed.joined(separator: "; ")) }
         orderFrontRegardless()
         setFrameOrigin(Self.origin)
         requireOffscreen(before: "keep the window shown")
     }
 
-    /// Why the window's frame touches a screen; nil when it touches none.
-    private func frameReason() -> String? {
-        let hits = NSScreen.screens.filter { $0.frame.intersects(frame) }
-        guard !hits.isEmpty else { return nil }
-        return hits.map { "its frame \(NSStringFromRect(frame)) is on the display at \(NSStringFromRect($0.frame))" }
-            .joined(separator: "; ")
+    /// The judgement, with nothing read from the system: why a window is, or may be, on a display. Empty when it
+    /// is nowhere near one. The frame is judged against every screen's frame; the window server's own bounds
+    /// for it, against every online display's bounds. A window that is ordered in and that the window server
+    /// does not list cannot be confirmed to be anywhere, and a server that lists no display leaves nothing to
+    /// judge it against: both count as being on a display. Pure, so a probe can prove every refusal with
+    /// numbers and without ever putting a window on a display.
+    public static func reasons(frame: NSRect, screenFrames: [NSRect], isOrderedIn: Bool,
+                               serverBounds: CGRect?, displayBounds: [CGRect]) -> [String] {
+        var reasons: [String] = []
+        for screen in screenFrames where screen.intersects(frame) {
+            reasons.append("its frame \(NSStringFromRect(frame)) is on the display at \(NSStringFromRect(screen))")
+        }
+        if let rect = serverBounds {
+            if displayBounds.isEmpty {
+                reasons.append("the window server lists no display, so there is nothing to judge the window against")
+            }
+            for display in displayBounds where display.intersects(rect) {
+                reasons.append("the window server puts it at \(rect.debugDescription), on the display at \(display.debugDescription)")
+            }
+        } else if isOrderedIn {
+            reasons.append("the window server does not list the window, so where it is cannot be confirmed")
+        }
+        return reasons
     }
 
     /// The window server's own bounds for this window, or nil when it does not list it.
-    private func serverBounds() -> CGRect? {
+    public func listedBounds() -> CGRect? {
         let listed = CGWindowListCopyWindowInfo([.optionIncludingWindow], CGWindowID(windowNumber)) as? [[String: Any]]
         return (listed?.first?[kCGWindowBounds as String] as? [String: Any])
             .flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) }
     }
 
+    /// The ONLINE displays, not the active ones: while the screen is locked or asleep the active list is empty,
+    /// and a guard that compares against nothing refuses nothing.
+    private static func onlineDisplayBounds() -> [CGRect] {
+        var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+        var count: UInt32 = 0
+        CGGetOnlineDisplayList(UInt32(ids.count), &ids, &count)
+        return ids.prefix(Int(count)).map { CGDisplayBounds($0) }
+    }
+
     /// The window server lists a window a moment after it is ordered in, not in the same turn: an ordered-in window
-    /// that is not listed yet gets a bounded wait (up to a second, a run-loop turn at a time) before it counts as
-    /// unconfirmed. Never longer, and never a pass: a window still unlisted after the wait is refused.
+    /// that is not listed yet gets a bounded wait (up to a second) before it counts as unconfirmed. The wait flushes
+    /// this process's pending drawing to the window server and sleeps in short steps; it does not run the run loop,
+    /// so nothing else (a timer, a queued block) runs inside a guard. Never longer, and never a pass: a window still
+    /// unlisted after the wait is refused.
     private func waitForListing() -> CGRect? {
         let deadline = Date().addingTimeInterval(Self.listingWait)
         repeat {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
-            if let rect = serverBounds() { return rect }
+            CATransaction.flush()
+            usleep(10_000)
+            if let rect = listedBounds() { return rect }
         } while Date() < deadline
         return nil
     }
@@ -64,32 +96,18 @@ public final class OffscreenWindow: NSWindow {
     /// The longest the window server is given to list an ordered-in window.
     static let listingWait: TimeInterval = 1.0
 
-    /// Why this window is, or may be, on a display; nil when it is nowhere near one. Judged two ways: the
-    /// frame against every screen's frame, and the window server's bounds for the window against every active
-    /// display's bounds. A window that is ordered in and that the window server does not list cannot be
-    /// confirmed to be anywhere, which counts as being on a display.
+    /// Why this window is, or may be, on a display; nil when it is nowhere near one (see `reasons`).
     public func onScreenReason() -> String? {
-        var reasons: [String] = []
-        if let reason = frameReason() { reasons.append(reason) }
-        if let rect = serverBounds() ?? (isVisible ? waitForListing() : nil) {
-            // The ONLINE displays, not the active ones: while the screen is locked or asleep the active list is
-            // empty, and a guard that compares against nothing refuses nothing.
-            var ids = [CGDirectDisplayID](repeating: 0, count: 16)
-            var count: UInt32 = 0
-            CGGetOnlineDisplayList(UInt32(ids.count), &ids, &count)
-            if count == 0 { reasons.append("the window server lists no display, so there is nothing to judge the window against") }
-            for id in ids.prefix(Int(count)) where CGDisplayBounds(id).intersects(rect) {
-                reasons.append("the window server puts it at \(rect.debugDescription), on display \(id)")
-            }
-        } else if isVisible {
-            reasons.append("the window server does not list the window, so where it is cannot be confirmed")
-        }
-        return reasons.isEmpty ? nil : reasons.joined(separator: "; ")
+        let ordered = isVisible
+        let listed = listedBounds() ?? (ordered ? waitForListing() : nil)
+        let found = Self.reasons(frame: frame, screenFrames: NSScreen.screens.map(\.frame), isOrderedIn: ordered,
+                                 serverBounds: listed, displayBounds: Self.onlineDisplayBounds())
+        return found.isEmpty ? nil : found.joined(separator: "; ")
     }
 
     /// What a tool prints as its report of where the window is.
     public func placementReport() -> String {
-        "window frame \(NSStringFromRect(frame)), window server bounds \(serverBounds().map { "\($0)" } ?? "not listed")"
+        "window frame \(NSStringFromRect(frame)), window server bounds \(listedBounds().map { "\($0)" } ?? "not listed")"
     }
 
     /// The hard guard: a window that is on a display (or cannot be confirmed to be off every one) prints why
