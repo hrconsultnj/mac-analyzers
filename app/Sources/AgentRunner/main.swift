@@ -226,6 +226,12 @@ if args.first == "--probe-disk-runway" {
 if args.first == "--probe-tm" {
     await probeTimeMachine()
 }
+if args.first == "--probe-recording-sources" {
+    await probeRecordingSources()
+}
+if args.first == "--probe-recordings-engine" {
+    await probeRecordingsEngine()
+}
 if args.first == "--probe-cleanup-parse" {
     await probeCleanupParse()
 }
@@ -281,6 +287,8 @@ if args.first == "--probe-versions" {
 if args.first == "--probe-guard-rules" {
     probeGuardRules()
 }
+// `--probe-trend-buckets` judges how a period's events become a Trends chart's bars (TrendBucketsProbe.swift).
+if args.first == "--probe-trend-buckets" { probeTrendBuckets() }
 if args.first == "--probe-guard-history" {
     probeGuardHistory(args)
 }

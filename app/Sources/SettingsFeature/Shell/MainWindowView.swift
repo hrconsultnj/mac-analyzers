@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import AnalyzersKit
 
@@ -8,6 +9,8 @@ import AnalyzersKit
 ///   Navigator.swift          selection, per-section paths, one history
 ///   SectionRegistry.swift    the order of the sidebar groups
 ///   SidebarView.swift        the rows
+///   SidebarVisibility.swift  shown or hidden (one source of truth) and the toolbar button
+///   SidebarPeek.swift        the hover overlay that shows a hidden sidebar
 ///   HistoryToolbar.swift     back and forward
 ///   Screens/Activity/JobStatusToolbarItem.swift   the running job, on every screen
 ///   DeepLinkRouter.swift     target strings to locations
@@ -19,31 +22,70 @@ public struct MainWindowView: View {
     @Environment(JobStore.self) private var jobs
     @Environment(UpdateState.self) private var updates
     private var navigator: Navigator { session.navigator }
+    /// The ONE record of whether the sidebar is shown: the toolbar button, its tooltip and the View menu all derive from it.
+    @State private var visibility: NavigationSplitViewVisibility
+    @State private var peek: SidebarPeek
+    @State private var isFullScreen = false
 
     /// `restoresLocation: false` starts at the home screen and never reads or writes the
     /// saved location: for tools (SnapshotRunner) that open a window to look at one target.
-    public init(restoresLocation: Bool = true) {
+    /// `sidebar` fixes how the sidebar starts for such a tool; the app leaves it to what the person chose.
+    public init(restoresLocation: Bool = true, sidebar: SidebarPresentation = .remembered) {
         _session = State(initialValue: Session(restores: restoresLocation))
+        _visibility = State(initialValue: SidebarVisibility.restore(restoresLocation ? sidebar : (sidebar == .remembered ? .shown : sidebar)))
+        _peek = State(initialValue: SidebarPeek(showing: sidebar == .peeking))
     }
 
     public var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $visibility) {
             SidebarView(navigator: navigator)
+                // our own button below stands in for the system's, which cannot show whether the sidebar is shown
+                .toolbar(removing: .sidebarToggle)
+                // shown: the button is declared in the sidebar's own toolbar ...
+                .toolbar {
+                    if visibility != .detailOnly { SidebarToggleItem(shown: true, toggle: toggleSidebar, peek: peek, placement: .primaryAction) }
+                }
+                .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 260)
         } detail: {
             detail
+                // The window's minimum is set HERE, on the content, and not on the whole split view: a minimum on
+                // the split view is added to the sidebar's width when the sidebar shows, and the window grew by
+                // the sidebar every time it was shown (measured: 900 wide became 1111). With the sidebar shown the
+                // window is at least this plus the sidebar (760 to 830); with it hidden, this. 570 is what the content
+                // had with the sidebar shown at the old window minimum (780 less the sidebar's 210).
+                .frame(minWidth: 570, minHeight: 568)
+                .overlay(alignment: .leading) {
+                    // while the sidebar is hidden: the hover strip, and the sidebar itself as an overlay
+                    if visibility == .detailOnly {
+                        SidebarPeekOverlay(peek: peek, navigator: navigator, isFullScreen: isFullScreen)
+                    }
+                }
         }
         // On the split view, not on the stack inside it: a toolbar attached
         // to a NavigationStack itself (rather than to something inside it) is
         // dropped, which left the window with no Back or Forward button at all.
         .toolbar {
+            // ... hidden: in the content's. One button, one place beside the traffic lights, whichever state it is in.
+            if visibility == .detailOnly { SidebarToggleItem(shown: false, toggle: toggleSidebar, peek: peek) }
             HistoryToolbar(navigator: navigator)
             JobStatusToolbarItem(store: jobs, navigator: navigator)
         }
-        .frame(minWidth: 780, minHeight: 620)
+        // full screen has the system's own edge reveal, which the hover strip must not fight; read from THIS window
+        .background { FullScreenWatcher(isFullScreen: $isFullScreen) }
+        // remembered, and a sidebar shown for real, or a row chosen, ends the overlay
+        .onChange(of: visibility) { _, now in
+            if session.restores { SidebarVisibility.save(now) }
+            if now != .detailOnly { peek.dismiss() }
+        }
+        .onChange(of: navigator.section) { peek.dismiss() }
         // the Updates row's badge reads the one update state
         .task { UpdateBadge.shared.state = updates }
         .environment(navigator)
         .focusedSceneValue(\.navigator, navigator)
+        .focusedSceneValue(\.sidebarCommands, SidebarCommandState(
+            shown: visibility != .detailOnly,
+            toggle: { toggleSidebar() }))
+        .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.toggleSidebarInternal)) { _ in toggleSidebar() }
         .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.openPaneInternal)) { note in
             guard let target = note.userInfo?["target"] as? String else { return }
             DeepLinkRouter.open(target, in: navigator)
@@ -57,6 +99,27 @@ public struct MainWindowView: View {
         .onDisappear {
             if session.restores { NavigationPersistence.save(navigator.location) }
             ActivationPolicy.windowClosed()
+        }
+    }
+
+    /// Shows or hides the sidebar the way the system's own button does: `toggleSidebar:` down the responder chain
+    /// collapses the split view item INSIDE the window, which keeps its size, and the split view writes the new state
+    /// back into `visibility`, the one record every other part reads.
+    ///
+    /// Two cases where that does nothing: no split view controller answers, or one NEARER the first responder answers
+    /// that is not ours (an inspector's own). So after the send, once the collapse animation is over, the visibility is
+    /// compared with what it was before the send, and only if it did not move is it set directly. When the real
+    /// controller answered it has moved, and nothing more is done: the sidebar is never toggled twice.
+    private func toggleSidebar() {
+        let before = visibility
+        let flipped: NavigationSplitViewVisibility = before == .detailOnly ? .all : .detailOnly
+        guard NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil) else {
+            visibility = flipped
+            return
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            if visibility == before { visibility = flipped }
         }
     }
 

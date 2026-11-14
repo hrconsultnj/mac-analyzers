@@ -144,6 +144,7 @@ public struct OutlineTable<Row: Identifiable>: View {
         ZStack {
             OutlineRepresentable(configuration: configuration)
             if configuration.rows.isEmpty, let empty {
+                // states-allow: the table's own ZStack centres it, and UIComponents cannot reach SettingsFeature's LoadingState
                 if empty.isLoading { ProgressView() } else { empty.content }
             }
         }

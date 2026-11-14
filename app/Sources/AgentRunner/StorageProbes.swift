@@ -36,16 +36,18 @@ private func looksRaw(_ title: String) -> String? {
 private func printLevels<C: StorageCategory>(_ rows: StorageRows, _ type: C.Type, perGroup: Int = 6,
                                               namesAreFiles: Bool = false) -> [String] {
     var problems: [String] = []
-    let filled = rows.filled(type)
-    print("tabs: " + filled.map { "\($0.title) (\(rows.count(in: $0)) · \(human(rows.bytes(in: $0))))" }.joined(separator: "  |  "))
+    let filled = rows.tabs(type)
+    func count(_ tab: StorageTab) -> Int { rows.count(inTab: tab.rawValue) }
+    func bytes(_ tab: StorageTab) -> Int64 { rows.rows(inTab: tab.rawValue).reduce(0) { $0 + ($1.bytes ?? 0) } }
+    print("tabs: " + filled.map { "\($0.title) (\(count($0)) · \(human(bytes($0))))" }.joined(separator: "  |  "))
     if filled.count == 1, rows.rows.count > 0, C.allCases.count > 1 {
         problems.append("one tab holds every row: \(filled[0].title)")
     }
     for category in filled {
-        print("\n[\(category.title)]  \(rows.count(in: category)) rows · \(human(rows.bytes(in: category)))")
+        print("\n[\(category.title)]  \(count(category)) rows · \(human(bytes(category)))")
         var order: [String] = []
         var groups: [String: [StorageRow]] = [:]
-        for row in rows.rows(in: category) {
+        for row in rows.rows(inTab: category.rawValue) {
             let key = row.group ?? ""
             if groups[key] == nil { order.append(key) }
             groups[key, default: []].append(row)
@@ -139,7 +141,7 @@ func probeStorage(_ which: String, logOverride: String?) -> Never {
         if unused.rows.filter(\.isChoosable).contains(where: { $0.id.contains("/Application Support/Electron") || $0.id.contains("group.example.shared") }) {
             problems.append("Unused Apps example: a file left in place is offered for a tick")
         }
-        print("\n-- Old Recordings example"); problems += printLevels(StorageFixtures.recordings(), RecordingCategory.self)
+        print("\n-- Old Recordings example"); problems += printLevels(StorageFixtures.recordings(), StorageTab.self)
         // one function names a cleaned path for any screen (Undo, Trends)
         let homePath = NSHomeDirectory()
         for (path, group, title) in [

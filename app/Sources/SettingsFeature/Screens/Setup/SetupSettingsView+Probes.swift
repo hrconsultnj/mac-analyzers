@@ -17,7 +17,7 @@ extension SetupSettingsView {
         let notifications = await notificationCheck()
         let login = loginItemCheck()
         await awaitLoad({ SetupAudit.probe(notifications: notifications, loginItem: login) },
-                        ttl: 1) { report = $0 }
+                        ttl: 1, key: "setup.audit") { report = $0 }
     }
 
     private func notificationCheck() async -> SetupCheck {

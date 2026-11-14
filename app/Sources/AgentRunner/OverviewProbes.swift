@@ -100,7 +100,7 @@ func probeOverview(_ args: [String]) {
     print("CLEARED  \(OverviewModel.eventsClearedAt().map { stamp.string(from: $0) } ?? "never") — events before this are hidden from Overview and the menu panel (the Clear button), not from the log")
     print("RECENT EVENTS (\(events.count) shown; \(allEvents.count) in the last 24 hours in the log, newest \(allEvents.first.map { stamp.string(from: $0.date) } ?? "none"))")
     for row in model.events { print("  \(row.when.formatted(.dateTime.hour().minute()))  \(row.title)  —  \(row.outcome)") }
-    // the screen's own formula (`TrendsModel.snapshot(.day7)`): guard stops, what their processes held, plus what the cleaners closed
+    // the screen's own formula (`TrendsModel.snapshot(.week)`): guard stops, what their processes held, plus what the cleaners closed
     let week = 7.0 * 86_400
     let weekEvents = GuardLogParser.allEvents(fromLog: AnalyzersPaths.guardLog, within: week)
     let stops = weekEvents.filter(\.isKill)

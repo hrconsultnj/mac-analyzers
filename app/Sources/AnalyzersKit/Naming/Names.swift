@@ -25,6 +25,16 @@ public enum Names {
         public static let app = Names.app
     }
 
+    // MARK: - the sidebar's own button and menu words
+
+    public enum Sidebar {
+        public static let title = "Sidebar"
+        public static let show = "Show Sidebar"
+        public static let hide = "Hide Sidebar"
+        public static let enterFullScreen = "Enter Full Screen"
+        public static let exitFullScreen = "Exit Full Screen"
+    }
+
     // MARK: - screens (the sidebar rows, and the title of the screen each opens)
 
     public enum Screen {
@@ -197,6 +207,37 @@ public enum Names {
         public static let couldNotRemove = "Couldn't Remove"
         public static let runningKept = "Running: quit it first, then preview again. It is left alone."
         public static let recordings = "Old Recordings"
+    }
+
+    /// Old Recordings' sources: the names of the recording apps (the list in `lib/recording-sources.tsv` carries the
+    /// same titles, and `agent-runner --probe-recording-sources` fails if they differ), and the Sources window's words.
+    public enum Recordings {
+        public static let sourceTitles: [String: String] = [
+            "zoom": "Zoom", "screenRecordings": "Screen Recordings", "superwhisper": "SuperWhisper",
+            "loomTemporary": "Loom (Unsent Videos)", "voiceMemos": "Voice Memos",
+            "cloudMeetings": "Teams and Meet Recordings", "macwhisper": "MacWhisper", "rewind": "Rewind",
+            "granola": "Granola", "wisprFlow": "Wispr Flow", "custom": "Custom Folder",
+        ]
+        public static let sources = "Sources"
+        public static let sourcesButton = "Sources…"
+        public static let chooseFolders = "Choose Folders…"
+        public static let addFolder = "Add Folder…"
+        public static let foundOnThisMac = "Found on This Mac"
+        public static let yourFolders = "Your Folders"
+        public static let notOffered = "Not Offered"
+        public static let keepRecordingsFor = "Keep Recordings For"
+        public static let needsAccess = "Needs Access"
+        public static let otherFolders = "Other Folders"
+        public static let noFoldersChosen = "No Recording Folders Chosen"
+        public static let lookInDocuments = "Look in Documents"
+        public static let lookOnDesktop = "Look on the Desktop"
+        public static let lookInDownloads = "Look in Downloads"
+        public static let lookOnExternalDisks = "Look on the External Disk"
+        public static let lookInICloud = "Look in iCloud Drive"
+        public static let showInFinder = "Show in Finder"
+        public static let remove = "Remove"
+        public static let save = "Save"
+        public static let cancel = "Cancel"
     }
 
     /// Where an item found in temp and agent folders lives, and the verdict on it.
@@ -560,6 +601,18 @@ public enum Names {
         public static let leftAloneOne = "Left Alone"
     }
 
+    // MARK: - report periods (the one menu on Trends and Memory Guard)
+
+    public enum Period {
+        public static let last24 = "Last 24 Hours"
+        public static let last3 = "Last 3 Days"
+        public static let last7 = "Last 7 Days"
+        public static let last14 = "Last 14 Days"
+        public static let last30 = "Last 30 Days"
+        public static let last90 = "Last 90 Days"
+        public static let all = [last24, last3, last7, last14, last30, last90]
+    }
+
     // MARK: - Memory Guard
 
     public enum Guard {
@@ -567,10 +620,6 @@ public enum Names {
         public static let alerts = "Alerts"
         public static let period = "Period"
         public static let show = "Show"
-        public static let last24 = "Last 24 Hours"
-        public static let last3 = "Last 3 Days"
-        public static let last7 = "Last 7 Days"
-        public static let last90 = "Last 90 Days"
         public static let nothingToReport = "Nothing to Report"
         public static let nothingHere = "Nothing Here"
         public static let eventGone = "This Event Is Gone"
@@ -658,6 +707,12 @@ public enum Names {
                  StorageTab.diskImages, StorageTab.packageManagers, StorageTab.xcodeSimulators,
                  StorageTab.docker, StorageTab.toolCaches].map { ("Storage tab", $0) }
         rows += [Prune.pnpm, Prune.npm, Prune.brew, Prune.simulators, Prune.docker].map { ("Prune", $0) }
+        rows += Recordings.sourceTitles.values.sorted().map { ("Recording source", $0) }
+        rows += [Recordings.sources, Recordings.sourcesButton, Recordings.chooseFolders, Recordings.addFolder,
+                 Recordings.foundOnThisMac, Recordings.yourFolders, Recordings.notOffered, Recordings.keepRecordingsFor,
+                 Recordings.needsAccess, Recordings.otherFolders, Recordings.noFoldersChosen, Recordings.lookInDocuments,
+                 Recordings.lookOnDesktop, Recordings.lookInDownloads, Recordings.lookOnExternalDisks, Recordings.lookInICloud, Recordings.showInFinder, Recordings.remove,
+                 Recordings.save, Recordings.cancel].map { ("Recordings", $0) }
         rows += [ToolCacheName.pip, ToolCacheName.uv, ToolCacheName.cargo, ToolCacheName.gradle,
                  ToolCacheName.derivedData, ToolCacheName.bun, ToolCacheName.cipd, ToolCacheName.goModules,
                  ToolCacheName.androidSnapshots, ToolCacheName.aerials].map { ("Tool cache", $0) }
@@ -668,6 +723,7 @@ public enum Names {
         rows += EngineLog.allCases.map { ("Log \($0.rawValue)", log($0)) }
         rows += [Review.selectAll, Review.selectNone, Review.previewAgain, Review.preview, Review.stop, Review.history,
                  Review.showRawOutput, Review.showInFinder, Review.copyPath, Review.copyPaths].map { ("Review", $0) }
+        rows += [Sidebar.title, Sidebar.show, Sidebar.hide, Sidebar.enterFullScreen, Sidebar.exitFullScreen].map { ("Sidebar", $0) }
         rows += [Channel.heading, Channel.releases, Channel.beta, Channel.thisCopy, Channel.installBeta, Channel.rebuild].map { ("Channel", $0) }
         rows += [TimeMachine.removePermission, TimeMachine.permissionRowTitle].map { ("Time Machine", $0) }
         rows += [Raw.screen, Raw.searchPrompt, Raw.copy, Raw.noOutput, Raw.showAll, Raw.showOlder].map { ("Raw", $0) }
@@ -679,8 +735,9 @@ public enum Names {
         rows += [MemoryKind.app, MemoryKind.wired, MemoryKind.compressed, MemoryKind.cached, MemoryKind.free, MemoryKind.swap,
                  MemoryKind.showInMonitor, MemoryKind.overTime, MemoryKind.whoHoldsTheMost, MemoryKind.whatItIs].map { ("Memory kind", $0) }
         rows += Kind.all.map { ("Kind", $0) }
+        rows += Period.all.map { ("Period", $0) }
         rows += [Stop.stop, Stop.quit, Stop.forceStop, Stop.leaveRunning, Stop.leftAlone, Stop.leftAloneOne].map { ("Stop", $0) }
-        rows += [Guard.stopped, Guard.alerts, Guard.period, Guard.show, Guard.last24, Guard.last3, Guard.last7, Guard.last90, Guard.nothingToReport,
+        rows += [Guard.stopped, Guard.alerts, Guard.period, Guard.show, Guard.nothingToReport,
                  Guard.nothingHere, Guard.eventGone, Guard.whatHappened, Guard.theProgram, Guard.whyTheGuardDoesThis,
                  Guard.eachTime, Guard.whatWasUsingMemory, Guard.macAtThatMoment, Guard.showRawLines].map { ("Guard", $0) }
         rows += [Cleanup.leftovers, Cleanup.everythingNow, Cleanup.devServers, Cleanup.orphanedTools, Cleanup.emulators,

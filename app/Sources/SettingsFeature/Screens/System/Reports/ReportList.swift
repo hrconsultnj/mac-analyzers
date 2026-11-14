@@ -58,8 +58,8 @@ struct ReportList: View {
         }
         .overlay {
             if months.isEmpty {
-                ContentUnavailableView("No Reports Yet", systemImage: "doc.text.magnifyingglass",
-                                       description: Text("Write a report to see it here."))
+                EmptyState("No Reports Yet", systemImage: "doc.text.magnifyingglass",
+                           description: Text("Write a report to see it here."))
             }
         }
     }

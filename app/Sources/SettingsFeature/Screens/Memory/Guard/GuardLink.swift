@@ -32,6 +32,7 @@ struct GuardLink: Codable {
         let scopes: [String: GuardHistory.Scope] = ["all": .all, "stopped": .stopped, "alerts": .alerts,
                                                     "reports": .crisisReports]
         if let scope = scopes[rest] { return GuardLink(scope: scope) }
+        if rest.hasPrefix("period:"), let period = ReportPeriod(linkName: String(rest.dropFirst(7))) { return GuardLink(window: period) }
         if rest.hasPrefix("find:") { return GuardLink(query: String(rest.dropFirst(5))) }
         return nil
     }

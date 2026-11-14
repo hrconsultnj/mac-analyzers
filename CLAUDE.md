@@ -107,7 +107,13 @@ through `config.local.sh` (never hardcoded).
   (`SettingsFeature/Shared/PaneScaffold.swift`); a screen that shows data (a
   table, a list, a review) is a `DataScreen`
   (`SettingsFeature/Shared/DataScreen.swift`), which fills the window, carries
-  the title and subtitle, and centres an empty state. The main window is
+  the title and subtitle. A screen never draws its own empty, failed or
+  loading state: it is `EmptyState` or `LoadingState`
+  (`SettingsFeature/Shared/ScreenState.swift`: the system's
+  `ContentUnavailableView` and `ProgressView`, filling the space the screen has
+  left and centring in it, with the icon, title, description and the button
+  that fixes it where one exists); `scripts/check.sh states` refuses a bare
+  one. The main window is
   `SettingsFeature/Shell/`: `MainWindowView` over one `Navigator` (selection,
   a path per section, ONE back/forward history recorded only in its four
   mutators `select` / `push` / `setPath` / `open`); the sidebar is a plain
@@ -117,6 +123,13 @@ through `config.local.sh` (never hardcoded).
   parallel work edits one group file each. Screens navigate through the
   `Navigator` in the environment (`push(.memory(.dossier(…)))`,
   `open(target: "log:guardLog")`), never by posting a notification.
+  The sidebar's visibility is ONE state, the split view's `columnVisibility` held by
+  `MainWindowView` (remembered across launches): the toolbar button
+  (`SidebarVisibility.swift`, a `Toggle`, accent icon when shown), its tooltip and the
+  View menu item (Control-Command-S, through `focusedSceneValue`) all derive from it, and
+  while the sidebar is hidden resting the pointer on the leading edge or the button shows
+  it as an overlay over the content (`SidebarPeek.swift`; the content never resizes; in
+  full screen the system's own edge reveal is left alone).
   `Shell/DeepLinkRouter.swift` resolves every target string (the URL scheme,
   `--pane` and the in-process `com.mac-analyzers.open-pane` notification all
   land there). No screen shows a log as text: what a task found or did is
@@ -128,6 +141,14 @@ through `config.local.sh` (never hardcoded).
   Menu rows and components live in `MenuBarFeature/MenuComponents.swift`.
   The engine stays bash — the app is a control surface over the scripts +
   launchd, never a reimplementation.
+- Old Recordings reads every place a recording app saves, not one folder: the
+  sources are `lib/recording-sources.tsv` (read by `cleanup.sh` and by
+  `RecordingSourceCatalog`; `agent-runner --probe-recording-sources` fails if they
+  differ), each is a tab, and ONLY THE APP DISCOVERS a folder (never inside
+  Documents, Desktop or Downloads before a click): the engine is told the paths in
+  `ANALYZERS_RECORDING_SOURCES` and refuses the folders the Sources window refuses: a source must
+  be inside the home folder (not the Library or a hidden folder) or on `/Volumes/<disk>/…`, checked on the path
+  as written AND where it really leads (`RecordingFolderRule`; `rec_refusal` in `cleanup.sh`).
 - Every Storage task is one screen (`Screens/Storage/`): Preview, the
   preview's rows as tabs and groups in the shared review table, one Apply
   through `JobStore.apply(from:approved:)`, History and Show Raw Output; a
@@ -143,9 +164,48 @@ through `config.local.sh` (never hardcoded).
   **Look at a screen without taking over the Mac:**
   `app/.build/debug/SnapshotRunner <target> <out.png> [--size 1100x720] [--wait 3]`
   renders the REAL main window (real stores, real data) for any deep-link
-  target into a PNG, in a window placed outside every display — it never
-  activates, never shows in the Dock, never moves focus. Built by `swift
-  build`, never bundled into the app. Use it while building a screen and
+  target into a PNG, in a window placed far outside every display (an
+  `OffscreenWindow`, `app/Sources/ToolWindows`, a target only the tools use:
+  AppKit moves a plain titled window back onto the main display when it is
+  ordered in, so this type returns its frame unchanged and places itself
+  again after ordering in) — it never activates, never shows in the Dock,
+  never moves focus. Placement is enforced, not assumed: the window refuses
+  to be ordered in when its frame is on a screen, checks the window server's
+  bounds for it the moment it is ordered in, and every tool checks again
+  before each capture; a window on a display, or one the window server will
+  not confirm, prints why and exits 3 WITHOUT capturing, and each render
+  prints the frame and bounds it was taken at. The picture is drawn from the
+  window's own views (`OffscreenWindow.snapshotPNG`: the frame view, so title
+  bar, toolbar, sidebar and content), because `screencapture -l` cannot image
+  a window that is on no display; it needs no display and works with the
+  screen locked. **It is partly invented, and a render is never evidence for
+  these: judge the sidebar's colour, its selection, the legibility of anything
+  on glass, and key-window states (an active window's selection, traffic
+  lights and focus ring) on screen.** What the picture does that the real window
+  does not: (1) the Liquid Glass sidebar is a flat stand-in colour
+  (`underPageBackgroundColor`) with no blur, lens or edge, and only a glass
+  surface taller than 100 pt is drawn (the toolbar's small groups draw
+  themselves); (2) the sidebar's selected row is a rounded rectangle drawn by hand
+  (white 14% on dark, black 10% on light), because the system's highlight comes
+  out of this kind of draw as a solid black bar; (3) on a dark window every
+  near-black pixel of the sidebar's table is recoloured white, because inside
+  the glass its labels are vibrant masks (black with an alpha) that the glass
+  would colour: this also recolours a label that is hard-coded black, so a
+  contrast bug on a sidebar label cannot show in a render; (4) the window's
+  appearance is set on the window and on each glass view before the draw, and
+  the run loop is spun for 0.4 s so SwiftUI redraws under it, because a glass
+  surface with nothing behind it chooses light; (5) the window is never key or
+  active, so selection, traffic lights and controls draw in their inactive
+  state; (6) no rounded outer corners, edge or shadow, a dimmed button has no
+  bezel, and pixels are 1x. Parts are found by what they are (the close button's
+  ancestor is the title bar, the glass's `contentView`, an `NSTableView`), never
+  by a private class name, and a part that cannot be found is an error: the
+  tool prints why and exits non-zero without writing a picture. `--view-tree`
+  prints the view hierarchy. `--outline-probe snapshot` (in `scripts/check.sh
+  outline`, dark and light) fails if the close button, a known sidebar label's
+  text (right polarity), the selected row, the footer or the content is
+  missing from the picture.
+  Built by `swift build`, never bundled into the app. Use it while building a screen and
   before calling it done (the blueprint's screen acceptance bar requires
   it); the owner's screen is not a test fixture. It cannot click: anything
   interactive (a running job, a confirmation, the menu-bar panel) still
@@ -214,6 +274,14 @@ through `config.local.sh` (never hardcoded).
   --probe-activity [--real]` prints the sections, `--probe-activity-ids` proves
   ids survive a log growing, `--probe-failures` prints the failure sentences, and
   `--probe-pid-recycle` proves a stop refuses a recycled pid.
+- **One period, one loader.** A screen with a period (Trends, Memory Guard) takes it from the shared
+  `ReportPeriod` (`AnalyzersKit/History/`: 24 hours, 3, 7, 14, 30, 90 days, begun by `GuardHistory.periodStart`; a
+  chart's bars are `TrendBuckets`: hourly for 24 hours, daily after) and shows it with `PeriodToolbar` in
+  `SettingsFeature/Shared/PeriodMenu.swift`: a change starts its load with `.task(id: period)`, keys every cached read
+  by the period (`LoadCoordinator` serves a key for seconds), keeps the old content in place and shows a small
+  progress indicator beside the menu with the subtitle "Loading Last 3 Days…" (`periodSubtitle`). Render it with
+  `SnapshotRunner trends:memory:24h out.png --then trends:memory:7d --load-delay 8` (`guard:period:3d` and
+  `trends:<tab>:<24h|3d|7d|14d|30d|90d>` are the period links); `agent-runner --probe-trend-buckets` judges the buckets.
 - **Native controls, native padding, one layout per component** (owner,
   2026-11-10, after three screenshots of v2.69.0: "stop fabricating and just
   use native … buttons"). A button is a `Button` with a system `buttonStyle`;

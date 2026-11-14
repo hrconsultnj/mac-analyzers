@@ -20,7 +20,12 @@ public struct MemoryTunables: Equatable, Sendable {
 public struct StorageTunables: Equatable, Sendable {
     public var extraCacheGlobs: [String] = []  // ANALYZERS_EXTRA_CACHE_GLOBS (array)
     public var staleApps: [String] = []        // ANALYZERS_STALE_APPS (array)
-    public var recordingsDir = ""              // ANALYZERS_RECORDINGS_DIR
+    public var recordingsDir = ""              // ANALYZERS_RECORDINGS_DIR (the fallback when there is no list of sources)
+    /// ANALYZERS_RECORDING_SOURCES: where Old Recordings looks, one `id|state|path` each, in order.
+    public var recordingSources: [RecordingSourceEntry] = []
+    /// A list of sources exists in config.local.sh (even an empty one): ANALYZERS_RECORDINGS_DIR is then never read.
+    public var recordingSourcesConfigured = false
+    public var recordingsDays = 90             // ANALYZERS_RECORDINGS_DAYS
     public var toolCaches: [String] = []       // ANALYZERS_TOOL_CACHES (comma ids)
     // Downloads janitor. It is the one cleaner that touches documents rather
     // than rebuildable caches, so its knobs belong in the UI — hand-editing
@@ -83,7 +88,17 @@ public final class ConfigStore {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 guard trimmed.hasPrefix("\(key)=") else { continue }
                 var v = String(trimmed.dropFirst(key.count + 1))
-                if let hash = v.firstIndex(of: "#"), !v.hasPrefix("\"") && !v.hasPrefix("'") {
+                if v.hasPrefix("(") {
+                    // an array: a `#` starts a comment only outside quotes (a folder may be called "Notes #1")
+                    var quote: Character?, escaped = false, cut: String.Index?
+                    for index in v.indices {
+                        let ch = v[index]
+                        if let q = quote {
+                            if escaped { escaped = false } else if ch == "\\", q == "\"" { escaped = true } else if ch == q { quote = nil }
+                        } else if ch == "\"" || ch == "'" { quote = ch } else if ch == "#" { cut = index; break }
+                    }
+                    if let cut { v = String(v[..<cut]) }
+                } else if let hash = v.firstIndex(of: "#"), !v.hasPrefix("\"") && !v.hasPrefix("'") {
                     v = String(v[..<hash])
                 }
                 v = v.trimmingCharacters(in: .whitespaces)
@@ -101,9 +116,13 @@ public final class ConfigStore {
             var items: [String] = []
             var current = ""
             var quote: Character?
+            var escaped = false
             for ch in inner {
                 if let q = quote {
-                    if ch == q { quote = nil } else { current.append(ch) }
+                    // inside double quotes a backslash makes the next character plain, as bash reads it
+                    if escaped { current.append(ch); escaped = false }
+                    else if ch == "\\", q == "\"" { escaped = true }
+                    else if ch == q { quote = nil } else { current.append(ch) }
                 } else if ch == "\"" || ch == "'" {
                     quote = ch
                 } else if ch == " " {
@@ -132,6 +151,9 @@ public final class ConfigStore {
         }
         storage.extraCacheGlobs = arrayValue("ANALYZERS_EXTRA_CACHE_GLOBS").map(Self.expandHome)
         storage.staleApps = arrayValue("ANALYZERS_STALE_APPS")
+        storage.recordingSourcesConfigured = value("ANALYZERS_RECORDING_SOURCES") != nil
+        storage.recordingSources = arrayValue("ANALYZERS_RECORDING_SOURCES").compactMap { RecordingSourceEntry(parsing: $0, expandHome: Self.expandHome) }
+        if let v = value("ANALYZERS_RECORDINGS_DAYS").flatMap({ Int($0) }), v > 0 { storage.recordingsDays = v }
         if let v = value("JANITOR_DOWNLOADS_AGE_DAYS").flatMap({ Int($0) }) {
             storage.janitorDownloadsDays = v
         }
@@ -204,8 +226,14 @@ public final class ConfigStore {
             let items = storage.staleApps.map { shellQuote($0) }.joined(separator: " ")
             out += "ANALYZERS_STALE_APPS=( \(items) )\n"
         }
-        if !storage.recordingsDir.isEmpty {
+        // a list of sources replaces the single folder: it is migrated into the list, and not written twice
+        if storage.recordingSources.isEmpty, !storage.recordingSourcesConfigured, !storage.recordingsDir.isEmpty {
             out += "ANALYZERS_RECORDINGS_DIR=\(shellQuotePath(storage.recordingsDir))\n"
+        }
+        if !storage.recordingSources.isEmpty || storage.recordingSourcesConfigured {
+            let items = storage.recordingSources.compactMap { shellQuoteSource($0) }.map { $0 + " " }.joined()
+            out += "ANALYZERS_RECORDING_SOURCES=( \(items))\n"
+            out += "ANALYZERS_RECORDINGS_DAYS=\(storage.recordingsDays)\n"
         }
         if !storage.toolCaches.isEmpty {
             out += "ANALYZERS_TOOL_CACHES=\(shellQuote(storage.toolCaches.joined(separator: ",")))\n"
@@ -256,6 +284,23 @@ public final class ConfigStore {
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
         return "\"$HOME\(rest)\""
+    }
+
+    /// One source as a double-quoted element, `"id|state|path"`: a home-prefixed path keeps a live `$HOME`, and every
+    /// other character bash would act on inside double quotes (a backslash, a quote, `$`, a backtick) is escaped.
+    func shellQuoteSource(_ entry: RecordingSourceEntry) -> String? {
+        // the id is a name from the list, and the path one line: anything else cannot be written safely
+        guard !entry.id.isEmpty, entry.id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }),
+              !entry.path.contains("\n"), !entry.path.contains("\t"), !entry.path.contains("\r") else { return nil }
+        func escape(_ text: String) -> String {
+            var out = ""
+            for ch in text { if "\\\"$`".contains(ch) { out.append("\\") }; out.append(ch) }
+            return out
+        }
+        let expanded = Self.expandHome(entry.path)
+        let home = AnalyzersPaths.home.path
+        let path = expanded.hasPrefix(home + "/") || expanded == home ? "$HOME" + escape(String(expanded.dropFirst(home.count))) : escape(expanded)
+        return "\"\(entry.id)|\(entry.enabled ? "on" : "off")|\(path)\""
     }
 
     /// Literal "$HOME/…" or "~/…" (as read from shell config) → real path.

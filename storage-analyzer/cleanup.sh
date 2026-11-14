@@ -10,7 +10,10 @@
 #   ./cleanup.sh --execute --yes   # delete without the confirmation prompt
 #
 # Recordings mode (opt-in; isolated — the cache/log groups are skipped),
-# prune old recording folders:
+# prune old recordings from every source in ANALYZERS_RECORDING_SOURCES (config.local.sh;
+# the app writes it), or from ANALYZERS_RECORDINGS_DIR when there is no such list.
+# lib/recording-sources.tsv says what one item is for each source: a subfolder, a Zoom
+# meeting folder, or a file. This script never looks for a folder: it is told where.
 #   ./cleanup.sh --recordings-older-than 90            # dry run
 #   ./cleanup.sh --recordings-older-than 90 --execute  # move to the Trash
 #
@@ -27,7 +30,7 @@
 # REVIEWED LIST (the app's Unused Apps and Recordings screens): --only-paths FILE
 # acts only on the items whose exact path is a whole line of FILE. For apps the
 # key is the app bundle's path (its whole footprint goes with it); for
-# recordings it is the folder's path. The script still finds everything itself,
+# recordings it is the folder's (or file's) path. The script still finds everything itself,
 # so a list can only shrink what is touched; an empty list touches nothing.
 #   ./cleanup.sh --stale-apps --execute --yes --only-paths /tmp/approved.txt
 # App and recordings runs write their blocks to reports/storage/cleanup-apps.log
@@ -749,38 +752,302 @@ fi
 
 # --- RECORDINGS MODE: --recordings-older-than prunes recordings ONLY ---
 # Isolated like app mode: asking to prune recordings must never also sweep
-# build caches out from under running dev servers. Requires
-# ANALYZERS_RECORDINGS_DIR in config.local.sh.
+# build caches out from under running dev servers.
+#
+# WHERE to look is ANALYZERS_RECORDING_SOURCES in config.local.sh, one "id|state|path" per source
+# (written by the app, which is the only thing that discovers a folder; this script never looks for
+# one). With no such list at all, ANALYZERS_RECORDINGS_DIR is the one folder, as before (except that a standard
+# folder such as Movies, or a link, is now refused as a whole source). HOW to read
+# each source (what one item is, which extensions, what is kept) comes from lib/recording-sources.tsv.
+REC_TSV="${ANALYZERS_ROOT}/lib/recording-sources.tsv"
+
+# A source is allowed only INSIDE your home folder or on an external disk (/Volumes/<disk>/…): everything else is
+# refused, so a hand-edited config.local.sh can never point a cleanup at the system, other users or an app's data.
+# The check runs on the path as written AND on where it really leads (a link in the middle of the path counts),
+# and it is the same check the app's Sources window makes (RecordingFolderRule).
+
+# rec_lc <text>: lower case. macOS volumes are case-insensitive, so ~/library/cloudstorage is the Library's
+# CloudStorage folder: every comparison below is made on lower-case text and never on the case that was typed.
+# It also folds the two letters that fold to ASCII ones (ſ is s, the Kelvin sign is k), which the disk treats as the same
+# name too; for a folder that EXISTS the comparison is by file identity instead (rec_identity_check), which no spelling
+# can get past.
+rec_lc() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/ſ/s/g' -e 's/K/k/g'; }
+
+# rec_under_home <path>: prints the path below your home folder (empty for the home folder itself); fails when outside.
+rec_under_home() {
+  local x="$1" h lx lh
+  lx="$(rec_lc "$x")"
+  for h in "$HOME_DIR" "$HOME_REAL"; do
+    [[ -n "$h" ]] || continue
+    lh="$(rec_lc "$h")"
+    if [[ "$lx" == "$lh" ]]; then echo ""; return 0; fi
+    if [[ "$lx" == "$lh/"* ]]; then echo "${lx:$((${#lh} + 1))}"; return 0; fi
+  done
+  return 1
+}
+
+# rec_library_allowed <path below home>: a Library folder that a known recording app names in recording-sources.tsv.
+rec_library_allowed() {
+  local rel step
+  rel="$(rec_lc "$1")"
+  [[ -f "$REC_TSV" ]] || return 1
+  while IFS= read -r step; do
+    [[ -n "$step" ]] || continue
+    step="$(rec_lc "$step")"
+    if [[ "$rel" == "$step" || "$rel" == "$step/"* ]]; then return 0; fi
+  done < <(awk -F'\t' '/^#/ {next} {n = split($8, s, "|"); for (i = 1; i <= n; i++) if (s[i] ~ /^home:Library\//) { x = s[i]; sub(/^home:/, "", x); sub(/@.*$/, "", x); print x }}' "$REC_TSV")
+  return 1
+}
+
+# rec_check <path> <layout>: prints why this location can never be a source and succeeds; fails when it is allowed.
+rec_check() {
+  local x="$1" layout="$2" rel lrel first name rest lx
+  if [[ "$x" == "/" ]]; then echo "it is the whole disk"; return 0; fi
+  if rel="$(rec_under_home "$x")"; then
+    if [[ -z "$rel" ]]; then echo "it is your whole home folder"; return 0; fi
+    lrel="$(rec_lc "$rel")"
+    first="${lrel%%/*}"
+    case "$first" in
+      .*) echo "it is in a hidden folder of your home folder, where settings and keys are kept"; return 0 ;;
+      library)
+        rec_library_allowed "$rel" || { echo "it is in your Library folder, where apps keep their own data and your cloud storage"; return 0; }
+        ;;
+    esac
+    for name in desktop documents downloads movies music pictures library; do
+      if [[ "$lrel" == "$name" && "$layout" != "files" ]]; then
+        echo "it is your whole ${rel} folder, which holds more than recordings; choose a folder inside it"; return 0
+      fi
+    done
+    return 1
+  fi
+  lx="$(rec_lc "$x")"
+  case "$lx" in
+    /volumes/*)
+      rest="${lx#/volumes/}"
+      if [[ "$rest" != */* ]]; then echo "it is a whole disk"; return 0; fi
+      return 1 ;;
+  esac
+  echo "it is outside your home folder and your external disks"; return 0
+}
+
+# rec_same <a> <b>: both exist and are the very same folder or file (same device and inode), whatever each is called.
+rec_same() { [[ -e "$1" && -e "$2" && "$1" -ef "$2" ]]; }
+
+# rec_identity_check <real path> <layout>: the same rules as rec_check, judged by WHAT the folders are, not how they are
+# spelled: the disk folds more than upper and lower case (Movieſ is Movies), so each folder on the way up from the
+# source is compared with the real home folder, Library, standard folders and /Volumes by identity.
+# Prints why and succeeds when refused; fails when allowed.
+rec_identity_check() {
+  local real="$1" layout="$2" cur i n top rel name
+  local chain=()
+  cur="$real"
+  while :; do
+    chain+=( "$cur" )
+    [[ "$cur" == "/" ]] && break
+    cur="$(dirname "$cur")"
+  done
+  n=${#chain[@]}
+  for (( i = 0; i < n; i++ )); do rec_same "${chain[$i]}" "$HOME_DIR" && break; done
+  if (( i < n )); then
+    if (( i == 0 )); then echo "it is your whole home folder"; return 0; fi
+    top="${chain[$((i - 1))]}"
+    if rec_same "$top" "$HOME_DIR/Library"; then
+      rel="${real#"$HOME_REAL"/}"
+      rec_library_allowed "$rel" || { echo "it is in your Library folder, where apps keep their own data and your cloud storage"; return 0; }
+    fi
+    case "${top##*/}" in
+      .*) echo "it is in a hidden folder of your home folder, where settings and keys are kept"; return 0 ;;
+    esac
+    if (( i == 1 )) && [[ "$layout" != "files" ]]; then
+      for name in Desktop Documents Downloads Movies Music Pictures; do
+        if rec_same "$top" "$HOME_DIR/$name"; then
+          echo "it is your whole ${name} folder, which holds more than recordings; choose a folder inside it"; return 0
+        fi
+      done
+    fi
+    return 1
+  fi
+  for (( i = 0; i < n; i++ )); do rec_same "${chain[$i]}" /Volumes && break; done
+  if (( i < n )); then
+    if (( i <= 1 )); then echo "it is a whole disk"; return 0; fi
+    return 1
+  fi
+  echo "it is outside your home folder and your external disks"; return 0
+}
+
+# rec_refusal <path> <layout>: why this folder can never be a source, else nothing (exit 1).
+rec_refusal() {
+  local p="$1" layout="$2" real why
+  case "$p" in
+    /*) ;;
+    *) echo "it is not a full path"; return 0 ;;
+  esac
+  case "$p" in
+    *$'\t'*|*$'\n'*) echo "its name holds a tab or a line break"; return 0 ;;
+    */..|*/../*|*/.|*/./*) echo "it is not a plain path"; return 0 ;;
+  esac
+  if why="$(rec_check "$p" "$layout")"; then echo "$why"; return 0; fi
+  if [[ -L "$p" ]]; then echo "it is a link to another folder, and a link is not followed"; return 0; fi
+  if [[ -d "$p" ]]; then
+    real="$(cd "$p" 2>/dev/null && pwd -P)"
+    if [[ -z "$real" ]]; then echo "it cannot be opened to see where it leads"; return 0; fi
+    if [[ "$real" != "$p" ]] && why="$(rec_check "$real" "$layout")"; then
+      echo "it leads through a link to ${real}, and ${why}"; return 0
+    fi
+    # by identity too: a spelling the name check does not know can still be a folder that cannot be a source
+    if why="$(rec_identity_check "$real" "$layout")"; then echo "$why"; return 0; fi
+  fi
+  return 1
+}
+
+# rec_old <path> <days>: succeeds when NOTHING inside was written for that many days (a folder's own date
+# changes only when its direct entries do, so new recordings one level down would make a busy folder look old).
+# Sets REC_UNREADABLE=1 when part of it could not be searched, so a newer file may be hiding in there.
+rec_old() {
+  local newest find_rc
+  REC_UNREADABLE=0
+  newest="$(find "$1" -mtime "-$2" -print -quit 2>"$REC_ERR")"; find_rc=$?
+  [[ -z "$newest" ]] || return 1
+  if [[ "$find_rc" -ne 0 || -s "$REC_ERR" ]]; then REC_UNREADABLE=1; fi
+  return 0
+}
+
+# rec_consider <path>: one item that is old, past every keep rule, to be listed or removed.
+rec_consider() {
+  local d="$1" kb
+  kb=$(du -sk "$d" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"
+  # something inside could not be searched (an unreadable subfolder): a newer file may be in there, so it cannot be told
+  if [[ "$REC_UNREADABLE" -eq 1 ]]; then
+    printf "  %-9s %10s  %s  —  %s\n" "[KEEP]" "$(human "$kb")" "$d" "part of it could not be read, so it cannot be told whether anything in it is recent"
+    return 0
+  fi
+  # Zoom writes a raw .zoom file while it records and until it is converted: that is the only copy
+  if [[ "$REC_KEEP_ZOOM" -eq 1 && -d "$d" && -n "$(find "$d" -name '*.zoom' -print -quit 2>/dev/null)" ]]; then
+    printf "  %-9s %10s  %s  —  %s\n" "[KEEP]" "$(human "$kb")" "$d" "Zoom has not converted this recording yet. Open it in Zoom first."
+    return 0
+  fi
+  if ! approved "$d"; then echo "  [SKIP] not in approved set  ${d}"; return 0; fi
+  # a recording on another disk goes to THAT disk's Trash; a disk with none keeps it, with the reason
+  if ! trash_dir_for "$d" >/dev/null; then
+    printf "  %-9s %10s  %s  —  %s\n" "[KEEP]" "$(human "$kb")" "$d" "this disk has no Trash to move it to"
+    return 0
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then reclaim "$d"; else
+    # a person's own recordings go to the Trash, with a receipt Undo reads
+    if trash_item "$d" "$kb"; then TOTAL_KB=$((TOTAL_KB + kb)); else printf "  [FAILED]  %s\n" "$d"; fi
+  fi
+}
+
+# rec_has_signature <folder>: Zoom's own marks: recording.conf, a video*.mp4 + audio*.m4a pair, or a *.zoom file.
+rec_has_signature() {
+  local d="$1"
+  [[ -e "$d/recording.conf" ]] && return 0
+  [[ -n "$(find "$d" -maxdepth 1 -name '*.zoom' -print -quit 2>/dev/null)" ]] && return 0
+  [[ -n "$(find "$d" -maxdepth 1 -name 'video*.mp4' -print -quit 2>/dev/null)" \
+     && -n "$(find "$d" -maxdepth 1 -name 'audio*.m4a' -print -quit 2>/dev/null)" ]] && return 0
+  return 1
+}
+
+# rec_files <dir> <comma extensions>: the files at the top of a folder with one of the extensions.
+# The extensions are matched with find -iname, never built into a pattern from a path and never eval'd.
+rec_files() {
+  local dir="$1" exts="$2" ext
+  local args=()
+  local IFS_SAVE="$IFS"
+  IFS=','; for ext in $exts; do
+    [[ -n "$ext" ]] || continue
+    [[ ${#args[@]} -gt 0 ]] && args+=( -o )
+    args+=( -iname "*.${ext}" )
+  done
+  IFS="$IFS_SAVE"
+  [[ ${#args[@]} -gt 0 ]] || return 0
+  find "$dir" -mindepth 1 -maxdepth 1 -type f \( "${args[@]}" \) 2>/dev/null
+}
+
+# rec_scan <id> <title> <layout> <exts> <keepIf> <warning> <path> <heading 0|1>
+rec_scan() {
+  local id="$1" title="$2" layout="$3" exts="$4" keepif="$5" warning="$6" p="$7" heading="$8" why d f
+  p="${p%/}"; [[ -n "$p" ]] || p="/"
+  if [[ "$heading" -eq 1 ]]; then printf '### Source\t%s\t%s\t%s\n' "$id" "$title" "$p"; fi
+  if why="$(rec_refusal "$p" "$layout")"; then
+    printf "  %-9s %10s  %s  —  %s\n" "[KEEP]" "" "$p" "not used: ${why}"
+    return 0
+  fi
+  if [[ ! -d "$p" ]]; then echo "  (folder not found: ${p})"; return 0; fi
+  [[ -n "$warning" && "$warning" != "-" ]] && echo "  [WARN] ${warning}"
+  REC_KEEP_ZOOM=0; [[ "$keepif" == "zoomFile" ]] && REC_KEEP_ZOOM=1
+  case "$layout" in
+    folders|meetingFolders)
+      while IFS= read -r d; do
+        if [[ "$layout" == "meetingFolders" ]] && ! rec_has_signature "$d"; then continue; fi
+        rec_old "$d" "$REC_DAYS" || continue
+        rec_consider "$d"
+      done < <(find "$p" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+      if [[ "$layout" == "meetingFolders" ]]; then
+        while IFS= read -r f; do
+          rec_old "$f" "$REC_DAYS" || continue
+          REC_KEEP_ZOOM=0; rec_consider "$f"; REC_KEEP_ZOOM=1
+        done < <(rec_files "$p" "$exts")
+      fi
+      ;;
+    files)
+      while IFS= read -r f; do
+        rec_old "$f" "$REC_DAYS" || continue
+        rec_consider "$f"
+      done < <(rec_files "$p" "$exts")
+      ;;
+    *) echo "  (nothing here is ever removed)" ;;
+  esac
+}
+
 if [[ -n "$REC_DAYS" ]]; then
   group "Recordings older than ${REC_DAYS} days  (cache/log groups skipped)"
-  REC_DIR="${ANALYZERS_RECORDINGS_DIR:-}"
   REC_ERR="$(mktemp "${TMPDIR:-/tmp}/cleanup-rec.XXXXXX")"
   trap 'rm -f "${REC_ERR:-}"' EXIT
-  if [[ -n "$REC_DIR" && -d "$REC_DIR" ]]; then
-    while IFS= read -r d; do
-      # old means NOTHING inside was written for REC_DAYS days: a folder's own date changes only when its direct
-      # entries do, so new recordings one level down would make a busy folder look old
-      newest="$(find "$d" -mtime "-${REC_DAYS}" -print -quit 2>"$REC_ERR")"; find_rc=$?
-      [[ -z "$newest" ]] || continue
-      kb=$(du -sk "$d" 2>/dev/null | awk '{print $1}'); kb="${kb:-0}"
-      # something inside could not be searched (an unreadable subfolder): a newer file may be in there, so it cannot be told
-      if [[ "$find_rc" -ne 0 || -s "$REC_ERR" ]]; then
-        printf "  %-9s %10s  %s  —  %s\n" "[KEEP]" "$(human "$kb")" "$d" "part of it could not be read, so it cannot be told whether anything in it is recent"
+  REC_UNREADABLE=0; REC_KEEP_ZOOM=0
+  REC_LISTED=0
+  HOME_REAL="$(cd "$HOME_DIR" 2>/dev/null && pwd -P)"
+  # A list of sources that EXISTS (even an empty one, which is what the app writes once you have removed them all)
+  # is the only place to look: ANALYZERS_RECORDINGS_DIR is read only when there is no list at all.
+  if declare -p ANALYZERS_RECORDING_SOURCES >/dev/null 2>&1; then
+    # the list of sources, in the order the person keeps them
+    if [[ ! -f "$REC_TSV" ]]; then
+      echo "FATAL: lib/recording-sources.tsv is missing, so it cannot be told how to read each source. Nothing was removed." >&2
+      exit 78
+    fi
+    for entry in ${ANALYZERS_RECORDING_SOURCES[@]+"${ANALYZERS_RECORDING_SOURCES[@]}"}; do
+      [[ "$entry" == *"|"*"|"* ]] || { echo "  (a source entry is not id|state|path, skipped)"; continue; }
+      rec_id="${entry%%|*}"; rec_rest="${entry#*|}"
+      rec_state="${rec_rest%%|*}"; rec_path="${rec_rest#*|}"; rec_path="${rec_path%/}"
+      rec_row="$(awk -F'\t' -v id="$rec_id" '/^#/ {next} $1 == id {print; exit}' "$REC_TSV")"
+      if [[ -z "$rec_row" ]]; then echo "  (unknown source '${rec_id}', skipped)"; continue; fi
+      rec_title="$(printf '%s' "$rec_row" | awk -F'\t' '{print $2}')"
+      rec_layout="$(printf '%s' "$rec_row" | awk -F'\t' '{print $4}')"
+      rec_exts="$(printf '%s' "$rec_row" | awk -F'\t' '{print ($5 == "-" ? "" : $5)}')"
+      rec_keep="$(printf '%s' "$rec_row" | awk -F'\t' '{print $6}')"
+      rec_warn="$(printf '%s' "$rec_row" | awk -F'\t' '{print ($9 == "-" ? "" : $9)}')"
+      [[ "$rec_id" == "custom" ]] && rec_title="${rec_path##*/}"
+      if [[ "$rec_state" != "on" ]]; then
+        printf '### Source\t%s\t%s\t%s\n' "$rec_id" "$rec_title" "$rec_path"
+        echo "  Turned off in Sources"
         continue
       fi
-      if ! approved "$d"; then echo "  [SKIP] not in approved set  ${d}"; continue; fi
-      # a recording on another disk goes to THAT disk's Trash; a disk with none keeps it, with the reason
-      if ! trash_dir_for "$d" >/dev/null; then
-        printf "  %-9s %10s  %s  —  %s\n" "[KEEP]" "$(human "$kb")" "$d" "this disk has no Trash to move it to"
-        continue
-      fi
-      if [[ "$DRY_RUN" -eq 1 ]]; then reclaim "$d"; else
-        # a person's own recordings go to the Trash, with a receipt Undo reads
-        if trash_item "$d" "$kb"; then TOTAL_KB=$((TOTAL_KB + kb)); else printf "  [FAILED]  %s\n" "$d"; fi
-      fi
-    done < <(find "$REC_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+      REC_LISTED=1
+      rec_scan "$rec_id" "$rec_title" "$rec_layout" "$rec_exts" "$rec_keep" "$rec_warn" "$rec_path" 1
+    done
   else
-    echo "  (ANALYZERS_RECORDINGS_DIR not set — skipping)"
+    REC_DIR="${ANALYZERS_RECORDINGS_DIR:-}"
+    if [[ -n "$REC_DIR" && -d "$REC_DIR" ]]; then
+      REC_LISTED=1
+      rec_scan custom "${REC_DIR##*/}" folders "" "" "" "$REC_DIR" 0
+    fi
+  fi
+  if [[ "$REC_LISTED" -eq 0 ]]; then
+    if declare -p ANALYZERS_RECORDING_SOURCES >/dev/null 2>&1; then
+      echo "  (no recording folder is turned on in Sources — skipping)"
+    else
+      echo "  (ANALYZERS_RECORDINGS_DIR not set — skipping)"
+    fi
   fi
   echo ""
   echo "=================================================================="

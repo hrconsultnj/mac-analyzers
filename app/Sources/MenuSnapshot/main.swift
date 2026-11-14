@@ -10,6 +10,7 @@
 // no job and writes no real log: the job store keeps its index in a temporary
 // folder and nothing here enqueues anything.
 import AppKit
+import ToolWindows
 import SwiftUI
 import AnalyzersKit
 import MenuBarFeature
@@ -53,7 +54,7 @@ if tab == "monitor" {
 
 @MainActor
 final class Host: NSObject, NSApplicationDelegate {
-    var window: NSWindow!
+    var window: OffscreenWindow!
     let store = GuardLogStore()
     let scratch = FileManager.default.temporaryDirectory
         .appending(path: "ma-menu-snapshot-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -75,7 +76,7 @@ final class Host: NSObject, NSApplicationDelegate {
             .frame(width: width)
             .background(.regularMaterial)
         let hosting = NSHostingView(rootView: root)
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 100),
+        window = OffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 100),
                           styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
@@ -83,8 +84,7 @@ final class Host: NSObject, NSApplicationDelegate {
             window.standardWindowButton(button)?.isHidden = true
         }
         window.contentView = hosting
-        window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-        window.orderFrontRegardless()   // shows the window WITHOUT activating the app
+        window.placeOffscreen()   // shows the window WITHOUT activating the app
         Task { await updates.check() }
         DispatchQueue.main.asyncAfter(deadline: .now() + wait) { self.capture(hosting) }
     }
@@ -93,11 +93,14 @@ final class Host: NSObject, NSApplicationDelegate {
         let height = hosting.fittingSize.height
         window.setContentSize(NSSize(width: width, height: height))
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            let capture = Process()
-            capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            capture.arguments = ["-x", "-o", "-l", String(self.window.windowNumber), output.path]
-            try? capture.run()
-            capture.waitUntilExit()
+            // the hard guard: a window on a display ends the run here, before anything is captured
+            self.window.requireOffscreen(before: "capture the \(tab) panel")
+            print("menu-snapshot: \(self.window.placementReport())")
+            // drawn from the window's own views: a window parked on no display cannot be imaged by the window server
+            do { try self.window.writeSnapshot(to: output) } catch {
+                FileHandle.standardError.write(Data("menu-snapshot: no picture was made: \(error)\n".utf8))
+                exit(1)
+            }
             print("\(tab) → \(output.path)  (\(Int(self.window.frame.width)) × \(Int(height)) pt)")
             try? FileManager.default.removeItem(at: self.scratch)
             exit(0)

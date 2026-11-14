@@ -109,13 +109,13 @@ struct RawOutputScreen: View {
 
     @ViewBuilder private var content: some View {
         if isGone {
-            ContentUnavailableView(gone.title, systemImage: "questionmark.folder", description: Text(gone.detail))
+            EmptyState(gone.title, systemImage: "questionmark.folder", description: Text(gone.detail))
         } else if let found {
             if found.lines.isEmpty {
-                ContentUnavailableView(Names.Raw.noOutput, systemImage: "text.alignleft",
-                                       description: Text("This one has no text to show."))
+                EmptyState(Names.Raw.noOutput, systemImage: "text.alignleft",
+                           description: Text("This one has no text to show."))
             } else if matching.isEmpty {
-                ContentUnavailableView.search(text: query)
+                EmptyState.search(text: query)
             } else {
                 VStack(spacing: 0) {
                     RunLinesView(lines: matching, anchorBottom: !fromTop)
@@ -127,7 +127,7 @@ struct RawOutputScreen: View {
                 }
             }
         } else {
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            LoadingState()
         }
     }
 

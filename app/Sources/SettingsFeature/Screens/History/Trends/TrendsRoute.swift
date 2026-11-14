@@ -8,14 +8,14 @@ import AnalyzersKit
 /// Repeat Offenders rows — each case carries the period the user had
 /// selected so the pushed screen stays scoped to the same window.
 enum TrendsRoute: Hashable, Codable, Sendable {
-    case kills(TrendsModel.Period)
-    case spikes(TrendsModel.Period)
-    case pressure(TrendsModel.Period)
-    case cpuHogs(TrendsModel.Period)
-    case memoryFreed(TrendsModel.Period)
-    case diskReclaimed(TrendsModel.Period)
+    case kills(ReportPeriod)
+    case spikes(ReportPeriod)
+    case pressure(ReportPeriod)
+    case cpuHogs(ReportPeriod)
+    case memoryFreed(ReportPeriod)
+    case diskReclaimed(ReportPeriod)
     /// The same table with one project opened and selected (a dashboard row for it).
-    case removedProject(String, TrendsModel.Period)
+    case removedProject(String, ReportPeriod)
     case reclaimableNow
-    case offender(String, TrendsModel.Period)
+    case offender(String, ReportPeriod)
 }

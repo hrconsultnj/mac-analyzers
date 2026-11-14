@@ -93,8 +93,10 @@ struct NetworkView: View {
 
     @ViewBuilder private var content: some View {
         if !model.loaded {
-            // reading the saved snapshots: say nothing is saved only once that is known
-            ProgressView().controlSize(.small).frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Reading the saved snapshots: say nothing is saved only once that is known. This is the whole screen's content
+            // for that moment, not an inline refresh, so it is the same screen spinner as every other reading state
+            // (it used to be a small one, which looked like a spinner beside content that was not there).
+            LoadingState()
         } else {
             loadedContent
         }
@@ -104,11 +106,14 @@ struct NetworkView: View {
         switch scope {
         case .snapshot:
             if model.viewing == nil {
-                ContentUnavailableView {
-                    Label(model.isTaking ? "Taking a Snapshot" : "No Snapshot Yet", systemImage: "network")
-                } description: {
-                    Text(model.isTaking ? "Reading what each program has sent and received."
-                                        : "Take a snapshot to see which programs have been using the network.")
+                if model.isTaking {
+                    LoadingState("Taking a Snapshot", detail: "Reading what each program has sent and received.")
+                } else {
+                    EmptyState {
+                        Label("No Snapshot Yet", systemImage: "network")
+                    } description: {
+                        Text("Take a snapshot to see which programs have been using the network.")
+                    }
                 }
             } else {
                 NetworkTable(groups: groups, selection: $selection, expansion: expansion, onShowInFinder: reveal)

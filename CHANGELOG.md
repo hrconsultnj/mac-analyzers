@@ -5,6 +5,53 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## v2.71.0 — Recording sources, one period menu and a sidebar you can tuck away
+
+Old Recordings now works for everyone, not only for one folder, and the
+screens that show history all choose their period the same way.
+
+**Old Recordings**
+
+- Old Recordings finds where your recording apps save — Zoom, screen
+  recordings and others — and shows each as its own tab, with recordings
+  grouped by day. Choose which folders it looks in, add your own, and set
+  how old a recording has to be, all from one Sources window, also opened
+  from Choose Folders… when nothing has been found yet.
+- It never touches recordings that live in the cloud or that another app
+  keeps a library of, and it keeps a Zoom meeting that hasn't been
+  converted yet. SuperWhisper is found but left off, because it keeps its
+  own history and has its own "Keep recordings for" setting.
+- A source must be a folder in your home folder or on an external disk.
+  Your whole Movies, Documents or Desktop folder, a link, or anything
+  inside your Library is refused as a folder of recordings, with the
+  reason shown; screen recordings saved straight to the Desktop are still
+  found.
+
+**History and periods**
+
+- Trends and Memory Guard share one period menu: Last 24 Hours, Last 3
+  Days, Last 7 Days, Last 14 Days, Last 30 Days and Last 90 Days. Each
+  screen remembers its own choice.
+- Last 24 Hours shows one bar per hour; longer periods show one bar per
+  day, with today counted as one of them. Trends adds charts for memory
+  freed and disk space removed beside the guard's events.
+- While a new period loads, the numbers on screen stay and a small
+  spinner beside the menu shows it is working. Trends no longer offers
+  All Time; the longest period is 90 days.
+- Opening an event from Memory Guard's list now always finds it.
+
+**The window**
+
+- The sidebar button shows whether the sidebar is open, and hiding or
+  showing the sidebar keeps your window the size it is. With the sidebar
+  hidden, rest the pointer at the window's left edge to see it over the
+  content; it goes away when you move off, choose a row or press Escape.
+- Empty and loading screens sit in the middle of the space they have,
+  with the button that helps, and busy screens show a spinner.
+- Icons sit centred on rows with two lines of text.
+
+Minor fixes and improvements throughout.
+
 ## v2.70.0 — Every screen rebuilt the same way, with tabs and groups
 
 Every screen of the main window has been rebuilt to read the same way: the

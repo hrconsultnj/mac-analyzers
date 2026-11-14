@@ -1,13 +1,15 @@
 // snapshot-runner — render a real screen of the app to a PNG without ever
 // putting a window in front of anyone.
 //
-//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
+//   snapshot-runner <target> <out.png> [--size 1100x720] [--wait 3] [--fake-running|--fake-failed|--fake-review|--fake-pressure] [--sidebar shown|hidden|peek] [--toolbar-dump] [--escape] [--toggle-frames] [--scroll-end] [--scroll-sidebar] [--update-state uptodate|dev|available] [--appearance light|dark] [--view-tree] [--guard-log file] [--startup-inventory <file>] [--fake-running|--fake-failed|--fake-review] [--home <folder>]
 //   snapshot-runner overview /tmp/overview.png
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
 // `log:forensics`, …). The real main window is built with the real data
-// stores, placed far outside every display, navigated to the target, given
-// time to load, and captured — toolbar, sidebar and all.
+// stores, in an OffscreenWindow far outside every display (a render refuses to
+// capture, and says why, when the window touches one), navigated to the target, given
+// time to load, and drawn into a PNG from the window's own views (OffscreenWindow.snapshotPNG) —
+// toolbar, sidebar and all; a window on no display cannot be imaged by `screencapture`.
 //
 // The window gets the same environment the app gives it: the guard store, the
 // settings, ONE job store and ONE update state. `--fake-running` starts two
@@ -30,6 +32,8 @@
 // Mac. This process never activates, never appears in the Dock, and its
 // window is never on a display.
 import AppKit
+import ToolWindows
+import UIComponents
 import SwiftUI
 @_spi(TestSupport) import AnalyzersKit
 import SettingsFeature
@@ -124,6 +128,30 @@ let fakeFailed = arguments.contains("--fake-failed")
 let fakeReview = arguments.contains("--fake-review")
 /// `--fake-pressure`: the memory screens' history holds a stretch of warning and critical pressure (the Mac is at normal when it renders).
 let fakePressure = arguments.contains("--fake-pressure")
+/// `--hit-test-edge`: hit-test the content 4 points in from the window's leading edge (where the hover strip is) and
+/// print what answers, so a control there is shown to still get the click; with `--sidebar hidden`.
+let hitTestEdge = arguments.contains("--hit-test-edge")
+/// `--toolbar-dump`: print each toolbar item's label and where its left edge is, in window points, so a button that must
+/// not move between two states can be measured.
+let toolbarDump = arguments.contains("--toolbar-dump")
+/// `--escape`: just before the capture, send Escape through the application's event queue, so a render shows whether it puts the hover overlay away.
+let sendEscape = arguments.contains("--escape")
+/// `--toggle-frames`: record the window's frame, hide/show/hide the sidebar the way the menu item does, record it after each,
+/// print them and exit 1 if the window changed size (a sidebar must show and hide INSIDE the window it is in).
+let toggleFrames = arguments.contains("--toggle-frames")
+/// `--sidebar shown|hidden|peek`: how the sidebar starts (peek is hidden with the hover overlay showing). Never remembered.
+let sidebarState: SidebarPresentation = switch option("--sidebar") {
+case "hidden": .hidden
+case "peek": .peeking
+default: .shown
+}
+/// `--then <target> [--then-at <seconds>]`: open a second target that long after launch (default 3 s), on the screen already
+/// showing, as a link opened while a screen is open: how a period changed while its data is in view is rendered.
+/// `--load-delay <seconds>`: reads of Trends and Memory Guard take that much longer, so the state while a new
+/// period loads can be captured.
+let thenTarget = option("--then")
+let thenAt = Double(option("--then-at") ?? "3") ?? 3
+let loadDelay = Double(option("--load-delay") ?? "0") ?? 0
 let scrollToEnd = arguments.contains("--scroll-end")
 /// `--scroll-sidebar`: scroll the sidebar (the narrowest scrollable view) to its last row.
 let scrollSidebar = arguments.contains("--scroll-sidebar")
@@ -139,7 +167,7 @@ if let appearanceOption, !["light", "dark"].contains(appearanceOption) {
 
 @MainActor
 final class Snapshot: NSObject, NSApplicationDelegate {
-    var window: NSWindow!
+    var window: OffscreenWindow!
     let store = GuardLogStore()
     let config = ConfigStore()
     /// A job index in a temporary folder: a snapshot never writes the real one.
@@ -213,9 +241,14 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         jobs.scriptOverride = nothing
         // `--startup-inventory <file>` shows Login & Startup Items from a fixture
         if let fixture = option("--startup-inventory") { StartupInventory.useFile(URL(fileURLWithPath: fixture)) }
+        // the recording sources of the checkout this tool was built from: the person's own clone may be older
+        var checkout = URL(fileURLWithPath: #filePath)
+        for _ in 0..<4 { checkout.deleteLastPathComponent() }
+        let sources = checkout.appending(path: "lib/recording-sources.tsv")
+        if FileManager.default.fileExists(atPath: sources.path) { RecordingSourceCatalog.useList(at: sources) }
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
         if updateStateOption == nil { Task { await updates.check() } }
-        let root = MainWindowView(restoresLocation: false)
+        let root = MainWindowView(restoresLocation: false, sidebar: sidebarState)
             .environment(store)
             .environment(config)
             .environment(jobs)
@@ -223,7 +256,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         let controller = NSHostingController(rootView: root)
         controller.sceneBridgingOptions = [.toolbars, .title]   // SwiftUI toolbars become the window's
 
-        window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+        window = OffscreenWindow(contentRect: NSRect(origin: .zero, size: size),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         // `--appearance light|dark` pins the window's appearance, whatever the system is set to
@@ -234,13 +267,73 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         if let a = appearanceOption { window.appearance = NSAppearance(named: a == "light" ? .aqua : .darkAqua) }
         window.toolbarStyle = .unified
         window.setContentSize(size)
-        // far outside every display: drawn by the window server, seen by nobody
-        window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-        window.orderFrontRegardless()      // shows the window WITHOUT activating the app
+        // far outside every display: drawn by the window server, seen by nobody; `capture()` refuses to run
+        // if the window is on one anyway
+        window.placeOffscreen()      // shows the window WITHOUT activating the app
 
+        if toggleFrames {
+            let start = 0.8 + wait
+            var frames: [(String, NSRect)] = []
+            func record(_ name: String) { frames.append((name, window.frame)); print("frame \(name): \(window.frame)") }
+            DispatchQueue.main.asyncAfter(deadline: .now() + start) { record("start") }
+            for (index, name) in ["after first toggle", "after second toggle", "after third toggle"].enumerated() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + start + Double(index) * 1.5 + 0.3) {
+                    NotificationCenter.default.post(name: NotifyChannel.toggleSidebarInternal, object: nil)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + start + Double(index) * 1.5 + 1.5) { record(name) }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + start + 5.2) { [self] in
+                let sizes = Set(frames.map { "\($0.1.size.width)x\($0.1.size.height)" })
+                let origins = Set(frames.map { "\($0.1.origin.x),\($0.1.origin.y)" })
+                let same = sizes.count == 1 && origins.count == 1
+                print(same ? "PASS the window frame did not change" : "FAIL the window frame changed: sizes \(sizes), origins \(origins)")
+                finish(same ? 0 : 1)
+            }
+        }
+        if sendEscape {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1.5) { [self] in
+                let escape = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                              windowNumber: window.windowNumber, context: nil, characters: "\u{1b}",
+                                              charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53)
+                if let escape { NSApp.sendEvent(escape) }
+            }
+        }
+        if toolbarDump {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 0.5) { [self] in
+                for item in window.toolbar?.items ?? [] {
+                    guard let view = item.view else { continue }
+                    let frame = view.convert(view.bounds, to: nil)
+                    print("toolbar item \(item.itemIdentifier.rawValue) label=\(item.label) x=\(Int(frame.minX)) width=\(Int(frame.width))")
+                }
+            }
+        }
+        if hitTestEdge {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 0.5) { [self] in
+                guard let content = window.contentView else { return }
+                for y in [content.bounds.height * 0.3, content.bounds.height * 0.5, content.bounds.height * 0.7] {
+                    let point = content.convert(NSPoint(x: 4, y: y), to: content.superview)
+                    var chain: [String] = []
+                    var view = content.hitTest(point)
+                    while let current = view, chain.count < 4 { chain.append(String(describing: type(of: current))); view = current.superview }
+                    print("hit at x=4, y=\(Int(y)): \(chain.joined(separator: " <- "))")
+                }
+            }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             NotificationCenter.default.post(name: NotifyChannel.openPaneInternal, object: nil,
                                             userInfo: ["target": target])
+        }
+        if loadDelay > 0 {
+            // from the second target on: the first read is quick, the one a change starts is slow
+            DispatchQueue.main.asyncAfter(deadline: .now() + thenAt - 0.2) {
+                Task { await LoadCoordinator.shared.slowDown(prefixes: ["trends.", "guard.history"], by: loadDelay) }
+            }
+        }
+        if let thenTarget {
+            DispatchQueue.main.asyncAfter(deadline: .now() + thenAt) {
+                NotificationCenter.default.post(name: NotifyChannel.openPaneInternal, object: nil,
+                                                userInfo: ["target": thenTarget])
+            }
         }
         if scrollToEnd {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1) { self.scrollLongestToEnd() }
@@ -248,7 +341,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         if scrollSidebar {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait - 1) { self.scrollLongestToEnd(leftmost: true) }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait) { self.capture() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + wait + (toggleFrames ? 8 : 0)) { self.capture() }
     }
 
     /// Throwaway jobs run by a test script: one running with one waiting behind
@@ -339,14 +432,22 @@ final class Snapshot: NSObject, NSApplicationDelegate {
     }
 
     private func capture() {
-        let capture = Process()
-        capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        capture.arguments = ["-x", "-o", "-l", String(window.windowNumber), output.path]
-        do {
-            try capture.run()
-            capture.waitUntilExit()
-        } catch {
-            FileHandle.standardError.write(Data("snapshot-runner: could not run screencapture: \(error)\n".utf8))
+        // the hard guard: a window on a display ends the run here, before anything is captured
+        window.requireOffscreen(before: "capture \(target)")
+        print("snapshot-runner: \(window.placementReport())")
+        // drawn from the window's own views: a window parked on no display cannot be imaged by the window server
+        // (`screencapture -l` says "could not create image from window"), and this needs no display at all
+        if arguments.contains("--view-tree"), let frameView = window.contentView?.superview {
+            func dump(_ view: NSView, _ depth: Int) {
+                guard depth < 14 else { return }
+                let f = view.frame
+                print(String(repeating: "  ", count: depth) + "\(type(of: view)) (\(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height)))\(view.isHidden ? " hidden" : "")\(view.wantsLayer ? " layer:\(type(of: view.layer!))" : "")")
+                for sub in view.subviews { dump(sub, depth + 1) }
+            }
+            dump(frameView, 0)
+        }
+        do { try window.writeSnapshot(to: output) } catch {
+            FileHandle.standardError.write(Data("snapshot-runner: no picture was made: \(error)\n".utf8))
             finish(1)
         }
         // the window cannot be smaller than the app's own minimum: say so instead of letting a

@@ -44,10 +44,10 @@ struct CleanupRunResults: View {
             if let review {
                 CleanupResultsView(review: review, screen: "run.\(row.kind?.rawValue ?? "memoryClean")")
             } else if looked {
-                ContentUnavailableView("No Details Were Recorded", systemImage: "text.alignleft",
-                                       description: Text("Show Raw Output has the text this run left."))
+                EmptyState("No Details Were Recorded", systemImage: "text.alignleft",
+                           description: Text("Show Raw Output has the text this run left."))
             } else {
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingState()
             }
         }
         .task(id: row.id) { await load() }

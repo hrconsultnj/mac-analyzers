@@ -108,11 +108,11 @@ struct UndoView: View {
     @ViewBuilder private var emptyMessage: some View {
         switch scope {
         case .trashed:
-            ContentUnavailableView("Nothing in the Trash From Cleanups", systemImage: "trash",
-                                   description: Text("When a cleanup moves something to the Trash, it is listed here so you can put it back."))
+            EmptyState("Nothing in the Trash From Cleanups", systemImage: "trash",
+                       description: Text("When a cleanup moves something to the Trash, it is listed here so you can put it back."))
         case .stopped:
-            ContentUnavailableView("No Servers Stopped", systemImage: "hand.raised",
-                                   description: Text("The guard has not stopped anything recently."))
+            EmptyState("No Servers Stopped", systemImage: "hand.raised",
+                       description: Text("The guard has not stopped anything recently."))
         }
     }
 }

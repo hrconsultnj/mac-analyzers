@@ -13,6 +13,15 @@ import UIComponents
 /// log, read-only, when there is one), running with Stop, failed, stopped, reading the results,
 /// results that cannot be shown, or the review itself. The toolbar is the same in every state
 /// except that Preview becomes Stop while it runs.
+/// A button a screen adds to the shared review: beside Preview in the empty state, or in the toolbar.
+struct ReviewAction: Identifiable {
+    let id: String
+    let title: String
+    var systemImage: String?
+    var help: String?
+    let action: () -> Void
+}
+
 struct StorageReviewScreen<Category: StorageCategory>: View {
     let model: StorageReviewModel
     let title: String
@@ -33,17 +42,25 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
     /// Where what is cleared goes ("Goes to the Trash", "Deleted Permanently"): first in the
     /// subtitle in every state, so a person never has to open a dialog to find out.
     var destination: String?
+    /// Buttons beside Preview when nothing has been previewed yet (Old Recordings: Choose Folders…).
+    var emptyActions: [ReviewAction] = []
+    /// Buttons the screen adds to the toolbar (Old Recordings: Sources…).
+    var toolbarActions: [ReviewAction] = []
+    /// Set when there is nothing to preview yet: Preview is off and says why.
+    var previewDisabledReason: String?
+    var emptySymbol = "eye"
 
     @Environment(JobStore.self) private var store
     @Environment(Navigator.self) private var navigator
-    @State private var category: Category
+    @State private var category: StorageTab
     @State private var query = ""
 
     init(model: StorageReviewModel, title: String, kind: JobKind, screenKey: String, options: JobOptions,
          parse: @escaping @Sendable (WholeRun.Block) -> StorageRows,
          lastKnownMatches: @escaping @Sendable (WholeRun.Block) -> Bool = { _ in true }, applyTitle: String,
          confirmation: ReviewConfirmation, emptyText: String, emptyTitle: String = "No Preview Yet",
-         subtitlePrefix: String? = nil, destination: String? = nil) {
+         subtitlePrefix: String? = nil, destination: String? = nil, emptyActions: [ReviewAction] = [],
+         toolbarActions: [ReviewAction] = [], previewDisabledReason: String? = nil, emptySymbol: String = "eye") {
         self.model = model
         self.title = title
         self.kind = kind
@@ -57,11 +74,16 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
         self.emptyTitle = emptyTitle
         self.subtitlePrefix = subtitlePrefix
         self.destination = destination
-        _category = State(initialValue: Category.allCases.first!)
+        self.emptyActions = emptyActions
+        self.toolbarActions = toolbarActions
+        self.previewDisabledReason = previewDisabledReason
+        self.emptySymbol = emptySymbol
+        let first = Category.allCases.first
+        _category = State(initialValue: StorageTab(id: first?.rawValue ?? "", title: first?.title ?? "", symbol: first?.symbol ?? "folder"))
     }
 
-    private var filled: [Category] { model.rows?.filled(Category.self) ?? [] }
-    private var current: Category { filled.contains(category) ? category : (filled.first ?? category) }
+    private var filled: [StorageTab] { model.rows?.tabs(Category.self) ?? [] }
+    private var current: StorageTab { filled.first { $0 == category } ?? filled.first ?? category }
 
     /// One short fact in the toolbar's subtitle, so it is never cut: where what is cleared goes. While a
     /// preview runs, the step it is on.
@@ -103,20 +125,22 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
     // MARK: - content
 
     private var content: some View {
-        StoragePhaseContent(model: model, emptyTitle: emptyTitle, emptyText: emptyText, preview: startPreview) { review }
+        StoragePhaseContent(model: model, emptyTitle: emptyTitle, emptyText: emptyText, preview: startPreview,
+                            emptySymbol: emptySymbol, emptyActions: emptyActions,
+                            previewDisabledReason: previewDisabledReason) { review }
     }
 
     @ViewBuilder private var review: some View {
         if let rows = model.rows, let session = model.session {
             if rows.rows.isEmpty {
-                ContentUnavailableView("Nothing to Clean", systemImage: "checkmark.circle",
-                                       description: Text("This preview found nothing to remove."))
+                EmptyState("Nothing to Clean", systemImage: "checkmark.circle",
+                           description: Text("This preview found nothing to remove."))
             } else {
                 ReviewTable(session: session, preview: model.phase == .lastKnown ? nil : model.job,
                             applyTitle: applyTitle, confirmation: confirmation, readOnly: model.phase == .lastKnown,
                             note: model.phase == .lastKnown ? "Preview again to review these and apply." : nil,
                             onPreviewAgain: { startPreview() }, onApplied: { _ in },
-                            only: shownIDs(rows), tabs: filled.map { Set(rows.rows(in: $0).map(\.id)) },
+                            only: shownIDs(rows), tabs: filled.map { Set(rows.rows(inTab: $0.rawValue).map(\.id)) },
                             screen: screenKey, rowMenu: .files)
                     .safeAreaBar(edge: .top, alignment: .leading, spacing: 0) { notesStrip }
             }
@@ -125,7 +149,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
 
     /// What the preview says that is not a row, as the system's own bar over the table.
     @ViewBuilder private var notesStrip: some View {
-        let notes = model.rows?.notes(for: current) ?? []
+        let notes = model.rows?.notes(forTab: current.rawValue) ?? []
         if detailLine != nil || !notes.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
                 if let detailLine { Text(detailLine).font(.callout).foregroundStyle(.secondary) }
@@ -138,7 +162,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
     /// What the table shows: the tab's rows, or every row that matches a search.
     private func shownIDs(_ rows: StorageRows) -> Set<String> {
         let needle = query.trimmingCharacters(in: .whitespaces)
-        guard !needle.isEmpty else { return Set(rows.rows(in: current).map(\.id)) }
+        guard !needle.isEmpty else { return Set(rows.rows(inTab: current.rawValue).map(\.id)) }
         return Set(rows.rows.filter {
             $0.title.localizedCaseInsensitiveContains(needle) || ($0.detail?.localizedCaseInsensitiveContains(needle) ?? false)
         }.map(\.id))
@@ -154,7 +178,8 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
             } else {
                 Button { startPreview() } label: { Label(Names.Review.preview, systemImage: "eye") }
                 .labelStyle(.titleAndIcon)
-                    .help("Look at what a cleanup would do; nothing is changed")
+                    .disabled(previewDisabledReason != nil)
+                    .help(previewDisabledReason ?? "Look at what a cleanup would do; nothing is changed")
             }
         }
         .toolbarRank(.primary)
@@ -166,6 +191,14 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
             }
         }
         .toolbarRank(.secondary)
+        ForEach(toolbarActions) { item in
+            ToolbarItem {
+                Button(action: item.action) { Label(item.title, systemImage: item.systemImage ?? "gearshape") }
+                    .labelStyle(.titleAndIcon)
+                    .help(item.help ?? item.title)
+            }
+            .toolbarRank(.primary)
+        }
         ToolbarItem {
             Button { navigator.push(.storage(.history(kind.rawValue))) } label: {
                 Label(Names.Review.history, systemImage: "clock.arrow.circlepath")
@@ -186,12 +219,12 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
         .toolbarRank(.secondary)
     }
 
-    private var tabItems: [ScopeTabItem<Category>] {
+    private var tabItems: [ScopeTabItem<StorageTab>] {
         guard let rows = model.rows else { return [] }
-        return filled.map { ScopeTabItem(value: $0, title: $0.title, symbol: $0.symbol, count: rows.count(in: $0)) }
+        return filled.map { ScopeTabItem(value: $0, title: $0.title, symbol: $0.symbol, count: rows.count(inTab: $0.rawValue)) }
     }
 
-    private var tabBinding: Binding<Category> { Binding(get: { current }, set: { category = $0 }) }
+    private var tabBinding: Binding<StorageTab> { Binding(get: { current }, set: { category = $0 }) }
 
     private func startPreview() { model.startPreview(store, kind: kind, options: options) }
 }
@@ -203,10 +236,10 @@ private struct LoadKey: Equatable {
 }
 
 /// The tabs in the toolbar when there are two or more; a screen with one kind of thing has none.
-private struct StorageTabs<Category: StorageCategory>: ViewModifier {
+private struct StorageTabs: ViewModifier {
     let screen: String
-    let items: [ScopeTabItem<Category>]
-    @Binding var selection: Category
+    let items: [ScopeTabItem<StorageTab>]
+    @Binding var selection: StorageTab
 
     @ViewBuilder func body(content: Content) -> some View {
         if (2...6).contains(items.count) {
@@ -225,26 +258,37 @@ struct StoragePhaseContent<Ready: View>: View {
     var emptyTitle = "No Preview Yet"
     let emptyText: String
     let preview: () -> Void
+    var emptySymbol = "eye"
+    var emptyActions: [ReviewAction] = []
+    var previewDisabledReason: String?
     @ViewBuilder let ready: () -> Ready
 
     var body: some View {
         switch model.phase {
         case .empty:
-            ContentUnavailableView {
-                Label(emptyTitle, systemImage: "eye")
+            EmptyState {
+                Label(emptyTitle, systemImage: emptySymbol)
             } description: {
                 Text(emptyText)
             } actions: {
-                Button(Names.Review.preview, action: preview).buttonStyle(.borderedProminent)
+                if previewDisabledReason == nil {
+                    Button(Names.Review.preview, action: preview).buttonStyle(.borderedProminent)
+                } else {
+                    Button(Names.Review.preview, action: preview).disabled(true).help(previewDisabledReason ?? "")
+                }
+                ForEach(emptyActions) { item in
+                    // the one way forward is the prominent button: Choose Folders… when Preview has nothing to look at
+                    if previewDisabledReason == nil {
+                        Button(item.title, action: item.action)
+                    } else {
+                        Button(item.title, action: item.action).buttonStyle(.borderedProminent)
+                    }
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .running:
-            VStack {
-                ProgressView()
-                Text(model.job?.step ?? "Previewing…").foregroundStyle(.secondary)
+            LoadingState(model.job?.step ?? "Previewing…") {
                 Button(Names.Review.stop, role: .cancel) { model.job?.cancel() }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed(let message):
             retry("Preview Failed", systemImage: "exclamationmark.triangle", text: message,
                   diagnostics: StorageDiagnostics.report(job: model.job, message: message))
@@ -254,14 +298,14 @@ struct StoragePhaseContent<Ready: View>: View {
             retry("Results Can't Be Shown", systemImage: "questionmark.folder",
                   text: "\(why) Nothing from it can be applied.")
         case .loading:
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            LoadingState()
         case .ready, .lastKnown:
             ready()
         }
     }
 
     private func retry(_ title: String, systemImage: String, text: String, diagnostics: String? = nil) -> some View {
-        ContentUnavailableView {
+        EmptyState {
             Label(title, systemImage: systemImage)
         } description: {
             Text(text)

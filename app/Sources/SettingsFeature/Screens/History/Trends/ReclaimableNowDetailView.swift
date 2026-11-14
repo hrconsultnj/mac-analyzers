@@ -27,15 +27,15 @@ struct ReclaimableNowDetailView: View {
     var body: some View {
         Group {
             if loaded && rows.isEmpty {
-                ContentUnavailableView("Nothing to Reclaim", systemImage: "sparkles",
-                                       description: Text("The latest check found nothing a cleanup would remove."))
+                EmptyState("Nothing to Reclaim", systemImage: "sparkles",
+                           description: Text("The latest check found nothing a cleanup would remove."))
             } else {
                 OutlineTable(sorted(rows), children: \.children, selection: $selection, sortOrder: $sortOrder,
                              expanded: open.binding, autosave: "trends.reclaimable") {
                     OutlineColumn("name", Names.Column.name, text: \.name,
                                   sortUsing: KeyPathComparator(\Row.name, comparator: .localizedStandard))
                     OutlineColumn("items", Names.Column.items, text: \.detail).textStyle { _ in .secondary }
-                    OutlineColumn("size", Names.Column.size, text: { ByteSize.format($0.bytes) },
+                    OutlineColumn("size", Names.Column.size, text: { ByteSize.text($0.bytes, .cell) },
                                   sortUsing: KeyPathComparator(\Row.bytes))
                         .alignment(.trailing).monospacedDigits()
                         .width(min: 80, ideal: 100, max: 140)
@@ -46,7 +46,7 @@ struct ReclaimableNowDetailView: View {
         .navigationTitle(Names.Screen.cachesAndBuilds)
         .navigationSubtitle("What a cleanup would remove — nothing is deleted until you review it")
         .task {
-            await awaitLoad({ TrendsModel.reclaimableNow() }) { found in
+            await awaitLoad({ TrendsModel.reclaimableNow() }, key: "trends.reclaimable") { found in
                 rows = Dictionary(grouping: found, by: \.group).map { group, items in
                     Row(id: "group:" + group, name: group,
                         detail: "\(items.count) \(items.count == 1 ? "item" : "items")",

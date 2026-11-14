@@ -35,10 +35,10 @@ struct RunScreen: View {
             if row != nil {
                 ActivityInspector(row: row, model: model)
             } else if model.hasLoaded {
-                ContentUnavailableView("This Run Is No Longer Recorded", systemImage: "questionmark.folder",
-                                       description: Text("The log has moved on since this entry was listed."))
+                EmptyState("This Run Is No Longer Recorded", systemImage: "questionmark.folder",
+                           description: Text("The log has moved on since this entry was listed."))
             } else {
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingState()
             }
         }
         .navigationTitle(row?.title ?? "Run")

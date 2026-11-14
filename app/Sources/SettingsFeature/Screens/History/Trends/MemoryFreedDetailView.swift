@@ -4,7 +4,7 @@ import UIComponents
 
 /// Memory recovered per process over one period, as a sortable table.
 struct MemoryFreedDetailView: View {
-    let period: TrendsModel.Period
+    let period: ReportPeriod
 
     private struct Row: Identifiable {
         let id: String
@@ -23,8 +23,8 @@ struct MemoryFreedDetailView: View {
     var body: some View {
         Group {
             if loaded && rows.isEmpty {
-                ContentUnavailableView("No Memory Freed", systemImage: "memorychip",
-                                       description: Text("Nothing was closed in this period."))
+                EmptyState("No Memory Freed", systemImage: "memorychip",
+                           description: Text("Nothing was closed in this period."))
             } else {
                 OutlineTable(rows.sorted(using: sortOrder), children: \.children, selection: $selection,
                              sortOrder: $sortOrder, expanded: $open, autosave: "trends.memoryFreed") {
@@ -39,10 +39,10 @@ struct MemoryFreedDetailView: View {
             }
         }
         .navigationTitle("Memory Freed")
-        .navigationSubtitle("Stopped by the guard or closed by a cleanup, \(period.label.lowercased())")
+        .navigationSubtitle("Stopped by the guard or closed by a cleanup, \(period.phrase)")
         .task {
             let window = period
-            await awaitLoad({ TrendsModel.memoryFreedByProcess(period: window) }) {
+            await awaitLoad({ TrendsModel.memoryFreedByProcess(period: window) }, key: "trends.freed.\(window.rawValue)") {
                 rows = $0.map { Row(id: $0.id, name: $0.name, freedMB: $0.freedMB) }
                 loaded = true
             }

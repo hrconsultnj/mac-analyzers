@@ -10,34 +10,31 @@ extension TrendsSettingsView {
     @ViewBuilder func memorySections(_ snap: TrendsSnapshot) -> some View {
         Section("Defended") {
             tiles([
-                ("xmark.octagon.fill", .red, "\(snap.kills)", "Runaways Stopped", .kills(period)),
-                ("arrow.up.right", .orange, "\(snap.spikes)", "Spikes Caught", .spikes(period)),
-                ("exclamationmark.triangle.fill", .orange, "\(snap.pressure)", "Pressure Alerts", .pressure(period)),
-                ("cpu", .purple, "\(snap.cpuHogs)", "CPU Hogs Flagged", .cpuHogs(period)),
-                ("memorychip", .blue, MemorySize.text(Int64(snap.memoryFreedMB) * 1_048_576),
-                 "Memory Freed", .memoryFreed(period)),
+                ("xmark.octagon.fill", .red, "\(snap.kills)", "Runaways Stopped", .kills(snap.period)),
+                ("arrow.up.right", .orange, "\(snap.spikes)", "Spikes Caught", .spikes(snap.period)),
+                ("exclamationmark.triangle.fill", .orange, "\(snap.pressure)", "Pressure Alerts", .pressure(snap.period)),
+                ("cpu", .purple, "\(snap.cpuHogs)", "CPU Hogs Flagged", .cpuHogs(snap.period)),
+                ("memorychip", .blue, MemorySize.text(Int64(snap.memoryFreedMB) * 1_048_576, .headline),
+                 "Memory Freed", .memoryFreed(snap.period)),
             ])
         }
-        if !snap.days.isEmpty {
-            Section("Guard Events per Day") {
-                Chart(snap.days) { day in
-                    BarMark(x: .value("Day", day.day, unit: .day), y: .value("Kills", day.kills))
-                        .foregroundStyle(by: .value("Type", "Killed"))
-                    BarMark(x: .value("Day", day.day, unit: .day), y: .value("Spikes", day.spikes))
-                        .foregroundStyle(by: .value("Type", "Spikes"))
-                    BarMark(x: .value("Day", day.day, unit: .day), y: .value("Other", day.other))
-                        .foregroundStyle(by: .value("Type", "Other"))
-                }
-                .chartForegroundStyleScale(["Killed": Color.red, "Spikes": Color.orange, "Other": Color.purple])
-                .frame(height: 150)  // a chart needs a height; its width is the window's
-                .accessibilityLabel("Bar chart of guard events per day")
-                .accessibilityValue("\(snap.kills) killed, \(snap.spikes) spikes, over \(period.label.lowercased())")
+        if snap.buckets.contains(where: { $0.events > 0 }) {
+            Section("Guard Events per \(snap.period.bucket == .hour ? "Hour" : "Day")") {
+                EventsChart(buckets: snap.buckets, period: snap.period,
+                            summary: "\(snap.kills) killed, \(snap.spikes) spikes, \(snap.period.phrase)")
+            }
+        }
+        if snap.memoryFreedMB > 0 {
+            Section("Memory Freed per \(snap.period.bucket == .hour ? "Hour" : "Day")") {
+                ValueChart(buckets: snap.buckets, period: snap.period, name: "Memory Freed", color: .blue,
+                           value: { Double($0.freedMB) },
+                           format: { MemorySize.text(Int64($0) * 1_048_576, .axis) })
             }
         }
         if !snap.offenders.isEmpty {
             Section("Repeat Offenders") {
                 ForEach(snap.offenders) { offender in
-                    OverviewRow(action: { navigator.push(.history(.trends(.offender(offender.name, period)))) }) {
+                    OverviewRow(action: { navigator.push(.history(.trends(.offender(offender.name, snap.period)))) }) {
                         Label {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(offender.name)
@@ -58,9 +55,9 @@ extension TrendsSettingsView {
     @ViewBuilder func storageSections(_ snap: TrendsSnapshot) -> some View {
         Section {
             tiles([
-                ("internaldrive.fill", .indigo, ByteSize.format(snap.storageFreedBytes),
-                 "Removed by Cleanups", .diskReclaimed(period)),
-                ("sparkles", .teal, snap.latestReclaimableBytes.map(ByteSize.format) ?? "—",
+                ("internaldrive.fill", .indigo, ByteSize.text(snap.storageFreedBytes, .headline),
+                 "Removed by Cleanups", .diskReclaimed(snap.period)),
+                ("sparkles", .teal, snap.latestReclaimableBytes.map { ByteSize.text($0, .headline) } ?? "—",
                  "Reclaimable Now", .reclaimableNow),
             ])
         } header: {
@@ -68,22 +65,28 @@ extension TrendsSettingsView {
         } footer: {
             Text("Removed by Cleanups adds up everything the cleanups deleted, including folders that were rebuilt and removed again. It is not the net space gained.")
         }
+        if snap.storageFreedBytes > 0 {
+            Section("Removed per \(snap.period.bucket == .hour ? "Hour" : "Day")") {
+                ValueChart(buckets: snap.buckets, period: snap.period, name: "Removed", color: .indigo,
+                           value: { Double($0.removedBytes) }, format: { ByteSize.text(Int64($0), .axis) })
+            }
+        }
         if !projects.isEmpty {
             // plain rows, not a second opening list: each opens the table above's detail at that project
             Section("Removed by Project") {
                 ForEach(projects.prefix(12)) { group in
-                    OverviewRow(action: { navigator.push(.history(.trends(.removedProject(group.project, period)))) }) {
+                    OverviewRow(action: { navigator.push(.history(.trends(.removedProject(group.project, snap.period)))) }) {
                         HStack {
                             Text(group.project).fontWeight(.medium)
                             Text("\(group.items.count) \(group.items.count == 1 ? "item" : "items")")
                                 .font(.caption).foregroundStyle(.secondary)
                             Spacer(minLength: 8)
-                            Text(ByteSize.format(group.totalBytes)).monospacedDigit().foregroundStyle(.secondary)
+                            Text(ByteSize.text(group.totalBytes, .cell)).monospacedDigit().foregroundStyle(.secondary)
                         }
                     }
                 }
                 if projects.count > 12 {
-                    OverviewRow(action: { navigator.push(.history(.trends(.diskReclaimed(period)))) }) {
+                    OverviewRow(action: { navigator.push(.history(.trends(.diskReclaimed(snap.period)))) }) {
                         Text("\(projects.count - 12) more projects")
                     }
                 }
