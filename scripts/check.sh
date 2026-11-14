@@ -33,7 +33,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
 ROOT="$(cd "$(dirname "$0")/.." && pwd)" || exit 2
 cd "$ROOT" || exit 2
 
-ALL="syntax lint secrets changelog tests workflows strays spi env snapshot names periods probes outline states app"
+ALL="syntax lint secrets changelog tests workflows strays spi env snapshot sidebar names periods probes outline states app"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/ma-check.XXXXXX")" || exit 2
 trap 'rm -rf "$TMP"' EXIT
@@ -55,6 +55,7 @@ describe() {
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root; no source file hidden by .gitignore" ;;
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
     env)       echo "the app people install reads no environment variable: ProcessInfo's environment and getenv appear only in AgentRunner, SnapshotRunner and the one file that passes the environment on to the engine scripts" ;;
+    sidebar)   echo "showing and hiding the sidebar leaves the window the size it was: the snapshot tool hides, shows and hides it at a narrow width and the window frame must not change (an off-screen window; macOS only)" ;;
     snapshot)  echo "the snapshot tool's main.swift has no top-level await (one makes its top-level code an async task, and an app run inside a task never fires its delayed capture, so every render hangs), and every executable but the app makes its windows only as the shared OffscreenWindow: no plain window or panel, no subclass, no modal panel, and the ToolWindows target and the type used only by an executable that app/build.sh never bundles (scripts/tool-windows-refuse.sh)" ;;
     periods)   echo "every screen with a period offers it from the one shared ReportPeriod and its one menu (PeriodToolbar): no second period type of any name, no Picker or list of periods outside Shared/PeriodMenu.swift (scripts/periods-refuse.sh, proved by tests/periods-refuse-test.sh)" ;;
     probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids, Undo restore safety, the menu-bar panel's Quit and Stop (agent-runner; macOS only)" ;;
@@ -344,6 +345,32 @@ check_periods() {
 # a locked screen). A real render cannot be a check (it needs an unlocked
 # screen), so the cause is refused instead: no `await` at the start of a line
 # outside a function, closure or type in that file.
+check_sidebar() {
+  local app="$ROOT/app"
+  if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
+  if [ ! -f "$app/Package.swift" ]; then DETAIL="skipped: no app/Package.swift"; return 2; fi
+  if ! command -v swift >/dev/null 2>&1; then DETAIL="skipped: swift is not installed"; return 2; fi
+  if ! ( cd "$app" && env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0= \
+          swift build --disable-keychain --product SnapshotRunner ) >"$TMP/sidebar-build.out" 2>&1; then
+    grep -a -E ': error: ' "$TMP/sidebar-build.out" | cut -c1-300 | awk '!seen[$0]++' | head -10 >"$OUT"
+    [ -s "$OUT" ] || tail -n 10 "$TMP/sidebar-build.out" | cut -c1-300 >"$OUT"
+    DETAIL="could not build the snapshot tool"
+    return 1
+  fi
+  local bin; bin="$(cd "$app" && swift build --disable-keychain --product SnapshotRunner --show-bin-path 2>/dev/null)/SnapshotRunner"
+  local combo
+  for combo in "hidden 900x620" "shown 780x620"; do
+    set -- $combo
+    if ! perl -e 'alarm 90; exec @ARGV' "$bin" overview "$TMP/sidebar.png" --size "$2" --wait 4 --sidebar "$1" --toggle-frames >"$TMP/sidebar.out" 2>&1; then
+      { grep -a -E '^(frame|FAIL)' "$TMP/sidebar.out"; echo "(started $1 at $2)"; } | cut -c1-300 >"$OUT"
+      DETAIL="the window changed size when the sidebar was shown or hidden (started $1 at $2)"
+      return 1
+    fi
+  done
+  DETAIL="the window frame is unchanged by hiding and showing the sidebar (900 and 780 wide)"
+  return 0
+}
+
 check_snapshot() {
   local file="app/Sources/SnapshotRunner/main.swift"
   if [ ! -f "$file" ]; then DETAIL="skipped: no $file"; return 2; fi
@@ -577,7 +604,7 @@ if [ -n "$range" ]; then
       case "$n" in
         syntax|lint|tests|workflows) [ "$want_script" -eq 1 ] && selected="$selected $n" ;;
         changelog) [ "$want_changelog" -eq 1 ] && selected="$selected $n" ;;
-        app|spi|env|snapshot|names|periods|probes|outline|states) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
+        app|spi|env|snapshot|sidebar|names|periods|probes|outline|states) [ "$want_app" -eq 1 ] && selected="$selected $n" ;;
         secrets|strays) selected="$selected $n" ;;
       esac
     done

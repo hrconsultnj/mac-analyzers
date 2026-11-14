@@ -12,4 +12,7 @@ public enum NotifyChannel {
     /// In-process signal: "navigate the main window to this target" — userInfo["target"]
     /// carries a deep-link target string ("activity", "guard", "log:<kind>", "monitor").
     public static let openPaneInternal = Notification.Name("com.mac-analyzers.open-pane")
+    /// In-process signal: "show or hide the main window's sidebar" — what the View menu item and the toolbar button do.
+    /// The snapshot tool sends it to check the window keeps its size.
+    public static let toggleSidebarInternal = Notification.Name("com.mac-analyzers.toggle-sidebar")
 }
