@@ -178,8 +178,10 @@ through `config.local.sh` (never hardcoded).
   (every executable target but the app) is an `OffscreenWindow`:
   `scripts/check.sh snapshot` (`scripts/tool-windows-refuse.sh`) fails on a
   plain window or panel however it is made, a subclass, a modal panel
-  (`NSAlert`, `NSSavePanel`, `NSOpenPanel`, `runModal`), and on the type used
-  outside the tools.
+  (`NSAlert`, `NSSavePanel`, `NSOpenPanel`, `runModal`) in any executable but the
+  app (`AgentRunner` and `NotifierCLI` ship in the bundle and open none), and on
+  `OffscreenWindow` or `ToolWindows` used anywhere but an executable that is never bundled
+  (read from the `cp` lines of `app/build.sh`: today `SnapshotRunner` and `MenuSnapshot`).
   Built by `swift build`, never bundled into the app. Use it while building a screen and
   before calling it done (the blueprint's screen acceptance bar requires
   it); the owner's screen is not a test fixture. It cannot click: anything
