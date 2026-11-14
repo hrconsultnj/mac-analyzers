@@ -106,6 +106,32 @@ import Synchronization
     check("nothing that is not offered is ever written to the config",
           RecordingSourcesStore.entries(from: found).allSatisfy { !["voiceMemos", "cloudMeetings", "macwhisper", "granola"].contains($0.id) })
 
+    // preference-derived paths on an external disk or in iCloud Drive are guarded places too: not looked at before a click
+    touched.withLock { $0 = [] }
+    let disk = RecordingDiscovery.discover(readers: readers(defaults: ["com.apple.screencapture/location-screenrecording": "/Volumes/Disk/Rec"], existing: ["/Volumes/Disk/Rec"]), saved: [])
+    check("a recordings folder on an external disk is Needs Access (External Disks) and was not looked at",
+          find("screenRecordings", disk)?.access == .needsAccess("External Disks") && !touched.withLock { $0 }.contains { $0.hasPrefix("/Volumes") })
+    check("iCloud Drive and /Volumes are guarded places, the Library is not",
+          RecordingDiscovery.protectedArea("\(home)/Library/Mobile Documents/com~apple~CloudDocs/x", home: home) == "iCloud Drive"
+          && RecordingDiscovery.protectedArea("/Volumes/Disk", home: home) == "External Disks"
+          && RecordingDiscovery.protectedArea("\(home)/Library/Application Support", home: home) == nil)
+    // a discovered folder that leads, through a link, somewhere that can never be a source is refused, shown as such, and never written
+    let linked = RecordingReaders(home: home, defaultsString: { domain, key in ["com.apple.screencapture/location-screenrecording": "~/Pictures/Shots"]["\(domain)/\(key)"] },
+                                  folderExists: { $0 == shots }, appInstalled: { _ in false }, cloudMountNames: { [] },
+                                  linkInfo: { path in path == shots ? (false, "\(home)/Library/CloudStorage/GDrive-Test/Shots") : nil })
+    let viaLink = RecordingDiscovery.discover(readers: linked, saved: [])
+    if case .refused(let why)? = find("screenRecordings", viaLink)?.access { check("a discovered folder that leads into CloudStorage is refused with its reason", why.contains("leads through a link")) }
+    else { check("a discovered folder that leads into CloudStorage is refused with its reason", false, "\(String(describing: find("screenRecordings", viaLink)?.access))") }
+    check("a refused folder is never written to the config", !RecordingSourcesStore.entries(from: viaLink).contains { $0.id == "screenRecordings" })
+    func manual(_ kind: String, _ path: String, access: RecordingSource.Access = .readable) -> RecordingSource {
+        RecordingSource(id: kind == "custom" ? "custom:\(path)" : kind, kind: kind, title: kind, symbol: "folder", path: path, offer: .on, access: access, warning: nil, enabled: true)
+    }
+    let written = RecordingSourcesStore.entries(from: [manual("custom", "\(home)/Notes/audio"), manual("zoom", "\(home)/Documents/Zoom"), manual("bogus", "\(home)/Notes/x"),
+                                                       manual("custom", "\(home)/Notes/a\tb"), manual("custom", "\(home)/Notes/a\nb"), manual("custom", "/Applications"),
+                                                       manual("custom", "\(home)/Library/Application Support/X"), manual("custom", "/etc"), manual("custom", "\(home)/.ssh")])
+    check("only a source of the list or a custom folder that can be one is written: not an unknown id, a tab or line break, or a place outside the home",
+          written.map(\.path) == ["\(home)/Notes/audio", "\(home)/Documents/Zoom"], "\(written.map(\.path))")
+
     // no protected place was read in any of the above, and no container
     check("discovery never read Documents, Desktop, Downloads or a container before a click", guarded().isEmpty, "\(guarded())")
 
@@ -122,7 +148,9 @@ import Synchronization
     }
     var refusedAll = true
     for (path, isLink) in [(home, false), ("/", false), ("\(home)/Documents", false), ("\(home)/Library/CloudStorage/OneDrive-X/Recordings", false),
-                           ("\(home)/Library/Containers/com.x/Data", false), ("\(home)/Notes", true), ("relative/path", false)] {
+                           ("\(home)/Library/Containers/com.x/Data", false), ("\(home)/Notes", true), ("relative/path", false),
+                           ("\(home)/Library/Application Support", false), ("/Applications", false), ("/Library", false), ("/Users", false),
+                           ("\(home)/.ssh", false), ("/Volumes/Disk", false), ("/etc/x", false)] {
         if case .refused = RecordingSourcesStore.adding(folder: path, to: base, readers: readers(), isLink: isLink, allowed: []) {} else { refusedAll = false; print("      not refused: \(path)") }
     }
     check("the window refuses the folders the engine refuses", refusedAll)
@@ -148,6 +176,8 @@ import Synchronization
     config.storage.recordingSources = entries
     config.storage.recordingsDays = 180
     try? config.save()
+    check("ANALYZERS_RECORDINGS_DIR from the person's own line is not copied into the managed block once the list is written",
+          (try? String(contentsOf: AnalyzersPaths.configLocal, encoding: .utf8))?.components(separatedBy: "ANALYZERS_RECORDINGS_DIR").count == 2)
     let reloaded = ConfigStore()
     check("the sources and the days come back exactly, paths with # \" ' $ ` \\ | and spaces included",
           reloaded.storage.recordingSources == entries && reloaded.storage.recordingsDays == 180,
@@ -156,6 +186,18 @@ import Synchronization
     check("the managed block holds the list, and the single folder is no longer written twice (the person's own line stays)",
           text.contains("ANALYZERS_RECORDING_SOURCES=(") && text.contains("ANALYZERS_RECORDINGS_DAYS=180") && text.contains("# my own line")
           && text.components(separatedBy: "ANALYZERS_RECORDINGS_DIR").count == 2)
+    // removing every source and saving must never bring the old single folder back
+    let cleared = ConfigStore()
+    try? RecordingSourcesStore.save([], days: 90, in: cleared)
+    let afterClear = ConfigStore()
+    check("a saved empty list is remembered as a list (so the old folder is never read again) and the folder is cleared",
+          afterClear.storage.recordingSources.isEmpty && afterClear.storage.recordingSourcesConfigured && cleared.storage.recordingsDir.isEmpty
+          && ((try? String(contentsOf: AnalyzersPaths.configLocal, encoding: .utf8)) ?? "").contains("ANALYZERS_RECORDING_SOURCES=( )"))
+    check("and the Sources window does not migrate the old folder in again",
+          !RecordingSourcesStore.startingSources(config: afterClear, readers: readers()).contains { $0.isCustom && $0.path == "\(home)/Old" })
+    try? FileManager.default.removeItem(at: AnalyzersPaths.configLocal)
+    try? "".write(to: AnalyzersPaths.configLocal, atomically: true, encoding: .utf8)
+    let again = ConfigStore(); again.storage.recordingSources = entries; again.storage.recordingsDays = 180; try? again.save()
     for shell in ["/bin/bash"] + ["/opt/homebrew/bin/bash", "/usr/local/bin/bash"].filter({ FileManager.default.isExecutableFile(atPath: $0) }) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: shell)

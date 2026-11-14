@@ -67,6 +67,8 @@ import Foundation
     let whisper = make("superwhisper/recordings/1700000000", files: ["meta.json", "output.wav"])
     _ = make("superwhisper/recordings", days: 1)
     let cloud = make("Library/CloudStorage/OneDrive-Test/Recordings/Old", files: ["x.mp4"])
+    let gdrive = make("Library/CloudStorage/GDrive-Test/Zoom/2025-01-01 10.00.00 In The Cloud", files: ["recording.conf", "video9.mp4", "audio9.m4a"])
+    try? fm.createSymbolicLink(at: home.appending(path: "link"), withDestinationURL: home.appending(path: "Library/CloudStorage/GDrive-Test"))
     let linkTarget = make("Notes/target/Old", files: ["t.m4a"])
     try? fm.createSymbolicLink(at: home.appending(path: "Notes/linked"), withDestinationURL: home.appending(path: "Notes/target"))
     _ = make("Notes/target", days: 1)
@@ -114,7 +116,7 @@ import Foundation
         check(listed(rows, "custom:\(home.path)/Notes/audio") == [audio1.path, audio2.path], "\(tag): a custom source lists its old subfolders, as today (NewC is recent)")
         check(rows.rows(inTab: "superwhisper").isEmpty && out.contains("Turned off in Sources") && !allIDs.contains(whisper.path),
               "\(tag): a source that is off lists nothing and says it is turned off")
-        check(!allIDs.contains(cloud.path) && out.contains { $0.contains("not used:") && $0.contains("syncs to the cloud") },
+        check(!allIDs.contains(cloud.path) && out.contains { $0.contains("not used:") && $0.contains("Library folder") },
               "\(tag): a source under Library/CloudStorage is refused with its reason, and nothing in it is listed")
         check(rows.notes.contains { $0.contains("OneDrive-Test") || $0.contains("syncs to the cloud") }, "\(tag): the screen says a folder was not used: \(rows.notes)")
     }
@@ -128,6 +130,12 @@ import Foundation
         ("\(homeBase)/Library/Group Containers/group.x", "custom", .folders), ("/Volumes/Disk", "custom", .folders), ("\(homeBase)/Notes/linked", "custom", .folders),
         ("\(homeBase)/Documents/Zoom", "custom", .folders), ("\(homeBase)/Notes/audio", "custom", .folders), ("/Volumes/Disk/Recordings", "custom", .folders),
         ("\(homeBase)/Desktop", "screenRecordings", .files), ("\(homeBase)/Notes/../Documents", "custom", .folders),
+        // a link in the middle of the path into a cloud mount (the review's repro), and what lies outside the home folder
+        ("\(homeBase)/link/Zoom", "zoom", .meetingFolders), ("\(homeBase)/link", "custom", .folders),
+        ("\(homeBase)/Library/Application Support", "custom", .folders), ("\(homeBase)/Library/Application Support/Zoom", "custom", .folders),
+        ("/Applications", "custom", .folders), ("/Library", "custom", .folders), ("/Users", "custom", .folders), ("/System/Volumes/Data", "custom", .folders),
+        ("/private/tmp", "custom", .folders), ("\(homeBase)/.ssh", "custom", .folders), ("\(homeBase)/.config/recordings", "custom", .folders),
+        ("\(homeBase)/Movies/Loom/Temporary", "loomTemporary", .folders), ("\(homeBase)/Music/Podcasts", "custom", .folders),
     ]
     for entry in refusalCases {
         config(sources(["\(entry.layout)|on|\(entry.path)"]))
@@ -135,10 +143,33 @@ import Foundation
         let engineRefuses = output.contains("not used:")
         var isLink = false
         if let target = try? fm.destinationOfSymbolicLink(atPath: entry.path), !target.isEmpty { isLink = true }
-        let windowRefuses = RecordingFolderRule.refusal(entry.path, layout: entry.definition, home: homeBase, isLink: isLink) != nil
+        // where it really leads: the same question the app's readers answer
+        let resolved = fm.fileExists(atPath: entry.path) ? URL(fileURLWithPath: entry.path).resolvingSymlinksInPath().path : nil
+        let windowRefuses = RecordingFolderRule.refusal(entry.path, layout: entry.definition, home: homeBase, homeResolved: homeBase,
+                                                        isLink: isLink, resolved: resolved) != nil
         check(engineRefuses == windowRefuses, "\(entry.path) (\(entry.layout)): the engine \(engineRefuses ? "refuses" : "uses") it and the Sources window \(windowRefuses ? "refuses" : "allows") it")
     }
     check(run("/bin/bash", ["--recordings-older-than", "30"]).isEmpty == false, "the engine ran")
+    // Screen Recordings (files layout) may be the whole Desktop, Movies or a screencapture folder: only a folder-per-recording
+    // source is refused for a standard folder, and the engine lists the old .mov there and nothing else
+    for place in ["Desktop", "Movies"] {
+        let folder = make(place, files: ["rec-old.mov", "pic.png"])
+        try? Data(count: 90_000).write(to: folder.appending(path: "rec-new.mov")); old(folder.appending(path: "rec-new.mov"), days: 1)
+        config(sources(["screenRecordings|on|\(homeBase)/\(place)"]))
+        let output = lines(run("/bin/bash", ["--recordings-older-than", "30"]))
+        let rowsHere = UnusedReview.recordings(lines: output)
+        check(!output.contains { $0.contains("not used:") } && Set(rowsHere.rows.map(\.id)) == [folder.appending(path: "rec-old.mov").path],
+              "Screen Recordings on the whole \(place) folder is allowed and lists only the old .mov: \(output.filter { $0.hasPrefix("[") || $0.contains("not used") })")
+        check(RecordingFolderRule.refusal("\(homeBase)/\(place)", layout: .files, home: homeBase) == nil
+              && RecordingFolderRule.refusal("\(homeBase)/\(place)", layout: .folders, home: homeBase) != nil,
+              "\(place): the Sources window allows it for files and refuses it for folders")
+    }
+    // the review's repro: a link in the middle of a path into a cloud mount. It lists nothing and --execute removes nothing.
+    config(sources(["zoom|on|\(homeBase)/link/Zoom"]))
+    let throughLink = lines(run("/bin/bash", ["--recordings-older-than", "30", "--execute", "--yes"]))
+    check(throughLink.contains { $0.contains("not used:") && $0.contains("leads through a link") } && fm.fileExists(atPath: gdrive.path)
+          && !throughLink.contains { $0.hasPrefix("[TRASHED]") || $0.hasPrefix("[DRY]") }, "a source reached through a link into CloudStorage fails closed and nothing in it moves: \(throughLink.filter { $0.contains("not used") || $0.hasPrefix("[") })")
+    check(fm.fileExists(atPath: gdrive.path), "the cloud copy is still there")
     // a link is never followed: the target's folder is not listed through it
     config(sources(["custom|on|\(homeBase)/Notes/linked"]))
     check(!lines(run("/bin/bash", ["--recordings-older-than", "30"])).contains { $0.contains(linkTarget.path) || $0.contains("linked/Old") }, "a symlinked source lists nothing from its target")
@@ -157,7 +188,11 @@ import Foundation
     config("")
     check(lines(run("/bin/bash", ["--recordings-older-than", "30"])).contains("(ANALYZERS_RECORDINGS_DIR not set — skipping)"), "with nothing configured, today's skip line")
     config("ANALYZERS_RECORDING_SOURCES=( )\nANALYZERS_RECORDINGS_DIR=\"\(homeBase)/Notes/audio\"\n")
-    check(Set(UnusedReview.recordings(lines: lines(run("/bin/bash", ["--recordings-older-than", "30"]))).rows.map(\.id)) == [audio1.path, audio2.path], "an empty list falls back to ANALYZERS_RECORDINGS_DIR")
+    for shell in shells {
+        let emptyList = lines(run(shell, ["--recordings-older-than", "30", "--execute", "--yes"]))
+        check(UnusedReview.recordings(lines: emptyList).rows.isEmpty && emptyList.contains { $0.contains("no recording folder is turned on in Sources") } && fm.fileExists(atPath: audio1.path),
+              "\(shell): a list that exists but is empty means NONE: the old ANALYZERS_RECORDINGS_DIR line is not read, and nothing moves")
+    }
     try? fm.moveItem(at: tree.appending(path: "lib/recording-sources.tsv"), to: root.appending(path: "tsv-away"))
     config(sources(["custom|on|\(homeBase)/Notes/audio"]))
     let withoutList = run("/bin/bash", ["--recordings-older-than", "30", "--execute", "--yes"])

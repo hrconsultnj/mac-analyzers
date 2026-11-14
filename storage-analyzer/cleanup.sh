@@ -756,15 +756,70 @@ fi
 #
 # WHERE to look is ANALYZERS_RECORDING_SOURCES in config.local.sh, one "id|state|path" per source
 # (written by the app, which is the only thing that discovers a folder; this script never looks for
-# one). With no such list, ANALYZERS_RECORDINGS_DIR is the one folder, exactly as before. HOW to read
+# one). With no such list at all, ANALYZERS_RECORDINGS_DIR is the one folder, as before (except that a standard
+# folder such as Movies, or a link, is now refused as a whole source). HOW to read
 # each source (what one item is, which extensions, what is kept) comes from lib/recording-sources.tsv.
 REC_TSV="${ANALYZERS_ROOT}/lib/recording-sources.tsv"
 
+# A source is allowed only INSIDE your home folder or on an external disk (/Volumes/<disk>/…): everything else is
+# refused, so a hand-edited config.local.sh can never point a cleanup at the system, other users or an app's data.
+# The check runs on the path as written AND on where it really leads (a link in the middle of the path counts),
+# and it is the same check the app's Sources window makes (RecordingFolderRule).
+
+# rec_under_home <path>: prints the path below your home folder (empty for the home folder itself); fails when outside.
+rec_under_home() {
+  local x="$1" h
+  for h in "$HOME_DIR" "$HOME_REAL"; do
+    [[ -n "$h" ]] || continue
+    if [[ "$x" == "$h" ]]; then echo ""; return 0; fi
+    if [[ "$x" == "$h/"* ]]; then echo "${x#"$h"/}"; return 0; fi
+  done
+  return 1
+}
+
+# rec_library_allowed <path below home>: a Library folder that a known recording app names in recording-sources.tsv.
+rec_library_allowed() {
+  local rel="$1" step
+  [[ -f "$REC_TSV" ]] || return 1
+  while IFS= read -r step; do
+    [[ -n "$step" ]] || continue
+    if [[ "$rel" == "$step" || "$rel" == "$step/"* ]]; then return 0; fi
+  done < <(awk -F'\t' '/^#/ {next} {n = split($8, s, "|"); for (i = 1; i <= n; i++) if (s[i] ~ /^home:Library\//) { x = s[i]; sub(/^home:/, "", x); sub(/@.*$/, "", x); print x }}' "$REC_TSV")
+  return 1
+}
+
+# rec_check <path> <layout>: prints why this location can never be a source and succeeds; fails when it is allowed.
+rec_check() {
+  local x="$1" layout="$2" rel first name rest
+  if [[ "$x" == "/" ]]; then echo "it is the whole disk"; return 0; fi
+  if rel="$(rec_under_home "$x")"; then
+    if [[ -z "$rel" ]]; then echo "it is your whole home folder"; return 0; fi
+    first="${rel%%/*}"
+    case "$first" in
+      .*) echo "it is in a hidden folder of your home folder, where settings and keys are kept"; return 0 ;;
+      Library)
+        rec_library_allowed "$rel" || { echo "it is in your Library folder, where apps keep their own data and your cloud storage"; return 0; }
+        ;;
+    esac
+    for name in Desktop Documents Downloads Movies Music Pictures Library; do
+      if [[ "$rel" == "$name" && "$layout" != "files" ]]; then
+        echo "it is your whole ${name} folder, which holds more than recordings; choose a folder inside it"; return 0
+      fi
+    done
+    return 1
+  fi
+  case "$x" in
+    /Volumes/*)
+      rest="${x#/Volumes/}"
+      if [[ "$rest" != */* ]]; then echo "it is a whole disk"; return 0; fi
+      return 1 ;;
+  esac
+  echo "it is outside your home folder and your external disks"; return 0
+}
+
 # rec_refusal <path> <layout>: why this folder can never be a source, else nothing (exit 1).
-# Defence in depth: the app's Sources sheet refuses the same folders first.
 rec_refusal() {
-  local p="$1" layout="$2" lib name
-  lib="${HOME_DIR}/Library"
+  local p="$1" layout="$2" real why
   case "$p" in
     /*) ;;
     *) echo "it is not a full path"; return 0 ;;
@@ -773,21 +828,15 @@ rec_refusal() {
     *$'\t'*|*$'\n'*) echo "its name holds a tab or a line break"; return 0 ;;
     */..|*/../*|*/.|*/./*) echo "it is not a plain path"; return 0 ;;
   esac
-  if [[ "$p" == "/" || "$p" == "$HOME_DIR" ]]; then echo "it is your whole home folder or the whole disk"; return 0; fi
-  case "$p" in
-    /Volumes/*) [[ "${p#/Volumes/}" == */* ]] || { echo "it is a whole disk"; return 0; } ;;
-  esac
-  for name in Desktop Documents Downloads Movies Music Pictures Library; do
-    if [[ "$p" == "${HOME_DIR}/${name}" && "$layout" != "files" ]]; then
-      echo "it is your whole ${name} folder, which holds more than recordings; choose a folder inside it"; return 0
-    fi
-  done
-  for name in CloudStorage "Mobile Documents" Containers "Group Containers"; do
-    if [[ "$p" == "${lib}/${name}" || "$p" == "${lib}/${name}/"* ]]; then
-      echo "it syncs to the cloud or belongs to another app, which keeps its own library there"; return 0
-    fi
-  done
+  if why="$(rec_check "$p" "$layout")"; then echo "$why"; return 0; fi
   if [[ -L "$p" ]]; then echo "it is a link to another folder, and a link is not followed"; return 0; fi
+  if [[ -d "$p" ]]; then
+    real="$(cd "$p" 2>/dev/null && pwd -P)"
+    if [[ -z "$real" ]]; then echo "it cannot be opened to see where it leads"; return 0; fi
+    if [[ "$real" != "$p" ]] && why="$(rec_check "$real" "$layout")"; then
+      echo "it leads through a link to ${real}, and ${why}"; return 0
+    fi
+  fi
   return 1
 }
 
@@ -897,13 +946,16 @@ if [[ -n "$REC_DAYS" ]]; then
   trap 'rm -f "${REC_ERR:-}"' EXIT
   REC_UNREADABLE=0; REC_KEEP_ZOOM=0
   REC_LISTED=0
-  if [[ -n "${ANALYZERS_RECORDING_SOURCES+x}" && ${#ANALYZERS_RECORDING_SOURCES[@]} -gt 0 ]]; then
+  HOME_REAL="$(cd "$HOME_DIR" 2>/dev/null && pwd -P)"
+  # A list of sources that EXISTS (even an empty one, which is what the app writes once you have removed them all)
+  # is the only place to look: ANALYZERS_RECORDINGS_DIR is read only when there is no list at all.
+  if declare -p ANALYZERS_RECORDING_SOURCES >/dev/null 2>&1; then
     # the list of sources, in the order the person keeps them
     if [[ ! -f "$REC_TSV" ]]; then
       echo "FATAL: lib/recording-sources.tsv is missing, so it cannot be told how to read each source. Nothing was removed." >&2
       exit 78
     fi
-    for entry in "${ANALYZERS_RECORDING_SOURCES[@]}"; do
+    for entry in ${ANALYZERS_RECORDING_SOURCES[@]+"${ANALYZERS_RECORDING_SOURCES[@]}"}; do
       [[ "$entry" == *"|"*"|"* ]] || { echo "  (a source entry is not id|state|path, skipped)"; continue; }
       rec_id="${entry%%|*}"; rec_rest="${entry#*|}"
       rec_state="${rec_rest%%|*}"; rec_path="${rec_rest#*|}"; rec_path="${rec_path%/}"
@@ -931,7 +983,7 @@ if [[ -n "$REC_DAYS" ]]; then
     fi
   fi
   if [[ "$REC_LISTED" -eq 0 ]]; then
-    if [[ -n "${ANALYZERS_RECORDING_SOURCES+x}" && ${#ANALYZERS_RECORDING_SOURCES[@]} -gt 0 ]]; then
+    if declare -p ANALYZERS_RECORDING_SOURCES >/dev/null 2>&1; then
       echo "  (no recording folder is turned on in Sources — skipping)"
     else
       echo "  (ANALYZERS_RECORDINGS_DIR not set — skipping)"

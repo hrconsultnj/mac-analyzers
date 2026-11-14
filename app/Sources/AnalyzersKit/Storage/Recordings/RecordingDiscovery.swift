@@ -13,12 +13,17 @@ public struct RecordingReaders: Sendable {
     public var folderExists: @Sendable (_ path: String) -> Bool
     public var appInstalled: @Sendable (_ name: String) -> Bool
     public var cloudMountNames: @Sendable () -> [String]
+    /// Whether a folder is a link, and where it really leads. Never called for a place macOS asks permission for,
+    /// until the person has clicked.
+    public var linkInfo: @Sendable (_ path: String) -> (isLink: Bool, resolved: String)?
 
     public init(home: String,
                 defaultsString: @escaping @Sendable (String, String) -> String?,
                 folderExists: @escaping @Sendable (String) -> Bool,
                 appInstalled: @escaping @Sendable (String) -> Bool,
-                cloudMountNames: @escaping @Sendable () -> [String]) {
+                cloudMountNames: @escaping @Sendable () -> [String],
+                linkInfo: @escaping @Sendable (String) -> (isLink: Bool, resolved: String)? = { _ in nil }) {
+        self.linkInfo = linkInfo
         self.home = home
         self.defaultsString = defaultsString
         self.folderExists = folderExists
@@ -43,6 +48,11 @@ public struct RecordingReaders: Sendable {
             },
             cloudMountNames: {
                 (try? FileManager.default.contentsOfDirectory(atPath: "\(home)/Library/CloudStorage")) ?? []
+            },
+            linkInfo: { path in
+                guard (try? FileManager.default.attributesOfItem(atPath: path)) != nil else { return nil }
+                let isLink = (try? FileManager.default.destinationOfSymbolicLink(atPath: path)) != nil
+                return (isLink, URL(fileURLWithPath: path).resolvingSymlinksInPath().path)
             })
     }
 }
@@ -55,13 +65,32 @@ public struct RecordingReaders: Sendable {
 /// Containers and cloud mounts are never opened at all.
 public enum RecordingDiscovery {
 
-    /// The guarded place a path is in (`Documents`, `Desktop`, `Downloads`), or nil.
+    /// The guarded place a path is in, or nil: `Documents`, `Desktop`, `Downloads`, `iCloud Drive` and `External Disks`
+    /// are the places macOS can ask the person about when a program looks inside.
     public static func protectedArea(_ path: String, home: String) -> String? {
         for area in ["Documents", "Desktop", "Downloads"] {
             let root = "\(home)/\(area)"
             if path == root || path.hasPrefix(root + "/") { return area }
         }
+        let icloud = "\(home)/Library/Mobile Documents"
+        if path == icloud || path.hasPrefix(icloud + "/") { return "iCloud Drive" }
+        if path.hasPrefix("/Volumes/") { return "External Disks" }
         return nil
+    }
+
+    /// Whether this folder can be a source at all. A folder in a guarded place is judged from its name alone until the
+    /// person has said to look there; any other is also checked for links, which needs no permission.
+    public static func refusal(_ path: String, layout: RecordingSourceDefinition.Layout, readers: RecordingReaders,
+                               allowed: Set<String>) -> String? {
+        var isLink = false
+        var resolved: String?
+        if protectedArea(path, home: readers.home).map({ allowed.contains($0) }) ?? true, let info = readers.linkInfo(path) {
+            isLink = info.isLink
+            resolved = info.resolved
+        }
+        return RecordingFolderRule.refusal(path, layout: layout, home: readers.home,
+                                           homeResolved: URL(fileURLWithPath: readers.home).resolvingSymlinksInPath().path,
+                                           isLink: isLink, resolved: resolved)
     }
 
     /// Every source on this Mac, in the list's order, then the person's own folders. `saved` carries what was chosen
@@ -86,6 +115,7 @@ public enum RecordingDiscovery {
                 access = accessOf(entry.path, readers: readers, allowed: allowed)
             }
             guard let path else { continue }
+            if let why = refusal(path, layout: definition.layout, readers: readers, allowed: allowed) { access = .refused(why) }
             found.append(RecordingSource(id: definition.id, kind: definition.id, title: definition.title, symbol: definition.symbol,
                                          path: path, offer: definition.offer, access: access, warning: definition.warning,
                                          enabled: entry?.enabled ?? (definition.offer == .on)))
@@ -98,10 +128,11 @@ public enum RecordingDiscovery {
 
     /// A folder the person chose.
     public static func custom(_ entry: RecordingSourceEntry, readers: RecordingReaders, allowed: Set<String> = []) -> RecordingSource {
-        RecordingSource(id: entry.key, kind: RecordingSource.customID, title: (entry.path as NSString).lastPathComponent,
+        var access = accessOf(entry.path, readers: readers, allowed: allowed)
+        if let why = refusal(entry.path, layout: .folders, readers: readers, allowed: allowed) { access = .refused(why) }
+        return RecordingSource(id: entry.key, kind: RecordingSource.customID, title: (entry.path as NSString).lastPathComponent,
                         symbol: RecordingSourceCatalog.definition(RecordingSource.customID)?.symbol ?? "folder",
-                        path: entry.path, offer: .on, access: accessOf(entry.path, readers: readers, allowed: allowed),
-                        warning: nil, enabled: entry.enabled)
+                        path: entry.path, offer: .on, access: access, warning: nil, enabled: entry.enabled)
     }
 
     private static func accessOf(_ path: String, readers: RecordingReaders, allowed: Set<String>) -> RecordingSource.Access {

@@ -8,6 +8,16 @@ struct StorageSettingsView: View {
     @Environment(Navigator.self) private var navigator
     @State private var backups: [IOSBackup]?
 
+    /// "3 on · 1 needs access", read the way the Sources window reads them (nothing guarded is looked at).
+    private var recordingsSummary: String {
+        let legacy = config.storage.recordingSourcesConfigured || config.storage.recordingsDir.isEmpty
+            ? [] : [RecordingSourceEntry(id: RecordingSource.customID, enabled: true, path: config.storage.recordingsDir)]
+        let saved = config.storage.recordingSources + legacy
+        // only what is saved counts: a source that was found but never chosen is not looked through
+        let keys = Set(saved.map(\.key))
+        return RecordingSourcesStore.summary(RecordingDiscovery.discover(readers: .live(), saved: saved).filter { keys.contains($0.id) })
+    }
+
     var body: some View {
         @Bindable var config = config
         PaneScaffold(symbol: "internaldrive.fill", color: .indigo, title: Names.Screen.storageSettings,
@@ -25,8 +35,11 @@ struct StorageSettingsView: View {
                     height: 140
                 )
                 LabeledContent("Recordings") {
-                    // the one editor is Old Recordings' Sources window; this only says what it holds
-                    Button("Choose in Sources…") { navigator.open(target: "recordings:sources") }
+                    // the one editor is Old Recordings' Sources window; this says what it holds and opens it
+                    HStack {
+                        Text(recordingsSummary).foregroundStyle(.secondary)
+                        Button(Names.Recordings.sourcesButton) { navigator.open(target: "recordings:sources") }
+                    }
                 }
             }
 

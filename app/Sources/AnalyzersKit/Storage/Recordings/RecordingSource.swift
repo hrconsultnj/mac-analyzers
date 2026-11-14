@@ -22,7 +22,7 @@ public struct RecordingSourceEntry: Equatable, Hashable, Sendable {
         guard let second = rest.firstIndex(of: "|") else { return nil }
         let id = String(element[..<first]), state = String(rest[..<second])
         let path = String(rest[rest.index(after: second)...])
-        guard !id.isEmpty, state == "on" || state == "off", !path.isEmpty else { return nil }
+        guard !id.isEmpty, id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }), state == "on" || state == "off", !path.isEmpty else { return nil }
         self.init(id: id, enabled: state == "on", path: expandHome(path))
     }
 
@@ -61,6 +61,8 @@ public struct RecordingSource: Identifiable, Equatable, Sendable {
         /// The folder is in a place macOS asks about (`Documents`, `Desktop`, `Downloads`): not looked at yet.
         case needsAccess(String)
         case missing
+        /// The folder can never be a source (`RecordingFolderRule`): why, in a sentence. Never written to the config.
+        case refused(String)
     }
 
     public static func key(id: String, path: String) -> String { id == customID ? "custom:\(path)" : id }

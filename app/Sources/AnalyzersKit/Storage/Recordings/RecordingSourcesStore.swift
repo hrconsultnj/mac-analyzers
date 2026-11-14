@@ -15,7 +15,8 @@ public enum RecordingSourcesStore {
     public static func startingSources(config: ConfigStore, readers: RecordingReaders, allowed: Set<String> = []) -> [RecordingSource] {
         let saved = config.storage.recordingSources
         let discovered = RecordingDiscovery.discover(readers: readers, saved: saved, allowed: allowed)
-        guard saved.isEmpty, !config.storage.recordingsDir.isEmpty else { return discovered }
+        // the single folder is migrated once: after a list has been saved (even an empty one) it is never read again
+        guard !config.storage.recordingSourcesConfigured, !config.storage.recordingsDir.isEmpty else { return discovered }
         return migrating(folder: config.storage.recordingsDir, into: discovered, readers: readers, allowed: allowed)
     }
 
@@ -46,7 +47,11 @@ public enum RecordingSourcesStore {
     public static func adding(folder: String, to sources: [RecordingSource], readers: RecordingReaders, isLink: Bool,
                               allowed: Set<String>) -> Added {
         let folder = trimmed(folder)
-        if let why = RecordingFolderRule.refusal(folder, home: readers.home, isLink: isLink) { return .refused(why) }
+        var resolved: String?
+        if let info = readers.linkInfo(folder) { resolved = info.resolved }
+        if let why = RecordingFolderRule.refusal(folder, home: readers.home,
+                                                 homeResolved: URL(fileURLWithPath: readers.home).resolvingSymlinksInPath().path,
+                                                 isLink: isLink, resolved: resolved) { return .refused(why) }
         var result = sources
         if let at = result.firstIndex(where: { $0.offer != .notOffered && $0.path.map(trimmed) == folder }) {
             result[at].enabled = true
@@ -59,9 +64,16 @@ public enum RecordingSourcesStore {
 
     /// What is written to config.local.sh: every source that can be offered and has a folder, with its switch, in the
     /// order shown.
-    public static func entries(from sources: [RecordingSource]) -> [RecordingSourceEntry] {
-        sources.compactMap { source in
+    /// Only a source of the list or a custom folder, with a folder that can be one, and nothing the config could not
+    /// carry: a path with a tab or a line break, or an id with anything but letters and digits, is left out.
+    public static func entries(from sources: [RecordingSource], home: String = AnalyzersPaths.home.path) -> [RecordingSourceEntry] {
+        let known = Set(RecordingSourceCatalog.definitions.filter(\.isOfferable).map(\.id))
+        return sources.compactMap { source in
             guard source.offer != .notOffered, let path = source.path else { return nil }
+            if case .refused = source.access { return nil }
+            guard source.isCustom || known.contains(source.kind) else { return nil }
+            let layout = RecordingSourceCatalog.definition(source.kind)?.layout ?? .folders
+            guard RecordingFolderRule.refusal(path, layout: layout, home: home) == nil else { return nil }
             return RecordingSourceEntry(id: source.kind, enabled: source.enabled, path: path)
         }
     }
@@ -70,14 +82,17 @@ public enum RecordingSourcesStore {
     /// now on (the list holds it).
     public static func save(_ sources: [RecordingSource], days: Int, in config: ConfigStore) throws {
         config.storage.recordingSources = entries(from: sources)
+        config.storage.recordingSourcesConfigured = true       // an empty list now means "none", never "the old folder"
+        config.storage.recordingsDir = ""
         config.storage.recordingsDays = dayChoices.contains(days) ? days : 90
         try config.save()
     }
 
     /// "3 on · 1 needs access": for a row of Setup's.
     public static func summary(_ sources: [RecordingSource]) -> String {
-        let offered = sources.filter { $0.offer != .notOffered }
+        let offered = sources.filter { if case .refused = $0.access { false } else { $0.offer != .notOffered } }
         let on = offered.filter(\.enabled)
+        guard !on.isEmpty else { return "None on" }
         var parts = ["\(on.count) on"]
         let needs = on.filter { if case .needsAccess = $0.access { true } else { false } }.count
         if needs > 0 { parts.append("\(needs) needs access") }

@@ -142,7 +142,7 @@ struct RecordingSourcesSheet: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let draft { RecordingSourcesForm(draft: draft, found: found, previewed: previewed) } else { ProgressView() }
+                if let draft { RecordingSourcesForm(draft: draft, found: found, previewed: previewed) } else { LoadingState() }
             }
             .navigationTitle(Names.Recordings.sources)
             .toolbar {
@@ -212,6 +212,9 @@ struct RecordingSourcesFixtureScreen: View {
             known("loomTemporary", path: "\(home)/Movies/Loom/Temporary", access: .readable, on: false),
             own("\(home)/Notes/audio", access: .readable),
             own("\(home)/Documents/Interviews", access: .needsAccess("Documents")),
+            own("/Volumes/Backup/Calls", access: .needsAccess("External Disks")),
+            own("\(home)/Library/CloudStorage/OneDrive-Test/Recordings",
+                access: .refused("it is in your Library folder, where apps keep their own data and your cloud storage")),
             known("voiceMemos", path: nil, access: .missing, on: false),
             known("cloudMeetings", path: nil, access: .missing, on: false),
             known("macwhisper", path: nil, access: .missing, on: false),

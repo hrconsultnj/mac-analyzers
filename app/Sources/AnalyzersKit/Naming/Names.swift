@@ -222,6 +222,8 @@ public enum Names {
         public static let lookInDocuments = "Look in Documents"
         public static let lookOnDesktop = "Look on the Desktop"
         public static let lookInDownloads = "Look in Downloads"
+        public static let lookOnExternalDisks = "Look on the External Disk"
+        public static let lookInICloud = "Look in iCloud Drive"
         public static let showInFinder = "Show in Finder"
         public static let remove = "Remove"
         public static let save = "Save"
@@ -691,7 +693,7 @@ public enum Names {
         rows += [Recordings.sources, Recordings.sourcesButton, Recordings.chooseFolders, Recordings.addFolder,
                  Recordings.foundOnThisMac, Recordings.yourFolders, Recordings.notOffered, Recordings.keepRecordingsFor,
                  Recordings.needsAccess, Recordings.otherFolders, Recordings.noFoldersChosen, Recordings.lookInDocuments,
-                 Recordings.lookOnDesktop, Recordings.lookInDownloads, Recordings.showInFinder, Recordings.remove,
+                 Recordings.lookOnDesktop, Recordings.lookInDownloads, Recordings.lookOnExternalDisks, Recordings.lookInICloud, Recordings.showInFinder, Recordings.remove,
                  Recordings.save, Recordings.cancel].map { ("Recordings", $0) }
         rows += [ToolCacheName.pip, ToolCacheName.uv, ToolCacheName.cargo, ToolCacheName.gradle,
                  ToolCacheName.derivedData, ToolCacheName.bun, ToolCacheName.cipd, ToolCacheName.goModules,

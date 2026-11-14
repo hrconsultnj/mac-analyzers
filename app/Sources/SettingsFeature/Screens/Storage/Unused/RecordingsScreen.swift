@@ -21,7 +21,9 @@ struct RecordingsScreen: View {
     /// What the screen looks through, in words: the apps by name, the person's own folders as a count.
     private var looksThrough: [String] {
         let entries = config.storage.recordingSources
-        guard !entries.isEmpty else { return config.storage.recordingsDir.isEmpty ? [] : ["1 folder of yours"] }
+        guard !entries.isEmpty else {
+            return config.storage.recordingSourcesConfigured || config.storage.recordingsDir.isEmpty ? [] : ["1 folder of yours"]
+        }
         let on = entries.filter(\.enabled)
         let apps = on.filter { !$0.isCustom }.compactMap { RecordingSourceCatalog.definition($0.id)?.title }
         let own = on.filter(\.isCustom).count

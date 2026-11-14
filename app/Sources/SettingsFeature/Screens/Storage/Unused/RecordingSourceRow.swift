@@ -44,8 +44,13 @@ struct RecordingSourceRow: View {
                 }
             }
             .toggleStyle(.switch)
-            .disabled(source.access == .missing && !source.isCustom)
+            .disabled(isUnusable)
             if case .needsAccess(let area) = source.access { access(area) }
+            if case .refused(let why) = source.access {
+                Label("This folder can't be used: \(why).", systemImage: "nosign")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if source.access == .missing, source.path != nil {
                 Label("This folder isn't there now.", systemImage: "questionmark.folder")
                     .font(.caption).foregroundStyle(.secondary)
@@ -59,6 +64,12 @@ struct RecordingSourceRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    /// Nothing to switch on: the folder is not there (a source of the list), or it can never be a source.
+    private var isUnusable: Bool {
+        if case .refused = source.access { return true }
+        return source.access == .missing && !source.isCustom
     }
 
     @ViewBuilder private var trailing: some View {
@@ -83,7 +94,7 @@ struct RecordingSourceRow: View {
     /// The question, said in the person's words, with the one button that lets macOS ask it.
     private func access(_ area: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Label("\(source.title) saves to \(StorageLog.short(source.path ?? "").replacingOccurrences(of: "/", with: " › ").replacingOccurrences(of: "~ › ", with: "")). Mac Analyzers needs your permission to look in \(area).",
+            Label("\(Self.where(source, area)). Mac Analyzers needs your permission to look \(Self.phrase(area)).",
                   systemImage: "lock")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -98,7 +109,27 @@ struct RecordingSourceRow: View {
         switch area {
         case "Documents": Names.Recordings.lookInDocuments
         case "Desktop": Names.Recordings.lookOnDesktop
+        case "External Disks": Names.Recordings.lookOnExternalDisks
+        case "iCloud Drive": Names.Recordings.lookInICloud
         default: Names.Recordings.lookInDownloads
+        }
+    }
+
+    /// "Zoom saves to Documents › Zoom" for a folder in your own home, "Calls is on an external disk" for the rest.
+    static func `where`(_ source: RecordingSource, _ area: String) -> String {
+        guard ["Documents", "Desktop", "Downloads"].contains(area) else {
+            return "\(source.title) is \(area == "External Disks" ? "on an external disk" : "in \(area)")"
+        }
+        let shown = StorageLog.short(source.path ?? "").replacingOccurrences(of: "/", with: " › ").replacingOccurrences(of: "~ › ", with: "")
+        return "\(source.title) saves to \(shown)"
+    }
+
+    /// "in Documents", "on the Desktop": where the person is asked to let the app look.
+    static func phrase(_ area: String) -> String {
+        switch area {
+        case "Desktop": "on the Desktop"
+        case "External Disks": "on external disks"
+        default: "in \(area)"
         }
     }
 }

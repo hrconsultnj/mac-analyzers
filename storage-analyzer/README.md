@@ -100,10 +100,12 @@ per source (the app's **Old Recordings → Sources…** window writes it, and fi
 Screen Recordings, SuperWhisper and Loom for you). `lib/recording-sources.tsv` says what
 one item is in each: a subfolder, a Zoom meeting folder (kept while it still holds an
 unconverted `.zoom` file), or a `.mov`/`.mp4` file. With no list, the single folder in
-`ANALYZERS_RECORDINGS_DIR` works as before. Never used as a source, whatever the config
-says: your whole home or a disk, your Documents, Desktop, Downloads, Movies, Music,
-Pictures or Library folder itself (for folder sources), anything under
-`~/Library/CloudStorage`, iCloud Drive or another app's container, and a symbolic link.
+`ANALYZERS_RECORDINGS_DIR` works as before, with two differences: a standard folder (Movies,
+Documents, Desktop, Downloads, Music, Pictures) or a symbolic link is now refused as a whole source.
+A source must be inside your home folder (not a hidden folder, and not the Library) or on an
+external disk (`/Volumes/<disk>/…`); anything else is refused, and so is a path that only reaches such
+a place through a link. Once the app has saved a list (even an empty one), `ANALYZERS_RECORDINGS_DIR`
+is not read at all.
 
 ---
 

@@ -36,8 +36,10 @@
 #ANALYZERS_RECORDING_SOURCES=( "zoom|on|$HOME/Documents/Zoom" "custom|on|$HOME/Notes/audio" )
 #ANALYZERS_RECORDINGS_DAYS=90
 
-# The older way, still read when there is NO ANALYZERS_RECORDING_SOURCES: one
-# directory holding dated recording folders. Empty/unset disables the feature.
+# The older way, still read when there is NO ANALYZERS_RECORDING_SOURCES at all (an empty
+# list counts as a list): one directory holding dated recording folders. Empty/unset disables
+# the feature. A folder must be inside your home folder (not the Library or a hidden folder)
+# or on /Volumes/<disk>/…, and is never the whole of Movies, Documents and the like.
 #ANALYZERS_RECORDINGS_DIR="$HOME/my-dictation-app/recordings"
 
 # Extra cache directory GLOBS for the scheduled storage auto-clean (removed
