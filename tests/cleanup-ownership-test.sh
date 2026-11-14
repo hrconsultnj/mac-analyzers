@@ -486,22 +486,22 @@ for n in 1 2 3 4 5 6 7 8 9 10 11 12; do ( run --list-app "$W/apps/Idle.app" > "$
   chmod 755 "$W/home/Rec/Unreadable/inner"
   check "[$sh] T5 the preview's last line says recordings go to the Trash, not that they are deleted" \
         "$([[ "$out" == *"to move them to the Trash"* && "$out" != *"--execute to delete"* ]] && echo ok || echo "$out" | tail -3)"
-  # another disk: stand-in stat/df make the recordings folder a different volume with its own Trash
+  # another disk: stand-in stat/df make the recordings folder (inside the fixture home: a source must be in the home or on /Volumes) a different volume with its own Trash
   world s6b
-  mkdir -p "$W/extvol/Rec/Old" "$W/extvol/.Trashes/$(id -u)"; printf x > "$W/extvol/Rec/Old/clip"; find "$W/extvol/Rec" -exec touch -t 202001010000 {} +
-  printf 'ANALYZERS_RECORDINGS_DIR="%s/extvol/Rec"\n' "$W" > "$W/tree/config.local.sh"
+  mkdir -p "$W/home/extvol/Rec/Old" "$W/home/extvol/.Trashes/$(id -u)"; printf x > "$W/home/extvol/Rec/Old/clip"; find "$W/home/extvol/Rec" -exec touch -t 202001010000 {} +
+  printf 'ANALYZERS_RECORDINGS_DIR="%s/home/extvol/Rec"\n' "$W" > "$W/tree/config.local.sh"
   printf '#!/bin/bash\nif [[ "$1" == "-f" && "$2" == "%%d" && "$3" == *"/extvol"* ]]; then echo 4242; exit 0; fi\nexec /usr/bin/stat "$@"\n' > "$S/stat"
-  printf '#!/bin/bash\nprintf "Filesystem 512-blocks Used Available Capacity Mounted on\\n/dev/x 1 1 1 1%%%% %s/extvol\\n"\n' "$W" > "$S/df"
+  printf '#!/bin/bash\nprintf "Filesystem 512-blocks Used Available Capacity Mounted on\\n/dev/x 1 1 1 1%%%% %s/home/extvol\\n"\n' "$W" > "$S/df"
   chmod +x "$S/stat" "$S/df"
-  printf '%s\n' "$W/extvol/Rec/Old" > "$W/list"
+  printf '%s\n' "$W/home/extvol/Rec/Old" > "$W/list"
   out="$(run --recordings-older-than 30 --execute --yes --only-paths "$W/list")"
   check "[$sh] S6 a recording on another disk goes to THAT disk's Trash, with a receipt" \
-        "$([[ -d "$W/extvol/.Trashes/$(id -u)/Old" && ! -e "$W/home/.Trash/Old" && "$out" == *"->  $W/extvol/.Trashes/$(id -u)/Old  #id="* ]] && echo ok || echo "$out" | grep -i "trash\|fail")"
-  rm -rf "$W/extvol/.Trashes"; mkdir -p "$W/extvol/Rec/Old2"; printf x > "$W/extvol/Rec/Old2/clip"; find "$W/extvol/Rec/Old2" -exec touch -t 202001010000 {} +
-  chmod 555 "$W/extvol"
+        "$([[ -d "$W/home/extvol/.Trashes/$(id -u)/Old" && ! -e "$W/home/.Trash/Old" && "$out" == *"->  $W/home/extvol/.Trashes/$(id -u)/Old  #id="* ]] && echo ok || echo "$out" | grep -i "trash\|fail")"
+  rm -rf "$W/home/extvol/.Trashes"; mkdir -p "$W/home/extvol/Rec/Old2"; printf x > "$W/home/extvol/Rec/Old2/clip"; find "$W/home/extvol/Rec/Old2" -exec touch -t 202001010000 {} +
+  chmod 555 "$W/home/extvol"
   out="$(run --recordings-older-than 30)"
   check "[$sh] S6 a disk with no Trash (and none can be made) keeps the recording, with the reason" \
         "$([[ "$out" == *"[KEEP]"*"Old2"*"no Trash"* ]] && echo ok || echo "$out" | grep -i "Old2")"
-  chmod -R u+w "$W/extvol"
+  chmod -R u+w "$W/home/extvol"
 done
 exit $fail

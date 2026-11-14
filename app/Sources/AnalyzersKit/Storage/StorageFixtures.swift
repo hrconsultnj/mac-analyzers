@@ -133,14 +133,67 @@ public enum StorageFixtures {
         return UnusedReview.apps(lines: lines)
     }
 
-    /// What a preview of old recordings shows: folders by the month they were made.
+    /// What a preview of old recordings shows with several sources: one tab each, the recordings by the day they were
+    /// made, and a Zoom meeting that is kept because Zoom has not converted it.
     public static func recordings() -> StorageRows {
-        let months = ["Standup 2026-05", "Client call 2026-05", "Demo 2026-06", "All hands 2026-06", "Interview 2026-07"]
-        let lines = months.enumerated().map { "[DRY]     \(String(format: "%.1f", Double($0.offset) + 0.8)) GB  \(home)/Recordings/\($0.element)" }
-        let dates = ["May 2026", "May 2026", "June 2026", "June 2026", "July 2026"]
-        return UnusedReview.recordings(lines: lines, info: { path in
-            months.firstIndex { path.hasSuffix($0) }.flatMap { DateFormatter.fixtureMonth.date(from: dates[$0]) }
-        })
+        recordingsRun(extraSources: [])
+    }
+
+    /// More than six sources: the five largest keep a tab and the rest share Other Folders.
+    public static func recordingsMany() -> StorageRows {
+        recordingsRun(extraSources: [("loomTemporary", "Loom (Unsent Videos)", "\(home)/Movies/Loom/Temporary", ["8f3a21", "c19d0e"]),
+                                     ("custom", "Podcast", "\(home)/Audio/Podcast", ["Episode 12", "Episode 13", "Episode 14"]),
+                                     ("custom", "Interviews", "\(home)/Audio/Interviews", ["Maria Lopes", "Chen Wei"]),
+                                     ("custom", "Lectures", "\(home)/Audio/Lectures", ["Week 3", "Week 4"])])
+    }
+
+    private static func recordingsRun(extraSources: [(id: String, title: String, path: String, names: [String])]) -> StorageRows {
+        let day: Double = 86_400
+        var lines: [String] = []
+        var dates: [String: Date] = [:]
+        func add(_ line: String, path: String, daysAgo: Double) {
+            lines.append(line)
+            dates[path] = Date().addingTimeInterval(-daysAgo * day)
+        }
+        func entry(_ tag: String, _ size: String, _ path: String) -> String { "\(tag)     \(size)  \(path)" }
+        let zoom = "\(home)/Documents/Zoom"
+        lines.append("### Source\tzoom\tZoom\t\(zoom)")
+        for (index, meeting) in [("2026-08-12 13.38.03", "Design Review"), ("2026-08-12 16.02.40", "Client Call"),
+                                 ("2026-09-03 09.30.11", "Standup"), ("2026-09-18 11.15.00", "Hiring Sync")].enumerated() {
+            let path = "\(zoom)/\(meeting.0) \(meeting.1)"
+            add(entry("[DRY]", ["1.4 GB", "880.0 MB", "210.0 MB", "640.0 MB"][index], path), path: path, daysAgo: 110 - Double(index) * 9)
+        }
+        add(entry("[DRY]", "320.0 MB", "\(zoom)/loose-recording.mp4"), path: "\(zoom)/loose-recording.mp4", daysAgo: 120)
+        lines.append("[KEEP]     540.0 MB  \(zoom)/2026-09-20 15.45.12 Board Meeting  —  Zoom has not converted this recording yet. Open it in Zoom first.")
+        let shots = "\(home)/Desktop/Screenshots"
+        lines.append("### Source\tscreenRecordings\tScreen Recordings\t\(shots)")
+        for (index, name) in ["Screen Recording 2026-08-12 at 10.14.02.mov", "Screen Recording 2026-09-01 at 17.20.45.mov", "Screen Recording 2026-09-14 at 09.02.31.mov"].enumerated() {
+            let path = "\(shots)/\(name)"
+            add(entry("[DRY]", ["1.1 GB", "430.0 MB", "260.0 MB"][index], path), path: path, daysAgo: 100 - Double(index) * 20)
+        }
+        let whisper = "\(home)/superwhisper/recordings"
+        lines.append("### Source\tsuperwhisper\tSuperWhisper\t\(whisper)")
+        lines.append("  [WARN] \(RecordingSourceCatalog.definition("superwhisper")?.warning ?? "")")
+        for (index, stamp) in ["1790007979", "1790094379", "1790180779", "1790267179"].enumerated() {
+            let path = "\(whisper)/\(stamp)"
+            add(entry("[DRY]", "\(12 + index * 3).0 MB", path), path: path, daysAgo: 95 + Double(index) * 6)
+        }
+        for source in extraSources {
+            lines.append("### Source\t\(source.id)\t\(source.title)\t\(source.path)")
+            for (index, name) in source.names.enumerated() {
+                let path = "\(source.path)/\(name)"
+                add(entry("[DRY]", "\(40 + index * 25).0 MB", path), path: path, daysAgo: 130 + Double(index) * 11)
+            }
+        }
+        if extraSources.isEmpty {
+            let notes = "\(home)/Notes/audio"
+            lines.append("### Source\tcustom\taudio\t\(notes)")
+            for (index, name) in ["Lecture 4", "Lecture 5"].enumerated() {
+                let path = "\(notes)/\(name)"
+                add(entry("[DRY]", "\(180 + index * 40).0 MB", path), path: path, daysAgo: 200 + Double(index) * 7)
+            }
+        }
+        return UnusedReview.recordings(lines: lines, info: { dates[$0] })
     }
 
     public static func downloads() -> StorageRows {

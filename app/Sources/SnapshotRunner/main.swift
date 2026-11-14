@@ -6,7 +6,8 @@
 //
 // <target> is any deep-link target the app understands (`monitor`, `caches`,
 // `log:forensics`, …). The real main window is built with the real data
-// stores, placed far outside every display, navigated to the target, given
+// stores, in an OffscreenWindow far outside every display (a render refuses to
+// capture, and says why, when the window touches one), navigated to the target, given
 // time to load, and captured — toolbar, sidebar and all.
 //
 // The window gets the same environment the app gives it: the guard store, the
@@ -30,6 +31,8 @@
 // Mac. This process never activates, never appears in the Dock, and its
 // window is never on a display.
 import AppKit
+import ToolWindows
+import UIComponents
 import SwiftUI
 @_spi(TestSupport) import AnalyzersKit
 import SettingsFeature
@@ -163,7 +166,7 @@ if let appearanceOption, !["light", "dark"].contains(appearanceOption) {
 
 @MainActor
 final class Snapshot: NSObject, NSApplicationDelegate {
-    var window: NSWindow!
+    var window: OffscreenWindow!
     let store = GuardLogStore()
     let config = ConfigStore()
     /// A job index in a temporary folder: a snapshot never writes the real one.
@@ -237,6 +240,11 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         jobs.scriptOverride = nothing
         // `--startup-inventory <file>` shows Login & Startup Items from a fixture
         if let fixture = option("--startup-inventory") { StartupInventory.useFile(URL(fileURLWithPath: fixture)) }
+        // the recording sources of the checkout this tool was built from: the person's own clone may be older
+        var checkout = URL(fileURLWithPath: #filePath)
+        for _ in 0..<4 { checkout.deleteLastPathComponent() }
+        let sources = checkout.appending(path: "lib/recording-sources.tsv")
+        if FileManager.default.fileExists(atPath: sources.path) { RecordingSourceCatalog.useList(at: sources) }
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
         if updateStateOption == nil { Task { await updates.check() } }
         let root = MainWindowView(restoresLocation: false, sidebar: sidebarState)
@@ -247,7 +255,7 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         let controller = NSHostingController(rootView: root)
         controller.sceneBridgingOptions = [.toolbars, .title]   // SwiftUI toolbars become the window's
 
-        window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+        window = OffscreenWindow(contentRect: NSRect(origin: .zero, size: size),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         // `--appearance light|dark` pins the window's appearance, whatever the system is set to
@@ -258,9 +266,9 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         if let a = appearanceOption { window.appearance = NSAppearance(named: a == "light" ? .aqua : .darkAqua) }
         window.toolbarStyle = .unified
         window.setContentSize(size)
-        // far outside every display: drawn by the window server, seen by nobody
-        window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-        window.orderFrontRegardless()      // shows the window WITHOUT activating the app
+        // far outside every display: drawn by the window server, seen by nobody; `capture()` refuses to run
+        // if the window is on one anyway
+        window.placeOffscreen()      // shows the window WITHOUT activating the app
 
         if toggleFrames {
             let start = 0.8 + wait
@@ -423,6 +431,9 @@ final class Snapshot: NSObject, NSApplicationDelegate {
     }
 
     private func capture() {
+        // the hard guard: a window on a display ends the run here, before anything is captured
+        window.requireOffscreen(before: "capture \(target)")
+        print("snapshot-runner: \(window.placementReport())")
         let capture = Process()
         capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
         capture.arguments = ["-x", "-o", "-l", String(window.windowNumber), output.path]

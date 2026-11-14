@@ -5,6 +5,12 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## Next
+
+**Old Recordings finds where your recording apps save**
+
+Old Recordings now finds where your recording apps save — Zoom, screen recordings and others — and shows each as its own tab, with recordings grouped by day. Choose which folders it looks in, add your own, and set how old a recording has to be, all from one Sources window. It never touches recordings that live in the cloud or that another app keeps a library of, and it keeps a Zoom meeting that hasn't been converted yet.
+
 ## v2.70.0 — Every screen rebuilt the same way, with tabs and groups
 
 Every screen of the main window has been rebuilt to read the same way: the

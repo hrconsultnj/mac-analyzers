@@ -226,6 +226,12 @@ if args.first == "--probe-disk-runway" {
 if args.first == "--probe-tm" {
     await probeTimeMachine()
 }
+if args.first == "--probe-recording-sources" {
+    await probeRecordingSources()
+}
+if args.first == "--probe-recordings-engine" {
+    await probeRecordingsEngine()
+}
 if args.first == "--probe-cleanup-parse" {
     await probeCleanupParse()
 }

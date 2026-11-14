@@ -56,7 +56,7 @@ describe() {
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
     env)       echo "the app people install reads no environment variable: ProcessInfo's environment and getenv appear only in AgentRunner, SnapshotRunner and the one file that passes the environment on to the engine scripts" ;;
     sidebar)   echo "showing and hiding the sidebar leaves the window the size it was: the snapshot tool hides, shows and hides it at a narrow width and the window frame must not change (an off-screen window; macOS only)" ;;
-    snapshot)  echo "the snapshot tool's main.swift has no top-level await: one makes its top-level code an async task, and an app run inside a task never fires its delayed capture, so every render hangs" ;;
+    snapshot)  echo "the snapshot tool's main.swift has no top-level await (one makes its top-level code an async task, and an app run inside a task never fires its delayed capture, so every render hangs), and every executable but the app makes its windows only as the shared OffscreenWindow: no plain window or panel, no subclass, no modal panel, and the ToolWindows target and the type used only by an executable that app/build.sh never bundles (scripts/tool-windows-refuse.sh)" ;;
     periods)   echo "every screen with a period offers it from the one shared ReportPeriod and its one menu (PeriodToolbar): no second period type of any name, no Picker or list of periods outside Shared/PeriodMenu.swift (scripts/periods-refuse.sh, proved by tests/periods-refuse-test.sh)" ;;
     probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids, Undo restore safety, the menu-bar panel's Quit and Stop (agent-runner; macOS only)" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
@@ -379,7 +379,21 @@ check_snapshot() {
     DETAIL="a top-level await in the snapshot tool — call it directly (top-level code is on the main actor) or move it into a Task"
     return 1
   fi
-  DETAIL="no top-level await in the snapshot tool"
+  # Every tool window is an OffscreenWindow (app/Sources/ToolWindows): AppKit moves a plain titled window back
+  # onto the main display when it is ordered in, so a render showed the app's window on the owner's screen for
+  # its whole wait, and a modal panel is shown there by design. The type returns its frame unchanged, checks
+  # where it is as soon as it is ordered in and before every capture, and lives in a target only the tools use.
+  # scripts/tool-windows-refuse.sh refuses every other way a tool can make a window, and use of the type outside
+  # the tools; tests/snapshot-windows-test.sh plants each form and proves it. MA_SNAPSHOT_APP points the check at
+  # another copy of app/ (used to prove it fails).
+  local app="${MA_SNAPSHOT_APP:-$ROOT/app}"
+  if [ ! -x "$ROOT/scripts/tool-windows-refuse.sh" ]; then DETAIL="skipped: no scripts/tool-windows-refuse.sh"; return 2; fi
+  "$ROOT/scripts/tool-windows-refuse.sh" "$app" >"$OUT" 2>&1
+  if [ -s "$OUT" ]; then
+    DETAIL="$(grep -c . "$OUT") way(s) a tool can put a window on the owner's display"
+    return 1
+  fi
+  DETAIL="no top-level await in the snapshot tool; every tool window is an OffscreenWindow"
   return 0
 }
 
@@ -389,7 +403,7 @@ check_snapshot() {
 # would fail. Add a probe to PROBES when it has an exit status worth trusting.
 # --probe-stop-targets is not here: it needs a shell outside the system folders, detaches itself, starts
 # processes and takes about a minute, so it is run by hand (and by the person reviewing a stop path).
-PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-trend-buckets --probe-login-removal --probe-storage-setting --probe-disk-runway --probe-fence --probe-cleanup-parse --probe-undo-fixture --probe-panel-stop --probe-tm --probe-channels --probe-versions --probe-pressure --probe-memory-kinds --probe-kinds-fixture"
+PROBES="--probe-review-session --probe-run-matcher --probe-activity-ids --probe-procargs --probe-cleanup-apply --probe-agents --probe-guard-rules --probe-trend-buckets --probe-login-removal --probe-storage-setting --probe-disk-runway --probe-fence --probe-cleanup-parse --probe-undo-fixture --probe-panel-stop --probe-tm --probe-channels --probe-versions --probe-pressure --probe-memory-kinds --probe-kinds-fixture --probe-recording-sources --probe-recordings-engine"
 check_probes() {
   local app="$ROOT/app"
   if [ "$(uname -s)" != "Darwin" ]; then DETAIL="skipped: not on macOS"; return 2; fi
