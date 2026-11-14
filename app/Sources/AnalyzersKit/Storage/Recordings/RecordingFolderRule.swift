@@ -95,8 +95,9 @@ public enum RecordingFolderRule {
             if first == "library", !libraryFolders.map({ fold($0) }).contains(where: { rel == $0 || rel.hasPrefix($0 + "/") }) {
                 return "it is in your Library folder, where apps keep their own data and your cloud storage"
             }
-            if standardFolders.contains(where: { fold($0) == rel }), layout != .files {
-                return "it is your whole \(rel) folder, which holds more than recordings; choose a folder inside it"
+            // named for the folder it IS (Movies), not for how it was typed or folded (movies, MOVIEſ)
+            if let name = standardFolders.first(where: { fold($0) == rel }), layout != .files {
+                return "it is your whole \(name) folder, which holds more than recordings; choose a folder inside it"
             }
             return nil
         }

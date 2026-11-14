@@ -172,28 +172,31 @@ public enum GuardLogParser {
         }
     }
 
-    /// Recent events, clutter-collapsed the same way the SwiftBar plugin does:
-    /// kills always show; only the LATEST spike per pid shows, and spikes from
-    /// pids that were later killed are dropped. Newest first.
+    /// Recent events, clutter-collapsed the same way the SwiftBar plugin does: only the LATEST spike per pid shows, and
+    /// spikes from pids that were later killed are dropped. Stops and crisis reports come first: they are kept whatever
+    /// else happened since, and the slots left (up to `limit`) go to pressure and alerts, newest first. Shown newest first.
     public static func recentEvents(fromLog url: URL,
                                     since start: Date = GuardHistory.periodStart(hours: 24),
                                     limit: Int = 6,
                                     after clearedAt: Date? = nil) -> [GuardEvent] {
-        guard let data = try? Data(contentsOf: url),
-              let text = String(data: data, encoding: .utf8) else { return [] }
         let cutoff = max(start, clearedAt ?? .distantPast)
+        // read back to the cutoff, as the History screen does — never a fixed number of the log's last lines: on a day with
+        // a thousand pressure readings the last 600 lines are an hour, and a stop from the morning was not there
+        let reading = GuardLogReader.read(url, since: cutoff)
 
-        var kills: [GuardEvent] = []
+        var kills: [GuardEvent] = []      // stops and crisis reports: always kept
         var others: [GuardEvent] = []
         var latestSpike: [Int: GuardEvent] = [:]
         var killedPIDs: Set<Int> = []
 
-        for line in text.split(separator: "\n").suffix(600) {
-            guard let event = parseLine(String(line)), event.date >= cutoff else { continue }
+        for line in reading.lines {
+            guard let event = parseLine(line), event.date >= cutoff else { continue }
             switch event.kind {
             case .killed:
                 kills.append(event)
                 if let pid = event.pid { killedPIDs.insert(pid) }
+            case .forensics:
+                kills.append(event)
             case .spike:
                 if let pid = event.pid { latestSpike[pid] = event }
             default:
@@ -202,10 +205,11 @@ public enum GuardLogParser {
         }
 
         let spikes = latestSpike.filter { !killedPIDs.contains($0.key) }.map(\.value)
-        return (kills + others + spikes)
-            .sorted { $0.date > $1.date }
-            .prefix(limit)
-            .map { $0 }
+        // stops and reports first (the newest of them if there are more than the list holds), then the rest fill what is left
+        let kept = kills.sorted { $0.date > $1.date }.prefix(limit)
+        let room = max(0, limit - kept.count)
+        let rest = (others + spikes).sorted { $0.date > $1.date }.prefix(room)
+        return (Array(kept) + Array(rest)).sorted { $0.date > $1.date }
     }
 
     /// Every event in the window, newest first, read back from the end of the

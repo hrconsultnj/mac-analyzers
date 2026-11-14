@@ -162,14 +162,22 @@ public struct GuardHistory: Sendable {
     public var stoppedCount: Int { entries.filter { $0.kind == .stopped && !$0.stopFailed }.count }
 
     /// One row of the history by its id, wherever it is.
-    /// A row's id starts with its kind and the time of its first entry, so
-    /// only that one day's entries are grouped, not the whole history.
+    ///
+    /// A row's id starts with its kind and a time, so only that one day's entries are grouped, not the whole history.
+    /// What follows the time is what the row IS, not where a read happened to start:
+    ///   - a stop or a crisis report: its own entry (one log line);
+    ///   - a group of alerts about one program: the day and the program, so the same group has the same id in a read that
+    ///     begins later (a list whose cache ran out, an hour that turned) and loses the group's earliest alerts;
+    ///   - an episode of pressure: the time of its first reading. A read that begins INSIDE an episode drops that reading and
+    ///     so does not have the id: it answers nil rather than guess, because the pressure row that begins at that read's
+    ///     start can be a different episode. The screen shows the row the list opened (`GuardOpenedRows`), and anything
+    ///     else is looked up in the longest read, which has the whole episode.
     public func row(id: String, calendar: Calendar = .current) -> Row? {
         let parts = id.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: false)
         guard parts.count == 3, let epoch = TimeInterval(parts[1]) else { return nil }
         let day = calendar.startOfDay(for: Date(timeIntervalSince1970: epoch))
         let sameDay = entries.filter { calendar.startOfDay(for: $0.date) == day }
-        return GuardHistory.rows(from: sameDay).first { $0.id == id }
+        return GuardHistory.rows(from: sameDay, calendar: calendar).first { $0.id == id }
     }
 
     // MARK: - reading
@@ -261,14 +269,14 @@ public struct GuardHistory: Sendable {
         var episode: [GuardEntry] = []
         func closeEpisode() {
             guard !episode.isEmpty else { return }
-            rows.append(row(for: episode))
+            rows.append(row(for: episode, calendar: calendar))
             episode = []
         }
 
         for entry in oldestFirst {
             switch entry.kind {
             case .stopped, .crisisReport:
-                rows.append(row(for: [entry]))
+                rows.append(row(for: [entry], calendar: calendar))
             case .pressure:
                 if let last = episode.last,
                    entry.date.timeIntervalSince(last.date) > 600
@@ -282,14 +290,22 @@ public struct GuardHistory: Sendable {
             }
         }
         closeEpisode()
-        for key in order { rows.append(row(for: repeats[key] ?? [])) }
+        for key in order { rows.append(row(for: repeats[key] ?? [], calendar: calendar)) }
         return rows.sorted { ($0.end, $0.id) > ($1.end, $1.id) }
     }
 
-    private static func row(for entries: [GuardEntry]) -> Row {
+    private static func row(for entries: [GuardEntry], calendar: Calendar) -> Row {
         let first = entries[0]
         let last = entries[entries.count - 1]
-        let id = "\(first.kind.rawValue)-\(Int(first.date.timeIntervalSince1970))-\(first.id)"
+        let id: String
+        switch first.kind {
+        case .spike, .overLimit, .cpu:
+            // the day and the program: the same group in every read of that day, whatever its earliest alerts
+            let day = Int(calendar.startOfDay(for: first.date).timeIntervalSince1970)
+            id = "\(first.kind.rawValue)-\(day)-\(stableKey("\(first.subject)|\(first.project ?? "")"))"
+        default:
+            id = "\(first.kind.rawValue)-\(Int(first.date.timeIntervalSince1970))-\(first.id)"
+        }
         guard entries.count > 1 else {
             return Row(id: id, kind: first.kind, title: first.title, outcome: first.outcome,
                        start: first.date, end: first.date, entries: entries)
@@ -317,6 +333,13 @@ public struct GuardHistory: Sendable {
             return Row(id: id, kind: first.kind, title: first.title, outcome: first.outcome,
                        start: first.date, end: last.date, entries: entries)
         }
+    }
+
+    /// A short key that is the same in every run (FNV-1a), unlike `String.hashValue`, which changes each launch.
+    private static func stableKey(_ text: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in text.utf8 { hash = (hash ^ UInt64(byte)) &* 1_099_511_628_211 }
+        return String(hash, radix: 16)
     }
 
     /// "4 minutes", "1 hour 5 minutes", or "under a minute".

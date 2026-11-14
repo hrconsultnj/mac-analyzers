@@ -21,6 +21,9 @@ struct TrendsSettingsView: View {
     @State var loadingPeriod: ReportPeriod?
     /// Which load is the newest (see `load`).
     @State var loadGeneration = 0
+    /// The period a link chose: shown, never remembered (only the person's own choice is). It stays set for as long as that
+    /// period is on screen, because the period change a link makes restarts the load task and the task must not save it.
+    @State var linkedPeriod: ReportPeriod?
     @State var snapshot: TrendsSnapshot?
     /// The tab shown; the shared tabs remember it across launches and
     /// `trends:memory` / `trends:storage` choose it.
@@ -45,7 +48,7 @@ struct TrendsSettingsView: View {
             .toolbar { PeriodToolbar(period: $period, loading: loadingPeriod) }
             .task(id: period) {
                 applyPendingLink()
-                period.remember(key: Self.periodKey)
+                if period != linkedPeriod { linkedPeriod = nil; period.remember(key: Self.periodKey) }
                 await load()
             }
             // a link opened while Trends is already showing
@@ -57,7 +60,10 @@ struct TrendsSettingsView: View {
         guard let payload = navigator.takeIntent(for: HistoryGroup.trends) else { return }
         let parts = payload.split(separator: "|").map(String.init)
         if let name = parts.first, let requested = TrendCategory(rawValue: name) { category = requested }
-        if parts.count > 1, let hours = Int(parts[1]), let requested = ReportPeriod(rawValue: hours) { period = requested }
+        if parts.count > 1, let hours = Int(parts[1]), let requested = ReportPeriod(rawValue: hours), requested != period {
+            linkedPeriod = requested
+            period = requested
+        }
     }
 
     @ViewBuilder private var list: some View {

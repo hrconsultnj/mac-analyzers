@@ -33,6 +33,86 @@ ProgressView()'
 refused "a states-allow comment two lines above does not count" Q '// states-allow: nope
 
 ProgressView()'
+# R1: only a .controlSize chained to the ProgressView itself counts
+refused "a .controlSize on a Button below the spinner does not make it inline" R1 'ProgressView()
+Button("Stop") { }
+    .controlSize(.small)'
+refused "a .controlSize on a later view of the same line does not count" R1b 'ProgressView(); Button("x") { }.controlSize(.small)'
+passes  "a chain of modifiers ending in .controlSize(.small) passes" R1c 'ProgressView()
+    .progressViewStyle(.circular)
+    .padding(4)
+    .controlSize(.small)'
+refused "a chained .controlSize(.large) is still refused" R1d 'ProgressView()
+    .controlSize(.large)'
+passes  "a multi-line ProgressView call with a chained inline size passes" R1e 'ProgressView(
+    "Reading",
+    value: nil as Double?
+)
+.controlSize(.mini)'
+# R2: the allow marker counts only as a comment, and only with a reason
+refused "an allow marker inside a string does not count" R2 'let s = "// states-allow: because"
+ProgressView()'
+refused "an allow marker with no reason does not count" R2b '// states-allow:
+ProgressView()'
+refused "an allow marker with only spaces after it does not count" R2c '// states-allow:   
+ProgressView()'
+passes  "an allow marker with a reason at the end of the same line passes" R2d 'ProgressView() // states-allow: centred by its own ZStack'
+refused "an allow marker in a block comment does not count" R2e '/* states-allow: because */
+ProgressView()'
+refused "an allow marker above a line of code does not count" R2f '// states-allow: for the Text
+Text("x")
+ProgressView()'
+# R3: only the one path is exempt
+d="$TMP/R3/Sources"; mkdir -p "$d/SettingsFeature/Screens"; printf '%s\n' 'ProgressView()' > "$d/SettingsFeature/Screens/ScreenState.swift"
+[[ -n "$("$SCAN" "$d" 2>&1)" ]] && check "a ScreenState.swift anywhere else is checked" ok || check "a ScreenState.swift anywhere else is checked" "was NOT refused"
+d="$TMP/R3b/Sources"; mkdir -p "$d/MenuBarFeature/Shared"; printf '%s\n' 'ProgressView()' > "$d/MenuBarFeature/Shared/ScreenState.swift"
+[[ -n "$("$SCAN" "$d" 2>&1)" ]] && check "ScreenState.swift under another target is checked" ok || check "ScreenState.swift under another target is checked" "was NOT refused"
+# R4: no false alarm on raw strings and type annotations, and no hiding behind them
+passes  "a raw string with inner quotes and a ProgressView() in it passes" R4 'let s = #"say "ProgressView()" now"#'
+passes  "a multi-line raw string mentioning ProgressView passes" R4b 'let s = #"""
+a "quoted" ProgressView() line
+"""#'
+refused "a ProgressView after a raw string is still found" R4c 'let s = #"a "b" c"#; let v = ProgressView()'
+passes  "a ProgressView<…> type annotation passes" R4d 'var spinner: ProgressView<Text, EmptyView>?'
+refused "a ProgressView<…>() construction is refused" R4e 'let v = ProgressView<Text, EmptyView>()'
+passes  "the word ProgressViewStyle passes" R4f 'ProgressViewStyle()'
+# a small spinner that is the whole body of a view is the screen state itself
+refused "a small spinner as a view body is refused" S1 'var body: some View {
+    ProgressView().controlSize(.small)
+}'
+passes  "a small spinner that is all of an if branch (an indicator that comes and goes) passes" S2 'ToolbarItem {
+    if loading {
+        ProgressView().controlSize(.small)
+    }
+}'
+passes  "a small spinner in the else branch of a row passes" S3 'if ready { Text("x") } else {
+    ProgressView().controlSize(.mini)
+}'
+passes  "a small spinner inside a toolbar item passes" S5 'ToolbarItem { ProgressView().controlSize(.small) }'
+passes  "a small spinner beside other content passes" S6 'var body: some View {
+    HStack {
+        ProgressView().controlSize(.small)
+        Text("Loading")
+    }
+}'
+# the size set on the container that wraps the spinner
+passes  "a container-level .controlSize(.small) around the spinner passes" S7 'HStack {
+    ProgressView()
+    Text("Loading")
+}
+.controlSize(.small)'
+passes  "a container with only the spinner and a small size passes" S8 'HStack { ProgressView() }.controlSize(.small)'
+refused "a container-level .controlSize(.large) is refused" S9 'HStack {
+    ProgressView()
+    Text("Loading")
+}
+.controlSize(.large)'
+# a ternary size is judged by every branch
+passes  "a ternary of small and mini passes" S10 'ProgressView().controlSize(compact ? .small : .mini)'
+refused "a ternary with a regular branch is refused" S11 'ProgressView().controlSize(compact ? .small : .regular)'
+# value: nil is an indeterminate bar, a state; a real value is a gauge
+refused "an indeterminate value: nil bar is refused" S12 'ProgressView("Loading", value: nil, total: 1)'
+passes  "a gauge with a value passes" S13 'ProgressView("Copying", value: done, total: all)'
 passes  "EmptyState and LoadingState pass" E 'EmptyState("Nothing", systemImage: "x"); LoadingState("Reading…")'
 passes  "a gauge passes" F 'ProgressView(value: 0.5, total: 1)'
 passes  "an inline spinner passes" G 'ProgressView().controlSize(.small)'

@@ -166,6 +166,14 @@ import Synchronization
         if case .refused = RecordingSourcesStore.adding(folder: path, to: base, readers: readers(), isLink: isLink, allowed: []) {} else { refusedAll = false; print("      not refused: \(path)") }
     }
     check("the window refuses the folders the engine refuses", refusedAll)
+    // the reason names the real folder, whatever case or spelling was typed
+    let wording = [("movies", "Movies"), ("MOVIES", "Movies"), ("Movieſ", "Movies"), ("DOCUMENTS", "Documents"), ("des\u{212A}top", "Desktop"),
+                   ("Pictures", "Pictures")].map { typed, real in
+        (typed, real, RecordingFolderRule.refusal("\(home)/\(typed)", home: home, isLink: false))
+    }
+    check("the refusal names the real folder: \"your whole Movies folder\", not the folded name",
+          wording.allSatisfy { $0.2?.contains("it is your whole \($0.1) folder") == true },
+          "\(wording.map { "\($0.0) -> \($0.2 ?? "allowed")" })")
     check("a folder inside Documents is allowed, and the whole Desktop is allowed only for files",
           RecordingFolderRule.refusal("\(home)/Documents/Zoom", home: home, isLink: false) == nil
           && RecordingFolderRule.refusal("\(home)/Desktop", home: home, isLink: false) != nil

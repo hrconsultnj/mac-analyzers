@@ -27,7 +27,14 @@ final class GuardHistoryModel {
     private var taken: [String: Int] = [:]
     @ObservationIgnored private var currentKey = ""
     var window: Window = GuardHistoryModel.savedWindow() {
-        didSet { window.remember(key: Self.choiceKey) }
+        didSet { if !showingLink { window.remember(key: Self.choiceKey) } }
+    }
+    @ObservationIgnored private var showingLink = false
+    /// A deep link's period: shown now, but not the person's choice, so it is not what the screen opens on next time.
+    func show(linked period: Window) {
+        showingLink = true
+        window = period
+        showingLink = false
     }
     /// The period whose history is being read; the previous one stays on screen until it arrives.
     private(set) var loadingWindow: Window?

@@ -87,6 +87,7 @@ struct GuardHistoryView: View {
     }
 
     private func open(_ row: GuardHistory.Row) {
+        GuardOpenedRows.remember(row)    // the entry shows this very row, not one looked up later in a moved read
         navigator.push(.memory(.guardEntry(row.id)))
     }
 
@@ -95,7 +96,7 @@ struct GuardHistoryView: View {
               let link = GuardLink(payload: payload) else { return }
         if let value = link.scope { scope = value }
         if let value = link.query { search = value; appliedSearch = value }
-        if let value = link.window { model.window = value }
+        if let value = link.window { model.show(linked: value) }
     }
 
     // MARK: - chrome
