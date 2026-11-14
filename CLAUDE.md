@@ -125,8 +125,13 @@ through `config.local.sh` (never hardcoded).
   `open(target: "log:guardLog")`), never by posting a notification.
   The sidebar's visibility is ONE state, the split view's `columnVisibility` held by
   `MainWindowView` (remembered across launches): the toolbar button
-  (`SidebarVisibility.swift`, a `Toggle`, accent icon when shown), its tooltip and the
-  View menu item (Control-Command-S, through `focusedSceneValue`) all derive from it, and
+  (`SidebarVisibility.swift`, a `Toggle` in the system's look, no accent colour), its tooltip
+  and the View menu item (Control-Command-S, through `focusedSceneValue`) all derive from it.
+  Both send `toggleSidebar:` through the responder chain, as the system's own button does, so
+  the sidebar collapses inside the window and the window never changes size (`scripts/check.sh
+  sidebar` toggles at 900 and 780 wide and fails on any frame change); if the sidebar has not
+  moved shortly after, the button sets the state itself. The window's minimum width is on the
+  content, never on the split view (a minimum there grows the window by the sidebar's width). And
   while the sidebar is hidden resting the pointer on the leading edge or the button shows
   it as an overlay over the content (`SidebarPeek.swift`; the content never resizes; in
   full screen the system's own edge reveal is left alone).
