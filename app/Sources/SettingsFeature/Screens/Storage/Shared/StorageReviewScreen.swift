@@ -131,8 +131,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
                 if let detailLine { Text(detailLine).font(.callout).foregroundStyle(.secondary) }
                 ForEach(notes, id: \.self) { Label($0, systemImage: "info.circle").font(.callout) }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            .barMargin()
         }
     }
 

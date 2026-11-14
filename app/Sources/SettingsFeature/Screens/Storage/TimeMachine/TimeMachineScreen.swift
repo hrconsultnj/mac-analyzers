@@ -133,7 +133,7 @@ struct TimeMachineScreen: View {
                 .foregroundStyle(.secondary)
             Spacer()
         }
-        .padding(.horizontal).padding(.vertical, 8)
+        .barMargin(edge: .bottom)
     }
 
     /// The permission, when it is missing: what it is for, and the one button that asks for it. When sudo says it is
@@ -147,7 +147,7 @@ struct TimeMachineScreen: View {
                 Text(TimeMachinePermission.uninstallCommand()).font(.caption.monospaced()).textSelection(.enabled)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal).padding(.vertical, 8)
+            .barMargin()
         } else if !allowed {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -157,7 +157,7 @@ struct TimeMachineScreen: View {
                 Spacer()
                 Button(Names.TimeMachine.allow) { allow() }.disabled(allowing)
             }
-            .padding(.horizontal).padding(.vertical, 8)
+            .barMargin()
         }
     }
 

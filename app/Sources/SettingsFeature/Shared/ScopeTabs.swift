@@ -56,8 +56,7 @@ where Value.RawValue == String {
                 if items.count >= 2 {
                     ScopeTabs(selection: $selection, items: items)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .scenePadding(.horizontal)
-                        .padding(.vertical, 8)
+                        .barMargin()
                 }
             }
             .focusedSceneValue(\.scopeTabs, isActive ? ScopeTabsCommands(
