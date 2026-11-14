@@ -97,8 +97,8 @@ final class Host: NSObject, NSApplicationDelegate {
             self.window.requireOffscreen(before: "capture the \(tab) panel")
             print("menu-snapshot: \(self.window.placementReport())")
             // drawn from the window's own views: a window parked on no display cannot be imaged by the window server
-            guard self.window.writeSnapshot(to: output) else {
-                FileHandle.standardError.write(Data("menu-snapshot: could not draw the window's views\n".utf8))
+            do { try self.window.writeSnapshot(to: output) } catch {
+                FileHandle.standardError.write(Data("menu-snapshot: no picture was made: \(error)\n".utf8))
                 exit(1)
             }
             print("\(tab) → \(output.path)  (\(Int(self.window.frame.width)) × \(Int(height)) pt)")

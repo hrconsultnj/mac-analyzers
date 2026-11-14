@@ -178,19 +178,33 @@ through `config.local.sh` (never hardcoded).
   window's own views (`OffscreenWindow.snapshotPNG`: the frame view, so title
   bar, toolbar, sidebar and content), because `screencapture -l` cannot image
   a window that is on no display; it needs no display and works with the
-  screen locked. It differs from a screenshot of the same window on a display
-  in: no rounded outer corners, edge or shadow; the sidebar's Liquid Glass is a
-  flat stand-in colour with its labels drawn over it (blur and lens are not
-  reproduced); a dimmed button has no bezel; 1x pixels. `--view-tree` prints
-  the view hierarchy. `--outline-probe snapshot` (in `scripts/check.sh outline`)
-  fails if the sidebar, title bar or content is missing from the picture. Every window a tool makes
-  (every executable target but the app) is an `OffscreenWindow`:
-  `scripts/check.sh snapshot` (`scripts/tool-windows-refuse.sh`) fails on a
-  plain window or panel however it is made, a subclass, a modal panel
-  (`NSAlert`, `NSSavePanel`, `NSOpenPanel`, `runModal`) in any executable but the
-  app (`AgentRunner` and `NotifierCLI` ship in the bundle and open none), and on
-  `OffscreenWindow` or `ToolWindows` used anywhere but an executable that is never bundled
-  (read from the `cp` lines of `app/build.sh`: today `SnapshotRunner` and `MenuSnapshot`).
+  screen locked. **It is partly invented, and a render is never evidence for
+  these: judge the sidebar's colour, its selection, the legibility of anything
+  on glass, and key-window states (an active window's selection, traffic
+  lights and focus ring) on screen.** What the picture does that the real window
+  does not: (1) the Liquid Glass sidebar is a flat stand-in colour
+  (`underPageBackgroundColor`) with no blur, lens or edge, and only a glass
+  surface taller than 100 pt is drawn (the toolbar's small groups draw
+  themselves); (2) the sidebar's selected row is a rounded rectangle drawn by hand
+  (white 14% on dark, black 10% on light), because the system's highlight comes
+  out of this kind of draw as a solid black bar; (3) on a dark window every
+  near-black pixel of the sidebar's table is recoloured white, because inside
+  the glass its labels are vibrant masks (black with an alpha) that the glass
+  would colour: this also recolours a label that is hard-coded black, so a
+  contrast bug on a sidebar label cannot show in a render; (4) the window's
+  appearance is set on the window and on each glass view before the draw, and
+  the run loop is spun for 0.4 s so SwiftUI redraws under it, because a glass
+  surface with nothing behind it chooses light; (5) the window is never key or
+  active, so selection, traffic lights and controls draw in their inactive
+  state; (6) no rounded outer corners, edge or shadow, a dimmed button has no
+  bezel, and pixels are 1x. Parts are found by what they are (the close button's
+  ancestor is the title bar, the glass's `contentView`, an `NSTableView`), never
+  by a private class name, and a part that cannot be found is an error: the
+  tool prints why and exits non-zero without writing a picture. `--view-tree`
+  prints the view hierarchy. `--outline-probe snapshot` (in `scripts/check.sh
+  outline`, dark and light) fails if the close button, a known sidebar label's
+  text (right polarity), the selected row, the footer or the content is
+  missing from the picture.
   Built by `swift build`, never bundled into the app. Use it while building a screen and
   before calling it done (the blueprint's screen acceptance bar requires
   it); the owner's screen is not a test fixture. It cannot click: anything

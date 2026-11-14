@@ -424,8 +424,8 @@ final class Snapshot: NSObject, NSApplicationDelegate {
             }
             dump(frameView, 0)
         }
-        if !window.writeSnapshot(to: output) {
-            FileHandle.standardError.write(Data("snapshot-runner: could not draw the window's views\n".utf8))
+        do { try window.writeSnapshot(to: output) } catch {
+            FileHandle.standardError.write(Data("snapshot-runner: no picture was made: \(error)\n".utf8))
             finish(1)
         }
         // the window cannot be smaller than the app's own minimum: say so instead of letting a
