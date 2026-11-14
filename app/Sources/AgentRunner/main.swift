@@ -302,6 +302,12 @@ if args.first == "--probe-memory-kinds" {
 // judges the rules on stand-in processes and fails when one breaks. See KindProbes.swift.
 if args.first == "--probe-kinds" { probeKinds(args) }
 if args.first == "--probe-kinds-fixture" { probeKindsFixture(args) }
+// Memory Guard's rules engine (Watching only): `--check-rules`, `--rules-once`, `--compare-legacy`, `--probe-rules-fixture`.
+// See RulesProbes.swift.
+if args.first == "--check-rules" { probeCheckRules(args) }
+if args.first == "--rules-once" { probeRulesOnce(args) }
+if args.first == "--compare-legacy" { probeCompareLegacy(args) }
+if args.first == "--probe-rules-fixture" { probeRulesFixture(args) }
 if args.first == "--probe-agents" {
     probeAgents(args)
 }

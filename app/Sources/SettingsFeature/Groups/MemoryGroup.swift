@@ -50,7 +50,7 @@ enum MemoryGroup {
     @ViewBuilder private static func screen(_ section: SectionID) -> some View {
         switch section {
         case monitor: MonitorView()
-        case memoryGuard: GuardHistoryView()
+        case memoryGuard: GuardView()
         case memoryCleanup: MemoryCleanupView()
         default: EmptyView()
         }

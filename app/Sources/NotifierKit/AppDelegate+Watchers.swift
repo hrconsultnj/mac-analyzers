@@ -29,6 +29,14 @@ extension AppDelegate {
         }
     }
 
+    /// The rules engine, in Watching only: a look a minute, a would-have row for what a rule would do. It stops, quits and
+    /// signals nothing; the guard script does what it always did.
+    func startRulesWatcher() {
+        Task {
+            await RulesEngine.shared.startWatching { await MainActor.run { RulesEngine.frontAppNames() } }
+        }
+    }
+
     /// Checks for a newer release at launch and every 6 hours; notifies ONCE
     /// per version — clicking the notification opens the Update pane.
     func startUpdateWatcher() {

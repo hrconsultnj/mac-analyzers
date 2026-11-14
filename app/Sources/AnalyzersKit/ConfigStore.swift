@@ -254,6 +254,9 @@ public final class ConfigStore {
         let tmp = AnalyzersPaths.configLocal.appendingPathExtension("tmp")
         try out.write(to: tmp, atomically: true, encoding: .utf8)
         _ = try fm.replaceItemAt(AnalyzersPaths.configLocal, withItemAt: tmp)
+        // what the guard script and the cleanups read from the app: the person's Never Close list (best effort; the numbers
+        // above are the managed block's alone)
+        GuardFallbackFile.write(neverClose: GuardRules.load().local.neverClose)
     }
 
     /// Escape POSIX ERE metacharacters so a literal app name stays literal

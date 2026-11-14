@@ -21,6 +21,15 @@ extension MenuContentView {
 
         Divider()
 
+        if !store.ruleLines.isEmpty {
+            sectionLabel("Rules Today")
+            ForEach(store.ruleLines) { line in
+                MenuRowButton(action: { SettingsOpener.open(target: line.target) }) {
+                    Text(line.text).font(.callout)
+                }
+            }
+        }
+
         sectionLabel("Recent Events")
         let rows = OverviewModel.eventRows(store.events, limit: 6)
         if rows.isEmpty {

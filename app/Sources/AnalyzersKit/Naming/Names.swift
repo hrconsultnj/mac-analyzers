@@ -690,6 +690,22 @@ public enum Names {
     // MARK: - Memory Guard
 
     public enum Guard {
+        public static let stateActing = "Acting"
+        public static let stateWatching = "Watching"
+        public static let stateOff = "Off"
+        public static let stateCantRun = "Can't Run"
+        public static let tabPlan = "When Memory Runs Out"
+        public static let tabHistory = "History"
+        public static let rule = "Rule"
+        public static let matchingNow = "Matching Now"
+        public static let thisWeek = "Last 7 Days"
+        public static let steps = "Steps"
+        public static let protectedNow = "Protected Right Now"
+        public static let mayQuitList = "Apps That May Be Asked to Quit"
+        public static let neverCloseList = "Never Close"
+        public static let wouldHave = "Would Have Done"
+        public static let theRule = "The Rule"
+        public static let actingNotYet = "Acting is not available for this rule yet: it only watches and writes what it would have done."
         public static let stopped = "Stopped"
         public static let alerts = "Alerts"
         public static let period = "Period"
@@ -819,7 +835,7 @@ public enum Names {
         rows += Kind.all.map { ("Kind", $0) }
         rows += Period.all.map { ("Period", $0) }
         rows += [Stop.stop, Stop.quit, Stop.forceStop, Stop.leaveRunning, Stop.leftAlone, Stop.leftAloneOne].map { ("Stop", $0) }
-        rows += [Guard.stopped, Guard.alerts, Guard.period, Guard.show, Guard.nothingToReport,
+        rows += [Guard.stopped, Guard.alerts, Guard.period, Guard.show, Guard.tabPlan, Guard.tabHistory, Guard.rule, Guard.matchingNow, Guard.thisWeek, Guard.steps, Guard.protectedNow, Guard.mayQuitList, Guard.neverCloseList, Guard.wouldHave, Guard.theRule, Guard.stateActing, Guard.stateWatching, Guard.stateOff, Guard.stateCantRun, Guard.nothingToReport,
                  Guard.nothingHere, Guard.eventGone, Guard.whatHappened, Guard.theProgram, Guard.whyTheGuardDoesThis,
                  Guard.eachTime, Guard.whatWasUsingMemory, Guard.macAtThatMoment, Guard.showRawLines].map { ("Guard", $0) }
         rows += [Cleanup.leftovers, Cleanup.everythingNow, Cleanup.devServers, Cleanup.orphanedTools, Cleanup.emulators,

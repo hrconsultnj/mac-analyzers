@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "about": "What Memory Guard is meant to do per kind, and in what order when memory runs out. Read by the app and by agent-runner; the guard script does not read it (it reads .guard-fallback.tsv, which the app writes from the same numbers). `mode` is where each rule starts: acting means the guard script already does it today (the store says which setting holds its numbers), watching means only a would-have row is written and nothing is stopped. A rule or step with a field that is not listed here can't run. Selectors: an exact kind id, a category such as apps.*, or tools.devTooling for every tools kind marked developer tooling.",
+  "limits": [
+    { "id": "devTooling.limit", "kind": "tools.devTooling", "gb": 6.0, "measure": "process", "overFor": 0, "action": "stop",
+      "mode": "acting", "store": "managedBlock:GUARD_HARD_CAP_MB,GUARD_HARDCAP_KILL" },
+    { "id": "simulators.limit", "kind": "tools.simulators", "gb": 8.0, "measure": "unit", "overFor": 0, "action": "stop",
+      "whenBusy": "notify", "mode": "watching" },
+    { "id": "databases.limit", "kind": "tools.databases", "gb": 6.0, "measure": "program", "overFor": 300, "action": "notify",
+      "mode": "watching" },
+    { "id": "commands.limit", "kind": "tools.other", "gb": 6.0, "measure": "program", "overFor": 300, "action": "notify",
+      "mode": "watching" },
+    { "id": "apps.limit", "kind": "apps.*", "gb": 12.0, "measure": "unit", "overFor": 300, "action": "propose",
+      "mode": "watching" },
+    { "id": "macos.limit", "kind": "macos.*", "gb": 2.0, "measure": "process", "overFor": 600, "action": "notify",
+      "mode": "watching" }
+  ],
+  "graceAfterLaunch": { "tools.devTooling": 0, "*": 60 },
+  "whenMemoryRunsOut": [
+    { "id": "step.simulators.idle", "kind": "tools.simulators", "which": "idle", "action": "stop", "mode": "watching" },
+    { "id": "step.devTooling.idle", "kind": "tools.devTooling", "which": "idle", "action": "stop", "mode": "watching" },
+    { "id": "step.devTooling.biggest", "kind": "tools.devTooling", "which": "biggestOver", "mb": 500, "action": "stop",
+      "mode": "acting", "store": "managedBlock:GUARD_PRESSURE_KILL" },
+    { "id": "step.apps.listed", "kind": "apps.*", "which": "listed", "action": "askToQuit", "mode": "watching" },
+    { "id": "step.simulators.biggest", "kind": "tools.simulators", "which": "biggest", "action": "stop", "mode": "watching" },
+    { "id": "step.commands.biggest", "kind": "tools.other", "which": "biggestOver", "mb": 1000, "action": "stop", "mode": "watching" },
+    { "id": "step.databases.biggest", "kind": "tools.databases", "which": "biggestOver", "mb": 1000, "action": "stop", "mode": "watching" },
+    { "id": "step.apps.biggest", "kind": "apps.*", "which": "biggest", "action": "propose", "mode": "watching" }
+  ],
+  "alerts": { "spikeMB": 400, "spikeMinMB": 1024, "cpuPct": 150, "cpuTicks": 3 },
+  "cooldownSeconds": 60
+}

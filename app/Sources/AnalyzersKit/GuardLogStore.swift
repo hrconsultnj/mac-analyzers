@@ -26,6 +26,8 @@ public final class GuardLogStore {
     public private(set) var lastCleanDiskState: String?
     /// What is actually installed and loaded — asked of launchd, not assumed.
     public private(set) var engine: EngineStatus?
+    /// What the rules would have done today, a line per category (Apps, Tools, macOS), for the panel. Nothing was done.
+    public private(set) var ruleLines: [RuleLine] = []
 
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var watchedFD: Int32 = -1
@@ -64,6 +66,7 @@ public final class GuardLogStore {
         let engine: EngineStatus
         let disk: DiskUsage?
         let lastCleanDiskState: String?
+        let ruleLines: [RuleLine]
     }
 
     /// In-flight guard: this is the heaviest read in the app (process table
@@ -97,7 +100,8 @@ public final class GuardLogStore {
                 sample: LiveStats.sample(),
                 engine: EngineStatus.probe(),
                 disk: LiveStats.diskUsage(),
-                lastCleanDiskState: Self.lastFreeSpaceLine())
+                lastCleanDiskState: Self.lastFreeSpaceLine(),
+                ruleLines: RuleOutcomes.todayLines(RuleOutcomes.read(since: Calendar.current.startOfDay(for: Date()))))
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.apply(payload)
@@ -126,6 +130,7 @@ public final class GuardLogStore {
         engine = p.engine
         disk = p.disk
         lastCleanDiskState = p.lastCleanDiskState
+        ruleLines = p.ruleLines
     }
 
     /// Hide everything shown so far (badge + rows). Log untouched.

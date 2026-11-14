@@ -1,0 +1,6 @@
+{
+  "schema": 1,
+  "about": "What is never touched, whatever a rule says. Names are the census group names (a program's own name, an app's name); the kinds are never acted on at all. Rule data cannot remove any of these.",
+  "names": ["WindowServer", "loginwindow", "Finder", "Dock", "SystemUIServer", "Mac Analyzers", "MacAnalyzers", "launchd"],
+  "kinds": ["apps.connection", "tools.connection", "tools.codingAgents"]
+}

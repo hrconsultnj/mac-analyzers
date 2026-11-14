@@ -11,6 +11,19 @@ without an entry here — see `scripts/cut-release.sh`.
 
 Setup is now one screen of your current configuration, in three tabs: Permissions, Background and Protection. Each thing has its own row with where it stands, what was found, and one button. When something can only be changed in System Settings, the row opens the right page, says exactly which switch to turn on, and confirms when you have done it. Full Disk Access is checked by trying the folders Mac Analyzers really reads, instead of guessing. Turn Off or Remove is now on Setup's toolbar, and Old Recordings' folders have a row here too.
 
+**Memory Guard**
+
+- Memory Guard has tabs now, the same way Monitor has: When Memory Runs Out, Apps,
+  Tools, macOS and History. Each kind of thing (browsers, dev servers, databases,
+  macOS services and so on) shows the rules that apply to it and what each rule would
+  have done in the last seven days. For now these rules only watch and write down
+  what they would have done: nothing new is stopped or closed. The menu-bar panel
+  has a short "Rules Today" line for each tab that has something.
+- The guard now keeps its hands off every live coding session, not only Claude Code:
+  Codex, Gemini CLI, Copilot, OpenCode and the rest of the list, and everything they
+  started. If it ever cannot tell which programs belong to a coding session, it stops
+  nothing and says so.
+
 ## v2.71.0 — Recording sources, one period menu and a sidebar you can tuck away
 
 Old Recordings now works for everyone, not only for one folder, and the

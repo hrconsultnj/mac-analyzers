@@ -29,8 +29,7 @@ struct GuardHistoryView: View {
         let page = model.page(of: days)
         DataScreen(title: Names.Screen.memoryGuard, subtitle: periodSubtitle(loading: model.loadingWindow, subtitle(page))) { list(days: days, page: page) }
             .searchable(text: $search, prompt: "Search by name or process ID")
-            .scopeTabsToolbar(screen: "guard", items: scopeItems, selection: $scope)
-            .toolbar { toolbar }
+            .toolbar { toolbar; scopeFilter }
             .onKeyPress(.return) {
                 guard let id = selection, let row = model.history.row(id: id) else { return .ignored }
                 open(row)
@@ -49,11 +48,21 @@ struct GuardHistoryView: View {
             .screenActions(refresh: { Task { await model.refresh(force: true) } }, isActive: navigator.path.isEmpty)
     }
 
-    /// The tabs, each with its symbol and how many events it holds in the chosen period.
-    private var scopeItems: [ScopeTabItem<GuardHistory.Scope>] {
-        GuardHistory.Scope.allCases.map { item in
-            ScopeTabItem(value: item, title: item.title, symbol: item.symbol,
-                         count: model.hasLoaded ? model.history.count(item) : nil)
+    /// What the history shows is filtered by kind of event: a menu, not tabs (the tabs of this screen are Apps, Tools and macOS).
+    private var scopeFilter: some ToolbarContent {
+        ToolbarItem(placement: .secondaryAction) {
+            Menu {
+                Picker(Names.Guard.show, selection: $scope) {
+                    ForEach(GuardHistory.Scope.allCases, id: \.self) { item in
+                        Label(model.hasLoaded ? "\(item.title)  \(model.history.count(item))" : item.title, systemImage: item.symbol).tag(item)
+                    }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Label(scope.title, systemImage: scope.symbol)
+            }
+            .labelStyle(.titleAndIcon)
+            .help("Choose which kind of event to list")
         }
     }
 
