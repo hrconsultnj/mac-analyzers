@@ -109,10 +109,10 @@ struct UndoView: View {
         switch scope {
         case .trashed:
             EmptyState("Nothing in the Trash From Cleanups", systemImage: "trash",
-                                   description: Text("When a cleanup moves something to the Trash, it is listed here so you can put it back."))
+                       description: Text("When a cleanup moves something to the Trash, it is listed here so you can put it back."))
         case .stopped:
             EmptyState("No Servers Stopped", systemImage: "hand.raised",
-                                   description: Text("The guard has not stopped anything recently."))
+                       description: Text("The guard has not stopped anything recently."))
         }
     }
 }

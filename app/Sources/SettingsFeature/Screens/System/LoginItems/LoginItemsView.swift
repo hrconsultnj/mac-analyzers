@@ -160,12 +160,14 @@ struct LoginItemsView: View {
                                onShowInFinder: { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: $0)]) })
         default:
             if model.inventory == nil {
-                EmptyState {
-                    Label(model.isBusy ? "Checking Startup Items" : "No Audit Yet", systemImage: "person.crop.circle.badge.questionmark")
-                } description: {
-                    Text(model.isBusy
-                         ? "Looking at login items, launch agents and helper tools."
-                         : (model.permission.sentence ?? "Run the audit to see everything that starts by itself."))
+                if model.isBusy {
+                    LoadingState("Checking Startup Items", detail: "Looking at login items, launch agents and helper tools.")
+                } else {
+                    EmptyState {
+                        Label("No Audit Yet", systemImage: "person.crop.circle.badge.questionmark")
+                    } description: {
+                        Text(model.permission.sentence ?? "Run the audit to see everything that starts by itself.")
+                    }
                 }
             } else if groups.isEmpty {
                 if let unread = unreadableSentence {

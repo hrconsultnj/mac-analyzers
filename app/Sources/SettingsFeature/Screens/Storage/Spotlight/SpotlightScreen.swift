@@ -90,7 +90,7 @@ struct SpotlightScreen: View {
         VStack(spacing: 0) {
             if tree.isEmpty {
                 EmptyState("No Developer Folders", systemImage: "checkmark.circle",
-                                       description: Text("The check found no node_modules, build output or caches under your projects."))
+                           description: Text("The check found no node_modules, build output or caches under your projects."))
             } else {
                 OutlineTable(tree, children: \.children, selection: $selection, sortOrder: $sortOrder,
                              expanded: expansion.binding, autosave: "spotlight") {

@@ -108,7 +108,7 @@ struct TimeMachineScreen: View {
         let tree = TimeMachineNode.tree(model.rows ?? StorageRows([]))
         if tree.isEmpty {
             EmptyState(Names.TimeMachine.nothingToThin, systemImage: "checkmark.circle",
-                                   description: Text(Names.TimeMachine.nothingToThinDetail))
+                       description: Text(Names.TimeMachine.nothingToThinDetail))
         } else {
             OutlineTable(tree, children: \.children, selection: $selection, expanded: expansion.binding, autosave: "timemachine") {
                 OutlineColumn("name", Names.Column.name) { node in
