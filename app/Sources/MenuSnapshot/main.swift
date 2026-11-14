@@ -53,7 +53,7 @@ if tab == "monitor" {
 
 @MainActor
 final class Host: NSObject, NSApplicationDelegate {
-    var window: NSWindow!
+    var window: OffscreenWindow!
     let store = GuardLogStore()
     let scratch = FileManager.default.temporaryDirectory
         .appending(path: "ma-menu-snapshot-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -75,7 +75,7 @@ final class Host: NSObject, NSApplicationDelegate {
             .frame(width: width)
             .background(.regularMaterial)
         let hosting = NSHostingView(rootView: root)
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 100),
+        window = OffscreenWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 100),
                           styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
@@ -83,8 +83,7 @@ final class Host: NSObject, NSApplicationDelegate {
             window.standardWindowButton(button)?.isHidden = true
         }
         window.contentView = hosting
-        window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-        window.orderFrontRegardless()   // shows the window WITHOUT activating the app
+        window.placeOffscreen()   // shows the window WITHOUT activating the app
         Task { await updates.check() }
         DispatchQueue.main.asyncAfter(deadline: .now() + wait) { self.capture(hosting) }
     }
@@ -93,6 +92,9 @@ final class Host: NSObject, NSApplicationDelegate {
         let height = hosting.fittingSize.height
         window.setContentSize(NSSize(width: width, height: height))
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            // the hard guard: a window on a display ends the run here, before anything is captured
+            self.window.requireOffscreen(before: "capture the \(tab) panel")
+            print("menu-snapshot: \(self.window.placementReport())")
             let capture = Process()
             capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
             capture.arguments = ["-x", "-o", "-l", String(self.window.windowNumber), output.path]

@@ -51,7 +51,7 @@ let package = Package(
         // compiled launchd entry point (BTM attribution) — execs the engine
         .executableTarget(name: "AgentRunner", dependencies: ["AnalyzersKit"], swiftSettings: strictSwift),
         // development tool, never bundled: renders a real screen to a PNG in a
-        // window that is never on a display (see Sources/SnapshotRunner/main.swift)
+        // OffscreenWindow, which refuses to capture when it touches a display (see Sources/SnapshotRunner/main.swift)
         .executableTarget(name: "SnapshotRunner", dependencies: ["AnalyzersKit", "SettingsFeature", "UIComponents"],
                           swiftSettings: strictSwift),
         // development tool, never bundled: renders the menu-bar panel's content to a

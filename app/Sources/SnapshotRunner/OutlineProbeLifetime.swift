@@ -18,12 +18,11 @@ enum ProbeLifetime {
         let before = (model.expanded, model.selection, model.sortOrder.map(\.keyPath.hashValue))
         var caused = false
         autoreleasepool {
-            let window = ProbeWindow(contentViewController: NSHostingController(
+            let window = OffscreenWindow(contentViewController: NSHostingController(
                 rootView: ProbeScreen(model: model, hosted: false, autosave: "probe-life-\(getpid())")))
             window.styleMask = [.titled, .resizable]
             window.setContentSize(NSSize(width: 700, height: 500))
-            window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-            window.orderFrontRegardless()
+            window.placeOffscreen()
             _ = settle(); spin(0.5)
             guard let outline = window.contentView.flatMap(findOutline(in:)) else { return }
             switch name {
@@ -52,7 +51,7 @@ enum ProbeLifetime {
     private static func windowCase() -> Int32 {
         let autosave = "probe-life-\(getpid())"
         let model = ProbeModel(rows: makeProbeRows(parents: 20, kids: 3))
-        func open(_ build: (NSOutlineView, ProbeWindow) -> Void) {
+        func open(_ build: (NSOutlineView, OffscreenWindow) -> Void) {
             autoreleasepool {
                 let harness = ProbeHarness(ProbeScreen(model: model, hosted: false, autosave: autosave))
                 build(harness.outline, harness.window)

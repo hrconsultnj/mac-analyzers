@@ -55,7 +55,7 @@ describe() {
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root; no source file hidden by .gitignore" ;;
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
     env)       echo "the app people install reads no environment variable: ProcessInfo's environment and getenv appear only in AgentRunner, SnapshotRunner and the one file that passes the environment on to the engine scripts" ;;
-    snapshot)  echo "the snapshot tool's main.swift has no top-level await: one makes its top-level code an async task, and an app run inside a task never fires its delayed capture, so every render hangs" ;;
+    snapshot)  echo "the snapshot tool's main.swift has no top-level await (one makes its top-level code an async task, and an app run inside a task never fires its delayed capture, so every render hangs), and no tool (SnapshotRunner, MenuSnapshot, AgentRunner) makes a window except as the shared OffscreenWindow: a plain NSWindow or NSPanel is moved back onto the owner's display" ;;
     periods)   echo "every screen with a period offers it from the one shared ReportPeriod and its one menu (PeriodToolbar): no second period type of any name, no Picker or list of periods outside Shared/PeriodMenu.swift (scripts/periods-refuse.sh, proved by tests/periods-refuse-test.sh)" ;;
     probes)    echo "the probes that judge themselves on stand-in data and exit non-zero when a rule breaks: review session, run matcher, Activity row ids, Undo restore safety, the menu-bar panel's Quit and Stop (agent-runner; macOS only)" ;;
     names)     echo "every name in the app's central name table (Names.swift, listed in Names.all) is in title-style capitalization — labels typed elsewhere are not covered (agent-runner --probe-names; macOS only)" ;;
@@ -352,7 +352,24 @@ check_snapshot() {
     DETAIL="a top-level await in the snapshot tool — call it directly (top-level code is on the main actor) or move it into a Task"
     return 1
   fi
-  DETAIL="no top-level await in the snapshot tool"
+  # Every tool window is an OffscreenWindow (UIComponents/OffscreenWindow.swift): AppKit moves a plain
+  # titled window back onto the main display when it is ordered in, so a render showed the app's window on
+  # the owner's screen for its whole wait. The type returns its frame unchanged and every tool refuses to
+  # capture while its window touches a display. MA_SNAPSHOT_ROOT points the check at another copy of
+  # app/Sources (used to prove it fails).
+  local root="${MA_SNAPSHOT_ROOT:-$ROOT/app/Sources}" dir
+  : >"$OUT"
+  for dir in SnapshotRunner MenuSnapshot AgentRunner; do
+    [ -d "$root/$dir" ] || continue
+    ( cd "$root" && grep -rnE '(^|[^A-Za-z0-9_])(NSWindow|NSPanel)[[:space:]]*\(|:[[:space:]]*(NSWindow|NSPanel)[[:space:]]*\{' --include='*.swift' "$dir" 2>/dev/null ) \
+      | cut -c1-300 >>"$OUT"
+  done
+  if [ -s "$OUT" ]; then
+    DETAIL="$(grep -c . "$OUT") line(s): a tool makes a window that AppKit can move onto the owner's display"
+    echo "a tool window must be an OffscreenWindow (UIComponents/OffscreenWindow.swift), never a plain NSWindow or NSPanel" >>"$OUT"
+    return 1
+  fi
+  DETAIL="no top-level await in the snapshot tool; every tool window is an OffscreenWindow"
   return 0
 }
 

@@ -52,7 +52,7 @@ enum ProbeToolbar {
         }
     }
 
-    private static func window(line: Bool, insets: Bool = false, headers: Bool = false, bar: Bool = false, size: NSSize = NSSize(width: 1100, height: 720)) -> (ProbeWindow, ProbeModel) {
+    private static func window(line: Bool, insets: Bool = false, headers: Bool = false, bar: Bool = false, size: NSSize = NSSize(width: 1100, height: 720)) -> (OffscreenWindow, ProbeModel) {
         let model: ProbeModel
         if headers {
             var next = 0
@@ -69,17 +69,16 @@ enum ProbeToolbar {
             model = ProbeModel(rows: makeProbeRows(parents: 3, kids: 2))
         }
         let host = NSHostingController(rootView: Screen(model: model, line: line, insets: insets, headers: headers, bar: bar))
-        let window = ProbeWindow(contentViewController: host)
+        let window = OffscreenWindow(contentViewController: host)
         window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
         window.setContentSize(size)
-        window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-        window.orderFrontRegardless()
+        window.placeOffscreen()
         _ = settle(); spin(0.8)
         return (window, model)
     }
 
     /// The real review table (the fixture) under the same split view and toolbar.
-    private static func reviewWindow(size: NSSize = NSSize(width: 1100, height: 720)) -> (ProbeWindow, ReviewFixtureProbe) {
+    private static func reviewWindow(size: NSSize = NSSize(width: 1100, height: 720)) -> (OffscreenWindow, ReviewFixtureProbe) {
         let scratch = SnapshotScratch.folder("ma-toolbar-probe")
         let jobs = JobStore(ledger: JobLedger(url: scratch.appending(path: "jobs.jsonl")))
         let probe = ReviewFixtureProbe()
@@ -89,11 +88,10 @@ enum ProbeToolbar {
             probe.view.environment(jobs)
                 .navigationTitle("Review").toolbar { ToolbarItem { Button("Audit") {} } }
         }
-        let window = ProbeWindow(contentViewController: NSHostingController(rootView: content))
+        let window = OffscreenWindow(contentViewController: NSHostingController(rootView: content))
         window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
         window.setContentSize(size)
-        window.setFrameOrigin(NSPoint(x: -30000, y: -30000))
-        window.orderFrontRegardless()
+        window.placeOffscreen()
         _ = settle(); spin(0.5)
         return (window, probe)
     }
@@ -106,7 +104,7 @@ enum ProbeToolbar {
         var failures = 0
         for run in 1...runs {
             for kind in ["bare", "bar", "review"] {
-                let window: ProbeWindow
+                let window: OffscreenWindow
                 if kind == "bare" { window = Self.window(line: false).0 } else if kind == "bar" { window = Self.window(line: false, bar: true).0 } else { window = reviewWindow().0 }
                 guard let outline = window.contentView.flatMap(findOutline(in:)), let header = outline.headerView else {
                     say("FAIL first appearance \(kind) #\(run): no table"); failures += 1; continue

@@ -78,20 +78,16 @@ func findOutline(in view: NSView) -> NSOutlineView? {
     return nil
 }
 
-final class ProbeWindow: NSWindow {
-    override func constrainFrameRect(_ frame: NSRect, to screen: NSScreen?) -> NSRect { frame }
-}
-
 /// One table in one invisible window.
 @MainActor
 final class ProbeHarness {
-    let window: ProbeWindow
+    let window: OffscreenWindow
     private(set) var outline: NSOutlineView!
     let appearMilliseconds: Double
 
     init<Content: View>(_ content: Content, size: NSSize = NSSize(width: 520, height: 500)) {
         let host = NSHostingController(rootView: content.frame(minWidth: 500, minHeight: 400))
-        window = ProbeWindow(contentViewController: host)
+        window = OffscreenWindow(contentViewController: host)
         window.styleMask = [.titled, .resizable]
         window.setContentSize(size)
         window.setFrameOrigin(NSPoint(x: -9000, y: -9000))
