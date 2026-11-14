@@ -17,7 +17,8 @@
 # THE FILE (reports/memory/.guard-fallback.tsv, written by the app whenever the person's lists change) can only NARROW
 # what the scripts do, never widen it. It holds `key<TAB>value` lines and nothing else counts:
 #   neverClosePath  a program's full path   — the command starts with it, or it is the script handed to an interpreter
-#   neverCloseName  a program's or app's name — the file name of the program (or of the script), or an app bundle of that name
+#                   (the first two words after the program that are not flags: `node --inspect x.js`, `bun run x.ts`)
+#   neverCloseName  a program's or app's name — the file name of the program (or of that script), or an app bundle of that name
 #   pause           1 = the guard takes no action (the pause flag file does the same)
 # Both kinds are matched as plain text, never as a pattern, so a name or path holding regex characters protects exactly
 # itself. The numbers (the hard cap, whether a stop is allowed) come from config.local.sh alone: a file can no more
@@ -41,15 +42,20 @@ function never_load(file,   line, n, f) {
 }
 function base(word,   k, parts) { k = split(word, parts, "/"); return tolower(parts[k]) }
 function stem(name) { sub(/\.(js|mjs|cjs|ts|py|rb|sh)$/, "", name); return name }
-function never_hit(args,   i, first, rest, second, lower) {
+function never_hit(args,   i, k, c, first, nt, tok, nc, cand, lower) {
   first = args; sub(/ .*/, "", first)
-  rest = args; sub(/^[^ ]+ +/, "", rest)
-  second = rest; sub(/ .*/, "", second)
-  for (i = 1; i <= nn; i++) if (index(args, npath[i]) == 1 || index(rest, npath[i]) == 1) return 1
+  # the program is the first word; for an interpreter it is also the script it was handed: the first words after it that
+  # are not flags (node --inspect x.js, python3 -u x.py, bun run x.ts: the first two, so a subcommand does not hide the script)
+  nt = split(args, tok, " "); nc = 0
+  for (k = 2; k <= nt && nc < 2; k++) if (tok[k] != "" && substr(tok[k], 1, 1) != "-") cand[++nc] = tok[k]
+  for (i = 1; i <= nn; i++) {
+    if (index(args, npath[i]) == 1) return 1
+    for (c = 1; c <= nc; c++) if (index(cand[c], npath[i]) == 1) return 1
+  }
   lower = tolower(args)
   for (i = 1; i <= nm; i++) {
     if (base(first) == nname[i] || stem(base(first)) == nname[i]) return 1
-    if (substr(second, 1, 1) != "-" && (base(second) == nname[i] || stem(base(second)) == nname[i])) return 1
+    for (c = 1; c <= nc; c++) if (base(cand[c]) == nname[i] || stem(base(cand[c])) == nname[i]) return 1
     if (index(lower, "/" nname[i] ".app/") > 0) return 1
   }
   return 0

@@ -133,18 +133,22 @@ CHILD=""
 
 # what the app writes for the scripts: the Never Close list (names and paths, plain text) and a pause. It can only narrow.
 FB="$TMP/fallback.tsv"
-printf 'neverClosePath\t/Users/x/bin/my.server[1](x)+\nneverClosePath\t/Users/x/bin/other\nneverCloseName\tserver\nneverCloseName\tFoo\nneverCloseName\ta.b[1]\npause\t0\n' > "$FB"
+printf 'neverClosePath\t/Users/x/bin/my.server[1](x)+\nneverClosePath\t/Users/x/bin/other\nneverCloseName\tserver\nneverCloseName\tFoo\nneverCloseName\ta.b[1]\nneverCloseName\tsvc\nneverCloseName\tapi\nneverClosePath\t/Users/x/web/Server.ts\npause\t0\n' > "$FB"
 : > "$RSS"
 add 7000 1 700000 node '/Users/x/bin/my.server[1](x)+' --serve
 add 7001 1 700000 node /Users/x/bin/myXserver1 --serve
 add 7002 1 700000 /Users/x/bin/other --run jest
 add 7003 1 700000 node /Users/x/bin/not-listed.js
-add 7004 1 700000 /Users/x/bin/runner jest /Users/x/bin/other
+add 7004 1 700000 /Users/x/bin/runner jest --watch tests /Users/x/bin/other
 add 7005 1 700000 node /Users/x/web/server.js
 add 7006 1 700000 node /Applications/Foo.app/Contents/Resources/work.js
 add 7007 1 700000 node /x/a.b[1]
 add 7008 1 700000 node /x/aXb1
 add 7009 1 700000 node /Users/x/other/app.js
+add 7010 1 700000 node --inspect-brk=9229 --max-old-space-size=4096 /x/svc.js
+add 7011 1 700000 bun run /x/api.ts
+add 7012 1 700000 node --inspect /Users/x/web/Server.ts
+add 7013 1 700000 node --trace-warnings /x/unlisted.js
 pids() { cut -f1 | tr '\n' ' '; }
 with="$(cat "$RSS" | guard_select_candidates "$KILLABLE_RE" "$PROTECT_RE" 1 "" "$FB" | pids)"
 check "a Never Close path holding regex characters protects exactly that path" \
@@ -153,11 +157,13 @@ check "a path with its arguments is protected; a command that only mentions it, 
   "$([[ "$with" != *7002* && "$with" == *7003* && "$with" == *7004* ]] && echo ok || echo "candidates: $with")"
 check "a Never Close NAME protects the program (or the script an interpreter runs) of that name" \
   "$([[ "$with" != *7005* && "$with" == *7009* ]] && echo ok || echo "candidates: $with")"
+check "the script is found after interpreter flags and a subcommand (node --inspect x.js, bun run x.ts), by name and by path" \
+  "$([[ "$with" != *7010* && "$with" != *7011* && "$with" != *7012* && "$with" == *7013* ]] && echo ok || echo "candidates: $with")"
 check "a name protects an app bundle of that name" "$([[ "$with" != *7006* ]] && echo ok || echo "candidates: $with")"
 check "a name holding regex characters protects exactly itself" "$([[ "$with" != *7007* && "$with" == *7008* ]] && echo ok || echo "candidates: $with")"
 without="$(cat "$RSS" | guard_select_candidates "$KILLABLE_RE" "$PROTECT_RE" 1 "" "$TMP/nothing.tsv" | pids)"
 check "with no file every one of them is a candidate, as before" \
-  "$([[ "$without" == *7000* && "$without" == *7002* && "$without" == *7005* && "$without" == *7006* ]] && echo ok || echo "candidates: $without")"
+  "$([[ "$without" == *7000* && "$without" == *7002* && "$without" == *7005* && "$without" == *7006* && "$without" == *7010* && "$without" == *7011* && "$without" == *7012* ]] && echo ok || echo "candidates: $without")"
 
 # a hostile or stale file cannot widen anything: no line with a stray field, a carriage return or a key it does not know counts
 printf 'neverClosePath\t/Users/x/bin/other\textra\nneverCloseName\tserver\r\nhardCapStop\t1\nneverClosePath\n  neverCloseName\tFoo\nneverClosePath\trelative/path\n' > "$TMP/hostile.tsv"

@@ -207,6 +207,7 @@ fi
 # What the person asked never to be closed (the app's Never Close list: names and paths, plain text; lib/guard-select.sh).
 # Not there or unreadable: nothing extra is protected, and nothing else changes. It can only narrow what this script does.
 NEVER_FILE=""
+# The path is built from ANALYZERS_ROOT when the script runs, so shellcheck cannot follow it (lib/guard-select.sh is linted on its own).
 # shellcheck disable=SC1091
 if [[ -r "${ANALYZERS_ROOT}/lib/guard-select.sh" ]] && source "${ANALYZERS_ROOT}/lib/guard-select.sh" 2>/dev/null \
    && [[ -r "${HOME_DIR}/mac-analyzers/reports/memory/.guard-fallback.tsv" ]]; then

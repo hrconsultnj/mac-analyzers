@@ -131,6 +131,7 @@ if ! source "${ANALYZERS_ROOT}/lib/live-sessions.sh"; then
 fi
 # What the person asked never to be closed (the app's Never Close list: names and paths, plain text). Not there: nothing extra.
 NEVER_FILE=""
+# The path is built from ANALYZERS_ROOT when the script runs, so shellcheck cannot follow it (lib/guard-select.sh is linted on its own).
 # shellcheck disable=SC1091
 if [[ -r "${ANALYZERS_ROOT}/lib/guard-select.sh" ]] && source "${ANALYZERS_ROOT}/lib/guard-select.sh" 2>/dev/null \
    && [[ -r "${LOG_DIR}/.guard-fallback.tsv" ]]; then
