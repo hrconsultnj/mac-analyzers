@@ -118,6 +118,10 @@ import Synchronization
           && RecordingDiscovery.protectedArea("\(home)/DESKTOP", home: home) == "Desktop"
           && RecordingDiscovery.protectedArea("\(home)/library/mobile documents/x", home: home) == "iCloud Drive"
           && RecordingDiscovery.protectedArea("/volumes/Disk", home: home) == "External Disks"
+          && RecordingDiscovery.protectedArea("\(home)/Documentſ/Zoom", home: home) == "Documents"
+          && RecordingDiscovery.protectedArea("\(home)/DeſkTop/x", home: home) == "Desktop"
+          && RecordingDiscovery.protectedArea("\(home)/Des\u{212A}top", home: home) == "Desktop"
+          && RecordingDiscovery.protectedArea("\(home)/Downloadſ", home: home) == "Downloads"
           && RecordingDiscovery.protectedArea("\(home)/Library/Application Support", home: home) == nil)
     // a discovered folder that leads, through a link, somewhere that can never be a source is refused, shown as such, and never written
     let linked = RecordingReaders(home: home, defaultsString: { domain, key in ["com.apple.screencapture/location-screenrecording": "~/Pictures/Shots"]["\(domain)/\(key)"] },
@@ -157,7 +161,8 @@ import Synchronization
                            ("\(home)/.ssh", false), ("/Volumes/Disk", false), ("/etc/x", false),
                            ("\(home)/library/cloudstorage/x", false), ("\(home)/LIBRARY/CLOUDSTORAGE/x", false), ("\(home)/Library/CONTAINERS/c", false),
                            ("\(home)/library/group containers/g", false), ("\(home)/library/MOBILE DOCUMENTS/x", false), ("\(home)/DOCUMENTS", false),
-                           ("\(home)/.SSH", false), ("/VOLUMES/Disk", false), ("\(home.uppercased())/Library/CloudStorage/x", false)] {
+                           ("\(home)/.SSH", false), ("/VOLUMES/Disk", false), ("\(home.uppercased())/Library/CloudStorage/x", false),
+                           ("\(home)/Movieſ", false), ("\(home)/Documentſ", false), ("\(home)/Des\u{212A}top", false), ("\(home)/Library/Suppoſt", false)] {
         if case .refused = RecordingSourcesStore.adding(folder: path, to: base, readers: readers(), isLink: isLink, allowed: []) {} else { refusedAll = false; print("      not refused: \(path)") }
     }
     check("the window refuses the folders the engine refuses", refusedAll)

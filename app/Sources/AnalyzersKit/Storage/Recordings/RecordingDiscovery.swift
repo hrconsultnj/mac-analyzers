@@ -16,14 +16,18 @@ public struct RecordingReaders: Sendable {
     /// Whether a folder is a link, and where it really leads. Never called for a place macOS asks permission for,
     /// until the person has clicked.
     public var linkInfo: @Sendable (_ path: String) -> (isLink: Bool, resolved: String)?
+    /// Whether two paths are the very same folder (same volume and file identifier). False when either does not exist.
+    public var sameFolder: @Sendable (_ a: String, _ b: String) -> Bool
 
     public init(home: String,
                 defaultsString: @escaping @Sendable (String, String) -> String?,
                 folderExists: @escaping @Sendable (String) -> Bool,
                 appInstalled: @escaping @Sendable (String) -> Bool,
                 cloudMountNames: @escaping @Sendable () -> [String],
-                linkInfo: @escaping @Sendable (String) -> (isLink: Bool, resolved: String)? = { _ in nil }) {
+                linkInfo: @escaping @Sendable (String) -> (isLink: Bool, resolved: String)? = { _ in nil },
+                sameFolder: @escaping @Sendable (String, String) -> Bool = { _, _ in false }) {
         self.linkInfo = linkInfo
+        self.sameFolder = sameFolder
         self.home = home
         self.defaultsString = defaultsString
         self.folderExists = folderExists
@@ -53,6 +57,14 @@ public struct RecordingReaders: Sendable {
                 guard (try? FileManager.default.attributesOfItem(atPath: path)) != nil else { return nil }
                 let isLink = (try? FileManager.default.destinationOfSymbolicLink(atPath: path)) != nil
                 return (isLink, URL(fileURLWithPath: path).resolvingSymlinksInPath().path)
+            },
+            sameFolder: { a, b in
+                let keys: Set<URLResourceKey> = [.fileResourceIdentifierKey, .volumeIdentifierKey]
+                guard let x = try? URL(fileURLWithPath: a).resourceValues(forKeys: keys),
+                      let y = try? URL(fileURLWithPath: b).resourceValues(forKeys: keys),
+                      let xf = x.fileResourceIdentifier as? NSObject, let yf = y.fileResourceIdentifier as? NSObject,
+                      let xv = x.volumeIdentifier as? NSObject, let yv = y.volumeIdentifier as? NSObject else { return false }
+                return xf.isEqual(yf) && xv.isEqual(yv)
             })
     }
 }
@@ -69,9 +81,9 @@ public enum RecordingDiscovery {
     /// are the places macOS can ask the person about when a program looks inside.
     public static func protectedArea(_ path: String, home: String) -> String? {
         // macOS volumes are case-insensitive: ~/documents is Documents
-        let lower = path.lowercased(), lowerHome = home.lowercased()
+        let lower = RecordingFolderRule.fold(path), lowerHome = RecordingFolderRule.fold(home)
         for area in ["Documents", "Desktop", "Downloads"] {
-            let root = "\(lowerHome)/\(area.lowercased())"
+            let root = "\(lowerHome)/\(RecordingFolderRule.fold(area))"
             if lower == root || lower.hasPrefix(root + "/") { return area }
         }
         let icloud = "\(lowerHome)/library/mobile documents"
@@ -86,13 +98,18 @@ public enum RecordingDiscovery {
                                allowed: Set<String>) -> String? {
         var isLink = false
         var resolved: String?
-        if protectedArea(path, home: readers.home).map({ allowed.contains($0) }) ?? true, let info = readers.linkInfo(path) {
+        // a folder in a guarded place is judged from its name alone until the person has said to look there
+        var mayLook = true
+        if let area = protectedArea(path, home: readers.home) { mayLook = allowed.contains(area) }
+        if mayLook, let info = readers.linkInfo(path) {
             isLink = info.isLink
             resolved = info.resolved
         }
-        return RecordingFolderRule.refusal(path, layout: layout, home: readers.home,
-                                           homeResolved: URL(fileURLWithPath: readers.home).resolvingSymlinksInPath().path,
-                                           isLink: isLink, resolved: resolved)
+        let homeResolved = URL(fileURLWithPath: readers.home).resolvingSymlinksInPath().path
+        var identity: ((String, String) -> Bool)?
+        if mayLook, resolved != nil { identity = readers.sameFolder }
+        return RecordingFolderRule.refusal(path, layout: layout, home: readers.home, homeResolved: homeResolved,
+                                           isLink: isLink, resolved: resolved, sameFile: identity)
     }
 
     /// Every source on this Mac, in the list's order, then the person's own folders. `saved` carries what was chosen

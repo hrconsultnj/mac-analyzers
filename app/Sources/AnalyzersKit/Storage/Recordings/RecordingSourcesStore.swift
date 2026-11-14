@@ -49,9 +49,11 @@ public enum RecordingSourcesStore {
         let folder = trimmed(folder)
         var resolved: String?
         if let info = readers.linkInfo(folder) { resolved = info.resolved }
-        if let why = RecordingFolderRule.refusal(folder, home: readers.home,
-                                                 homeResolved: URL(fileURLWithPath: readers.home).resolvingSymlinksInPath().path,
-                                                 isLink: isLink, resolved: resolved) { return .refused(why) }
+        let homeResolved = URL(fileURLWithPath: readers.home).resolvingSymlinksInPath().path
+        var identity: ((String, String) -> Bool)?
+        if resolved != nil { identity = readers.sameFolder }
+        if let why = RecordingFolderRule.refusal(folder, home: readers.home, homeResolved: homeResolved,
+                                                 isLink: isLink, resolved: resolved, sameFile: identity) { return .refused(why) }
         var result = sources
         if let at = result.firstIndex(where: { $0.offer != .notOffered && $0.path.map(trimmed) == folder }) {
             result[at].enabled = true

@@ -69,6 +69,8 @@ import Foundation
     let cloud = make("Library/CloudStorage/OneDrive-Test/Recordings/Old", files: ["x.mp4"])
     let gdrive = make("Library/CloudStorage/GDrive-Test/Zoom/2025-01-01 10.00.00 In The Cloud", files: ["recording.conf", "video9.mp4", "audio9.m4a"])
     try? fm.createSymbolicLink(at: home.appending(path: "link"), withDestinationURL: home.appending(path: "Library/CloudStorage/GDrive-Test"))
+    let movieClip = make("Movies/Old Clip", files: ["a.mov"])
+    _ = make("Movies", days: 1)
     let linkTarget = make("Notes/target/Old", files: ["t.m4a"])
     try? fm.createSymbolicLink(at: home.appending(path: "Notes/linked"), withDestinationURL: home.appending(path: "Notes/target"))
     _ = make("Notes/target", days: 1)
@@ -145,7 +147,20 @@ import Foundation
         ("\(homeBase)/DESKTOP", "screenRecordings", .files), ("\(homeBase.uppercased())/Library/CloudStorage/GDrive-Test/Zoom", "zoom", .meetingFolders),
         ("\(homeBase.uppercased())/Notes/audio", "custom", .folders), ("\(homeBase.uppercased())/Documents/Zoom", "custom", .folders),
         ("/VOLUMES/Disk", "custom", .folders), ("/volumes/Disk/Recordings", "custom", .folders), ("/APPLICATIONS", "custom", .folders),
+        // a disk folds more than case: ſ (long s) is s and the Kelvin sign is k, so these ARE the real folders
+        ("\(homeBase)/Movieſ", "custom", .folders), ("\(homeBase)/Documentſ", "custom", .folders), ("\(homeBase)/DeſkTop", "custom", .folders),
+        ("\(homeBase)/DeſkTop", "screenRecordings", .files), ("\(homeBase)/Des\u{212A}top", "custom", .folders),
+        ("\(homeBase)/Documentſ/Zoom", "zoom", .meetingFolders), ("\(homeBase)/Notes/audioſ", "custom", .folders),
+        ("\(homeBase)/Libraryſ", "custom", .folders), ("\(homeBase)/Library/Application Suppoſt", "custom", .folders),
     ]
+    // the same question the app's readers answer: are these two paths the very same folder
+    let sameFolder: (String, String) -> Bool = { a, b in
+        let keys: Set<URLResourceKey> = [.fileResourceIdentifierKey, .volumeIdentifierKey]
+        guard let x = try? URL(fileURLWithPath: a).resourceValues(forKeys: keys), let y = try? URL(fileURLWithPath: b).resourceValues(forKeys: keys),
+              let xf = x.fileResourceIdentifier as? NSObject, let yf = y.fileResourceIdentifier as? NSObject,
+              let xv = x.volumeIdentifier as? NSObject, let yv = y.volumeIdentifier as? NSObject else { return false }
+        return xf.isEqual(yf) && xv.isEqual(yv)
+    }
     for entry in refusalCases {
         config(sources(["\(entry.layout)|on|\(entry.path)"]))
         let output = run("/bin/bash", ["--recordings-older-than", "30"])
@@ -155,7 +170,7 @@ import Foundation
         // where it really leads: the same question the app's readers answer
         let resolved = fm.fileExists(atPath: entry.path) ? URL(fileURLWithPath: entry.path).resolvingSymlinksInPath().path : nil
         let windowRefuses = RecordingFolderRule.refusal(entry.path, layout: entry.definition, home: homeBase, homeResolved: homeBase,
-                                                        isLink: isLink, resolved: resolved) != nil
+                                                        isLink: isLink, resolved: resolved, sameFile: sameFolder) != nil
         check(engineRefuses == windowRefuses, "\(entry.path) (\(entry.layout)): the engine \(engineRefuses ? "refuses" : "uses") it and the Sources window \(windowRefuses ? "refuses" : "allows") it")
     }
     check(run("/bin/bash", ["--recordings-older-than", "30"]).isEmpty == false, "the engine ran")
@@ -179,6 +194,14 @@ import Foundation
     check(throughLink.contains { $0.contains("not used:") && $0.contains("leads through a link") } && fm.fileExists(atPath: gdrive.path)
           && !throughLink.contains { $0.hasPrefix("[TRASHED]") || $0.hasPrefix("[DRY]") }, "a source reached through a link into CloudStorage fails closed and nothing in it moves: \(throughLink.filter { $0.contains("not used") || $0.hasPrefix("[") })")
     check(fm.fileExists(atPath: gdrive.path), "the cloud copy is still there")
+    // the third review's repro: a spelling the disk folds (Movieſ is Movies). Nothing is listed and --execute moves nothing.
+    for typed in ["Movieſ", "Documentſ", "DeſkTop", "Des\u{212A}top", "MOVIEſ"] {
+        config(sources(["custom|on|\(homeBase)/\(typed)"]))
+        let folded = lines(run("/bin/bash", ["--recordings-older-than", "30", "--execute", "--yes"]))
+        check(folded.contains { $0.contains("not used:") } && fm.fileExists(atPath: movieClip.path) && fm.fileExists(atPath: audio1.path)
+              && !folded.contains { $0.hasPrefix("[TRASHED]") || $0.hasPrefix("[DRY]") },
+              "\(typed): a standard folder typed with a letter the disk folds is refused and nothing is moved: \(folded.filter { $0.contains("not used") || $0.hasPrefix("[") })")
+    }
     // the second review's repro: the same cloud folder typed in lower case (a case-insensitive disk opens it)
     for typed in ["library/cloudstorage", "LIBRARY/CLOUDSTORAGE", "Library/cloudStorage"] {
         config(sources(["zoom|on|\(homeBase)/\(typed)/GDrive-Test/Zoom"]))

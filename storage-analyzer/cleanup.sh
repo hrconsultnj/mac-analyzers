@@ -768,7 +768,10 @@ REC_TSV="${ANALYZERS_ROOT}/lib/recording-sources.tsv"
 
 # rec_lc <text>: lower case. macOS volumes are case-insensitive, so ~/library/cloudstorage is the Library's
 # CloudStorage folder: every comparison below is made on lower-case text and never on the case that was typed.
-rec_lc() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+# It also folds the two letters that fold to ASCII ones (ſ is s, the Kelvin sign is k), which the disk treats as the same
+# name too; for a folder that EXISTS the comparison is by file identity instead (rec_identity_check), which no spelling
+# can get past.
+rec_lc() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/ſ/s/g' -e 's/K/k/g'; }
 
 # rec_under_home <path>: prints the path below your home folder (empty for the home folder itself); fails when outside.
 rec_under_home() {
@@ -778,7 +781,7 @@ rec_under_home() {
     [[ -n "$h" ]] || continue
     lh="$(rec_lc "$h")"
     if [[ "$lx" == "$lh" ]]; then echo ""; return 0; fi
-    if [[ "$lx" == "$lh/"* ]]; then echo "${x:$((${#h} + 1))}"; return 0; fi
+    if [[ "$lx" == "$lh/"* ]]; then echo "${lx:$((${#lh} + 1))}"; return 0; fi
   done
   return 1
 }
@@ -827,6 +830,51 @@ rec_check() {
   echo "it is outside your home folder and your external disks"; return 0
 }
 
+# rec_same <a> <b>: both exist and are the very same folder or file (same device and inode), whatever each is called.
+rec_same() { [[ -e "$1" && -e "$2" && "$1" -ef "$2" ]]; }
+
+# rec_identity_check <real path> <layout>: the same rules as rec_check, judged by WHAT the folders are, not how they are
+# spelled: the disk folds more than upper and lower case (Movieſ is Movies), so each folder on the way up from the
+# source is compared with the real home folder, Library, standard folders and /Volumes by identity.
+# Prints why and succeeds when refused; fails when allowed.
+rec_identity_check() {
+  local real="$1" layout="$2" cur i n top rel name
+  local chain=()
+  cur="$real"
+  while :; do
+    chain+=( "$cur" )
+    [[ "$cur" == "/" ]] && break
+    cur="$(dirname "$cur")"
+  done
+  n=${#chain[@]}
+  for (( i = 0; i < n; i++ )); do rec_same "${chain[$i]}" "$HOME_DIR" && break; done
+  if (( i < n )); then
+    if (( i == 0 )); then echo "it is your whole home folder"; return 0; fi
+    top="${chain[$((i - 1))]}"
+    if rec_same "$top" "$HOME_DIR/Library"; then
+      rel="${real#"$HOME_REAL"/}"
+      rec_library_allowed "$rel" || { echo "it is in your Library folder, where apps keep their own data and your cloud storage"; return 0; }
+    fi
+    case "${top##*/}" in
+      .*) echo "it is in a hidden folder of your home folder, where settings and keys are kept"; return 0 ;;
+    esac
+    if (( i == 1 )) && [[ "$layout" != "files" ]]; then
+      for name in Desktop Documents Downloads Movies Music Pictures; do
+        if rec_same "$top" "$HOME_DIR/$name"; then
+          echo "it is your whole ${name} folder, which holds more than recordings; choose a folder inside it"; return 0
+        fi
+      done
+    fi
+    return 1
+  fi
+  for (( i = 0; i < n; i++ )); do rec_same "${chain[$i]}" /Volumes && break; done
+  if (( i < n )); then
+    if (( i <= 1 )); then echo "it is a whole disk"; return 0; fi
+    return 1
+  fi
+  echo "it is outside your home folder and your external disks"; return 0
+}
+
 # rec_refusal <path> <layout>: why this folder can never be a source, else nothing (exit 1).
 rec_refusal() {
   local p="$1" layout="$2" real why
@@ -846,6 +894,8 @@ rec_refusal() {
     if [[ "$real" != "$p" ]] && why="$(rec_check "$real" "$layout")"; then
       echo "it leads through a link to ${real}, and ${why}"; return 0
     fi
+    # by identity too: a spelling the name check does not know can still be a folder that cannot be a source
+    if why="$(rec_identity_check "$real" "$layout")"; then echo "$why"; return 0; fi
   fi
   return 1
 }
