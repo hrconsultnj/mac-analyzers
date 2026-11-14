@@ -567,6 +567,8 @@ public enum Names {
         public static let alerts = "Alerts"
         public static let period = "Period"
         public static let show = "Show"
+        public static let last24 = "Last 24 Hours"
+        public static let last3 = "Last 3 Days"
         public static let last7 = "Last 7 Days"
         public static let last90 = "Last 90 Days"
         public static let nothingToReport = "Nothing to Report"
@@ -678,7 +680,7 @@ public enum Names {
                  MemoryKind.showInMonitor, MemoryKind.overTime, MemoryKind.whoHoldsTheMost, MemoryKind.whatItIs].map { ("Memory kind", $0) }
         rows += Kind.all.map { ("Kind", $0) }
         rows += [Stop.stop, Stop.quit, Stop.forceStop, Stop.leaveRunning, Stop.leftAlone, Stop.leftAloneOne].map { ("Stop", $0) }
-        rows += [Guard.stopped, Guard.alerts, Guard.period, Guard.show, Guard.last7, Guard.last90, Guard.nothingToReport,
+        rows += [Guard.stopped, Guard.alerts, Guard.period, Guard.show, Guard.last24, Guard.last3, Guard.last7, Guard.last90, Guard.nothingToReport,
                  Guard.nothingHere, Guard.eventGone, Guard.whatHappened, Guard.theProgram, Guard.whyTheGuardDoesThis,
                  Guard.eachTime, Guard.whatWasUsingMemory, Guard.macAtThatMoment, Guard.showRawLines].map { ("Guard", $0) }
         rows += [Cleanup.leftovers, Cleanup.everythingNow, Cleanup.devServers, Cleanup.orphanedTools, Cleanup.emulators,

@@ -6,11 +6,30 @@ import AnalyzersKit
 @MainActor @Observable
 final class GuardHistoryModel {
 
+    /// The periods the menu offers. The raw value is the length in hours (what is remembered and what a link carries).
     enum Window: Int, CaseIterable, Identifiable {
-        case week = 7
-        case quarter = 90
+        case day = 24
+        case threeDays = 72
+        case week = 168
+        case quarter = 2_160
         var id: Int { rawValue }
-        var title: String { self == .week ? Names.Guard.last7 : Names.Guard.last90 }
+        var title: String {
+            switch self {
+            case .day: Names.Guard.last24
+            case .threeDays: Names.Guard.last3
+            case .week: Names.Guard.last7
+            case .quarter: Names.Guard.last90
+            }
+        }
+
+        /// Where the period begins (`GuardHistory.periodStart`: the last 24 hours back from now, the others from the start of that day).
+        func start(now: Date = Date()) -> Date { GuardHistory.periodStart(hours: rawValue, now: now) }
+    }
+
+    /// The person's last choice, kept between launches; nothing stored means the last 24 hours.
+    private static let choiceKey = "guard.periodHours"
+    static func savedWindow(_ defaults: UserDefaults = .standard) -> Window {
+        Window(rawValue: defaults.integer(forKey: choiceKey)) ?? .day
     }
 
     private(set) var history = GuardHistory.empty {
@@ -23,7 +42,9 @@ final class GuardHistoryModel {
     /// not been paged shows its first page; "Show Older" adds the next whole days.
     private var taken: [String: Int] = [:]
     @ObservationIgnored private var currentKey = ""
-    var window: Window = .quarter
+    var window: Window = GuardHistoryModel.savedWindow() {
+        didSet { UserDefaults.standard.set(window.rawValue, forKey: Self.choiceKey) }
+    }
 
     /// The history for a window, read once and shared: the list and every
     /// entry screen opened from it use the same read (about a second on a
@@ -31,6 +52,13 @@ final class GuardHistoryModel {
     static func history(days: Int, force: Bool = false) async -> GuardHistory? {
         await LoadCoordinator.shared.value(key: "guard.history.\(days)", ttl: force ? 0 : 60) {
             GuardHistory.load(days: days)
+        }
+    }
+
+    /// The history for a period the menu offers: read only back to where the period begins.
+    static func history(window: Window, force: Bool = false) async -> GuardHistory? {
+        await LoadCoordinator.shared.value(key: "guard.history.hours.\(window.rawValue)", ttl: force ? 0 : 60) {
+            GuardHistory.load(since: window.start())
         }
     }
 
@@ -67,7 +95,7 @@ final class GuardHistoryModel {
     }
 
     func refresh(force: Bool = false) async {
-        guard let loaded = await Self.history(days: window.rawValue, force: force), !Task.isCancelled else { return }
+        guard let loaded = await Self.history(window: window, force: force), !Task.isCancelled else { return }
         history = loaded
         hasLoaded = true
     }
