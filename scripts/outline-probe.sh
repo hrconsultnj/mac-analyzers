@@ -17,7 +17,7 @@
 #   scripts/outline-probe.sh review  the real ReviewTable on its fixture, driven: ticks, Space, Select All, kept, acting, fold, only, updateChoosable, read-only
 #   scripts/outline-probe.sh review-scale   the review table at Downloads' size, step by step
 #   scripts/outline-probe.sh a11     flat SwiftUI Table re-sorts and List appends, counted
-#   scripts/outline-probe.sh render <dir>   one image per fixture, size and appearance (screencapture of a window outside every display)
+#   scripts/outline-probe.sh render <dir>   one image per fixture, size and appearance (drawn from the views of a window parked outside every display)
 #   scripts/outline-probe.sh check   the subset scripts/check.sh runs: open all and re-sort, text and hosted
 #   scripts/outline-probe.sh all     a1 … a11
 #
@@ -311,6 +311,13 @@ check() {
   # lists it a moment after it is ordered in), one on a display is refused by its frame and by the server's bounds
   run_probe "windowguard"
   echo "windowguard warnings=$WARN outside=$OUTSIDE exit=$RC"
+  say_out
+  total=$((total + WARN + OUTSIDE))
+  clean || fail
+  # the picture of a parked window: the sidebar's glass surface and labels, the title bar and the content are all in it
+  # (a plain draw from above leaves the sidebar empty)
+  run_probe "snapshot"
+  echo "snapshot warnings=$WARN outside=$OUTSIDE exit=$RC"
   say_out
   total=$((total + WARN + OUTSIDE))
   clean || fail

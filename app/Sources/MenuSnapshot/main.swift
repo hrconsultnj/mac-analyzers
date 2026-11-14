@@ -96,11 +96,11 @@ final class Host: NSObject, NSApplicationDelegate {
             // the hard guard: a window on a display ends the run here, before anything is captured
             self.window.requireOffscreen(before: "capture the \(tab) panel")
             print("menu-snapshot: \(self.window.placementReport())")
-            let capture = Process()
-            capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            capture.arguments = ["-x", "-o", "-l", String(self.window.windowNumber), output.path]
-            try? capture.run()
-            capture.waitUntilExit()
+            // drawn from the window's own views: a window parked on no display cannot be imaged by the window server
+            guard self.window.writeSnapshot(to: output) else {
+                FileHandle.standardError.write(Data("menu-snapshot: could not draw the window's views\n".utf8))
+                exit(1)
+            }
             print("\(tab) → \(output.path)  (\(Int(self.window.frame.width)) × \(Int(height)) pt)")
             try? FileManager.default.removeItem(at: self.scratch)
             exit(0)

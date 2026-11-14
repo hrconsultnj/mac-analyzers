@@ -174,7 +174,16 @@ through `config.local.sh` (never hardcoded).
   bounds for it the moment it is ordered in, and every tool checks again
   before each capture; a window on a display, or one the window server will
   not confirm, prints why and exits 3 WITHOUT capturing, and each render
-  prints the frame and bounds it was taken at. Every window a tool makes
+  prints the frame and bounds it was taken at. The picture is drawn from the
+  window's own views (`OffscreenWindow.snapshotPNG`: the frame view, so title
+  bar, toolbar, sidebar and content), because `screencapture -l` cannot image
+  a window that is on no display; it needs no display and works with the
+  screen locked. It differs from a screenshot of the same window on a display
+  in: no rounded outer corners, edge or shadow; the sidebar's Liquid Glass is a
+  flat stand-in colour with its labels drawn over it (blur and lens are not
+  reproduced); a dimmed button has no bezel; 1x pixels. `--view-tree` prints
+  the view hierarchy. `--outline-probe snapshot` (in `scripts/check.sh outline`)
+  fails if the sidebar, title bar or content is missing from the picture. Every window a tool makes
   (every executable target but the app) is an `OffscreenWindow`:
   `scripts/check.sh snapshot` (`scripts/tool-windows-refuse.sh`) fails on a
   plain window or panel however it is made, a subclass, a modal panel
