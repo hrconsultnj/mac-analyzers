@@ -42,7 +42,7 @@ struct NetworkHistoryList: View {
         }
         .overlay {
             if snapshots.isEmpty {
-                ContentUnavailableView("No Snapshots Yet", systemImage: "network",
+                EmptyState("No Snapshots Yet", systemImage: "network",
                                        description: Text("Take a snapshot to see which programs have been using the network."))
             }
         }

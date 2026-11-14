@@ -56,7 +56,7 @@ struct CleanupFailed: View {
     let preview: () -> Void
 
     var body: some View {
-        ContentUnavailableView {
+        EmptyState {
             Label("Didn't Finish", systemImage: "exclamationmark.triangle")
         } description: {
             Text(message)

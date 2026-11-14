@@ -87,10 +87,9 @@ struct ReportsView: View {
             ReportBlocksView(preface: model.preface, sections: model.sections, expanded: $expanded,
                              jumpTo: $jumpTo)
         } else if model.selected != nil {
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            LoadingState()
         } else {
-            ContentUnavailableView {
+            EmptyState {
                 Label("No Report Selected", systemImage: "doc.text")
             } description: {
                 Text(model.loaded ? "Pick a report on the left, or write a new one." : "Looking for reports…")

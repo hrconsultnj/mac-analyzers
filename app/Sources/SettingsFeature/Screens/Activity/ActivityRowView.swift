@@ -94,8 +94,7 @@ struct GlyphTile: View {
             RoundedRectangle(cornerRadius: Tokens.Radius.icon(side) + 2)
                 .fill(glyph.tone.tint.opacity(glyph.loud ? 0.22 : 0.12))
             if glyph.spins {
-                ProgressView()
-                    .controlSize(.small)
+                ProgressView().controlSize(.small)   // an inline spinner in the glyph tile, not a screen state
             } else {
                 Image(systemName: glyph.symbol)
                     .font(Tokens.Typography.tileGlyph(side))
