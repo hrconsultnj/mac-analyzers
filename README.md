@@ -22,15 +22,18 @@ and handles it on autopilot:
 - **It cleans rebuildable junk on a schedule** — caches, build leftovers,
   abandoned background servers: things your tools recreate on their own. The
   scheduled cleans **never touch your documents**, photos, or projects.
-- **The optional Downloads janitor is the one exception, and it is opt-in** —
-  you run it yourself, it lists old downloads and screenshots for review
-  first, and it only ever moves them to the **Trash**, where you (or the
-  app's Undo screen) can put them straight back.
+- **Anything that touches your own files is opt-in and reviewed first** —
+  old downloads and screenshots, apps you have not opened in months, old
+  recordings. You start it, you see the list, you untick what you want to
+  keep, and what you approve goes to the **Trash**, where the app's Undo
+  screen (or Finder's Put Back) can bring it straight back. Files that live
+  only in iCloud are never moved at all.
 - **It tells you what happened** in a normal macOS notification — click it to
   see exactly what was done and why. **Every action is written down.**
-- **The menu-bar app is how you live with it**: glance at the chip icon to
-  see if anything was stopped today, pause it during heavy work, and change
-  the limits with sliders — **no terminal needed after setup**.
+- **The app is how you live with it**: a main window that shows where your
+  memory and disk space go, what ran and what it did, and a menu-bar panel
+  for a glance and a quick Stop or Quit — **no Terminal needed after
+  setup**.
 - **Everything runs locally.** No account, no telemetry — nothing about your
   machine ever leaves your machine.
 - Anything that deletes is **dry-run by default**: it shows you the plan and
@@ -47,31 +50,44 @@ reports.
 
 ## Install
 
-The scripts are the **engine**; the menu-bar app is the **face**. The full
-experience is one copy-paste:
+The scripts are the **engine**; the app is the **face**. Mac Analyzers needs
+**macOS 26 or later** and is built on your Mac from source, which takes three
+steps:
 
-```bash
-git clone https://github.com/hrconsultnj/mac-analyzers.git ~/mac-analyzers
-cd ~/mac-analyzers
-./memory-analyzer/memory-manage-agents.sh install    # RAM guard + daily reaper
-./storage-analyzer/storage-manage-agents.sh install  # scheduled disk hygiene
-./app/build.sh                                       # build + install the app
-open /Applications/MacAnalyzers.app                  # launch it
-```
+1. Install Apple's **free Command Line Tools** (no Xcode needed). In
+   Terminal:
 
-The app builds from source in a couple of minutes and needs only Apple's
-**free Command Line Tools** (`xcode-select --install`) — no Xcode. If your
-keychain holds an Apple Development certificate (free with any Apple ID), the
-build signs with it automatically — a stable identity, so macOS permissions
-survive rebuilds; without one it falls back to ad-hoc signing and everything
-still works. On first launch it adds itself to Login Items (macOS notifies
-you it did) and asks for notification permission; from then on the chip icon
-in the menu bar is the whole interface — status at a glance, sliders for the
-limits, click a notification to open the log behind it. The build installs
-the app to `/Applications/MacAnalyzers.app` like any Mac app (the copy under
-`app/` is just the build artifact and the script-only fallback) — keep it in
-the Dock if you like: clicking the Dock icon launches it when it's stopped
-and opens Settings when it's running.
+   ```bash
+   xcode-select --install
+   ```
+
+2. Download the project into your home folder:
+
+   ```bash
+   git clone https://github.com/hrconsultnj/mac-analyzers.git ~/mac-analyzers
+   ```
+
+3. Open the `mac-analyzers` folder in your home folder in Finder and
+   **double-click `upgrade.command`**. It builds the app, installs it to
+   Applications, installs the background jobs (the memory guard, the daily
+   cleanup and the scheduled disk cleanup) and starts the app. The build
+   takes a minute or two; when Terminal says "Done", you can close it.
+
+The project must live at `~/mac-analyzers`: that is where the app keeps your
+settings, reports and records. The same double-click is how you update later
+(see [Staying up to date](#staying-up-to-date)).
+
+If your keychain holds an Apple Development certificate (free with any Apple
+ID), the build signs with it automatically — a stable identity, so macOS
+permissions survive rebuilds; without one it falls back to ad-hoc signing and
+everything still works. Either way the app runs with macOS's **hardened
+runtime**, so another program on your account cannot make it load code of its
+own. On first launch it adds itself to Login Items (macOS notifies you it
+did) and asks for notification permission. The **Setup** screen in the app
+checks that every part is installed and running, and can start anything that
+is not. The app lives at `/Applications/MacAnalyzers.app` like any Mac app
+(the copy under `app/` is just the build output and the script-only
+fallback); clicking its Dock icon opens the main window.
 
 Want to see your machine before installing anything? `./memory-analyzer/analyze.sh`
 and `./storage-analyzer/analyze.sh` are read-only reports — always safe.
@@ -87,8 +103,16 @@ entry from this toolkit.
 
 ### Script-only (advanced / headless)
 
-The engine runs standalone: install the agents as above and skip
-`./app/build.sh`. Notifications fall back to `alerter`
+The engine runs standalone without the app. Skip `upgrade.command` and
+install only the background jobs:
+
+```bash
+cd ~/mac-analyzers
+./memory-analyzer/memory-manage-agents.sh install    # memory guard + daily cleanup
+./storage-analyzer/storage-manage-agents.sh install  # scheduled disk cleanup
+```
+
+Notifications fall back to `alerter`
 (`brew install vjeantet/tap/alerter` — banner with an "Open Log" button) or a
 plain `osascript` banner, and `extras/swiftbar-plugin/` gives you a menu-bar
 surface via [SwiftBar](https://swiftbar.app) instead of the app. Configure by
@@ -97,43 +121,78 @@ app's Settings manage.
 
 ### Distribution — where's the DMG?
 
-There deliberately isn't one. Local builds are signed (Apple Development
-certificate when present, ad-hoc otherwise), but signing is not
-**notarization** — a *downloaded* copy of the app would still be quarantined
-by Gatekeeper ("cannot be opened"), while building locally from source
-carries no quarantine at all and takes two commands. If demand appears, a
-notarized DMG (Apple Developer ID) is the future path. Releases ship a
-source tarball (`mac-analyzers-v<version>.tar.gz`) —
-see [Releases](https://github.com/hrconsultnj/mac-analyzers/releases).
+A downloadable app is not offered yet, for two reasons:
+
+- **A downloaded copy cannot yet set itself up or update itself.** The
+  background jobs (the guard, the scheduled cleanups) and updates are
+  installed from a clone today; a copy dragged in from a disk image would
+  run, but without them.
+- **It is not signed with an Apple Developer ID or notarized.** macOS
+  refuses to open an app like that the first time you open it after
+  downloading it. A copy you build yourself is never quarantined, so this
+  does not apply to it.
+
+Until both are solved, building from a clone (the three steps above) is the
+supported way to install. Each release on the
+[Releases page](https://github.com/hrconsultnj/mac-analyzers/releases) also
+attaches the full source as a tarball (`mac-analyzers-v<version>.tar.gz`).
 
 ## Staying up to date
 
 The app checks for a newer release on launch and every 6 hours (one public
-GET to the GitHub releases API — nothing about your machine is sent) and
-notifies **once per new version**; the Settings → Update pane and the menu
-footer both show installed vs latest, with a one-click Install that runs
-`upgrade.command` in Terminal.
+request to GitHub's releases list — nothing about your machine is sent) and
+notifies **once per new version**. The **Updates** screen and the menu-bar
+panel show the version you have and the newest one, and **Install** opens
+Terminal and runs `upgrade.command` for you. Nothing is ever installed by
+itself.
 
-Already cloned? **Double-click `upgrade.command` in Finder.** It pulls the
-latest release (`git pull --ff-only`), rebuilds the app (which reinstalls it
-to `/Applications`), refreshes the launchd agents, and relaunches the
-menu-bar app — your `config.local.sh` is **never touched**. Terminal
+You can also **double-click `upgrade.command` in Finder** at any time. It
+pulls the latest version (`git pull --ff-only`), rebuilds the app (which
+reinstalls it to Applications), refreshes the background jobs and restarts
+the app — your settings in `config.local.sh` are **never touched**. Terminal
 equivalent:
 
 ```bash
 cd ~/mac-analyzers && ./upgrade.command
 ```
 
-Not using git? Every release on the
-[Releases page](https://github.com/hrconsultnj/mac-analyzers/releases) ships
-the full source as a tarball — download, unpack, and run the Install steps
-from the new folder.
+**Update channels.** On the Updates screen, a copy built from a clone can
+follow one of three channels:
+
+- **Releases** (the default) — finished releases only.
+- **Beta** — the newest work being developed, before it is released. It is
+  offered only when your clone is on the development branch; to switch,
+  run `git -C ~/mac-analyzers checkout development` and then
+  `upgrade.command`. Install pulls the newest development version and
+  rebuilds.
+- **This Copy** — your clone exactly as it is now, including changes you
+  have not committed. "Rebuild from This Copy" runs `rebuild.command`, the
+  same build without pulling anything.
+
+Each channel says how far behind your installed copy is. Reading your clone
+never runs anything the clone itself names, and nothing is fetched into it
+without you pressing a button.
+
+**Development versions.** A copy built from work that is not released yet
+does not claim the last release's number. It is named for the release it is
+heading toward plus a development number — for example `2.70.1-dev.12` in
+the sidebar — and the Updates screen shows the full name, the commit it was
+built from and whether it includes uncommitted changes. It is never offered
+the release it is already past, and is offered the next real one when it
+comes out.
+
+Not using git? Unpack the source tarball from the
+[Releases page](https://github.com/hrconsultnj/mac-analyzers/releases) in your
+home folder, so it lands at `~/mac-analyzers`, and double-click
+`rebuild.command` (`upgrade.command` needs a git clone to pull from). Such a
+copy follows Releases only; to update it, unpack the next release over it
+and run `rebuild.command` again.
 
 ## What's inside
 
 | | Tool | What it does | Touches anything? |
 |---|---|---|---|
-| 🖥️ | `app/` — **Mac Analyzers** menu-bar app | the product's face: Memory/Monitor/Storage glance menu with per-process Stop/Quit, actionable native notifications, System-Settings-style Settings window — tunables, editable schedules, structured log viewers, update checks | writes only its own marked block in `config.local.sh` (+ schedule edits into its own launchd plists) |
+| 🖥️ | `app/` — **Mac Analyzers** app | the product's face: a main window with Overview, Activity, Monitor, every storage cleanup as a reviewed preview, system audits, Trends and Undo; a menu-bar panel with per-app Stop/Quit; actionable native notifications; settings, editable schedules and update channels | writes only its own marked block in `config.local.sh` (+ schedule edits into its own launchd plists); cleanups act only on what you approve |
 | 🔍 | `memory-analyzer/analyze.sh` | "Why is RAM at N GB?" — Activity-Monitor-style breakdown, compressor/swap truth, per-app rollup, CPU/energy, diagnosis with verdicts | never — read-only report |
 | 🛡️ | `memory-analyzer/memory-guard.sh` | always-on listener: alerts on memory-pressure, kills a runaway dev process before the machine locks up. Meeting apps, browsers, editors are never touched | kills dev tooling only |
 | 🧹 | `memory-analyzer/memory-auto-clean.sh` | daily reaper: orphaned MCP/agent servers, dev servers forgotten since yesterday, stale headless browsers | with `--apply` |
@@ -153,7 +212,7 @@ Every run logs exactly how it was invoked.
 
 ```
 ~/mac-analyzers/
-├── app/                       "Mac Analyzers" menu-bar app — the face (below)
+├── app/                       the "Mac Analyzers" app — the face (below)
 ├── memory-analyzer/           RAM suite + its launchd templates (own README)
 ├── storage-analyzer/          disk suite + its launchd templates (own README)
 ├── lib/notify.sh              shared notifier every script sources (below)
@@ -195,9 +254,21 @@ every login. More: [the sick-machine report](examples/memory-report-sick.md) ·
 - Process sweeps **exempt live AI coding sessions** (claude/codex) and all
   their descendants — your session's MCP servers survive any sweep, however
   it's invoked.
-- The single sudo touchpoint is a sudoers rule scoped to **one exact command**
-  (Time Machine local-snapshot thinning) — installed only if you opt in, and
-  it cannot touch real backups.
+- The single administrator touchpoint is a permission for **one exact
+  command**: deleting Time Machine's local snapshots on this Mac. It is
+  installed only if you choose "Allow…" on the Time Machine screen (macOS asks
+  for an administrator password once), it cannot touch the backups on your
+  Time Machine disk, and while it is in place any program on your account can
+  run that one command without asking. "Remove Permission…" on that screen,
+  or the Turn Off or Remove screen, takes it away; each account on the Mac
+  has its own.
+- Apps are only ever **asked** to quit, the way Command-Q asks. Stop asks a
+  program politely first; Force Stop is a separate choice you confirm.
+- Files that exist only in iCloud are **never moved** by any cleanup: moving
+  one frees nothing on this Mac, and emptying the Trash would delete it from
+  iCloud and your other devices.
+- Everything a cleanup sends to the Trash is recorded, and Undo puts an item
+  back only when it can tell it is still the same item.
 - Reports and logs live in `~/mac-analyzers/reports/{memory,storage}/<date>/` —
   every deletion and kill is written down.
 
@@ -206,7 +277,7 @@ every login. More: [the sick-machine report](examples/memory-report-sick.md) ·
 Every alert — guard kills, pressure warnings, auto-clean summaries — goes
 through `lib/notify.sh`, which picks the best backend present:
 
-1. **The menu-bar app's bundled CLI**
+1. **The app's bundled CLI**
    (`/Applications/MacAnalyzers.app/Contents/MacOS/notify`, falling back to
    the repo copy under `app/`) — posts over `DistributedNotificationCenter`
    to the persistent app, which shows a real native notification under the
@@ -221,41 +292,65 @@ Knobs in `config.local.sh` (each one optional):
 `ANALYZERS_NOTIFY_TIMEOUT` is how many seconds an unclicked alerter alert
 lives.
 
-## The menu-bar app
+## The app
 
-`app/` is **Mac Analyzers**, a native SwiftUI menu-bar app (SPM package,
-Swift 6, macOS 26) — the face on the script engine:
+`app/` is **Mac Analyzers**, a native SwiftUI Mac app (SPM package, Swift 6,
+macOS 26) — the face on the script engine. Every screen reads the same way:
+the kinds of thing it shows are tabs with a count, rows are grouped under
+the app, project or day they belong to with a total, and a group opens to
+show what is in it.
 
-- **Glance + control** — today's kill count on the menu-bar icon; the
-  dropdown has **Memory | Monitor | Storage** tabs: live pressure and recent
-  guard events, an Activity-Monitor-style process list with **real app
-  icons** and per-row **Stop/Quit**, storage now-vs-last-clean, pause/resume
-  guard, and a footer showing the installed version (with an Upgrade button
-  when a newer release exists). Every menu button deep-links into the
-  matching Settings screen.
-- **Settings** — a System-Settings-style window: sidebar with a brand card
-  (icon · name · version) over sectioned panes — **CONFIGURE**
-  (Memory, Storage, Notifications), **SCHEDULE** (editable clean times that
-  survive reinstalls and upgrades), **OBSERVE** (Monitor, Activity, Logs) —
-  plus About and Update. Config panes write a clearly-marked managed block
-  into `config.local.sh`; anything you wrote outside the markers is never
-  touched, and saving memory tunables restarts the guard agent so they take
-  effect immediately. The guard's two kill switches (hard-cap,
-  critical-pressure) can be flipped to **notify-only**. Clicking the app's
-  Dock icon opens Settings.
-- **Structured log panes** — every log renders as a real screen, not raw
-  text: guard events behind filter chips (Spikes / Killed / Reports /
-  Pressure & Cap / CPU Hogs), the login-items audit as verdict cards with
-  per-row copyable `sudo` commands, storage cleans grouped by project and
-  sorted by reclaimable size, memory clean/reclaim runs as status-filtered
-  cards with a protected-session banner, and forensics snapshots as in-app
-  stat cards plus the top-process table. "Open in TextEdit" stays on every
-  pane as the raw-file escape hatch.
-- **Update awareness** — the Update pane and menu footer compare installed
-  vs latest release; the app self-checks at launch and every 6 hours and
-  notifies once per new version. Install runs `upgrade.command` in Terminal.
+- **The main window** — a sidebar you can hide, Back and Forward across
+  every screen (Command-[ and Command-]), and a Go menu for the most-used
+  screens:
+  - **Overview** (a grid of boxes for memory, storage, the guard, the
+    schedule and the week, with Needs Attention when something needs you),
+    **Activity** (everything that ran, day by day, with what each run found
+    or freed) and **Setup** (is every part installed and running).
+  - **Memory** — **Monitor** (one table of every app and tool with its
+    memory and processor use, what kind of thing it is, and why it cannot be
+    stopped when it cannot; each row of "Where Your Memory Is" opens its own
+    screen, from App Memory to Swap Used), **Memory Guard** (a day-by-day
+    history of what the guard stopped or flagged, and why) and **Memory
+    Cleanup** (a preview you tick before anything is closed).
+  - **Storage** — **Disk** (capacity and how long the free space will last),
+    **Caches & Builds**, **Downloads**, **Temp & Agents**, **Time Machine**
+    (local snapshots), **Spotlight** (fence developer folders out of the
+    index), **Unused Apps** (apps not opened for six months or more, with
+    their files) and **Old Recordings**. Each is one screen: Preview, untick
+    what to keep, Apply, and every earlier run under History. Each says
+    whether what it clears goes to the Trash or is deleted for good.
+  - **System** — **Network**, **Login & Startup Items** (apps that open at
+    login, their background items, leftovers from removed apps, and what was
+    added day by day) and **Reports** (memory and storage reports, opened as
+    documents with sections you can fold).
+  - **History** — **Trends** (memory and storage over a period, including
+    what cleanups removed) and **Undo** (what cleanups moved to the Trash,
+    by day and cleanup, to put back whole or one item at a time).
+- **The menu-bar panel** — today's guard activity on the menu-bar icon; a
+  Monitor tab listing what uses memory by app, heaviest first, with real app
+  icons and the same Stop and Quit rules as the main window (it never forces
+  a program; it offers to open Monitor instead); a Memory tab with a live
+  memory-pressure graph and the same figures as Activity Monitor's memory
+  footer; running jobs; and the installed version.
+- **Settings** — Memory, Storage, Notifications and Schedule (editable clean
+  times that survive reinstalls and upgrades). They write a clearly-marked
+  managed block into `config.local.sh`; anything you wrote outside the
+  markers is never touched, and saving memory settings restarts the guard so
+  they take effect immediately. The guard's two stop switches (hard cap,
+  critical pressure) can be set to **notify only**.
+- **Every run is readable** — what a cleanup or check found or did is shown
+  as rows in tabs and groups, never as a log. The exact text a run printed
+  is one level down, inside the app ("Show Raw Output", with search and
+  Copy); nothing opens another app to show it.
+- **Updates** — the Updates screen shows installed vs newest, picks the
+  update channel (Releases, Beta or This Copy, see
+  [Staying up to date](#staying-up-to-date)) and runs `upgrade.command` in
+  Terminal on Install.
 - **Actionable notifications** — Open Mac Analyzers / Open Log right on the
-  alert, plus **Stop Process** when the alert names a live process.
+  alert, plus **Stop Process** when the alert names a live process. Stop
+  first checks that it is still the same program; if it has changed, or is
+  part of a live coding session, Monitor opens on it and nothing is stopped.
 - **Launchd attribution** — the installed plists launch the engine through
   the app's compiled `agent-runner` (inside the bundle, sharing its signing
   identity) and carry `AssociatedBundleIdentifiers` = `com.mac-analyzers.app`,
@@ -265,8 +360,8 @@ Swift 6, macOS 26) — the face on the script engine:
 - **Built without Xcode** — `./app/build.sh` (Command Line Tools only) runs
   `swift build`, hand-assembles the bundle (including the `notify` CLI shim
   the scripts call and the `agent-runner` launchd entry point), signs it with
-  your Apple Development certificate when one exists (ad-hoc fallback), and
-  installs it to `/Applications`. Icons regenerate with `app/make-icon.sh`
+  your Apple Development certificate when one exists (ad-hoc fallback) with
+  the hardened runtime, and installs it to `/Applications`. Icons regenerate with `app/make-icon.sh`
   (colored .icns) and `app/make-menubar-icon.sh` (monochrome template PNG).
 
 Running script-only? `extras/swiftbar-plugin/` ships a

@@ -7,231 +7,77 @@ without an entry here — see `scripts/cut-release.sh`.
 
 ## Next
 
-- A copy built from work that is not released yet no longer claims the version
-  of the last release. It is named for the release it is heading to, with a
-  development number, for example 2.69.3-dev.42 in the sidebar, and the full
-  name, with the build it came from and a note when it has changes that are
-  not saved to the project yet, on the Updates screen. A copy like this is
-  never offered the release it is already past, and is offered the next real
-  one when it comes out.
-- A copy of Mac Analyzers that you built from your own clone can now follow
-  more than the releases. On the Updates screen, choose Beta to see the newest
-  work being developed, or This Copy to see your clone as it is right now,
-  including changes you have not saved to the project yet. Each says how far
-  your installed copy is behind, and one button updates it (Beta) or rebuilds
-  it from your clone (This Copy). Nothing is ever updated by itself, and a
-  copy you downloaded keeps following releases only.
-- Every row of "Where Your Memory Is" on Monitor's details panel now opens a
-  screen of its own with an arrow: App Memory (with the same Quit and Stop as
-  the table), Wired Memory, Compressed (including which programs hold the
-  most, macOS's own among them), Cached Files, Free (with the memory pressure
-  over time) and a new Swap Used row. Each shows how the figure has moved
-  over the last half hour while the screen is open, what it is, and plainly
-  what macOS does not let any app see, instead of guessing.
-- Monitor now says what kind of thing each group is: a browser, a code editor,
-  a terminal, a dev server, a background service, part of macOS. When a group
-  is one that no app can stop, or one Stop leaves alone, it tells you why in a
-  sentence: macOS's own processes, programs of another account, a live coding
-  session. For remote-access tools such as Tailscale it warns that stopping
-  them can cut you off from this Mac.
-- Mac Analyzers now runs with macOS's hardened runtime, on a copy you build
-  yourself as well as on a download. Another program on your account can no
-  longer make the app load code of its own choosing. Nothing changes in how
-  you use the app; the first time you open the new version, macOS may ask
-  again for a permission you gave before.
-- Caches & Builds, Downloads and Temp & Agents are rebuilt. Each is one screen:
-  Preview in the toolbar, then what it found as tabs for the kinds of thing
-  (Projects, App Caches and Developer Tools; documents, images and
-  screenshots; temporary files and your coding agents' folders), grouped under
-  the project, app or agent they belong to, with a count and a total on every
-  group. Tick what to clear, then Apply. The banner and the list of log lines
-  are gone, and every earlier run is one click away under History.
-- A cleanup's setting now belongs to its preview. When you come back to a
-  Deep Caches & Builds preview, or a Temp & Agents preview made with Delete
-  Permanently, the screen shows that setting, asks the matching question
-  and applies exactly that; changing the menu puts the preview away. Deleting
-  Time Machine's local snapshots is now a row you can see and untick, instead
-  of something a Deep Apply did on its own. Every screen also says, first in
-  its subtitle, whether what is cleared goes to the Trash or is deleted for good.
-- A finished Caches & Builds cleanup says what each package cleanup, Docker
-  and the snapshot deletion did: ran, skipped because it wasn't ticked, or
-  couldn't run.
-- Temp & Agents names what it finds ("codemod", "Session Transcripts") and says
-  why anything is left alone: "Left for Its Owner", "Conversation History",
-  "On Your Keep List". It also says what is not on your disk (files inside
-  mounted disk images) and which coding agents are running.
-- Files that exist only in iCloud (a screenshot or document that macOS keeps in
-  the cloud and has not downloaded to this Mac) are no longer shown as empty
-  files under "Nothing to Free", and no cleanup moves them any more, not even
-  the scheduled one. Moving one to the Trash frees nothing on this Mac, and
-  once the Trash is emptied it is gone from iCloud and from your other
-  devices. They are listed under "Only in iCloud" with their real size, and the
-  run's summary says how many were left.
-- Time Machine is a screen of its own under Storage. It lists the local
-  snapshots on this Mac by day, which hold space you have freed, and "Delete
-  Snapshots…" deletes them after you confirm, which releases that space. The
-  confirmation says they can't be brought back and whether your backup disk is
-  connected right now, because while it is away they can be the only copies of
-  your latest changes. Backups on the Time Machine disk are never touched, and a
-  new backup can start afterwards. Deleting snapshots needs a one-time
-  permission for exactly one command; the screen offers "Allow…", which shows the
-  standard macOS administrator prompt and says that afterwards any program on
-  your account can do that without asking. "Remove Permission…" in the Options
-  menu takes it away again; each account on the Mac has its own permission.
-  In Terminal, `tm-reclaim.sh` now looks first and only acts with `--apply`.
-- Two new screens under Storage. Unused Apps finds the apps you have not
-  opened for six months or more, grouped by how long ago, each with what goes
-  with it: its Application Support, caches and preferences. Tick the apps to
-  remove and they go to the Trash with their files, so Undo can bring them
-  back; each app opens to every file that goes with it, with its size, and the
-  confirmation names every app. Only files that belong to the app by its own
-  identity are taken: a folder that merely carries its name (Electron), a
-  group container named for the app that it does not declare, or one that
-  another app shares, wherever that other app is installed (in a folder, or
-  inside another app, at any depth, its XPC services and extensions included),
-  is shown and left in place; when some app's settings, a folder, an app folder
-  you configured that is not there, or a link to a folder cannot be read, no
-  group container is taken at all and the screen says what it could not read.
-  Shared containers are checked against the apps in your Applications folders
-  only. An app that
-  macOS has no record of, that runs in the background (a login item, launch
-  agent, helper or system extension, a menu-bar tool, or something started
-  through `open`), that is running, that holds another app which is in use
-  on its own (opened recently, running, or started by something), or that
-  you cannot move without an administrator is listed but never offered. Apps
-  inside an app (an updater, a helper) are part of it and go with it; the row
-  says how many, at every level, and that their own settings and data stay. The
-  screen says what that check reads (launch entries and the commands and scripts
-  in them that open an app, your Login Items, what is inside the app) and what it
-  cannot see. Which apps open at login is read from the Login & Startup Items
-  check, so it must have run today and have been able to read your Login Items
-  (otherwise the screen says to run it from the app; Login & Startup Items says
-  the same when it could not list them); if the app cannot be moved,
-  none of its files are touched. In Terminal, `cleanup.sh --stale-apps
-  --execute` only removes a list you wrote yourself; apps found by their date
-  are removed only from a review in the app. Old Recordings lists recording
-  folders older than 90 days by the month they were made; they go to the Trash
-  too (a recording on another disk goes to that disk's own Trash), so Undo can
-  bring them back from either one (if that disk is not connected, Undo says to
-  connect it). A folder with a part that cannot be read is
-  kept, because something in it may be recent.
-- Spotlight lists your developer folders by project with a checkbox to fence
-  or unfence each one, and Fence and Unfence for a whole selection. Fence All
-  names the folders it will fence and fences exactly those, not whatever a new
-  scan would find. A fence is one empty file, and nothing else is changed.
-- Disk shows your capacity, how long the free space will last at the rate it
-  has been falling, and what each cleanup could free and how old that figure
-  is. The "full in" forecast never appeared before; it now reads every
-  Caches & Builds run's figure, not only the newest few. When there is no
-  forecast it says why, and after a sharp fall in free space it says what
-  happened instead of predicting; when only the newest figure is far below the
-  others it says so and asks you to preview again. A nearly full disk is shown in red.
-- A finished cleanup's own screen shows what it did in the same tabs and groups
-  as the screen it came from.
-- When a memory cleanup refuses to run because part of Mac Analyzers is
-  missing, the app now says so and tells you to update or reinstall. It used
-  to tell you to check your protected-apps list, which had nothing to do
-  with it.
-- Buttons, filters and the search field on the screens that were not already
-  being rebuilt now have the standard Mac size and spacing.
-- The version at the bottom of the sidebar looks the same whether you are up
-  to date, on a development build or have an update waiting.
-- Activity's tabs (All, Running, Needs Review, Failed) show an icon beside
-  each name and a count, and you can choose them with Command-1 to Command-4.
-  The Go menu's jumps to Overview, Activity, Monitor and Disk are now
-  Control-Command-1 to Control-Command-4.
-- On Activity, the search field shrinks to its icon when the window gets
-  narrow instead of being cut off, and clicking a run or a tab lets go of it.
-  While another screen is showing, a job that has just finished appears in the
-  toolbar as the task's name with a tick or a warning; hover over it for the
-  full sentence.
-- A run's raw output now opens inside the app, starting at the newest line,
-  with search and Copy. A finished run's screen groups its results under tabs
-  (what was freed, what was found) and, inside each, under the project they
-  belong to, instead of one long list.
-- Overview is now a grid of boxes: Memory, Storage, Memory Guard, Schedule,
-  Recent Events and This Week. Each row opens the screen behind it (an app or
-  tool opens Monitor with that row selected), and a Needs Attention list at
-  the top appears only when something needs you.
-- Trends has two tabs, Memory and Storage, and a period menu in the toolbar.
-  Storage now adds up everything the cleanups removed in the period, under
-  "Removed by Cleanups", instead of reading 0 KB, and each number opens a
-  table of what is behind it.
-- Undo is grouped by day and by cleanup. Restore puts an item back only when
-  it is still the one that was moved to the Trash, and says why when it
-  cannot. A second tab lists the dev servers the guard stopped.
-- After this update, something an earlier cleanup moved to the Trash can be
-  put back from Undo only when Mac Analyzers can tell it is still the same
-  item it moved. When it can't, the item stays in the Trash, and Finder's Put
-  Back still works for it.
-- Undo groups an app removed by Unused Apps with its files, so you can put the
-  whole app back or one file at a time, and it says which disk a recording was
-  on.
-- Putting items back from Undo now shows up in Activity as its own entry,
-  "Restored 3 Items", started by you, with the list of what came back. It no
-  longer gets mixed into the cleanup it came from, so that cleanup's numbers,
-  and a preview that is waiting for your review, stay exactly as they were.
-- The menu-bar panel uses standard controls, so nothing is cut off. Its Monitor
-  tab now has a tab bar (All, Apps, Tools, macOS) and lists what is using memory
-  the way Monitor does, heaviest first: each app or tool opens to its parts or
-  programs, every app has its own icon, and anything that cannot be stopped
-  shows a lock with the reason on hover. Its Memory tab adds what Activity Monitor's memory footer shows, live:
-  a graph of memory pressure over the last few minutes and Physical Memory,
-  Memory Used, Cached Files, Swap Used, App Memory, Wired Memory and Compressed,
-  matching the main window and Activity Monitor. Its Quit and Stop follow the
-  same rules as Monitor, and a program that does not stop is never forced from
-  the panel: it offers to open Monitor on that program instead.
-- Login & Startup Items, Network and Reports have been rebuilt as screens you
-  can read at a glance instead of lists of lines.
-- Login & Startup Items has a tab for Apps that open when you log in,
-  Background Items that work for them, Leftovers from apps you removed, and
-  Changes (what was added to startup, day by day). Each app or developer is one row that opens to its
-  items, with whether they are running and what the audit found. Select one to
-  see where it lives, what it runs and why it was flagged. A leftover in your
-  own folders, or an app set to open at login whose app is gone, can be
-  removed from here; the ones that need an administrator show the exact
-  command to copy. An item whose program is on a drive that is
-  not connected is no longer called a leftover.
-- Network shows the newest snapshot with each app's programs gathered into one
-  row that opens, and keeps your recent snapshots (the last 60) in a History tab you can
-  open.
-- Reports has a tab for memory reports and one for storage reports, each
-  listing the reports by month. A report opens as a document, divided into
-  sections you can fold, instead of one long block of text. You can write a
-  new report, stop it, export a copy, or see its text exactly as written.
-- Monitor is now one table that fills the window: every app and tool with its
-  memory and processor use, the parts of each app, and a details panel. Open a
-  command-line tool such as Node.js and you see each separate program in its
-  own row, labelled by the project it runs in. Stopping a tool now stops only
-  the programs you choose, in a list you confirm, and never a live coding-agent
-  session or a program that has changed since you looked at it.
-- Memory Guard reads as a history: a section for each day, and a row for each
-  thing the guard stopped or flagged, named for the app or tool ("Stopped Vite
-  dev server", "9 processor alerts for Media Analysis") with what the guard did
-  about it. Repeats are folded into one row. Click a row to see what happened,
-  what the program was, and why the guard acts — and for a memory crisis, which
-  apps were using the memory.
-- Memory Cleanup is a screen of its own. Preview shows what a cleanup would
-  close in tabs (dev servers, orphaned tools, emulators and browsers, and the
-  helpers of coding sessions), grouped by the program they belong to, and you
-  tick what to close. Apps on your list to quit are shown as "will quit"
-  before you apply, and a cleanup closes only the programs you saw, as they
-  were when you looked: a program that has been replaced since is left alone.
-- Stop now asks a program politely first. If it does not stop, you are
-  offered a separate Force Stop, and nothing is forced until you confirm it.
-- The Stop button in a notification now checks that it is still the same
-  program before it does anything. If the program has changed, or is part of a
-  live coding session, Monitor opens on it instead and nothing is stopped.
-- An app that hosts a live coding session, such as a terminal with Claude
-  running in it, is never quit by Everything Now, and Quit on such an app
-  tells you which sessions would end with it.
-- If the list of coding agents cannot be read, Mac Analyzers offers no Stop at
-  all and says why, rather than guessing which programs are sessions.
-- If Mac Analyzers cannot yet tell what a program really is, because its
-  command line cannot be read or still shows the program that started it, Stop
-  does nothing and says "could not tell, so nothing was stopped"; try again in
-  a moment. Quit says so in its confirmation; if you confirm, the app is
-  asked to quit as usual.
+Every screen of the main window has been rebuilt to read the same way: the
+kinds of thing a screen shows are tabs with a count, rows are grouped under
+the app, project or day they belong to with a total, and a group opens to
+show what is in it. Controls are the standard Mac ones throughout.
+
+**Screens**
+
+- Overview is a grid of boxes for memory, storage, the guard, the schedule
+  and the week, with a Needs Attention list only when something needs you.
+- Activity's tabs open with Command-1 to Command-4 (the Go menu moved to
+  Control-Command), and a finished run shows its results in tabs and groups,
+  with its raw output inside the app.
+- Monitor is one table of every app and tool with its memory and processor
+  use and a details panel. It says what kind of thing each group is, why one
+  cannot be stopped, and warns before you stop a remote-access tool such as
+  Tailscale. Each row of "Where Your Memory Is" opens a screen of its own,
+  including a new Swap Used, showing the last half hour.
+- Memory Guard reads as a day-by-day history of what it stopped or flagged,
+  and Memory Cleanup is a preview you tick before anything is closed.
+- Caches & Builds, Downloads and Temp & Agents are each one screen: Preview,
+  tick, Apply, with every earlier run under History. A preview keeps its own
+  setting, such as Deep or Delete Permanently, and applies exactly that.
+- Disk now forecasts how long your free space will last. Spotlight lists
+  your developer folders with a checkbox to keep it out of each one.
+- New under Storage: Time Machine lists the local snapshots holding space
+  you have freed, Unused Apps finds apps you have not opened for six months
+  or more, with their support files, and Old Recordings lists recording
+  folders older than 90 days.
+- Login & Startup Items has tabs for Apps, Background Items, Leftovers from
+  removed apps and Changes; Network groups programs by app with your last 60
+  snapshots; Reports open as documents with sections you can fold.
+- Trends adds up what cleanups removed instead of showing 0 KB, and Undo is
+  grouped by day and cleanup, with a removed app coming back whole or one
+  file at a time.
+- The menu-bar panel lists memory by app with icons, and its Memory tab
+  shows the same figures and pressure graph as Activity Monitor.
+
+**Your files and apps**
+
+- Downloads, Unused Apps and Old Recordings move what you approve to the
+  Trash, and Undo can put it back. Each screen says whether it moves to the
+  Trash or deletes for good. Undo restores an item only when it can tell it
+  is still the same one; otherwise Finder's Put Back still works.
+- Files that exist only in iCloud are never moved by any cleanup, scheduled
+  ones included, because emptying the Trash would delete them from iCloud and
+  your other devices. They are listed under "Only in iCloud".
+- Unused Apps never offers an app that is running, runs in the background,
+  opens at login or needs an administrator, and takes only files that belong
+  to the app itself. A recording folder with any part that cannot be read is
+  kept.
+- Deleting Time Machine snapshots cannot be undone; backups on the backup
+  disk are never touched. It needs a one-time permission for that one
+  command, given with "Allow…" and an administrator password, after which
+  any program on your account can delete snapshots. "Remove Permission…" or
+  the Turn Off or Remove screen takes it away. In Terminal, the snapshot
+  script now only looks unless you tell it to apply.
+- Apps are only asked to quit. Stop asks politely first, Force Stop is a
+  separate choice you confirm, and nothing is stopped that is a live coding
+  session or has changed since you looked.
+- The app now runs with macOS's hardened runtime, so macOS may ask once more
+  for a permission you gave before.
+
+**Updates**
+
+- A copy built from your own clone can follow Releases, Beta (when your
+  clone is on the development branch) or This Copy, chosen on the Updates
+  screen. Nothing updates by itself.
+- A copy built between releases shows a development version such as
+  2.70.1-dev.12 and is offered the next release when it comes out.
+
+Minor fixes and improvements throughout.
 
 ## v2.69.2 — Process rows no longer show a program's environment
 
