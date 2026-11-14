@@ -14,33 +14,18 @@ let args = Array(CommandLine.arguments.dropFirst())
 // a probe that judges itself runs in a throwaway home, never in the person's (see ProbeSandbox.swift)
 if let first = args.first, ProbeSandbox.names.contains(first) { ProbeSandbox.enter(first) }
 
-// `agent-runner --probe-setup` prints the same checklist the Setup screen
-// shows, as plain text. Support can ask for its output, and it is the only
-// way to see the verdicts on a Mac you cannot click through.
+// `agent-runner --probe-setup` prints Setup's rows as text, read live from this Mac (what the Setup screen shows, tab by
+// tab). Support can ask for its output, and it is the only way to see them on a Mac you cannot click through.
+// `--probe-setup-fixtures` judges the rows on example states and exits non-zero when a rule breaks (it is in the gate);
+// `--probe-fda` is the spot-check of the protected folders, read by this program as the background jobs run it.
 if args.first == "--probe-setup" {
-    let engine = EngineStatus.probe()
-    let report = SetupAudit.probe(
-        notifications: SetupCheck(id: "notifications", title: "Alerts",
-                                  why: "", verdict: .unset,
-                                  detail: "not queryable outside the app"),
-        loginItem: SetupCheck(id: "login", title: "Opens at login",
-                              why: "", verdict: .unset,
-                              detail: "not queryable outside the app"))
-    print("version: \(BuildInfo.current.versionText)")
-    print("engine: \(engine.summary)  root: \(AnalyzersPaths.suiteRoot.path)")
-    print("bundled: \(AnalyzersPaths.usingBundledEngine)")
-    for check in report.checks {
-        let mark: String
-        switch check.verdict {
-        case .ready: mark = "OK   "
-        case .blocking: mark = "BLOCK"
-        case .degraded: mark = "WARN "
-        case .unset: mark = "-    "
-        }
-        print("\(mark) \(check.title): \(check.detail)")
-    }
-    print("\(report.ready)/\(report.total) ready · usable: \(report.isUsable)")
-    exit(report.isUsable ? 0 : 1)
+    await probeSetupLive()
+}
+if args.first == "--probe-setup-fixtures" {
+    probeSetupFixtures()
+}
+if args.first == "--probe-fda" {
+    probeFullDiskAccess()
 }
 
 // `agent-runner --probe-build` prints what the Update screen, the sidebar item,
@@ -491,6 +476,9 @@ guard let script = args.first,
         Data("usage: agent-runner /absolute/path/engine-script.sh [args…]\n".utf8))
     exit(2)
 }
+// launchd started this for a job: say what the BACKGROUND jobs can read, as they see it, for Setup (BackgroundAccess)
+// at most half a second, at most once per five minutes: a job's start is never held up by this check
+BackgroundAccess.recordIfDue(timeout: 0.5)
 var cArgs: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
 cArgs.append(nil)
 execv(script, &cArgs)   // the kernel honors the script's shebang

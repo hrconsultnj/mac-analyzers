@@ -5,6 +5,12 @@ it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`.
 
+## Next
+
+**Setup shows how Mac Analyzers is set up on your Mac**
+
+Setup is now one screen of your current configuration, in three tabs: Permissions, Background and Protection. Each thing has its own row with where it stands, what was found, and one button. When something can only be changed in System Settings, the row opens the right page, says exactly which switch to turn on, and confirms when you have done it. Full Disk Access is checked by trying the folders Mac Analyzers really reads, instead of guessing. Turn Off or Remove is now on Setup's toolbar, and Old Recordings' folders have a row here too.
+
 ## v2.71.0 — Recording sources, one period menu and a sidebar you can tuck away
 
 Old Recordings now works for everyone, not only for one folder, and the
