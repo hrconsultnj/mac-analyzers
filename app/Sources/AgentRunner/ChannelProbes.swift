@@ -229,7 +229,15 @@ func probeChannels() -> Never {
     if !controlOK { failed += 1 }
     print("\(controlOK ? "PASS" : "FAIL") control: plain git on this clone runs \(control.sorted()) (the test can fail)")
     try? FileManager.default.removeItem(at: markers)
-    let hostileClone = SourceClone(root: hostile)
+    /// The root the way the app builds it (`AnalyzersPaths.suiteRoot`: `appending(path:)`, no trailing slash). The probes'
+    /// other roots are folder URLs with a trailing slash, and a path resolved against one of those works where it
+    /// silently looks in the wrong place against the app's.
+    func asApp(_ dir: URL) -> URL { dir.deletingLastPathComponent().appending(path: dir.lastPathComponent) }
+    let appFormRoot = asApp(hostile)
+    let rootFormOK = !appFormRoot.absoluteString.hasSuffix("/") && appFormRoot.path == hostile.path
+    if !rootFormOK { failed += 1 }
+    print("\(rootFormOK ? "PASS" : "FAIL") the hostile clone is read through a root built the way the app builds its own (no trailing slash): \(appFormRoot.absoluteString.suffix(24))")
+    let hostileClone = SourceClone(root: appFormRoot)
     _ = hostileClone.isWorkingTree; _ = hostileClone.branch; _ = hostileClone.head; _ = hostileClone.isDirty
     _ = hostileClone.fingerprint; _ = hostileClone.facts(installed: hostileHead); _ = hostileClone.changelog
     _ = stamp(hostile)
@@ -281,7 +289,7 @@ func probeChannels() -> Never {
         let controlOK = !controlFired.isEmpty
         if !controlOK { failed += 1 }
         print("\(controlOK ? "PASS" : "FAIL") \(label): plain git runs \(controlFired.sorted()) (the test can fail)")
-        let clone = SourceClone(root: dir)
+        let clone = SourceClone(root: asApp(dir))
         _ = clone.isWorkingTree; _ = clone.branch; _ = clone.head; _ = clone.isDirty
         let fingerprint = clone.fingerprint
         let facts = clone.facts(installed: clone.head)
@@ -348,6 +356,73 @@ func probeChannels() -> Never {
         git(dir, ["config", "remote.origin.uploadpack", marked(marker, "uploadpack", passThrough: false)])
         write(dir, "big.txt", "different text\n")
         hostileCase("a partial clone whose promisor remote names a program", dir, marker, unknown: true)
+    }
+
+    // a submodule edit with the superproject clean: git is never run inside a submodule, so "clean" would be a guess
+    do {
+        let (source, _) = fresh("t12-src")
+        _ = commit(source, "s.txt", "inside\n")
+        let (dir, _) = fresh("t12-clean-super")
+        _ = commit(dir, "p.txt", "parent\n")
+        git(dir, ["-c", "protocol.file.allow=always", "submodule", "add", "-q", source.path, "sub"])
+        git(dir, ["add", "-A"]); git(dir, ["commit", "-q", "-m", "add the submodule"])
+        write(dir.appending(path: "sub", directoryHint: .isDirectory), "s.txt", "inside, edited and not committed\n")
+        let plain = git(dir, ["status", "--porcelain", "--ignore-submodules=none"])
+        let seesIt = plain.contains("sub")
+        if !seesIt { failed += 1 }
+        print("\(seesIt ? "PASS" : "FAIL") control: plain git sees the edit inside the submodule: \(plain)")
+        let clone = SourceClone(root: asApp(dir))
+        let unknown = clone.isDirty == nil && clone.fingerprint == nil && clone.facts(installed: clone.head) == nil && stamp(dir).isEmpty
+        if !unknown { failed += 1 }
+        print("\(unknown ? "PASS" : "FAIL") …and with the superproject clean the app and the script read unknown, never \"matches your clone\"")
+    }
+
+    // the info/attributes check looks in the CLONE's folder, however the root is written
+    do {
+        let (dir, _) = fresh("t1-attributes-form")
+        _ = commit(dir, "a.txt", "one\n")
+        try? "*.xyz text\n".write(to: dir.appending(path: ".git/info/attributes"), atomically: true, encoding: .utf8)
+        write(dir, "a.txt", "two\n")
+        let folderForm = SourceClone(root: dir).facts(installed: nil) == nil
+        let appForm = SourceClone(root: asApp(dir)).facts(installed: nil) == nil
+        if !(folderForm && appForm) { failed += 1 }
+        print("\(folderForm && appForm ? "PASS" : "FAIL") a non-empty info/attributes reads unknown with a folder root and with the app's root (no trailing slash)")
+    }
+
+    // which tag a build counts from: only a tag that is a version counts
+    print("\n— which release tag a build counts from —")
+    do {
+        let tagScript = hashScript.deletingLastPathComponent().deletingLastPathComponent().appending(path: "app/release-tag.sh")
+        func counted(_ dir: URL, version: String) -> String {
+            let process = Process()
+            process.executableURL = tagScript
+            process.arguments = [dir.path, version]
+            let out = Pipe(); process.standardOutput = out; process.standardError = FileHandle.nullDevice
+            process.standardInput = FileHandle.nullDevice
+            try? process.run()
+            let text = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            process.waitUntilExit()
+            return text
+        }
+        func expectTag(_ label: String, _ got: String, _ expected: String) {
+            let ok = got == expected
+            if !ok { failed += 1 }
+            print("\(ok ? "PASS" : "FAIL") \(label): \"\(got)\"\(ok ? "" : "   (expected \"\(expected)\")")")
+        }
+        let (dir, _) = fresh("tags")
+        _ = commit(dir, "a.txt", "one\n")
+        git(dir, ["tag", "v2.69.2"])
+        _ = commit(dir, "b.txt", "two\n")
+        expectTag("VERSION 2.69.2 and its tag exists: counted from it", counted(dir, version: "2.69.2"), "v2.69.2 1")
+        expectTag("VERSION 2.70.0 ahead of every tag: the nearest version tag", counted(dir, version: "2.70.0"), "v2.69.2 1")
+        git(dir, ["tag", "v9-junk"])
+        expectTag("a junk tag at HEAD (v9-junk) is not a version: still the real tag", counted(dir, version: "2.70.0"), "v2.69.2 1")
+        let (only, _) = fresh("tags-junk-only")
+        _ = commit(only, "a.txt", "one\n")
+        git(only, ["tag", "v9-junk"]); git(only, ["tag", "v2.70.0-rc1"])
+        expectTag("only junk and a release candidate tag in reach: no tag is counted", counted(only, version: "2.70.0"), "")
+        git(dir, ["tag", "v2.70.0"])
+        expectTag("the tag of VERSION appears: counted from it", counted(dir, version: "2.70.0"), "v2.70.0 0")
     }
 
     print("\n— hashing a large file keeps memory flat —")

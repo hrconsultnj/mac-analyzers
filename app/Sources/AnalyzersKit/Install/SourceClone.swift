@@ -99,10 +99,18 @@ public struct SourceClone: Sendable {
         let fixed = Self.fixedSettings
         // the only attribute source left once --attr-source, core.attributesFile and GIT_ATTR_NOSYSTEM are set
         var path = Data()
-        guard run(["rev-parse", "--git-path", "info/attributes"], settings: fixed, sink: { path.append($0) }) else { return nil }
-        let relative = String(decoding: path, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-        let attributes = URL(fileURLWithPath: relative, relativeTo: root)
-        if let size = (try? FileManager.default.attributesOfItem(atPath: attributes.path))?[.size] as? Int, size > 0 { return nil }
+        // an ABSOLUTE path asked of git: a relative one resolved against `root` is wrong when root has no trailing
+        // slash (as `AnalyzersPaths.suiteRoot` has none), and the check would silently look in the wrong place
+        guard run(["rev-parse", "--path-format=absolute", "--git-path", "info/attributes"], settings: fixed, sink: { path.append($0) })
+        else { return nil }
+        let attributes = String(decoding: path, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard attributes.hasPrefix("/") else { return nil }
+        if let size = (try? FileManager.default.attributesOfItem(atPath: attributes))?[.size] as? Int, size > 0 { return nil }
+        // a gitlink (a submodule), dirty or not: git is never run inside one, so work inside it cannot be seen
+        // and "clean" would be a guess
+        guard let staged = git(["ls-files", "--stage", "-z"], settings: fixed),
+              !staged.split(separator: 0, omittingEmptySubsequences: true).contains(where: { $0.starts(with: Array("160000 ".utf8)) })
+        else { return nil }
         // belt and braces: every driver the clone's configuration defines is emptied too
         var names = Data()
         let listed = run(["config", "--name-only", "--get-regexp", #"^(filter|diff)\..*\.(clean|smudge|process|textconv|command|required)$"#],
@@ -178,10 +186,6 @@ public struct SourceClone: Sendable {
     private func fingerprint(in session: Session, dirty known: Bool? = nil) -> String? {
         guard let dirty = known ?? isDirty(in: session) else { return nil }
         guard dirty else { return "clean" }
-        // a gitlink: what is inside a submodule cannot be hashed without running git there
-        guard let staged = git(["ls-files", "--stage", "-z"], settings: session.settings),
-              !staged.split(separator: 0, omittingEmptySubsequences: true).contains(where: { $0.starts(with: Array("160000 ".utf8)) })
-        else { return nil }
         var hasher = SHA256()
         guard run(["diff", "HEAD", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames",
                    "--ignore-submodules=dirty", "--diff-algorithm=myers", "--no-indent-heuristic",

@@ -15,7 +15,7 @@
 # and system configuration not read, a minimal environment, and every filter and diff driver the clone
 # defines emptied. The settings go through GIT_CONFIG_COUNT/KEY/VALUE (a driver name may contain "=", which
 # `-c` cannot carry). Submodules are never entered (`--ignore-submodules=dirty`), and a clone with a submodule
-# and uncommitted changes, or a non-empty `info/attributes` (the one place left that can pick a driver), is
+# (dirty or not), or a non-empty `info/attributes` (the one place left that can pick a driver), is
 # unknown. The diff is pinned so no setting changes its bytes.
 set -euo pipefail
 cd "${1:?usage: tree-hash.sh <repo>}"
@@ -39,8 +39,11 @@ run_git() {
 fixed=$'core.fsmonitor\tfalse\ncore.useBuiltinFSMonitor\tfalse\ncore.hooksPath\t/dev/null\ncore.attributesFile\t/dev/null\ncore.quotepath\toff'
 
 # the only attribute source left once --attr-source, core.attributesFile and GIT_ATTR_NOSYSTEM are set
-attributes="$(run_git "$fixed" rev-parse --git-path info/attributes)"
+attributes="$(run_git "$fixed" rev-parse --path-format=absolute --git-path info/attributes)"
 if [[ -s "$attributes" ]]; then exit 1; fi
+# a gitlink (a submodule), dirty or not: git is never run inside one, so work inside it cannot be seen
+staged="$(run_git "$fixed" ls-files --stage -z | tr '\0' '\n')"
+if grep -q '^160000 ' <<<"$staged"; then exit 1; fi
 
 # belt and braces: every driver the clone's configuration defines is emptied too
 settings="$fixed"
@@ -60,8 +63,6 @@ if [[ "$status" == "0" ]]; then
   echo clean
   exit 0
 fi
-staged="$(g ls-files --stage -z | tr '\0' '\n')"
-if grep -q '^160000 ' <<<"$staged"; then exit 1; fi
 # The hash is taken first and printed only if every part succeeded: a failure prints nothing. (A command
 # substitution does not stop at a failing command by itself, so each part says `|| exit 1`.)
 hash="$({

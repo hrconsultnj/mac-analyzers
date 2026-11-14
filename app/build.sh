@@ -85,24 +85,14 @@ fi
 # and whether the tree had local changes. A copy with no git history gets no
 # stamp and reads as a release.
 #
-# Counted from the tag of the version in VERSION (`v2.69.0..HEAD`), not from
-# `git describe`: describe only finds a tag on this branch's own history, and
-# a release is tagged on main's merge commit, which development does not
-# contain — so right after a release it would name the release BEFORE and call
-# an identical tree a development build. Counting from the version's own tag
-# gives 0 for that tree whatever the branch layout. Only when that tag is not
-# known here (not fetched yet) does it fall back to the nearest tag in history.
+# Counted from the tag of the version in VERSION, else the nearest version tag (app/release-tag.sh says why).
 BUILD_AHEAD=""
 BUILD_DIRTY=0
-BUILD_TAG="v$(tr -d ' \n' < ../VERSION)"
-if git -C .. rev-parse -q --verify "refs/tags/$BUILD_TAG" >/dev/null 2>&1; then
-  BUILD_AHEAD="$(git -C .. rev-list --count "$BUILD_TAG..HEAD" 2>/dev/null || true)"
-else
-  BUILD_DESCRIBE="$(git -C .. describe --tags --long --match 'v[0-9]*' 2>/dev/null || true)"
-  if [[ "$BUILD_DESCRIBE" =~ ^(v[0-9][^-]*)-([0-9]+)-g[0-9a-f]+$ ]]; then
-    BUILD_TAG="${BASH_REMATCH[1]}"
-    BUILD_AHEAD="${BASH_REMATCH[2]}"
-  fi
+BUILD_TAG=""
+TAG_AND_COUNT="$(./release-tag.sh .. "$(tr -d ' \n' < ../VERSION)" 2>/dev/null || true)"
+if [[ "$TAG_AND_COUNT" =~ ^(v[0-9.]+)\ ([0-9]+)$ ]]; then
+  BUILD_TAG="${BASH_REMATCH[1]}"
+  BUILD_AHEAD="${BASH_REMATCH[2]}"
 fi
 if [[ "$BUILD_AHEAD" =~ ^[0-9]+$ ]]; then
   [[ -n "$(git -C .. status --porcelain 2>/dev/null)" ]] && BUILD_DIRTY=1
