@@ -51,8 +51,9 @@ public struct MainWindowView: View {
                 // The window's minimum is set HERE, on the content, and not on the whole split view: a minimum on
                 // the split view is added to the sidebar's width when the sidebar shows, and the window grew by
                 // the sidebar every time it was shown (measured: 900 wide became 1111). With the sidebar shown the
-                // window is at least this plus the sidebar (710 to 780); with it hidden, this.
-                .frame(minWidth: 520, minHeight: 568)
+                // window is at least this plus the sidebar (760 to 830); with it hidden, this. 570 is what the content
+                // had with the sidebar shown at the old window minimum (780 less the sidebar's 210).
+                .frame(minWidth: 570, minHeight: 568)
                 .overlay(alignment: .leading) {
                     // while the sidebar is hidden: the hover strip, and the sidebar itself as an overlay
                     if visibility == .detailOnly {
@@ -103,11 +104,23 @@ public struct MainWindowView: View {
 
     /// Shows or hides the sidebar the way the system's own button does: `toggleSidebar:` down the responder chain
     /// collapses the split view item INSIDE the window, which keeps its size, and the split view writes the new state
-    /// back into `visibility`, the one record every other part reads. Where nothing answers (a window with no split
-    /// view controller yet), the visibility is set directly.
+    /// back into `visibility`, the one record every other part reads.
+    ///
+    /// Two cases where that does nothing: no split view controller answers, or one NEARER the first responder answers
+    /// that is not ours (an inspector's own). So after the send, once the collapse animation is over, the visibility is
+    /// compared with what it was before the send, and only if it did not move is it set directly. When the real
+    /// controller answered it has moved, and nothing more is done: the sidebar is never toggled twice.
     private func toggleSidebar() {
-        if NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil) { return }
-        visibility = visibility == .detailOnly ? .all : .detailOnly
+        let before = visibility
+        let flipped: NavigationSplitViewVisibility = before == .detailOnly ? .all : .detailOnly
+        guard NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil) else {
+            visibility = flipped
+            return
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            if visibility == before { visibility = flipped }
+        }
     }
 
     /// The current section's stack. Its path is the navigator's: the stack
