@@ -42,25 +42,28 @@ public enum RecordingFolderRule {
         }
     }
 
+    /// Every comparison is made on lower-case text: macOS volumes are case-insensitive, so `~/library/cloudstorage` IS the
+    /// Library's CloudStorage folder, whatever case it was typed in.
     private static func check(_ path: String, layout: RecordingSourceDefinition.Layout, roots: [String],
                               libraryFolders: [String]) -> String? {
-        if path == "/" { return "it is the whole disk" }
-        for root in roots {
+        let lower = path.lowercased()
+        if lower == "/" { return "it is the whole disk" }
+        for root in roots.map({ $0.lowercased() }) {
             let rel: String
-            if path == root { rel = "" } else if path.hasPrefix(root + "/") { rel = String(path.dropFirst(root.count + 1)) } else { continue }
+            if lower == root { rel = "" } else if lower.hasPrefix(root + "/") { rel = String(lower.dropFirst(root.count + 1)) } else { continue }
             if rel.isEmpty { return "it is your whole home folder" }
             let first = String(rel.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)[0])
             if first.hasPrefix(".") { return "it is in a hidden folder of your home folder, where settings and keys are kept" }
-            if first == "Library", !libraryFolders.contains(where: { rel == $0 || rel.hasPrefix($0 + "/") }) {
+            if first == "library", !libraryFolders.map({ $0.lowercased() }).contains(where: { rel == $0 || rel.hasPrefix($0 + "/") }) {
                 return "it is in your Library folder, where apps keep their own data and your cloud storage"
             }
-            if standardFolders.contains(rel), layout != .files {
+            if standardFolders.contains(where: { $0.lowercased() == rel }), layout != .files {
                 return "it is your whole \(rel) folder, which holds more than recordings; choose a folder inside it"
             }
             return nil
         }
-        if path.hasPrefix("/Volumes/") {
-            return path.dropFirst("/Volumes/".count).contains("/") ? nil : "it is a whole disk"
+        if lower.hasPrefix("/volumes/") {
+            return lower.dropFirst("/volumes/".count).contains("/") ? nil : "it is a whole disk"
         }
         return "it is outside your home folder and your external disks"
     }

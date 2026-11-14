@@ -136,6 +136,15 @@ import Foundation
         ("/Applications", "custom", .folders), ("/Library", "custom", .folders), ("/Users", "custom", .folders), ("/System/Volumes/Data", "custom", .folders),
         ("/private/tmp", "custom", .folders), ("\(homeBase)/.ssh", "custom", .folders), ("\(homeBase)/.config/recordings", "custom", .folders),
         ("\(homeBase)/Movies/Loom/Temporary", "loomTemporary", .folders), ("\(homeBase)/Music/Podcasts", "custom", .folders),
+        // the same places typed in another case: macOS volumes are case-insensitive, so these ARE those folders
+        ("\(homeBase)/library/cloudstorage/GDrive-Test", "custom", .folders), ("\(homeBase)/LIBRARY/CloudStorage/x", "custom", .folders),
+        ("\(homeBase)/library/cloudstorage/GDrive-Test/Zoom", "zoom", .meetingFolders), ("\(homeBase)/Library/CLOUDSTORAGE/GDrive-Test/Zoom", "zoom", .meetingFolders),
+        ("\(homeBase)/library/mobile documents/com~apple~CloudDocs", "custom", .folders), ("\(homeBase)/Library/CONTAINERS/com.x", "custom", .folders),
+        ("\(homeBase)/LIBRARY/group containers/group.x", "custom", .folders), ("\(homeBase)/library/Application Support", "custom", .folders),
+        ("\(homeBase)/.SSH", "custom", .folders), ("\(homeBase)/DOCUMENTS", "custom", .folders), ("\(homeBase)/movies", "custom", .folders),
+        ("\(homeBase)/DESKTOP", "screenRecordings", .files), ("\(homeBase.uppercased())/Library/CloudStorage/GDrive-Test/Zoom", "zoom", .meetingFolders),
+        ("\(homeBase.uppercased())/Notes/audio", "custom", .folders), ("\(homeBase.uppercased())/Documents/Zoom", "custom", .folders),
+        ("/VOLUMES/Disk", "custom", .folders), ("/volumes/Disk/Recordings", "custom", .folders), ("/APPLICATIONS", "custom", .folders),
     ]
     for entry in refusalCases {
         config(sources(["\(entry.layout)|on|\(entry.path)"]))
@@ -170,6 +179,13 @@ import Foundation
     check(throughLink.contains { $0.contains("not used:") && $0.contains("leads through a link") } && fm.fileExists(atPath: gdrive.path)
           && !throughLink.contains { $0.hasPrefix("[TRASHED]") || $0.hasPrefix("[DRY]") }, "a source reached through a link into CloudStorage fails closed and nothing in it moves: \(throughLink.filter { $0.contains("not used") || $0.hasPrefix("[") })")
     check(fm.fileExists(atPath: gdrive.path), "the cloud copy is still there")
+    // the second review's repro: the same cloud folder typed in lower case (a case-insensitive disk opens it)
+    for typed in ["library/cloudstorage", "LIBRARY/CLOUDSTORAGE", "Library/cloudStorage"] {
+        config(sources(["zoom|on|\(homeBase)/\(typed)/GDrive-Test/Zoom"]))
+        let cased = lines(run("/bin/bash", ["--recordings-older-than", "30", "--execute", "--yes"]))
+        check(cased.contains { $0.contains("not used:") } && fm.fileExists(atPath: gdrive.path) && !cased.contains { $0.hasPrefix("[TRASHED]") || $0.hasPrefix("[DRY]") },
+              "\(typed): a cloud folder typed in another case fails closed and nothing is moved: \(cased.filter { $0.contains("not used") || $0.hasPrefix("[") })")
+    }
     // a link is never followed: the target's folder is not listed through it
     config(sources(["custom|on|\(homeBase)/Notes/linked"]))
     check(!lines(run("/bin/bash", ["--recordings-older-than", "30"])).contains { $0.contains(linkTarget.path) || $0.contains("linked/Old") }, "a symlinked source lists nothing from its target")

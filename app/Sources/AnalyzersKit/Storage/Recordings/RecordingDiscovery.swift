@@ -68,13 +68,15 @@ public enum RecordingDiscovery {
     /// The guarded place a path is in, or nil: `Documents`, `Desktop`, `Downloads`, `iCloud Drive` and `External Disks`
     /// are the places macOS can ask the person about when a program looks inside.
     public static func protectedArea(_ path: String, home: String) -> String? {
+        // macOS volumes are case-insensitive: ~/documents is Documents
+        let lower = path.lowercased(), lowerHome = home.lowercased()
         for area in ["Documents", "Desktop", "Downloads"] {
-            let root = "\(home)/\(area)"
-            if path == root || path.hasPrefix(root + "/") { return area }
+            let root = "\(lowerHome)/\(area.lowercased())"
+            if lower == root || lower.hasPrefix(root + "/") { return area }
         }
-        let icloud = "\(home)/Library/Mobile Documents"
-        if path == icloud || path.hasPrefix(icloud + "/") { return "iCloud Drive" }
-        if path.hasPrefix("/Volumes/") { return "External Disks" }
+        let icloud = "\(lowerHome)/library/mobile documents"
+        if lower == icloud || lower.hasPrefix(icloud + "/") { return "iCloud Drive" }
+        if lower.hasPrefix("/volumes/") { return "External Disks" }
         return nil
     }
 

@@ -114,6 +114,10 @@ import Synchronization
     check("iCloud Drive and /Volumes are guarded places, the Library is not",
           RecordingDiscovery.protectedArea("\(home)/Library/Mobile Documents/com~apple~CloudDocs/x", home: home) == "iCloud Drive"
           && RecordingDiscovery.protectedArea("/Volumes/Disk", home: home) == "External Disks"
+          && RecordingDiscovery.protectedArea("\(home)/documents/Zoom", home: home) == "Documents"
+          && RecordingDiscovery.protectedArea("\(home)/DESKTOP", home: home) == "Desktop"
+          && RecordingDiscovery.protectedArea("\(home)/library/mobile documents/x", home: home) == "iCloud Drive"
+          && RecordingDiscovery.protectedArea("/volumes/Disk", home: home) == "External Disks"
           && RecordingDiscovery.protectedArea("\(home)/Library/Application Support", home: home) == nil)
     // a discovered folder that leads, through a link, somewhere that can never be a source is refused, shown as such, and never written
     let linked = RecordingReaders(home: home, defaultsString: { domain, key in ["com.apple.screencapture/location-screenrecording": "~/Pictures/Shots"]["\(domain)/\(key)"] },
@@ -150,14 +154,20 @@ import Synchronization
     for (path, isLink) in [(home, false), ("/", false), ("\(home)/Documents", false), ("\(home)/Library/CloudStorage/OneDrive-X/Recordings", false),
                            ("\(home)/Library/Containers/com.x/Data", false), ("\(home)/Notes", true), ("relative/path", false),
                            ("\(home)/Library/Application Support", false), ("/Applications", false), ("/Library", false), ("/Users", false),
-                           ("\(home)/.ssh", false), ("/Volumes/Disk", false), ("/etc/x", false)] {
+                           ("\(home)/.ssh", false), ("/Volumes/Disk", false), ("/etc/x", false),
+                           ("\(home)/library/cloudstorage/x", false), ("\(home)/LIBRARY/CLOUDSTORAGE/x", false), ("\(home)/Library/CONTAINERS/c", false),
+                           ("\(home)/library/group containers/g", false), ("\(home)/library/MOBILE DOCUMENTS/x", false), ("\(home)/DOCUMENTS", false),
+                           ("\(home)/.SSH", false), ("/VOLUMES/Disk", false), ("\(home.uppercased())/Library/CloudStorage/x", false)] {
         if case .refused = RecordingSourcesStore.adding(folder: path, to: base, readers: readers(), isLink: isLink, allowed: []) {} else { refusedAll = false; print("      not refused: \(path)") }
     }
     check("the window refuses the folders the engine refuses", refusedAll)
     check("a folder inside Documents is allowed, and the whole Desktop is allowed only for files",
           RecordingFolderRule.refusal("\(home)/Documents/Zoom", home: home, isLink: false) == nil
           && RecordingFolderRule.refusal("\(home)/Desktop", home: home, isLink: false) != nil
-          && RecordingFolderRule.refusal("\(home)/Desktop", layout: .files, home: home, isLink: false) == nil)
+          && RecordingFolderRule.refusal("\(home)/Desktop", layout: .files, home: home, isLink: false) == nil
+          && RecordingFolderRule.refusal("\(home)/DESKTOP", layout: .files, home: home, isLink: false) == nil
+          && RecordingFolderRule.refusal("\(home)/documents/Zoom", home: home, isLink: false) == nil
+          && RecordingFolderRule.refusal("/volumes/Disk/Rec", home: home, isLink: false) == nil)
     check("the summary for Setup reads 'on' and 'needs access'", RecordingSourcesStore.summary(find("zoom", RecordingDiscovery.discover(readers: readers(apps: ["zoom.us"]), saved: [])).map { [$0] } ?? []) == "1 on · 1 needs access")
 
     // 4. the config round trip: what the app writes is what ConfigStore reads and what bash splits

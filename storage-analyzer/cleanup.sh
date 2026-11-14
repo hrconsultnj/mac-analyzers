@@ -766,23 +766,31 @@ REC_TSV="${ANALYZERS_ROOT}/lib/recording-sources.tsv"
 # The check runs on the path as written AND on where it really leads (a link in the middle of the path counts),
 # and it is the same check the app's Sources window makes (RecordingFolderRule).
 
+# rec_lc <text>: lower case. macOS volumes are case-insensitive, so ~/library/cloudstorage is the Library's
+# CloudStorage folder: every comparison below is made on lower-case text and never on the case that was typed.
+rec_lc() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
 # rec_under_home <path>: prints the path below your home folder (empty for the home folder itself); fails when outside.
 rec_under_home() {
-  local x="$1" h
+  local x="$1" h lx lh
+  lx="$(rec_lc "$x")"
   for h in "$HOME_DIR" "$HOME_REAL"; do
     [[ -n "$h" ]] || continue
-    if [[ "$x" == "$h" ]]; then echo ""; return 0; fi
-    if [[ "$x" == "$h/"* ]]; then echo "${x#"$h"/}"; return 0; fi
+    lh="$(rec_lc "$h")"
+    if [[ "$lx" == "$lh" ]]; then echo ""; return 0; fi
+    if [[ "$lx" == "$lh/"* ]]; then echo "${x:$((${#h} + 1))}"; return 0; fi
   done
   return 1
 }
 
 # rec_library_allowed <path below home>: a Library folder that a known recording app names in recording-sources.tsv.
 rec_library_allowed() {
-  local rel="$1" step
+  local rel step
+  rel="$(rec_lc "$1")"
   [[ -f "$REC_TSV" ]] || return 1
   while IFS= read -r step; do
     [[ -n "$step" ]] || continue
+    step="$(rec_lc "$step")"
     if [[ "$rel" == "$step" || "$rel" == "$step/"* ]]; then return 0; fi
   done < <(awk -F'\t' '/^#/ {next} {n = split($8, s, "|"); for (i = 1; i <= n; i++) if (s[i] ~ /^home:Library\//) { x = s[i]; sub(/^home:/, "", x); sub(/@.*$/, "", x); print x }}' "$REC_TSV")
   return 1
@@ -790,27 +798,29 @@ rec_library_allowed() {
 
 # rec_check <path> <layout>: prints why this location can never be a source and succeeds; fails when it is allowed.
 rec_check() {
-  local x="$1" layout="$2" rel first name rest
+  local x="$1" layout="$2" rel lrel first name rest lx
   if [[ "$x" == "/" ]]; then echo "it is the whole disk"; return 0; fi
   if rel="$(rec_under_home "$x")"; then
     if [[ -z "$rel" ]]; then echo "it is your whole home folder"; return 0; fi
-    first="${rel%%/*}"
+    lrel="$(rec_lc "$rel")"
+    first="${lrel%%/*}"
     case "$first" in
       .*) echo "it is in a hidden folder of your home folder, where settings and keys are kept"; return 0 ;;
-      Library)
+      library)
         rec_library_allowed "$rel" || { echo "it is in your Library folder, where apps keep their own data and your cloud storage"; return 0; }
         ;;
     esac
-    for name in Desktop Documents Downloads Movies Music Pictures Library; do
-      if [[ "$rel" == "$name" && "$layout" != "files" ]]; then
-        echo "it is your whole ${name} folder, which holds more than recordings; choose a folder inside it"; return 0
+    for name in desktop documents downloads movies music pictures library; do
+      if [[ "$lrel" == "$name" && "$layout" != "files" ]]; then
+        echo "it is your whole ${rel} folder, which holds more than recordings; choose a folder inside it"; return 0
       fi
     done
     return 1
   fi
-  case "$x" in
-    /Volumes/*)
-      rest="${x#/Volumes/}"
+  lx="$(rec_lc "$x")"
+  case "$lx" in
+    /volumes/*)
+      rest="${lx#/volumes/}"
       if [[ "$rest" != */* ]]; then echo "it is a whole disk"; return 0; fi
       return 1 ;;
   esac
