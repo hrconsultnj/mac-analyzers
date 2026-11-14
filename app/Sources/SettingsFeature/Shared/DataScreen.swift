@@ -17,9 +17,12 @@ import SwiftUI
 /// belong to the window, so they go on the `DataScreen`, not inside it.
 ///
 /// Placement: content that fills (a `List`, a `Table`) is unaffected. Content smaller than the
-/// screen is CENTRED, which is what an empty state (`ContentUnavailableView`, "No Audit Yet") needs
-/// and is why a screen never places its own; `padded: true` is for plain content with no insets
-/// of its own and puts it at the top left.
+/// screen is centred, and `padded: true` is for plain content with no insets of its own and puts it
+/// at the top left. An empty, failed or loading state is NOT placed by the screen at all: it is
+/// `EmptyState` or `LoadingState` (`Shared/ScreenState.swift`), which fill whatever space is left
+/// (under a banner, a facts strip, a tab bar) and centre themselves there, so a state never lands at
+/// the top left; `scripts/check.sh states` refuses a bare `ContentUnavailableView` or screen-state
+/// `ProgressView` anywhere else.
 struct DataScreen<Content: View>: View {
     let title: String
     var subtitle: String?

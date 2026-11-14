@@ -27,7 +27,7 @@ struct ReclaimableNowDetailView: View {
     var body: some View {
         Group {
             if loaded && rows.isEmpty {
-                ContentUnavailableView("Nothing to Reclaim", systemImage: "sparkles",
+                EmptyState("Nothing to Reclaim", systemImage: "sparkles",
                                        description: Text("The latest check found nothing a cleanup would remove."))
             } else {
                 OutlineTable(sorted(rows), children: \.children, selection: $selection, sortOrder: $sortOrder,

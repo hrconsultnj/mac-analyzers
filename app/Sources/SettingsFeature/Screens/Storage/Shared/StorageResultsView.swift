@@ -45,7 +45,7 @@ struct StorageResultsView<Category: StorageCategory>: View {
     @ViewBuilder private var content: some View {
         if let loaded {
             if loaded.rows.rows.isEmpty {
-                ContentUnavailableView("Nothing Was Found", systemImage: "checkmark.circle",
+                EmptyState("Nothing Was Found", systemImage: "checkmark.circle",
                                        description: Text("This run found nothing to list."))
             } else {
                 ReviewTable(session: loaded.session, readOnly: true,
@@ -53,10 +53,10 @@ struct StorageResultsView<Category: StorageCategory>: View {
                             only: Set(loaded.rows.rows(inTab: current.rawValue).map(\.id)), screen: "run.\(screenKey)")
             }
         } else if finished {
-            ContentUnavailableView("Details Weren't Kept", systemImage: "text.alignleft",
+            EmptyState("Details Weren't Kept", systemImage: "text.alignleft",
                                    description: Text("Show Raw Output has the text this run left."))
         } else {
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            LoadingState()
         }
     }
 

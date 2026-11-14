@@ -126,19 +126,19 @@ struct ActivityView: View {
         if model.hasLoaded, sections.running.isEmpty, sections.days.isEmpty, sections.neverRan.isEmpty {
             switch filter.scope {
             case .all where filter.query.isEmpty:
-                ContentUnavailableView("Nothing Has Run Yet", systemImage: "list.bullet.rectangle",
+                EmptyState("Nothing Has Run Yet", systemImage: "list.bullet.rectangle",
                                        description: Text("Cleanups, checks and reports appear here as they run."))
             case .running:
-                ContentUnavailableView("Nothing Is Running", systemImage: "play.circle",
+                EmptyState("Nothing Is Running", systemImage: "play.circle",
                                        description: Text("A cleanup or check that is running shows here, with a Stop button."))
             case .needsReview:
-                ContentUnavailableView("Nothing Is Waiting for Review", systemImage: "eye",
+                EmptyState("Nothing Is Waiting for Review", systemImage: "eye",
                                        description: Text("A preview you ran in the last \(Int(JobStore.reviewWindow / 60)) minutes that found something shows here until you apply or discard it. Older ones stay in the list as what they found."))
             case .failed:
-                ContentUnavailableView("Nothing Has Failed", systemImage: "checkmark.circle",
+                EmptyState("Nothing Has Failed", systemImage: "checkmark.circle",
                                        description: Text("Runs that could not finish are listed here, with the reason."))
             default:
-                ContentUnavailableView.search(text: filter.query)
+                EmptyState.search(text: filter.query)
             }
         }
     }

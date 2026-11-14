@@ -111,6 +111,15 @@ func probeGuardRules() -> Never {
         check("the \(name) holds exactly the alerts inside it", got == wanted && !wanted.isEmpty,
               "read \(got.sorted()), wanted \(wanted.sorted()), \(loaded.coverage.bytesRead) bytes")
     }
+    // an entry screen looks a row up in the same period the list showed (GuardEntryScreen): every row of every
+    // period must be found again by its id in that period's read, including a group that straddles the period's start
+    for hours in [24, 72, 168, 2_160] {
+        let read = GuardHistory.load(since: GuardHistory.periodStart(hours: hours, now: now))
+        let ids = read.days(scope: .all, search: "").flatMap { $0.rows.map(\.id) }
+        let lost = ids.filter { read.row(id: $0) == nil }
+        check("every row of the last \(hours) hours opens from that period's read", lost.isEmpty && !ids.isEmpty,
+              "\(lost.count) of \(ids.count) rows not found")
+    }
     let shortRead = GuardHistory.load(since: GuardHistory.periodStart(hours: 24, now: now)).coverage.bytesRead
     let longRead = GuardHistory.load(since: GuardHistory.periodStart(hours: 2_160, now: now)).coverage.bytesRead
     check("a short period reads less of the log than a long one", shortRead < longRead, "24 hours \(shortRead) bytes, 90 days \(longRead) bytes")

@@ -112,8 +112,8 @@ struct MonitorView: View {
                            rowFor: { model.row($0) }, begin: stopFlow.begin, open: showDetails) { row in
                 rowMenu(row)
             }
-        case .energy: model.isLoaded(.energy) ? AnyView(energyTable) : AnyView(ProgressView("Reading the process table…"))
-        case .diskIO: model.isLoaded(.diskIO) ? AnyView(diskIOTable) : AnyView(ProgressView("Reading the process table…"))
+        case .energy: model.isLoaded(.energy) ? AnyView(energyTable) : AnyView(LoadingState("Reading the process table…"))
+        case .diskIO: model.isLoaded(.diskIO) ? AnyView(diskIOTable) : AnyView(LoadingState("Reading the process table…"))
         }
     }
 
@@ -211,10 +211,10 @@ struct MonitorView: View {
     @ViewBuilder private var emptyState: some View {
         if model.hasLoaded, visibleRows.isEmpty {
             if search.isEmpty {
-                ContentUnavailableView(Names.Monitor.nothingInScope, systemImage: "memorychip",
+                EmptyState(Names.Monitor.nothingInScope, systemImage: "memorychip",
                                        description: Text("Choose another scope to see more of what is running."))
             } else {
-                ContentUnavailableView.search(text: search)
+                EmptyState.search(text: search)
             }
         }
     }

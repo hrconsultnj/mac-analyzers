@@ -23,7 +23,7 @@ struct MemoryFreedDetailView: View {
     var body: some View {
         Group {
             if loaded && rows.isEmpty {
-                ContentUnavailableView("No Memory Freed", systemImage: "memorychip",
+                EmptyState("No Memory Freed", systemImage: "memorychip",
                                        description: Text("Nothing was closed in this period."))
             } else {
                 OutlineTable(rows.sorted(using: sortOrder), children: \.children, selection: $selection,
