@@ -113,6 +113,11 @@ through `config.local.sh` (never hardcoded).
   one line, then its nested areas as rows that open them through the `Navigator`) as the
   first item INSIDE its scroll content; a screen that is a table, a list or a review
   (Monitor, Activity, Guard, a run) never has one and starts with its data.
+  Settings is ONE sidebar row (`Groups/SettingsGroup.swift`, `Screens/Settings/SettingsHubView.swift`): the app's own
+  configuration (appearance, sidebar icon style, Open at Login, the Updates state) at the top, then a row for each
+  preference screen (Memory, Storage, Notifications, Schedule), pushed over the hub as `Route.settings`; their deep links
+  land there with the Settings row still selected. A new preference goes in the hub or in one of those screens, never in
+  a new sidebar row. Open at Login is the system's `SMAppService.mainApp` state, shared with Setup: one switch per thing.
   The app-level screens (Updates, What's New, How It Works, Support) have no sidebar rows
   (`SidebarRow(inSidebar: false)` keeps the row for names and icons): the item at the foot of
   the sidebar (`Shell/SidebarVersionItem.swift`) opens the Mac Analyzers screen

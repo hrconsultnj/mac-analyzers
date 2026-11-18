@@ -64,7 +64,7 @@ if arguments.first == "--probe-links" {
     // every link Overview and the menu-bar panel send (Overview track): each must land on its screen
     let overview = ["disk:capacity": "disk", "caches:projects": "caches", "monitor": "monitor", "monitor:select:Opera": "monitor",
                     "trends": "trends", "trends:storage": "trends", "trends:memory": "trends", "undo": "undo",
-                    "undo:servers": "undo", "undo:opened": "undo", "logs": "activity", "schedule": "prefsSchedule",
+                    "undo:servers": "undo", "undo:opened": "undo", "logs": "activity", "schedule": "settings", "settings": "settings", "memory": "settings", "storage": "settings", "notifications": "settings",
                     "update": "updates", "log:guardLog": "memoryGuard", "setup": "setup",
                     "app": "app", "about": "howItWorks", "howItWorks": "howItWorks", "support": "support",
                     "updates:whatsNew": "updates", "updates:whatsNew:latest": "updates", "updates:whatsNew:2.71.0": "updates"]

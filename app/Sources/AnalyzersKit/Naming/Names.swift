@@ -25,6 +25,23 @@ public enum Names {
         public static let app = Names.app
     }
 
+    // MARK: - Settings hub
+
+    public enum SettingsHub {
+        public static let appearance = "Appearance"
+        public static let appearanceAuto = "Auto"
+        public static let appearanceLight = "Light"
+        public static let appearanceDark = "Dark"
+        public static let sidebarIcons = "Sidebar Icons"
+        public static let iconsColoured = "Coloured"
+        public static let iconsPlain = "Plain"
+        public static let general = "General"
+        public static let openAtLogin = "Open at Login"
+        public static let configuration = "Configuration"
+        public static let named = [appearance, appearanceAuto, appearanceLight, appearanceDark, sidebarIcons, iconsColoured, iconsPlain,
+                                   general, openAtLogin, configuration]
+    }
+
     // MARK: - How It Works
 
     /// The explainer's tabs, topics and section headings. The topic titles are what the help button of each screen names.
@@ -99,6 +116,7 @@ public enum Names {
         public static let undo = "Undo"
         public static let memorySettings = "Memory"
         public static let storageSettings = "Storage"
+        public static let settings = "Settings"
         public static let notifications = "Notifications"
         public static let schedule = "Schedule"
         public static let updates = "Updates"
@@ -906,7 +924,7 @@ public enum Names {
                  Screen.memoryCleanup, Screen.disk, Screen.cachesAndBuilds, Screen.downloads,
                  Screen.tempAndAgents, Screen.timeMachine, Screen.spotlight, Screen.unusedApps, Screen.oldRecordings,
                  Screen.network, Screen.loginItems, Screen.reports, Screen.trends, Screen.undo,
-                 Screen.memorySettings, Screen.storageSettings, Screen.notifications, Screen.schedule,
+                 Screen.settings, Screen.memorySettings, Screen.storageSettings, Screen.notifications, Screen.schedule,
                  Screen.updates, Screen.howItWorks, Screen.support, Screen.turnOff, Screen.actions]
             .map { ("Screen", $0) }
         rows += [crisisReports, crisisReport, memoryReclaim, startupChanges].map { ("Shared", $0) }
@@ -980,6 +998,7 @@ public enum Names {
                  MemoryKind.showInMonitor, MemoryKind.overTime, MemoryKind.whoHoldsTheMost, MemoryKind.whatItIs].map { ("Memory kind", $0) }
         rows += Kind.all.map { ("Kind", $0) }
         rows += Period.all.map { ("Period", $0) }
+        rows += SettingsHub.named.map { ("Settings", $0) }
         rows += WhatsNew.named.map { ("What's New", $0) }
         rows += Update.named.map { ("Update", $0) }
         rows += [Stop.stop, Stop.quit, Stop.forceStop, Stop.leaveRunning, Stop.leftAlone, Stop.leftAloneOne].map { ("Stop", $0) }

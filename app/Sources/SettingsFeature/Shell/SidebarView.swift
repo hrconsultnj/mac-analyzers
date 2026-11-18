@@ -12,6 +12,7 @@ struct SidebarView: View {
     let navigator: Navigator
     /// Shown as the hover overlay: one sheet of glass, so the footer has no bar behind it.
     var floating = false
+    @AppStorage(SidebarIconStyle.key) private var iconStyle = SidebarIconStyle.coloured
 
     var body: some View {
         List(selection: selection) {
@@ -56,11 +57,17 @@ struct SidebarView: View {
     private func rows(_ group: SidebarGroup) -> some View {
         ForEach(group.rows.filter(\.inSidebar)) { row in
             // The system draws no colour for a sidebar glyph in this app (`.listItemTint` with `.preferred` or `.fixed`
-            // renders grey, checked off-screen on macOS 27), so the icon is the shared tile.
-            Label {
-                Text(row.title)
-            } icon: {
-                IconTile(symbol: row.symbol, color: row.tint, side: Tokens.Icon.row)
+            // renders grey, checked off-screen on macOS 27), so the coloured style is the shared tile; Plain is the symbol.
+            Group {
+                if iconStyle == .coloured {
+                    Label {
+                        Text(row.title)
+                    } icon: {
+                        IconTile(symbol: row.symbol, color: row.tint, side: Tokens.Icon.row)
+                    }
+                } else {
+                    Label(row.title, systemImage: row.symbol)
+                }
             }
                 .badge(row.badge?().map { Text($0) })
                 .tag(row.section)

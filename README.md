@@ -74,7 +74,7 @@ for your Mac as it is configured.
   disk are never touched. Projects something live runs from are left alone.
 
 None of these touch your documents, photos or projects. To change when the
-daily jobs run, open **Settings › Schedule**. To switch all the background
+daily jobs run, open **Settings**, then **Schedule**. To switch all the background
 jobs off together, use **Setup › Turn Off or Remove**.
 
 Born from a real incident: a 32 GB Mac Studio living at 25–28 GB used, swap
@@ -414,8 +414,10 @@ show what is in it.
   explains each part with your Mac's own numbers, including what each
   scheduled clean does by itself. **What's New** lists each new feature of a
   release, grouped by the screen it belongs to.
-- **Settings** — Memory, Storage, Notifications and Schedule (editable clean
-  times that survive reinstalls and upgrades). They write a clearly-marked
+- **Settings** — one row in the sidebar. It holds how the app looks (Auto, Light
+  or Dark), whether the sidebar's icons are coloured, Open at Login and the
+  Updates state, and opens Memory, Storage, Notifications and Schedule (editable
+  clean times that survive reinstalls and upgrades). They write a clearly-marked
   managed block into `config.local.sh`; anything you wrote outside the
   markers is never touched, and saving memory settings restarts the guard so
   they take effect immediately. The guard's two stop switches (hard cap,
