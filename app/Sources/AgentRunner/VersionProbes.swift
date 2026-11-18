@@ -219,6 +219,12 @@ func probeVersions() async -> Never {
     _ = tagGit(["add", "-A"]); _ = tagGit(["commit", "-q", "-m", "four"])
     expect("a commit after the beta is not the beta", tagScript(["--beta", tagRoot.path]), "")
 
+    print("\n— update choices, the update window's notes and the status card —")
+    UpdateChoicesProbe.run { label, ok, detail in
+        if !ok { failed += 1 }
+        print("\(ok ? "PASS" : "FAIL") \(label)\(ok || detail.isEmpty ? "" : "   (\(detail))")")
+    }
+
     print("\n— the install scripts, run for real on a scratch clone —")
     UpgradeScriptProbe.run(repoRoot: repoRoot) { label, ok, detail in
         if !ok { failed += 1 }

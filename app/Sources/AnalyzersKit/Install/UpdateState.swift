@@ -23,6 +23,15 @@ public final class UpdateState {
     /// The newest published version, "2.9.0"; nil until a check has answered.
     public private(set) var latest: String?
     public private(set) var phase: Phase = .idle
+    /// Whether the last check reached GitHub: false when it could not (offline, a proxy, a limit); nil before the first answer.
+    public private(set) var reachedGitHub: Bool?
+    /// The newest version Beta can offer, as GitHub's list gave it ("2.73.1-beta.2", or a release newer than the beta);
+    /// nil when no list was read.
+    public private(set) var betaTarget: String?
+    /// Whether the app checks by itself (launch and every 6 hours) and says so once per version. Saved.
+    public var automaticChecks: Bool = UpdateChoices.automatic {
+        didSet { UpdateChoices.automatic = automaticChecks }
+    }
     /// When the last check answered, for "Checked 4 min ago".
     public private(set) var checkedAt: Date?
 
@@ -70,8 +79,9 @@ public final class UpdateState {
     /// The channels this copy can follow, in the order the picker shows them. The one in use is always
     /// among them, so the picker never shows a selection it does not offer.
     public var channels: [UpdateChannel] {
-        var list: [UpdateChannel] = [.releases]
-        if hasClone && cloneBranch == "development" { list.append(.beta) }
+        // Releases and Beta are always there (a beta is one click to follow; a copy that cannot install one says why and still
+        // lists what the beta holds); This Copy only for a copy built from a clone
+        var list: [UpdateChannel] = [.releases, .beta]
         if hasClone { list.append(.thisCopy) }
         if !list.contains(channel) { list.append(channel) }
         return list
@@ -98,8 +108,9 @@ public final class UpdateState {
 
     /// For `SnapshotRunner --update-state`: sets what the last check answered, so
     /// each state of the version item can be rendered without the network.
-    @_spi(TestSupport) public func preset(latest: String?) {
+    @_spi(TestSupport) public func preset(latest: String?, reached: Bool? = true) {
         self.latest = latest
+        reachedGitHub = reached
         checkedAt = Date()
         isFixture = true
     }
@@ -110,9 +121,11 @@ public final class UpdateState {
     /// The same for a development channel: the channel, what it answered, and the clone it read.
     @_spi(TestSupport) public func preset(channel: UpdateChannel, state: ChannelState, newest: String? = nil,
                                           cloneBranch: String? = "development", facts: CloneFacts? = nil,
-                                          cloneChangelog: String? = nil, betaNotes: BetaNotes? = nil) {
+                                          cloneChangelog: String? = nil, betaNotes: BetaNotes? = nil,
+                                          betaTargetVersion: String? = nil) {
         channelChangelog = cloneChangelog
         self.betaNotes = betaNotes
+        if case .offered = state { betaTarget = betaTargetVersion } else { betaTarget = nil }
         storedChannel = channel
         channelState = state
         newestBeta = newest
@@ -129,6 +142,44 @@ public final class UpdateState {
         case .releases: latest.map { UpdateChecker.isNewer($0, than: installed) } ?? false
         case .beta, .thisCopy: channelState?.isUpdate ?? false
         }
+    }
+
+    /// The version an update would bring, on the channel in use: its internal version ("2.73.1-beta.2") for comparing and
+    /// fetching its notes, and the name a person reads ("2.73.1 Beta 2"). nil when nothing newer is offered, and on This
+    /// Copy, which rebuilds the clone rather than bringing a version.
+    public struct Offered: Equatable, Sendable {
+        public let version: String
+        public let label: String
+        public init(version: String) { self.version = version; self.label = BuildInfo.label(forVersion: version) }
+    }
+
+    public var offered: Offered? {
+        guard isAvailable else { return nil }
+        switch channel {
+        case .releases: return latest.map(Offered.init(version:))
+        case .beta: return betaTarget.map(Offered.init(version:))
+        case .thisCopy: return nil
+        }
+    }
+
+    /// The headline of the status card at the top of Updates, in the shape of the system's Software Update:
+    /// "Mac Analyzers is up to date", "Mac Analyzers 2.73.1 Beta is available", the copy's own name for a Dev copy.
+    public var statusTitle: String {
+        if let offered { return "\(Names.app) \(offered.label) is available" }
+        if channel == .thisCopy, isAvailable { return "Your clone has newer changes" }
+        if phase == .checking, checkedAt == nil { return "Checking for Updates…" }
+        if reachedGitHub == false, latest == nil { return "Couldn't check for updates" }
+        if build.isDevelopment { return build.label }
+        return "\(Names.app) is up to date"
+    }
+
+    /// The line under the headline: the installed version, or why a Dev copy has nothing to install, or that GitHub was not reached.
+    public var statusDetail: String {
+        if reachedGitHub == false, latest == nil { return Names.ChannelText.offline }
+        if build.isDevelopment, offered == nil, !isAvailable {
+            return build.developmentSentence(latest: latest)
+        }
+        return "You have \(build.versionText)."
     }
 
     /// What the sidebar's version item, the Updates screen and the footer call the state, one place for all
@@ -164,8 +215,9 @@ public final class UpdateState {
     public func check(force: Bool = false) async {
         guard phase != .installing, !isFixture else { return }
         phase = .checking
-        let found = await UpdateChecker.latestVersion(force: force)
-        if let found { latest = found }
+        let found = await UpdateChecker.latestRelease(force: force)
+        if let version = found.version { latest = version }
+        reachedGitHub = found.reached
         await refreshChannel(force: force)
         checkedAt = Date()
         if phase == .checking { phase = .idle }
@@ -196,11 +248,10 @@ public final class UpdateState {
             cloneDirty = nil
         case .beta:
             let dirty = await Task.detached { provider()?.isDirty }.value
-            var feed: BetaFeed?
-            if basics.hasClone, basics.branch == "development" {
-                feed = await UpdateChecker.betaFeed(force: force)
-            }
-            let notes = basics.hasClone ? await Self.betaNotes(from: feed, force: force) : nil
+            // the list and its notes are read whatever the copy is (a downloaded one sees what the beta holds); whether it can
+            // INSTALL one is `ChannelLogic.beta`'s to say
+            let feed = await UpdateChecker.betaFeed(force: force)
+            let notes = await Self.betaNotes(from: feed, force: force)
             guard channel == asked else { return }
             cloneDirty = dirty
             cloneFacts = nil
@@ -213,6 +264,7 @@ public final class UpdateState {
             channelState = ChannelLogic.beta(build: build, cloneBranch: basics.branch, isClone: basics.hasClone, feed: feed,
                                              containment: containment)
             newestBeta = feed?.newestBeta.map { BuildInfo.label(forVersion: $0) }
+            betaTarget = feed?.target
             channelChangelog = nil
             betaNotes = notes
         case .thisCopy:
@@ -248,10 +300,18 @@ public final class UpdateState {
         guard loop == nil else { return }
         loop = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.check()
+                // switched off: no background reading (the Updates screen and "Check for Updates" still look when asked)
+                if self?.automaticChecks != false { await self?.check() }
                 try? await Task.sleep(for: Self.cadence)
             }
         }
+    }
+
+    /// The notes of every version between this copy and `offered` (newest first), from the changelog as it stands at the
+    /// offered version's tag: what the update window lists. Empty when nothing is offered or GitHub cannot be read.
+    public func notesForOffered() async -> [ReleaseNote] {
+        guard let offered, let text = await UpdateChecker.betaChangelog(ref: "v\(offered.version)") else { return [] }
+        return ReleaseNote.forUpdate(changelog: text, installed: installed, offered: offered.version, label: offered.label)
     }
 
     /// Installs the available release.

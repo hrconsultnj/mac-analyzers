@@ -265,7 +265,8 @@ final class Snapshot: NSObject, NSApplicationDelegate {
                 let cloneChangelog = "## Next\n\n- The Updates screen lists what each release brought. <!-- wn: open=update icon=sparkles title=\"Release Notes on Updates\" -->\n- Beta follows the newest pre-release. <!-- wn: open=update icon=testtube.2 title=\"Beta Channel\" -->\n- A change only your clone has. <!-- wn: open=- icon=hammer title=\"Your Clone\" -->\n"
                 channelState.preset(channel: fixture.0, state: fixture.1, newest: fixture.2, cloneBranch: fixture.3.branch, facts: fixture.3,
                                     cloneChangelog: fixture.0 == .thisCopy ? cloneChangelog : nil,
-                                    betaNotes: betaOut ? UpdateState.BetaNotes(label: "2.72.1 Beta 2", changelog: betaChangelog) : nil)
+                                    betaNotes: betaOut ? UpdateState.BetaNotes(label: "2.72.1 Beta 2", changelog: betaChangelog) : nil,
+                                    betaTargetVersion: state == "beta-release" ? "2.72.1" : "2.72.1-beta.2")
                 return channelState
             }
             return forced
@@ -296,6 +297,8 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         let sources = checkout.appending(path: "lib/recording-sources.tsv")
         if FileManager.default.fileExists(atPath: sources.path) { RecordingSourceCatalog.useList(at: sources) }
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
+        // `--update-alert up-to-date|unreachable|clone|dev`: the alert "Check for Updates…" shows, drawn from its own views
+        if let kind = option("--update-alert") { UpdateRenders.render(kind: kind, updates: updates, to: output, appearance: appearanceOption) }
         if updateStateOption == nil { Task { await updates.check() } }
         // `--welcome <state:step>` (`fresh:3`) draws the Welcome window's own content at the size it has (use `--size 560x680`), not
         // the example inside the main window: the target is then only a placeholder
@@ -311,7 +314,8 @@ final class Snapshot: NSObject, NSApplicationDelegate {
                 StopTarget.fixture(name: "npm task", whereItRuns: "nutri-journey", megabytes: 168, processes: 3),
                 StopTarget.fixture(name: "npm task", whereItRuns: "billing-service", canStop: false, megabytes: 40),
             ], ticked: true))
-            : option("--welcome").map { example in
+            : option("--update-window").map { kind in AnyView(UpdateRenders.updateWindow(kind: kind)) }
+            ?? option("--welcome").map { example in
             AnyView(WelcomeFlowView(fixture: example)
                 .environment(store).environment(config).environment(jobs).environment(updates))
         } ?? AnyView(MainWindowView(restoresLocation: false, sidebar: sidebarState)

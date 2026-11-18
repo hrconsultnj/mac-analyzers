@@ -128,6 +128,37 @@ public enum Names {
         public static let developmentBuild = "Dev Build"
     }
 
+    // MARK: - the Updates screen, its menu command and the update window
+
+    public enum Update {
+        // names (in the title-style table)
+        public static let updatesFrom = "Updates From"
+        public static let checkAutomatically = "Check Automatically"
+        public static let checkForUpdates = "Check for Updates"
+        public static let skipThisVersion = "Skip This Version"
+        public static let remindMeLater = "Remind Me Later"
+        public static let installUpdate = "Install Update"
+        public static let releaseNotes = "Release Notes"
+        public static let windowTitle = "Update Available"
+        public static let named = [updatesFrom, checkAutomatically, checkForUpdates, skipThisVersion, remindMeLater, installUpdate,
+                                   releaseNotes, windowTitle]
+
+        // sentences
+        public static let upToDate = "You're up to date!"
+        public static func newestVersion(_ label: String) -> String { "\(Names.app) \(label) is the newest version available." }
+        public static let available = "A new version of \(Names.app) is available!"
+        public static func wouldYouLikeToUpdate(new: String, installed: String) -> String {
+            "\(new) is available — you have \(installed). Would you like to update now?"
+        }
+        public static let cantReach = "Couldn't Check for Updates"
+        public static let cantReachDetail = "GitHub couldn't be reached. Check your connection and try again."
+        public static let automaticallyInfo = "Mac Analyzers looks for a newer version when it opens and every 6 hours, and says so once for each version. It never installs anything by itself: updating always asks first. Turn this off and it only looks when you press Check for Updates."
+        public static let neverByItself = "Updating always asks first."
+        public static let cloneNewer = "Your Clone Has Newer Changes"
+        public static let rebuildQuestion = "Rebuild this copy from your clone now? Uncommitted changes are built in too."
+        public static func checked(_ relative: String) -> String { "Checked \(relative)" }
+    }
+
     // MARK: - update channels
 
     public enum Channel {
@@ -142,9 +173,17 @@ public enum Names {
 
     /// The sentences the two development channels say (not names: they are not in the title-style table).
     public enum ChannelText {
-        public static let notAClone = "This copy was downloaded, not built from a clone of the project, so it can only follow releases."
+        public static let notAClone = "This copy was downloaded, so it can only install releases. Installing a beta needs a copy built from a clone of the project; what the newest beta holds is listed below."
         public static func notOnDevelopment(_ branch: String?) -> String {
             "Beta follows the development branch. Your clone is on \(branch.map { "“\($0)”" } ?? "no branch")."
+        }
+        /// The line under the channel picker: what the channel is.
+        public static func describes(_ channel: UpdateChannel) -> String {
+            switch channel {
+            case .releases: "Published releases: finished versions, the way most people update."
+            case .beta: "The newest beta, a pre-release published ahead of the next release. A release newer than it is offered too."
+            case .thisCopy: "Your own clone, uncommitted changes included. Only for a copy built from a clone."
+            }
         }
         public static let offline = "Couldn't reach GitHub to check."
         public static let rateLimited = "GitHub is limiting checks from this network right now. Try again in a while."
@@ -942,6 +981,7 @@ public enum Names {
         rows += Kind.all.map { ("Kind", $0) }
         rows += Period.all.map { ("Period", $0) }
         rows += WhatsNew.named.map { ("What's New", $0) }
+        rows += Update.named.map { ("Update", $0) }
         rows += [Stop.stop, Stop.quit, Stop.forceStop, Stop.leaveRunning, Stop.leftAlone, Stop.leftAloneOne].map { ("Stop", $0) }
         rows += [Guard.stopped, Guard.alerts, Guard.period, Guard.show, Guard.tabPlan, Guard.tabHistory, Guard.rule, Guard.matchingNow, Guard.thisWeek, Guard.steps, Guard.protectedNow, Guard.mayQuitList, Guard.neverCloseList, Guard.wouldHave, Guard.theRule, Guard.stateActing, Guard.stateWatching, Guard.stateOff, Guard.stateCantRun, Guard.nothingToReport,
                  Guard.nothingHere, Guard.eventGone, Guard.whatHappened, Guard.theProgram, Guard.whyTheGuardDoesThis,

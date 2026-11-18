@@ -191,21 +191,30 @@ equivalent:
 cd ~/mac-analyzers && ./upgrade.command
 ```
 
-**Update channels.** On the Updates screen, a copy built from a clone can
-follow one of three channels:
+**Updates.** The Updates screen opens with a status card in the style of macOS
+Software Update: whether Mac Analyzers is up to date or what is available, the
+version you have, when it last checked and a Check for Updates button. Check for
+Updates is also in the Mac Analyzers menu and in Help: it tells you you're up to
+date, or opens a window listing what every version since yours brought, with Skip
+This Version, Remind Me Later and Install Update. **Check Automatically** (on by
+default) looks when the app opens and every 6 hours and says so once for each
+version; updating itself always asks first. Below the card, **Updates From**
+chooses what to follow:
 
 - **Releases** (the default) — finished releases only.
-- **Beta** — the newest pre-release, like a beta you subscribe to in
-  TestFlight: a version published on GitHub ahead of the next release, named
-  for the release it leads to (for example `2.72.1 Beta`, then
-  `2.72.1 Beta 2`). When the release of that version comes out, Beta offers
-  the release. When no beta is out, the screen says so and Beta offers each
-  new release. It is offered only when your clone is on the development
-  branch; to switch, run `git -C ~/mac-analyzers checkout development`.
-  Install moves your clone to that beta and rebuilds (`beta.command`).
-- **This Copy** — your clone exactly as it is now, including changes you
-  have not committed. "Rebuild from This Copy" runs `rebuild.command`, the
-  same build without pulling anything.
+- **Beta** — always listed, so following it is one click. It is the newest
+  pre-release, like a beta you subscribe to in TestFlight: a version published
+  on GitHub ahead of the next release, named for the release it leads to (for
+  example `2.72.1 Beta`, then `2.72.1 Beta 2`). When the release of that version
+  comes out, Beta offers the release. When no beta is out, the screen says so and
+  Beta offers each new release. A downloaded copy sees what the beta holds but
+  installs only releases; a copy built from a clone on the development branch
+  installs the beta (`beta.command` moves your clone to it and rebuilds).
+- **This Copy** — listed only for a copy built from a clone: your clone exactly as
+  it is now, including changes you have not committed. "Rebuild from This Copy"
+  runs `rebuild.command`, the same build without pulling anything.
+
+What's New sits under these controls and follows the channel you pick.
 
 Each channel says how far behind your installed copy is. Reading your clone
 never runs anything the clone itself names, and nothing is fetched into it
@@ -232,7 +241,7 @@ network requests the app makes:
 
 - **The release check** — on launch and every 6 hours, one public request to
   GitHub's list of releases.
-- **The Beta and This Copy channels**, only if you chose one — every 6 hours, a GitHub
+- **The Beta and This Copy channels**, only if you chose one — whenever the app checks (every 6 hours when Check Automatically is on), a GitHub
   request for the list of published pre-releases, and a read of the
   changelog of the newest one.
 - **Install** — when you press it, `upgrade.command` (or `beta.command` on

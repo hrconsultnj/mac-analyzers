@@ -37,6 +37,11 @@ public struct AppCommands: Commands {
             Button("About \(Names.app)") { AboutPanel.show() }
         }
 
+        // Check for Updates… in the app menu, after About (the macOS convention), and again in Help
+        CommandGroup(after: .appInfo) {
+            Button(Names.Update.checkForUpdates + "…") { Task { await UpdateCoordinator.shared.checkForUpdates() } }
+        }
+
         // Help lists How It Works (the system's default Help item has no help book to open)
         CommandGroup(replacing: .help) {
             Button(Names.HowItWorks.help) { navigator?.open(target: "howItWorks") }
@@ -50,6 +55,7 @@ public struct AppCommands: Commands {
 
         // Help: the Welcome flow again, from the first step
         CommandGroup(after: .help) {
+            Button(Names.Update.checkForUpdates + "…") { Task { await UpdateCoordinator.shared.checkForUpdates() } }
             Button(Names.Welcome.showWelcomeAgain) { WelcomeRequest.open(.again) }
         }
 
