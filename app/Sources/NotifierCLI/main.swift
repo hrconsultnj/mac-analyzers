@@ -1,11 +1,11 @@
-// notify CLI — bundled at MacAnalyzers.app/Contents/MacOS/notify.
+// notify CLI — bundled at Sparehold.app/Contents/MacOS/notify.
 // Called by lib/notify.sh: posts {title, message, sound, log} to the running
 // menu-bar app over DistributedNotificationCenter; starts the app first if it
 // isn't running. Exits immediately — never blocks a calling script.
 import AppKit
 import AnalyzersKit
 
-var title = "Mac Analyzers"
+var title = "Sparehold"
 var subtitle: String?
 var message = ""
 var sound: String? = "Glass"
@@ -35,7 +35,7 @@ let bundleURL = URL(fileURLWithPath: CommandLine.arguments[0])
     .resolvingSymlinksInPath()
     .deletingLastPathComponent()   // MacOS
     .deletingLastPathComponent()   // Contents
-    .deletingLastPathComponent()   // MacAnalyzers.app
+    .deletingLastPathComponent()   // Sparehold.app
 
 let appRunning = NSWorkspace.shared.runningApplications
     .contains { $0.bundleIdentifier == NotifyChannel.appBundleID }

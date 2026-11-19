@@ -12,7 +12,7 @@ import Foundation
 public enum Names {
 
     /// The product itself.
-    public static let app = "Mac Analyzers"
+    public static let app = "Sparehold"
 
     // MARK: - sidebar groups
 
@@ -170,7 +170,7 @@ public enum Names {
         }
         public static let cantReach = "Couldn't Check for Updates"
         public static let cantReachDetail = "GitHub couldn't be reached. Check your connection and try again."
-        public static let automaticallyInfo = "Mac Analyzers looks for a newer version when it opens and every 6 hours, and says so once for each version. It never installs anything by itself: updating always asks first. Turn this off and it only looks when you press Check for Updates."
+        public static let automaticallyInfo = "Sparehold looks for a newer version when it opens and every 6 hours, and says so once for each version. It never installs anything by itself: updating always asks first. Turn this off and it only looks when you press Check for Updates."
         public static let neverByItself = "Updating always asks first."
         public static let cloneNewer = "Your Clone Has Newer Changes"
         public static let rebuildQuestion = "Rebuild this copy from your clone now? Uncommitted changes are built in too."
@@ -287,7 +287,7 @@ public enum Names {
         public static let permissionRowTitle = "Time Machine Permission"
         public static let permissionTitle = "Deleting Snapshots Needs a One-Time Permission"
         public static let earlierPermissionTitle = "An Earlier Permission File Exists"
-        public static let earlierPermissionDetail = "A permission file from an older install in Terminal is on this Mac, and it may be what allows this account to delete local snapshots without a password. Mac Analyzers cannot read it. This command, run in Terminal, removes it if it is this account's and leaves it alone otherwise:"
+        public static let earlierPermissionDetail = "A permission file from an older install in Terminal is on this Mac, and it may be what allows this account to delete local snapshots without a password. Sparehold cannot read it. This command, run in Terminal, removes it if it is this account's and leaves it alone otherwise:"
         public static let permissionDetail = "macOS asks for your administrator password once to allow one command: deleting local snapshots. Afterwards any program running on your account can do that without asking, and nothing else is allowed. You can remove the permission from this screen."
         public static let nothingToThin = "No Local Snapshots"
         public static let nothingToThinDetail = "Time Machine keeps hourly snapshots on this Mac while it backs up. There are none right now, so there is nothing to delete."
@@ -345,7 +345,7 @@ public enum Names {
 
     /// The Welcome flow: its window, steps and buttons.
     public enum Welcome {
-        public static let windowTitle = "Welcome to Mac Analyzers"
+        public static let windowTitle = "Welcome to Sparehold"
         public static let newInThisVersion = "New in This Version"
         public static let stepWelcome = "Welcome"
         public static let stepBackground = "Background Protection"
@@ -359,7 +359,7 @@ public enum Names {
         public static let setUpLater = "Set Up Later"
         public static let notNow = "Not Now"
         public static let turnOn = "Turn On"
-        public static let openMacAnalyzers = "Open Mac Analyzers"
+        public static let openMacAnalyzers = "Open Sparehold"
         public static let continueSetup = "Continue Setup…"
         public static let showWelcomeAgain = "Show Welcome Again…"
     }
@@ -408,23 +408,23 @@ public enum Names {
 
         /// The name of a background job, by its launchd label.
         public static func jobTitle(_ label: String) -> String {
-            switch label {
-            case "com.mac-analyzers.memory-guard": memoryGuardJob
-            case "com.mac-analyzers.memory-autoclean.daily": memoryAutoClean
-            case "com.mac-analyzers.storage-autoclean.daily": storageDailyClean
-            case "com.mac-analyzers.storage-autoclean.deep": storageDeepClean
-            default: label
+            switch LaunchdAgentID.matching(label) {
+            case .memoryGuard: memoryGuardJob
+            case .memoryAutoCleanDaily: memoryAutoClean
+            case .storageAutoCleanDaily: storageDailyClean
+            case .storageAutoCleanDeep: storageDeepClean
+            case nil: label
             }
         }
 
         /// What a background job gets the person.
         public static func jobWhy(_ label: String) -> String {
-            switch label {
-            case "com.mac-analyzers.memory-guard": "Watches memory continuously and steps in when one app holds too much."
-            case "com.mac-analyzers.memory-autoclean.daily": "Closes leftover and idle developer servers, headless browsers, emulators and build daemons."
-            case "com.mac-analyzers.storage-autoclean.daily": "Removes build caches nobody has written to for days."
-            case "com.mac-analyzers.storage-autoclean.deep": "The deeper clean: idle projects' packages, package-manager caches, unused Docker images and Time Machine's local snapshots."
-            default: ""
+            switch LaunchdAgentID.matching(label) {
+            case .memoryGuard: "Watches memory continuously and steps in when one app holds too much."
+            case .memoryAutoCleanDaily: "Closes leftover and idle developer servers, headless browsers, emulators and build daemons."
+            case .storageAutoCleanDaily: "Removes build caches nobody has written to for days."
+            case .storageAutoCleanDeep: "The deeper clean: idle projects' packages, package-manager caches, unused Docker images and Time Machine's local snapshots."
+            case nil: ""
             }
         }
 
@@ -748,7 +748,7 @@ public enum Names {
         public static let whatItIs = "What It Is"
     }
 
-    // MARK: - kinds of process (memory-analyzer/rules/kinds.json holds the ids, this holds the names)
+    // MARK: - kinds of process (memory/rules/kinds.json holds the ids, this holds the names)
 
     public enum Kind {
         public static let connectionTools = "Connection Tools"

@@ -16,7 +16,7 @@ public enum MemoryStop {
         public let title: String
         public let detail: String
         public let actionTitle: String
-        /// Why Mac Analyzers never stops this by itself and what stopping it costs, when it is protected and the
+        /// Why Sparehold never stops this by itself and what stopping it costs, when it is protected and the
         /// person chose the stop anyway: the confirmation says it first and the confirming button is styled as
         /// destructive. nil when nothing protects it.
         public var warning: String? = nil
@@ -61,7 +61,7 @@ public enum MemoryStop {
     /// that what runs inside will stop: the process table cannot see inside it, so a session there is not counted.
     public static func hostedNote(_ hosted: [String: Int], appName: String? = nil) -> String? {
         guard CodingAgentHosts.isAvailable else {
-            return "Mac Analyzers could not check whether coding sessions run inside it, so any that do will end with it."
+            return "Sparehold could not check whether coding sessions run inside it, so any that do will end with it."
         }
         var parts: [String] = []
         if let text = hostedText(hosted) {
@@ -91,7 +91,7 @@ public enum MemoryStop {
     public static func quitReach(of identities: [ProcessIdentity], name: String) -> (hosted: [String: Int], caution: String?) {
         let reach = ProgramReach.quitReach(roots: identities.map { Int32($0.pid) })
         let caution = reach.doubt == nil ? nil
-            : "Mac Analyzers could not yet tell what is running inside it, so a coding session in it would end with it."
+            : "Sparehold could not yet tell what is running inside it, so a coding session in it would end with it."
         return (reach.hosted, caution)
     }
 
@@ -111,7 +111,7 @@ public enum MemoryStop {
             if let caution = reach.caution { detail += " \(caution)" }
             return .confirm(Pending(title: "Quit \(name)?", detail: detail, actionTitle: "Quit \(name)") {
                 Report(GuardControl.quitApp(identities).isEmpty
-                    ? "\(name) had already quit or changed, or Mac Analyzers could not tell what it is running, so nothing was sent."
+                    ? "\(name) had already quit or changed, or Sparehold could not tell what it is running, so nothing was sent."
                     : "Asked \(name) to quit.")
             })
         case .tools:
@@ -144,7 +144,7 @@ public enum MemoryStop {
     /// Analyzers does by itself, so a program that is part of, or hosts, a live coding session can be stopped, with
     /// the dialog saying first why it is normally left alone and what may be lost. The panel, the notifications and
     /// the guard never pass it. What a person cannot stop is the same either way: another account's, one that has gone,
-    /// a terminal session, Mac Analyzers itself.
+    /// a terminal session, Sparehold itself.
     public static func plan(target: StopTarget, asPerson: Bool = false) -> Outcome {
         if asPerson {
             if let why = target.personRefusal { return .refused(why) }
@@ -183,20 +183,20 @@ public enum MemoryStop {
             })
     }
 
-    /// Why Mac Analyzers never stops something by itself, and what stopping it would cost, in one sentence for a
+    /// Why Sparehold never stops something by itself, and what stopping it would cost, in one sentence for a
     /// confirmation or a tooltip; nil when nothing protects it. `agent` is the coding agent whose live session it is
     /// part of, `hosted` the live sessions that run below it, and without the list of coding agents nothing can be told apart.
     nonisolated public static func protectionSentence(label: String, agent: String? = nil, hosted: [String: Int] = [:],
                                           listAvailable: Bool = true) -> String? {
         var parts: [String] = []
         if let agent {
-            parts.append("\(label) is part of a live \(agent) session, which Mac Analyzers never stops by itself. Stopping it can end the session and lose work in it that is not saved.")
+            parts.append("\(label) is part of a live \(agent) session, which Sparehold never stops by itself. Stopping it can end the session and lose work in it that is not saved.")
         }
         if let text = hostedText(hosted) {
-            parts.append("\(label) \(agent == nil ? "is, or hosts," : "also hosts") \(text), which Mac Analyzers never stops by itself. Stopping it ends them too, and anything in them that is not saved is lost.")
+            parts.append("\(label) \(agent == nil ? "is, or hosts," : "also hosts") \(text), which Sparehold never stops by itself. Stopping it ends them too, and anything in them that is not saved is lost.")
         }
         if !listAvailable {
-            parts.append("Mac Analyzers could not read its list of coding agents, so it cannot tell whether a live coding session is part of this. Any that is will end with it.")
+            parts.append("Sparehold could not read its list of coding agents, so it cannot tell whether a live coding session is part of this. Any that is will end with it.")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " ")
     }

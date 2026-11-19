@@ -31,13 +31,13 @@ public enum WelcomeStep: String, CaseIterable, Codable, Sendable, Hashable {
     /// One sentence under the title: why this step exists.
     public var sentence: String {
         switch self {
-        case .welcome: "Mac Analyzers watches your Mac's memory, keeps its storage tidy and shows what starts by itself. Here is what that looks like on this Mac."
+        case .welcome: "Sparehold watches your Mac's memory, keeps its storage tidy and shows what starts by itself. Here is what that looks like on this Mac."
         case .background: "Memory is watched all the time and storage is tidied on a schedule, without you opening anything."
         case .guardPreview: "Memory Guard looks at what is running. Here is what it would do on this Mac right now. For now it only watches."
-        case .notifications: "Mac Analyzers tells you when it stops something and when it needs your decision, and each notification has buttons to act on it."
+        case .notifications: "Sparehold tells you when it stops something and when it needs your decision, and each notification has buttons to act on it."
         case .fullDiskAccess: "Without it the storage report can't see some folders, and under-reports what is using your disk."
-        case .timeMachine: "Lets Mac Analyzers delete Time Machine's local snapshots without asking for your password each time, including in the scheduled deep clean."
-        case .done: "Here is how Mac Analyzers is set up now. You can change any of it later in Setup."
+        case .timeMachine: "Lets Sparehold delete Time Machine's local snapshots without asking for your password each time, including in the scheduled deep clean."
+        case .done: "Here is how Sparehold is set up now. You can change any of it later in Setup."
         }
     }
 

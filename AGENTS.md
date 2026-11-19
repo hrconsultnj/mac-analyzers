@@ -2,17 +2,22 @@
 
 <!-- [PORTABLE-OPERATIONAL] -->
 
-Bash / macOS shell suites (must run under the system `/bin/bash` 3.2 — bash 4+ features only behind a version check that re-execs or skips, as `memory-auto-clean.sh` does) (`memory-analyzer/`, `storage-analyzer/`, shared
+Bash / macOS shell suites (must run under the system `/bin/bash` 3.2 — bash 4+ features only behind a version check that re-execs or skips, as `memory-auto-clean.sh` does) (`memory/`, `storage/`, shared
 `lib/notify.sh`) — no deps, no test framework: `bash -n` plus the script's own
 dry-run is the verification loop. `app/` is the one compiled part: a SwiftUI
 menu-bar app (SPM, Swift 6, macOS 26) assembled by `app/build.sh` without
 Xcode — verify with `cd app && swift build`. `build.sh` signs with an Apple
 Development identity when present (ad-hoc fallback; signing ≠ notarization)
-and installs to `/Applications/MacAnalyzers.app` — the canonical run
+and installs to `/Applications/Sparehold.app` — the canonical run
 location; the repo `app/` bundle is build artifact + fallback, and
 `lib/notify.sh`, the launchd entry points, `upgrade.command`, and the login
-item all prefer `/Applications`. Reports/logs write to
-`reports/{memory,storage}/` inside the repo (gitignored).
+item all prefer `/Applications`. It does not delete `/Applications/MacAnalyzers.app`;
+`upgrade.command` removes that copy last, after the new app answers.
+Reports and settings stay in the data root: an existing `~/mac-analyzers`
+checkout that holds `config.local.sh`, `reports/`, or `.git` is the data and
+the engine until the person moves it. Nothing moves or deletes that folder.
+A new checkout is `~/sparehold`. With neither, data lives in
+`~/Library/Application Support/Sparehold/`.
 
 Checks: `scripts/check.sh` is the one place every check lives. The pre-push
 hook runs it on the Mac and refuses a push that fails — that is the gate for
@@ -32,8 +37,10 @@ Hard rules (from CONTRIBUTING.md, enforced in review):
 3. No personal/machine data in tracked files — user-specific values belong in
    `config.local.sh` (gitignored), documented in `config.example.sh`.
 4. launchd plists stay `__SUITE_DIR__`/`__HOME__`/`__RUNNER__` templates
-   (labels `com.mac-analyzers.*`, `AbandonProcessGroup` +
-   `AssociatedBundleIdentifiers` kept); the manage scripts hydrate them at
+   (labels `com.sparehold.*`, `AbandonProcessGroup` +
+   `AssociatedBundleIdentifiers` kept; an installed `com.mac-analyzers.*`
+   plist keeps its Hour, Minute or StartInterval when the new plist is
+   absent, then that old label is booted out); the manage scripts hydrate them at
    install — entry point is the app bundle's compiled `agent-runner` (BTM
    attribution) with plain-script fallback, and user-customized schedules
    (the app's Schedule pane) are preserved across reinstalls.
@@ -43,7 +50,7 @@ Hard rules (from CONTRIBUTING.md, enforced in review):
 App feature work: SPM targets — AnalyzersKit (shared kernel: paths, parsers,
 config bridge, launchd/schedule control, update checker) · NotifierKit
 (notifications) · MenuBarFeature / SettingsFeature (views) · UIComponents
-(shared tiles/headers) · MacAnalyzersApp (thin shell) · NotifierCLI (`notify`
+(shared tiles/headers) · SpareholdApp (thin shell) · NotifierCLI (`notify`
 shim) · AgentRunner (compiled launchd doorway — execv's the engine script).
 Every form screen uses PaneScaffold. The main window is `SettingsFeature/Shell/`
 (`MainWindowView`, one `Navigator` owning selection, per-section paths and a

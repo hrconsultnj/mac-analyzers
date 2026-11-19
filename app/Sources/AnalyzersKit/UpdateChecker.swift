@@ -40,7 +40,7 @@ public enum UpdateChecker {
            !isNewer(BuildInfo.current.release, than: cached) {
             return (cached, true)
         }
-        guard let url = URL(string: "https://api.github.com/repos/hrconsultnj/mac-analyzers/releases/latest"),
+        guard let url = URL(string: "https://api.github.com/repos/hrconsultnj/sparehold/releases/latest"),
               let (data, response) = try? await URLSession.shared.data(from: url),
               (response as? HTTPURLResponse)?.statusCode == 200,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -97,7 +97,7 @@ public enum UpdateChecker {
 
     // MARK: - Beta: the newest GitHub pre-release
 
-    private static let repository = "hrconsultnj/mac-analyzers"
+    private static let repository = "hrconsultnj/sparehold"
 
     /// What GitHub's releases list says Beta can offer: one public GET, cached for 6 hours unless forced; the
     /// last answer when it cannot be read, nil when there is none (offline). `latestVersion` reads

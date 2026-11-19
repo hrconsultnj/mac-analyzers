@@ -2,7 +2,7 @@ import AnalyzersKit
 import SwiftUI
 import UIComponents
 
-/// Step 1: three things Mac Analyzers does, each with this Mac's own numbers.
+/// Step 1: three things Sparehold does, each with this Mac's own numbers.
 struct WelcomeIntroStep: View {
     let numbers: WelcomeNumbers?
 
@@ -55,7 +55,7 @@ struct WelcomeBackgroundStep: View {
             Section {
                 Toggle(isOn: $model.openAtLogin) {
                     VStack(alignment: .leading, spacing: Tokens.Space.xs) {
-                        Text("Open Mac Analyzers when you log in")
+                        Text("Open Sparehold when you log in")
                         Text(loginEvidence).font(.caption).foregroundStyle(.secondary)
                     }
                 }

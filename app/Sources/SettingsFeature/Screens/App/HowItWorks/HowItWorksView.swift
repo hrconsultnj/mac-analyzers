@@ -18,7 +18,7 @@ struct HowItWorksView: View {
     }
 
     var body: some View {
-        DataScreen(title: Names.Screen.howItWorks, subtitle: "How Mac Analyzers decides, measures and writes everything down") {
+        DataScreen(title: Names.Screen.howItWorks, subtitle: "How Sparehold decides, measures and writes everything down") {
             if let facts = model.facts {
                 List {
                     ForEach(HowItWorksTopic.allCases.filter { $0.tab == tab }) { topic in

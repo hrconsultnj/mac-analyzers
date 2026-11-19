@@ -28,7 +28,7 @@ public enum CodingAgentHosts {
         let also: String?
     }
 
-    private static let log = Logger(subsystem: "com.mac-analyzers.app", category: "agents")
+    private static let log = Logger(subsystem: AppIdentity.bundleID, category: "agents")
 
     /// The list, read again whenever the file changes (a `git pull` or an update that
     /// changes it takes effect without a relaunch). The file's date is looked at
@@ -78,7 +78,7 @@ public enum CodingAgentHosts {
     public static var isAvailable: Bool { entries.contains { $0.kind == "exe" || $0.kind == "fragment" } }
 
     public static let unavailableSentence =
-        "Mac Analyzers can't tell which programs belong to a coding session right now, so it won't stop any."
+        "Sparehold can't tell which programs belong to a coding session right now, so it won't stop any."
 
     static func load(_ url: URL) -> [Entry] {
         guard let text = try? String(contentsOf: url, encoding: .utf8) else {

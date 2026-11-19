@@ -1,4 +1,4 @@
-# CLAUDE.md — mac-analyzers
+# CLAUDE.md — Sparehold
 
 Shell-script toolkit (bash, macOS-only, no dependencies — every script MUST
 run under the bash macOS ships, `/bin/bash` 3.2; see the bash rule below) plus one compiled
@@ -11,15 +11,18 @@ through `config.local.sh` (never hardcoded).
 
 ## Conventions
 
-- Repo root is `~/mac-analyzers`; run reports live inside it at `reports/`.
-  The app BUNDLES the engine (`build.sh` copies `memory-analyzer/`,
-  `storage-analyzer/`, `network-analyzer/`, `lib/` into
-  `Contents/Resources/engine/`), and `AnalyzersPaths.suiteRoot` resolves the
-  clone first, the bundle second — so a downloaded app works alone while a
-  checkout stays the copy you edit. Config and reports are ALWAYS read from
-  `$HOME/mac-analyzers/`, never from inside the bundle: every cleaner sources
-  `${ANALYZERS_ROOT}/config.local.sh` and then `$HOME/mac-analyzers/config.local.sh`,
-  user copy last so it wins.
+- Data root, first match: `$SPAREHOLD_DATA_DIR` or `$SPAREHOLD_DIR` or legacy
+  `$MAC_ANALYZERS_DIR`, then `~/sparehold` when it holds `config.local.sh`,
+  `reports/` or `.git`, then an existing `~/mac-analyzers` checkout when it
+  holds one of those, then `~/Library/Application Support/Sparehold/`.
+  That existing `~/mac-analyzers` checkout is the data and the engine until
+  the person moves it. Never move or delete it. Engine root: `$SPAREHOLD_SUITE_DIR`,
+  then `~/sparehold` when the engine scripts are there, then `~/mac-analyzers`
+  when they are, then the bundle engine. The app BUNDLES the engine (`build.sh`
+  copies `memory/`, `storage/`, `network/`, `lib/` into
+  `Contents/Resources/engine/`). Config and reports are ALWAYS read from the
+  data root, never from inside the bundle. `lib/paths.sh` is the shell copy of
+  this rule.
   The pre-consolidation paths (`~/scripts`, `~/system-reports`) are RETIRED —
   never reintroduce them in code or docs.
 - `$HOME`-based paths everywhere; launchd plists are
@@ -27,15 +30,16 @@ through `config.local.sh` (never hardcoded).
   `*-manage-agents.sh install` (entry point: the app bundle's compiled
   `agent-runner`, `/Applications` copy preferred, plain-script fallback;
   user-edited schedules from the app's Schedule pane are preserved across
-  reinstalls); labels `com.mac-analyzers.*`; plists keep
-  `AbandonProcessGroup` + `AssociatedBundleIdentifiers=com.mac-analyzers.app`.
+  reinstalls); labels `com.sparehold.*` (an installed `com.mac-analyzers.*`
+  plist keeps its schedule, then is booted out); plists keep
+  `AbandonProcessGroup` + `AssociatedBundleIdentifiers=com.sparehold.app`.
 - Every user-facing script: interactive menu when run bare in a TTY
   (`FORCE_INTERACTIVE=1` to test), flags for automation, run-input logged.
-- Reports → `~/mac-analyzers/reports/{memory,storage}/<YYYY-MM-DD>/`; `latest.md`
+- Reports → `<data root>/reports/{memory,storage}/<YYYY-MM-DD>/`; `latest.md`
   symlink at suite root; logs at suite root. All gitignored.
 - Notifications go through `lib/notify.sh`: app CLI
-  (`/Applications/MacAnalyzers.app/Contents/MacOS/notify`, repo `app/` copy
-  as fallback) → `alerter` → `osascript`;
+  (`/Applications/Sparehold.app/Contents/MacOS/notify`, then
+  `/Applications/MacAnalyzers.app`, then the checkout) → `alerter` → `osascript`;
   knobs `ANALYZERS_NOTIFIER` / `ANALYZERS_LOG_VIEWER` / `ANALYZERS_NOTIFY_TIMEOUT`.
 - The app's Settings write ONLY the marked managed block in `config.local.sh`
   (user content outside markers untouched); memory saves kickstart the guard.
@@ -80,17 +84,18 @@ through `config.local.sh` (never hardcoded).
   `swift build`, `scripts/check.sh`, the pre-push gate, `scripts/package.sh`
   and GitHub's Mac run all fail on one; `scripts/check.sh lint` fails on any
   shellcheck warning, one file at a time. The single exception is
-  `app/build.sh` installing on a person's own Mac (`MA_RELAX_WARNINGS=1`):
+  `app/build.sh` installing on a person's own Mac (`SPAREHOLD_RELAX_WARNINGS=1`,
+  which still accepts `MA_RELAX_WARNINGS=1`):
   people build with whatever Xcode they have, so a newer compiler's new
   warning must not block their install or update — it is printed, and
   `upgrade.command` reports the count. Never set that variable to get your
   own change through.
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
-  output. The one automated suite is `memory-analyzer/tests/`; otherwise the
+  output. The one automated suite is `memory/tests/`; otherwise the
   dry-run IS the test. For the app:
   `cd app && swift build` (bundle assembly is `./app/build.sh` — Xcode 26.4 or later, no Xcode project; it
   signs with an Apple Development identity when present, ad-hoc fallback, and
-  installs to `/Applications/MacAnalyzers.app` — the canonical run location;
+  installs to `/Applications/Sparehold.app` — the canonical run location;
   the repo `app/` bundle is the build artifact / script-only fallback).
 
 ## Building features in the app
@@ -100,7 +105,7 @@ through `config.local.sh` (never hardcoded).
   `NotifierKit` (UN center, delegate, distributed-notification bridge,
   login item, 6-hourly update watcher) ·
   `MenuBarFeature` / `SettingsFeature` (views) · `UIComponents` (shared
-  tiles/pane headers) · `MacAnalyzersApp` (thin shell) · `NotifierCLI` (the
+  tiles/pane headers) · `SpareholdApp` (thin shell) · `NotifierCLI` (the
   bundled `notify` shim) · `AgentRunner` (the compiled launchd entry point —
   `execv`s the engine script for BTM attribution).
 - A screen of settings (a `Form`: the Preferences panes, How It Works,
@@ -120,7 +125,7 @@ through `config.local.sh` (never hardcoded).
   a new sidebar row. Open at Login is the system's `SMAppService.mainApp` state, shared with Setup: one switch per thing.
   The app-level screens (Updates, What's New, How It Works, Support) have no sidebar rows
   (`SidebarRow(inSidebar: false)` keeps the row for names and icons): the item at the foot of
-  the sidebar (`Shell/SidebarVersionItem.swift`) opens the Mac Analyzers screen
+  the sidebar (`Shell/SidebarVersionItem.swift`) opens the Sparehold screen
   (`Screens/App/AppHomeView.swift`, deep link `app`), a hub that leads to them, and shows as
   selected on all of them (`AppGroup.sections`). What's New is one card per release
   (`WhatsNewReleasesView`), each pushing `WhatsNewReleaseScreen`.
@@ -157,9 +162,10 @@ through `config.local.sh` (never hardcoded).
   while the sidebar is hidden resting the pointer on the leading edge or the button shows
   it as an overlay over the content (`SidebarPeek.swift`; the content never resizes; in
   full screen the system's own edge reveal is left alone).
-  `Shell/DeepLinkRouter.swift` resolves every target string (the URL scheme,
-  `--pane` and the in-process `com.mac-analyzers.open-pane` notification all
-  land there). No screen shows a log as text: what a task found or did is
+  `Shell/DeepLinkRouter.swift` resolves every target string (the URL schemes
+  `sparehold://` and `macanalyzers://`, `--pane`, and the in-process
+  `com.sparehold.open-pane` notification, which still observes
+  `com.mac-analyzers.open-pane`, all land there). No screen shows a log as text: what a task found or did is
   rows (a table, tabs, groups that open: see the levels rule below), read
   from the log by a parser in `AnalyzersKit`. The text a run printed is one
   level down, inside the app, as the shared raw-output screen
@@ -205,7 +211,7 @@ through `config.local.sh` (never hardcoded).
   `--probe-fence` proves the Spotlight fence marker.
 - Verify: `cd app && swift build`, then `./app/build.sh` (rebuild + reinstall
   to /Applications) and relaunch the app to see it live. Drive navigation with
-  `open -g "macanalyzers://pane/<target>"` — the URL scheme reaches a RUNNING
+  `open -g "sparehold://pane/<target>"` — either URL scheme reaches a RUNNING
   app, unlike `--args --pane`, which macOS only delivers at launch. Nav cost is
   measured from `log show --predicate 'category == "nav"'`.
   **Look at a screen without taking over the Mac:**
@@ -265,7 +271,7 @@ through `config.local.sh` (never hardcoded).
   `agent-runner --probe-memory [--all]` prints the Monitor pane's memory
   census as text (where memory is + every process group with its total).
   The census is the ONE classifier: it gives every group its category AND its
-  kind (`CensusGroup.kind`, from `memory-analyzer/rules/kinds.json` through
+  kind (`CensusGroup.kind`, from `memory/rules/kinds.json` through
   `AnalyzersKit/Memory/Kinds/`); the app's screens read that field and never
   classify a process a second time. The guard script does not read it yet: it keeps its own `KILLABLE_RE` until the rules engine
   (phase B) replaces that, and its live-session exemption must first cover every
@@ -285,7 +291,7 @@ through `config.local.sh` (never hardcoded).
   built; cancel terminates the whole descendant tree; engine scripts are
   executed directly (their own `#!/usr/bin/env bash`) with the launchd
   plists' PATH — never forced through `/bin/bash`, which is 3.2.
-- Jobs on screen: `MacAnalyzersApp` owns the ONE `JobStore` and ONE
+- Jobs on screen: `SpareholdApp` owns the ONE `JobStore` and ONE
   `UpdateState` and injects both into the main window and the menu-bar panel;
   a screen never creates a store. Every button that starts an engine script
   enqueues a job (`ActionRunner` is no longer called from a screen) and a
@@ -325,7 +331,7 @@ through `config.local.sh` (never hardcoded).
   --probe-activity [--real]` prints the sections, `--probe-activity-ids` proves
   ids survive a log growing, `--probe-failures` prints the failure sentences, and
   `--probe-pid-recycle` proves a stop refuses a recycled pid.
-- **Memory Guard's rules are data, and in this version they only watch.** `memory-analyzer/rules/{kinds,plan,protected}.json`
+- **Memory Guard's rules are data, and in this version they only watch.** `memory/rules/{kinds,plan,protected}.json`
   are read by `AnalyzersKit/Rules/` (`GuardRules`: the plan plus the person's sparse `~/mac-analyzers/rules.local.json`;
   an unknown field makes that rule, or the whole local file, unusable and says so). `RulesEngine` looks at the census once a
   minute while the app runs and `RuleEvaluator` says what each rule would do; the only thing written is a would-have row
@@ -333,7 +339,7 @@ through `config.local.sh` (never hardcoded).
   one the guard SCRIPT already carries out (the dev-tooling cap and the critical-pressure step), and the engine writes no
   row for it. The script reads from the app only `.guard-fallback.tsv` (`lib/guard-select.sh`: the Never Close names and paths and a
   pause, which can only NARROW what it does; the cap and the stop switches are `config.local.sh`'s alone) and its own `KILLABLE_RE`, and spares
-  every live coding session of `lib/coding-agents.tsv` (`memory-analyzer/tests/guard-exemption-test.sh`). Acting rules and
+  every live coding session of `lib/coding-agents.tsv` (`memory/tests/guard-exemption-test.sh`). Acting rules and
   CONTRIBUTING's invariant text are a later phase. `agent-runner --check-rules`, `--compare-legacy [--real]` (the script's
   set against the engine's: the engine's must be inside) and `--rules-once` show it; `--probe-rules-fixture` judges it.
 - **One period, one loader.** A screen with a period (Trends, Memory Guard) takes it from the shared
@@ -447,9 +453,9 @@ through `config.local.sh` (never hardcoded).
   `.scrollEdgeEffectStyle(.hard)` in the Settings window;
   `.listSectionSpacing` is iOS-only.
 - **A lock guards automatic actions only; the person can stop anything they own.** What Memory Guard, the cleanups, the
-  menu-bar panel and notification actions leave alone (a live coding session, the Never Close list, a Connection Tool; the app in front is not asked in Monitor, where it is always Mac Analyzers) is never a reason for Monitor to withhold Stop or Quit. Monitor offers it on every row that runs as
+  menu-bar panel and notification actions leave alone (a live coding session, the Never Close list, a Connection Tool; the app in front is not asked in Monitor, where it is always Sparehold) is never a reason for Monitor to withhold Stop or Quit. Monitor offers it on every row that runs as
   the person's own account, and the confirmation says first why it is normally protected and what may be lost (the button
-  is destructive-styled, "Anyway"). Only another account's, macOS's own, a terminal session and Mac Analyzers itself (its own process, and the program that started it) have
+  is destructive-styled, "Anyway"). Only another account's, macOS's own, a terminal session and Sparehold itself (its own process, and the program that started it) have
   no button, and the row says why, decided when the row is built and again at the stop. The person's path is the separate `asPerson` / `overridingProtection` parameter
   (`MemoryStop.plan(target:asPerson:)`, `GuardControl`'s stop calls); every default stays refusing, so an automatic path
   never reaches it. `agent-runner --probe-stop-targets` proves both sides.

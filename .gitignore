@@ -11,6 +11,7 @@ tasks-plans/
 
 # built app + icon artifacts (rebuild with app/build.sh / app/make-icon.sh)
 app/MacAnalyzers.app/
+app/Sparehold.app/
 app/.build/
 app/.build-pro/
 # …and the same folders wherever a build is started from by mistake
@@ -18,6 +19,13 @@ app/.build-pro/
 **/.build-pro/
 app/AppIcon.icns
 app/icon_1024.png
+
+# Old folder names the updater leaves as links, so a schedule or a script
+# that still uses them keeps working. They are not part of the tree.
+/memory-analyzer
+/storage-analyzer
+/network-analyzer
+/extras/swiftbar-plugin/mac-analyzers.5m.sh
 
 # run reports/logs live inside the repo now (moved from ~/system-reports).
 # Anchored to the repository root: unanchored, it also hid any source folder

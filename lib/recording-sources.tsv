@@ -1,6 +1,6 @@
 # lib/recording-sources.tsv — the recording apps Old Recordings knows, and how each is treated.
 #
-# ONE list, read by both sides: the engine (storage-analyzer/cleanup.sh, recordings mode) takes each source's
+# ONE list, read by both sides: the engine (storage/cleanup.sh, recordings mode) takes each source's
 # layout, extensions, keep rule and warning from here, and the app (RecordingSourceCatalog) takes the rest:
 # where to look, whether it is offered, and its words. `agent-runner --probe-recording-sources` fails if the
 # two sides ever read a line differently. Only the APP discovers where a source is; the engine is told the

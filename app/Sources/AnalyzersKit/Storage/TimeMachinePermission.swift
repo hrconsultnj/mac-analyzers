@@ -1,11 +1,11 @@
 import Foundation
 
-/// The one-time permission that lets Mac Analyzers thin Time Machine's local snapshots without asking for a
+/// The one-time permission that lets Sparehold thin Time Machine's local snapshots without asking for a
 /// password each time: a sudoers rule for ONE command line, `/usr/bin/tmutil thinlocalsnapshots / 999999999999 4`,
 /// the exact arguments the engine uses (`tm-reclaim.sh`, `storage-auto-clean.sh`). With no wildcard, sudo matches
 /// the arguments exactly: another volume, another purge amount or any other `tmutil` verb is refused.
 ///
-/// This is the one place Mac Analyzers' code runs as root, so NOTHING a user account can write reaches root:
+/// This is the one place Sparehold' code runs as root, so NOTHING a user account can write reaches root:
 /// no script of ours, no template, no file under the home folder or the app bundle, no PATH lookup. The app builds
 /// the whole root command from constants compiled into it (the rule's text is a constant here), as a fixed
 /// sequence of absolute system paths, and shows it to macOS' administrator prompt with a prompt text that says
@@ -76,8 +76,8 @@ public enum TimeMachinePermission {
 
     /// What the administrator prompt says. Every word is true: the one command is the rule's, the whole account
     /// gets it, and the removal is on the Time Machine screen.
-    public static let installPrompt = "Mac Analyzers wants to allow one command without a password: deleting Time Machine's local snapshots. From then on, any program running on this account can do that without asking. Nothing else is allowed, and you can remove the permission from the Time Machine screen in Mac Analyzers."
-    public static let removePrompt = "Mac Analyzers wants to remove the permission to delete Time Machine's local snapshots without a password."
+    public static let installPrompt = "Sparehold wants to allow one command without a password: deleting Time Machine's local snapshots. From then on, any program running on this account can do that without asking. Nothing else is allowed, and you can remove the permission from the Time Machine screen in Sparehold."
+    public static let removePrompt = "Sparehold wants to remove the permission to delete Time Machine's local snapshots without a password."
 
     private static func appleScriptString(_ text: String) -> String {
         "\"" + text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
@@ -115,7 +115,7 @@ public enum TimeMachinePermission {
     /// is the one this copy of the suite really has (the clone, or the copy inside the app when there is no clone),
     /// quoted for a shell.
     public static func uninstallCommand(suiteRoot: URL = AnalyzersPaths.suiteRoot) -> String {
-        let script = suiteRoot.appending(path: "storage-analyzer/storage-manage-agents.sh").path
+        let script = suiteRoot.appending(path: "storage/storage-manage-agents.sh").path
         return "'" + script.replacingOccurrences(of: "'", with: "'\\''") + "' sudoers-uninstall"
     }
 
@@ -204,7 +204,7 @@ public enum TimeMachinePermission {
         case failed(String)
     }
 
-    public static let rootRefusal = "Mac Analyzers is running as the administrator (root), which needs no permission, so nothing was added or removed."
+    public static let rootRefusal = "Sparehold is running as the administrator (root), which needs no permission, so nothing was added or removed."
 
     /// Shows the macOS administrator prompt and installs the rule for THIS account (its numeric user ID). Call it only
     /// from the button the person pressed. Then asks sudo whether it works: the rule must be listed without a password.

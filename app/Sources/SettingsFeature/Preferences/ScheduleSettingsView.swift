@@ -15,9 +15,9 @@ struct ScheduleSettingsView: View {
     /// Only what the captions read (settings and installed schedules), not the whole How It Works load.
     @State private var facts: HowItWorksFacts?
 
-    private static let memoryLabel = "com.mac-analyzers.memory-autoclean.daily"
-    private static let storageLabel = "com.mac-analyzers.storage-autoclean.daily"
-    private static let deepLabel = "com.mac-analyzers.storage-autoclean.deep"
+    private static let memoryLabel = LaunchdAgentID.memoryAutoCleanDaily
+    private static let storageLabel = LaunchdAgentID.storageAutoCleanDaily
+    private static let deepLabel = LaunchdAgentID.storageAutoCleanDeep
 
     var body: some View {
         PaneScaffold(symbol: "calendar.badge.clock", color: .teal, title: Names.Screen.schedule,
@@ -29,7 +29,7 @@ struct ScheduleSettingsView: View {
                                    displayedComponents: .hourAndMinute)
                             .labelsHidden()
                     }
-                    Text(caption(Self.memoryLabel))
+                    Text(caption(Self.memoryLabel.rawValue))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -39,7 +39,7 @@ struct ScheduleSettingsView: View {
                                    displayedComponents: .hourAndMinute)
                             .labelsHidden()
                     }
-                    Text(caption(Self.storageLabel, then: "Keep the two dailies offset so they never contend."))
+                    Text(caption(Self.storageLabel.rawValue, then: "Keep the two dailies offset so they never contend."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -51,7 +51,7 @@ struct ScheduleSettingsView: View {
                         Stepper("every \(deepDays) day\(deepDays == 1 ? "" : "s")",
                                 value: $deepDays, in: 1...14)
                     }
-                    Text(caption(Self.deepLabel, then: "Measured from load or the last run."))
+                    Text(caption(Self.deepLabel.rawValue, then: "Measured from load or the last run."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -112,13 +112,13 @@ struct ScheduleSettingsView: View {
     }
 
     private func load() {
-        if case .daily(let h, let m)? = ScheduleKit.schedule(for: Self.memoryLabel) {
+        if case .daily(let h, let m)? = ScheduleKit.schedule(for: Self.memoryLabel.rawValue) {
             memoryCleanTime = Self.date(hour: h, minute: m)
         }
-        if case .daily(let h, let m)? = ScheduleKit.schedule(for: Self.storageLabel) {
+        if case .daily(let h, let m)? = ScheduleKit.schedule(for: Self.storageLabel.rawValue) {
             storageDailyTime = Self.date(hour: h, minute: m)
         }
-        if case .interval(let days)? = ScheduleKit.schedule(for: Self.deepLabel) {
+        if case .interval(let days)? = ScheduleKit.schedule(for: Self.deepLabel.rawValue) {
             deepDays = days
         }
     }
@@ -128,9 +128,9 @@ struct ScheduleSettingsView: View {
         let m = cal.dateComponents([.hour, .minute], from: memoryCleanTime)
         let s = cal.dateComponents([.hour, .minute], from: storageDailyTime)
         let changes: [(ScheduleKit.Schedule, String)] = [
-            (.daily(hour: m.hour ?? 8, minute: m.minute ?? 30), Self.memoryLabel),
-            (.daily(hour: s.hour ?? 8, minute: s.minute ?? 0), Self.storageLabel),
-            (.interval(days: deepDays), Self.deepLabel),
+            (.daily(hour: m.hour ?? 8, minute: m.minute ?? 30), Self.memoryLabel.rawValue),
+            (.daily(hour: s.hour ?? 8, minute: s.minute ?? 0), Self.storageLabel.rawValue),
+            (.interval(days: deepDays), Self.deepLabel.rawValue),
         ]
         applying = true
         status = nil

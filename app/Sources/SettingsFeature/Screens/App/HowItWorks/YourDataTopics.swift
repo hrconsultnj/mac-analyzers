@@ -5,7 +5,7 @@ import AnalyzersKit
 extension HowItWorksTopic {
 
     @MainActor func yourDataContent(_ f: HowItWorksFacts) -> TopicContent {
-        let records = "~/mac-analyzers"
+        let records = AnalyzersPaths.displayPath(AnalyzersPaths.userRoot)
         switch self {
         case .whereWritten:
             var does = ["Every action Memory Guard takes is written in the guard log.\(f.guardLogBytes.map { " The guard log is \(ByteSize.text($0, .headline)) on this Mac." } ?? "")"]
@@ -36,7 +36,7 @@ extension HowItWorksTopic {
             if let total = f.totalMemory { about += " (\(total) installed)" }
             about += ", storage"
             if let free = f.freeDisk, let total = f.totalDisk { about += " (\(free) free of \(total))" }
-            about += " and what Mac Analyzers did"
+            about += " and what Sparehold did"
             return TopicContent(
                 summary: "A one-page summary of the last 30 days, made on this Mac.",
                 does: ["The Mac Health Report is a one-page HTML summary of the last 30 days, for IT, family or a buyer. It is generated locally, from this Mac's own records: \(about)."],

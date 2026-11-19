@@ -15,7 +15,7 @@ import Foundation
     var dir = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
     var script: URL?
     for _ in 0..<8 {
-        let candidate = dir.appending(path: "storage-analyzer/tm-reclaim.sh")
+        let candidate = dir.appending(path: "storage/tm-reclaim.sh")
         if fm.fileExists(atPath: candidate.path) { script = candidate; break }
         dir = dir.deletingLastPathComponent()
     }
@@ -53,7 +53,7 @@ import Foundation
         return (text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }, process.terminationStatus)
     }
     func calledLines() -> [String] { ((try? String(contentsOf: calls, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init) }
-    let log = home.appending(path: "mac-analyzers/reports/storage/tm-reclaim.log")
+    let log = home.appending(path: "Library/Application Support/Sparehold/reports/storage/tm-reclaim.log")
 
     // the preview
     let preview = run(["--dry-run"])

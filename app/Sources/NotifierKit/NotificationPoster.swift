@@ -30,7 +30,7 @@ public final class NotificationPoster: NSObject {
     public func setup() {
         center.delegate = self
         let openApp = UNNotificationAction(identifier: Self.openAppAction,
-                                           title: "Open Mac Analyzers", options: [.foreground])
+                                           title: "Open Sparehold", options: [.foreground])
         let openLog = UNNotificationAction(identifier: Self.openLogAction,
                                            title: "Open Log", options: [.foreground])
         let stopProc = UNNotificationAction(identifier: Self.stopProcessAction,
@@ -130,7 +130,7 @@ public final class NotificationPoster: NSObject {
     /// notification uses).
     public func postJobFinished(id: UUID, task: String, result: String, failed: Bool) {
         guard !Self.mainWindowIsKey else { return }
-        post(title: "Mac Analyzers",
+        post(title: "Sparehold",
              subtitle: failed ? "\(task) didn't finish" : "\(task) finished",
              message: result, sound: nil, logPath: nil,
              paneTarget: "job:\(id.uuidString)")
@@ -157,7 +157,7 @@ public final class NotificationPoster: NSObject {
     /// never acts past the rules.
     func stopProcess(pid: Int, start: Int?, startMicro: Int?) {
         guard let live = LiveStats.process(pid: pid) else {
-            post(title: "Mac Analyzers", message: "That process already exited — nothing to stop.",
+            post(title: "Sparehold", message: "That process already exited — nothing to stop.",
                  sound: nil, logPath: nil)
             return
         }
@@ -170,11 +170,11 @@ public final class NotificationPoster: NSObject {
         }
         switch GuardControl.stopProcess(live, identity: identity) {
         case .stopped:
-            post(title: "Mac Analyzers", subtitle: live.friendlyName,
+            post(title: "Sparehold", subtitle: live.friendlyName,
                  message: "Asked \(live.friendlyName) to stop (process \(pid)).",
                  sound: nil, logPath: nil)
         case .gone:
-            post(title: "Mac Analyzers", message: "That process already exited — nothing to stop.",
+            post(title: "Sparehold", message: "That process already exited — nothing to stop.",
                  sound: nil, logPath: nil)
         case .refused:
             SettingsOpener.open(target: StopWhy.after(refusedPID: pid).target(pid: pid))

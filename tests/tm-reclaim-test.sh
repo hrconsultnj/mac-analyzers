@@ -12,7 +12,7 @@
 # Usage: tests/tm-reclaim-test.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$HERE/../storage-analyzer/tm-reclaim.sh"
+SCRIPT="$HERE/../storage/tm-reclaim.sh"
 [[ -f "$SCRIPT" ]] || { echo "SKIP: script not found"; exit 0; }
 
 TMP="$(mktemp -d)"
@@ -58,7 +58,7 @@ for sh in bash /bin/bash; do
   rm -f "$TMP/deny"
 
   out="$(run "nf-$k" "$sh")"
-  log="$TMP/home-nf-$k/mac-analyzers/reports/storage/tm-reclaim.log"
+  log="$TMP/home-nf-$k/Library/Application Support/Sparehold/reports/storage/tm-reclaim.log"
   check "[$sh] no flag: only the snapshot list is read" "$([[ "$(count "nf-$k" .)" -eq 1 && "$(count "nf-$k" 'tmutil listlocalsnapshots')" -eq 1 ]] && echo ok || cat "$TMP/nf-$k.calls" | tr '\n' ';')"
   check "[$sh] no flag: nothing is thinned and no backup starts" "$([[ "$(count "nf-$k" sudo)" -eq 0 && "$(count "nf-$k" startbackup)" -eq 0 ]] && echo ok || echo changed)"
   check "[$sh] no flag: the log has the DRY RUN banner with the backup setting" "$(grep -q '^tm-reclaim | DRY RUN | backup=on | [0-9-]* [0-9:]*$' "$log" && echo ok || head -3 "$log")"
@@ -69,7 +69,7 @@ for sh in bash /bin/bash; do
   check "[$sh] --dry-run: no thin, no backup" "$([[ "$(count "dr-$k" sudo)" -eq 0 && "$(count "dr-$k" startbackup)" -eq 0 ]] && echo ok || echo changed)"
 
   out="$(run "nb-$k" "$sh" --apply --no-backup)"; rc=$?
-  log="$TMP/home-nb-$k/mac-analyzers/reports/storage/tm-reclaim.log"
+  log="$TMP/home-nb-$k/Library/Application Support/Sparehold/reports/storage/tm-reclaim.log"
   check "[$sh] --apply --no-backup: exactly one thin call, the whitelisted one" \
         "$([[ "$(count "nb-$k" sudo)" -eq 1 && "$(count "nb-$k" 'sudo -n /usr/bin/tmutil thinlocalsnapshots / 999999999999 4$')" -eq 1 ]] && echo ok || grep sudo "$TMP/nb-$k.calls")"
   check "[$sh] --apply --no-backup: no backup, banner says APPLY and backup=off" "$([[ "$(count "nb-$k" startbackup)" -eq 0 ]] && grep -q '^tm-reclaim | APPLY | backup=off | ' "$log" && echo ok || echo wrong)"
@@ -81,7 +81,7 @@ for sh in bash /bin/bash; do
 
   : > "$TMP/deny"
   out="$(run "dn-$k" "$sh" --apply)"; rc=$?
-  log="$TMP/home-dn-$k/mac-analyzers/reports/storage/tm-reclaim.log"
+  log="$TMP/home-dn-$k/Library/Application Support/Sparehold/reports/storage/tm-reclaim.log"
   check "[$sh] without the sudoers rule: exit 3 and it says what is missing" "$([[ $rc -eq 3 && "$out" == *"needs permission"* ]] && echo ok || echo "exit $rc")"
   check "[$sh] without it no backup is started and the log says it was not done" "$([[ "$(count "dn-$k" startbackup)" -eq 0 ]] && grep -q '^NOT DONE — thinning was not allowed' "$log" && echo ok || tail -3 "$log")"
   rm -f "$TMP/deny"

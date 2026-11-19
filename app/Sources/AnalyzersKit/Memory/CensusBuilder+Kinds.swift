@@ -1,6 +1,6 @@
 import Foundation
 
-/// What KIND of thing each group is, read from the catalog (`memory-analyzer/rules/kinds.json`). The category
+/// What KIND of thing each group is, read from the catalog (`memory/rules/kinds.json`). The category
 /// is the census's decision and is never changed here; the kind only says what the group is inside it.
 extension CensusBuilder {
 

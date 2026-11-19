@@ -3,7 +3,7 @@ import AnalyzersKit
 
 /// A group Stop with more than one program in it: every separate program is
 /// listed, each with its own tick, so nothing is ended that was not chosen.
-/// A lock guards only what Mac Analyzers does by itself: programs of a live coding session
+/// A lock guards only what Sparehold does by itself: programs of a live coding session
 /// are listed with the reason, tickable like any other, and stopped only when the person ticks them.
 /// What no one of this account can stop (another account's, a terminal session) is listed with its reason.
 struct MonitorStopSheet: View {
@@ -77,15 +77,15 @@ struct MonitorStopSheet: View {
         }
     }
 
-    /// What is said, above the button, when the ticked programs include ones Mac Analyzers never stops by itself.
+    /// What is said, above the button, when the ticked programs include ones Sparehold never stops by itself.
     private var chosenProtection: String? {
         let held = chosen.filter { $0.protection != nil }
         guard !held.isEmpty else { return nil }
         let which = held.count == 1 ? "One of these programs is" : "\(held.count) of these programs are"
         if !CodingAgentHosts.isAvailable {
-            return "\(which) protected because Mac Analyzers could not read its list of coding agents, so it cannot tell whether a live coding session is part of them. Any that is ends with them."
+            return "\(which) protected because Sparehold could not read its list of coding agents, so it cannot tell whether a live coding session is part of them. Any that is ends with them."
         }
-        return "\(which) part of, or host, a live coding session. Mac Analyzers never stops them by itself; stopping them here ends the session and loses any work in it that is not saved."
+        return "\(which) part of, or host, a live coding session. Sparehold never stops them by itself; stopping them here ends the session and loses any work in it that is not saved."
     }
 
     private var stopTitle: String {

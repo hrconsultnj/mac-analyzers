@@ -1,11 +1,11 @@
 import Foundation
 
-/// Why Mac Analyzers never quits an app by itself, asked the way the guard asks it (`ProtectionGate`): the built-in list,
+/// Why Sparehold never quits an app by itself, asked the way the guard asks it (`ProtectionGate`): the built-in list,
 /// the person's Never Close list, a Connection Tool, a live coding session inside it. Monitor reads it so the Quit confirmation
 /// can say, first, why the app is normally left alone and what may be lost: the lock guards the automatic stops only, and the
 /// person may still quit what they own.
 ///
-/// "The app in front" is not asked here: while Monitor is open the app in front is Mac Analyzers itself, so it could only ever
+/// "The app in front" is not asked here: while Monitor is open the app in front is Sparehold itself, so it could only ever
 /// mark its own row and never the app the person was using.
 public enum MonitorProtection {
 
@@ -14,7 +14,7 @@ public enum MonitorProtection {
         /// The reason, as the gate says it: a whole sentence ("You asked that Safari never be closed.").
         public let reason: String
         /// The reason and what it means, for the confirmation and the inspector.
-        public var sentence: String { "\(reason) Mac Analyzers never quits it by itself." }
+        public var sentence: String { "\(reason) Sparehold never quits it by itself." }
     }
 
     /// The answer for an app group; nil when nothing protects it.

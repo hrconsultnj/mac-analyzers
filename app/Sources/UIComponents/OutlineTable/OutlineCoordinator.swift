@@ -1,3 +1,4 @@
+import AnalyzersKit
 import AppKit
 import os
 import SwiftUI
@@ -57,7 +58,7 @@ final class OutlineCoordinator<Row: Identifiable>: NSObject, NSOutlineViewDataSo
     private var answersHeaders = false
     private(set) var columnsBuilt = false
 
-    static var log: Logger { Logger(subsystem: "com.mac-analyzers.app", category: "outline") }
+    static var log: Logger { Logger(subsystem: AppIdentity.bundleID, category: "outline") }
 
     init(configuration: OutlineConfiguration<Row>) {
         self.configuration = configuration

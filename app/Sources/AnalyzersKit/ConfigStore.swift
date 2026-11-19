@@ -86,8 +86,12 @@ public final class ConfigStore {
     public var storage = StorageTunables()
     public var notify = NotifyPrefs()
 
-    private static let blockStart = "# >>> managed by Mac Analyzers.app — do not edit between markers >>>"
-    private static let blockEnd = "# <<< managed by Mac Analyzers.app <<<"
+    private static let blockStart = "# >>> managed by Sparehold.app — do not edit between markers >>>"
+    private static let blockEnd = "# <<< managed by Sparehold.app <<<"
+    /// A block written before the rename. Found so a save replaces it in place
+    /// instead of leaving a second managed block.
+    private static let legacyBlockStart = "# >>> managed by Mac Analyzers.app — do not edit between markers >>>"
+    private static let legacyBlockEnd = "# <<< managed by Mac Analyzers.app <<<"
 
     public init() { load() }
 
@@ -200,80 +204,95 @@ public final class ConfigStore {
 
     // MARK: - save
 
+    /// The managed span, from the opening marker through the newline after the
+    /// closing marker. Either the current markers or the Sparehold ones.
+    /// Nil when the pair is not both present, so a broken file is not truncated.
+    private static func managedSpan(in text: String) -> Range<String.Index>? {
+        let pairs = [(blockStart, blockEnd), (legacyBlockStart, legacyBlockEnd)]
+        for (startMarker, endMarker) in pairs {
+            guard let start = text.range(of: startMarker),
+                  let end = text.range(of: endMarker, range: start.upperBound..<text.endIndex),
+                  start.lowerBound <= end.lowerBound
+            else { continue }
+            var upper = end.upperBound
+            if upper < text.endIndex, text[upper] == "\n" {
+                upper = text.index(after: upper)
+            }
+            return start.lowerBound..<upper
+        }
+        return nil
+    }
+
     public func save() throws {
         let fm = FileManager.default
         var existing = (try? String(contentsOf: AnalyzersPaths.configLocal, encoding: .utf8)) ?? ""
 
-        // strip any previous managed block (inclusive of markers)
-        if let start = existing.range(of: Self.blockStart),
-           let end = existing.range(of: Self.blockEnd) {
-            var upper = end.upperBound
-            if upper < existing.endIndex, existing[upper] == "\n" {
-                upper = existing.index(after: upper)
-            }
-            existing.removeSubrange(start.lowerBound..<upper)
-        }
-        existing = existing.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        var out = existing.isEmpty
-            ? "# shellcheck shell=bash\n# mac-analyzers — local configuration (see config.example.sh)\n"
-            : existing + "\n"
-        out += "\n" + Self.blockStart + "\n"
-        out += "# Written by the Mac Analyzers menu-bar app (Settings). Anything outside\n"
-        out += "# these markers is yours and is never touched.\n"
-        out += "GUARD_HARD_CAP_MB=\(memory.hardCapMB)\n"
-        out += "GUARD_HARDCAP_KILL=\(memory.hardCapKill ? 1 : 0)\n"
-        out += "GUARD_PRESSURE_KILL=\(memory.pressureKill ? 1 : 0)\n"
-        out += "GUARD_SPIKE_MB=\(memory.spikeMB)\n"
-        out += "GUARD_SPIKE_MIN_MB=\(memory.spikeMinMB)\n"
-        out += "GUARD_CPU_HOG_PCT=\(memory.cpuHogPct)\n"
-        out += "GUARD_CPU_HOG_TICKS=\(memory.cpuHogTicks)\n"
+        let header = "# shellcheck shell=bash\n# sparehold — local configuration (see config.example.sh)\n"
+        var block = Self.blockStart + "\n"
+        block += "# Written by the Sparehold menu-bar app (Settings). Anything outside\n"
+        block += "# these markers is yours and is never touched.\n"
+        block += "GUARD_HARD_CAP_MB=\(memory.hardCapMB)\n"
+        block += "GUARD_HARDCAP_KILL=\(memory.hardCapKill ? 1 : 0)\n"
+        block += "GUARD_PRESSURE_KILL=\(memory.pressureKill ? 1 : 0)\n"
+        block += "GUARD_SPIKE_MB=\(memory.spikeMB)\n"
+        block += "GUARD_SPIKE_MIN_MB=\(memory.spikeMinMB)\n"
+        block += "GUARD_CPU_HOG_PCT=\(memory.cpuHogPct)\n"
+        block += "GUARD_CPU_HOG_TICKS=\(memory.cpuHogTicks)\n"
         if !memory.protectExtra.isEmpty {
             // Escaped: an app name containing a regex metacharacter (a lone
             // "(" in "Foo (beta)") otherwise makes awk abort inside the
             // guard — which silently protects NOTHING while the UI claims
             // the list is active.
             let escaped = memory.protectExtra.map(Self.regexEscape).joined(separator: "|")
-            out += "ANALYZERS_PROTECT_EXTRA=\(shellQuote(escaped))\n"
+            block += "ANALYZERS_PROTECT_EXTRA=\(shellQuote(escaped))\n"
         }
         if !memory.reclaimApps.isEmpty {
-            out += "ANALYZERS_RECLAIM_APPS=\(shellQuote(memory.reclaimApps.joined(separator: ",")))\n"
+            block += "ANALYZERS_RECLAIM_APPS=\(shellQuote(memory.reclaimApps.joined(separator: ",")))\n"
         }
         if !storage.extraCacheGlobs.isEmpty {
             let items = storage.extraCacheGlobs.map { shellQuotePath($0) }.joined(separator: " ")
-            out += "ANALYZERS_EXTRA_CACHE_GLOBS=( \(items) )\n"
+            block += "ANALYZERS_EXTRA_CACHE_GLOBS=( \(items) )\n"
         }
         if !storage.staleApps.isEmpty {
             let items = storage.staleApps.map { shellQuote($0) }.joined(separator: " ")
-            out += "ANALYZERS_STALE_APPS=( \(items) )\n"
+            block += "ANALYZERS_STALE_APPS=( \(items) )\n"
         }
         // a list of sources replaces the single folder: it is migrated into the list, and not written twice
         if storage.recordingSources.isEmpty, !storage.recordingSourcesConfigured, !storage.recordingsDir.isEmpty {
-            out += "ANALYZERS_RECORDINGS_DIR=\(shellQuotePath(storage.recordingsDir))\n"
+            block += "ANALYZERS_RECORDINGS_DIR=\(shellQuotePath(storage.recordingsDir))\n"
         }
         if !storage.recordingSources.isEmpty || storage.recordingSourcesConfigured {
             let items = storage.recordingSources.compactMap { shellQuoteSource($0) }.map { $0 + " " }.joined()
-            out += "ANALYZERS_RECORDING_SOURCES=( \(items))\n"
-            out += "ANALYZERS_RECORDINGS_DAYS=\(storage.recordingsDays)\n"
+            block += "ANALYZERS_RECORDING_SOURCES=( \(items))\n"
+            block += "ANALYZERS_RECORDINGS_DAYS=\(storage.recordingsDays)\n"
         }
         if !storage.toolCaches.isEmpty {
-            out += "ANALYZERS_TOOL_CACHES=\(shellQuote(storage.toolCaches.joined(separator: ",")))\n"
+            block += "ANALYZERS_TOOL_CACHES=\(shellQuote(storage.toolCaches.joined(separator: ",")))\n"
         }
-        out += "JANITOR_DOWNLOADS_AGE_DAYS=\(storage.janitorDownloadsDays)\n"
-        out += "JANITOR_SCREENSHOTS_AGE_DAYS=\(storage.janitorScreenshotsDays)\n"
+        block += "JANITOR_DOWNLOADS_AGE_DAYS=\(storage.janitorDownloadsDays)\n"
+        block += "JANITOR_SCREENSHOTS_AGE_DAYS=\(storage.janitorScreenshotsDays)\n"
         if !storage.janitorKeepPatterns.isEmpty {
-            out += "JANITOR_KEEP_PATTERNS=\(shellQuote(storage.janitorKeepPatterns.joined(separator: ":")))\n"
+            block += "JANITOR_KEEP_PATTERNS=\(shellQuote(storage.janitorKeepPatterns.joined(separator: ":")))\n"
         }
-        out += "ANALYZERS_NM_AGE_DAYS=\(storage.nmAgeDays)\n"
-        out += "ANALYZERS_NM_REQUIRE_CLEAN=\(storage.nmRequireClean ? 1 : 0)\n"
-        out += "ANALYZERS_TURBO_CACHE_MAX_GB=\(storage.turboCacheMaxGB)\n"
-        out += "ANALYZERS_WORKTREE_IDLE_DAYS=\(storage.worktreeIdleDays)\n"
-        out += "ANALYZERS_NOTIFY_TIMEOUT=\(notify.timeoutSeconds)\n"
-        out += "ANALYZERS_LOG_VIEWER=\(shellQuote(notify.logViewer))\n"
-        out += Self.blockEnd + "\n"
+        block += "ANALYZERS_NM_AGE_DAYS=\(storage.nmAgeDays)\n"
+        block += "ANALYZERS_NM_REQUIRE_CLEAN=\(storage.nmRequireClean ? 1 : 0)\n"
+        block += "ANALYZERS_TURBO_CACHE_MAX_GB=\(storage.turboCacheMaxGB)\n"
+        block += "ANALYZERS_WORKTREE_IDLE_DAYS=\(storage.worktreeIdleDays)\n"
+        block += "ANALYZERS_NOTIFY_TIMEOUT=\(notify.timeoutSeconds)\n"
+        block += "ANALYZERS_LOG_VIEWER=\(shellQuote(notify.logViewer))\n"
+        block += Self.blockEnd + "\n"
+
+        if let span = Self.managedSpan(in: existing) {
+            existing.replaceSubrange(span, with: block)
+        } else if existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            existing = header + "\n" + block
+        } else {
+            if !existing.hasSuffix("\n") { existing += "\n" }
+            existing += "\n" + block
+        }
 
         let tmp = AnalyzersPaths.configLocal.appendingPathExtension("tmp")
-        try out.write(to: tmp, atomically: true, encoding: .utf8)
+        try existing.write(to: tmp, atomically: true, encoding: .utf8)
         _ = try fm.replaceItemAt(AnalyzersPaths.configLocal, withItemAt: tmp)
         // what the guard script and the cleanups read from the app: the person's Never Close list (best effort; the numbers
         // above are the managed block's alone)

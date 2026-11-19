@@ -15,7 +15,7 @@
 # Usage: tests/cleanup-ownership-test.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$HERE/../storage-analyzer/cleanup.sh"
+SCRIPT="$HERE/../storage/cleanup.sh"
 [[ -f "$SCRIPT" ]] || { echo "SKIP: script not found"; exit 0; }
 
 TMP="$(mktemp -d)"
@@ -35,8 +35,8 @@ inventory() { # file [version] [date] [logins]
 world() { # name -> sets W (the folder) and S (the stand-ins' folder)
   W="$TMP/w-$K-$1"; S="$W/stubs"
   mkdir -p "$W/home/Library/Application Support" "$W/home/Library/Group Containers" "$W/home/Library/Preferences/ByHost" \
-           "$W/home/.Trash" "$W/apps" "$W/launch" "$W/ent" "$S" "$W/tree/storage-analyzer" "$W/tree/lib"
-  cp "$SCRIPT" "$W/tree/storage-analyzer/cleanup.sh"; cp "$HERE"/../lib/*.sh "$W/tree/lib/"
+           "$W/home/.Trash" "$W/apps" "$W/launch" "$W/ent" "$S" "$W/tree/storage" "$W/tree/lib"
+  cp "$SCRIPT" "$W/tree/storage/cleanup.sh"; cp "$HERE"/../lib/*.sh "$W/tree/lib/"
   inventory "$W/inventory.tsv"
   printf '#!/bin/bash\nexit 1\n' > "$S/pgrep"        # nothing is running, whatever the real machine has (S4c replaces it)
   printf 'ANALYZERS_APP_DIRS="%s/apps"\nANALYZERS_LAUNCH_DIRS="%s/launch"\nANALYZERS_LOGIN_INVENTORY="%s/inventory.tsv"\n%s' \
@@ -71,7 +71,7 @@ mkapp() { # name bid [extra plist keys]
   printf '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>%s</string>%s</dict></plist>' "$2" "${3:-}" > "$W/apps/$1.app/Contents/Info.plist"
 }
 run() { # args: the script's arguments; output on stdout
-  PATH="$S:$PATH" HOME="$W/home" "$SH" "$W/tree/storage-analyzer/cleanup.sh" "$@" 2>&1
+  PATH="$S:$PATH" HOME="$W/home" "$SH" "$W/tree/storage/cleanup.sh" "$@" 2>&1
 }
 block() { sed -n "/^### APP: $1   (bundle/,/^### APP:/p" <<<"$2"; }                          # one app's part of a run
 paths_of() { sed -nE 's/^  \[DRY\] +[0-9.]+ [KMGT]?B +//p' <<<"$1"; }              # the [DRY] paths of a block
@@ -465,7 +465,7 @@ for n in 1 2 3 4 5 6 7 8 9 10 11 12; do ( run --list-app "$W/apps/Idle.app" > "$
   inventory "$W/inventory.tsv" 2 "$(date '+%Y-%m-%d %H:%M:%S')" "logins=unreadable"
   out="$(run --stale-apps)"
   check "[$sh] T2 an inventory from a run that could not read the login items: kept, and the reason says why and what to do" \
-        "$([[ "$(block Plain "$out")" == *"[KEEP]"*"could not read your Login Items"*"from the Mac Analyzers app"* ]] && echo ok || echo "$(block Plain "$out")")"
+        "$([[ "$(block Plain "$out")" == *"[KEEP]"*"could not read your Login Items"*"from Sparehold"* ]] && echo ok || echo "$(block Plain "$out")")"
   printf '#login-items-inventory\t2\t%s\tdry-run\tid\n' "$(date '+%Y-%m-%d %H:%M:%S')" > "$W/inventory.tsv"
   out="$(run --stale-apps)"; check "[$sh] T2 a header with no statement about the login items is not trusted either" "$([[ "$(block Plain "$out")" == *"[KEEP]"* ]] && echo ok || echo offered)"
 

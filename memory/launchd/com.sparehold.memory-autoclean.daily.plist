@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sparehold.memory-autoclean.daily</string>
+
+    <!-- Attribute this background item to the Sparehold menu-bar app in
+         System Settings → Login Items & Extensions, instead of showing an
+         "item from an unidentified developer" script row. -->
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+        <string>com.sparehold.app</string>
+    </array>
+
+    <!-- Daily RAM reaper: orphaned MCP servers, dev servers >24h old,
+         stale playwright/headless browsers. Report-only categories stay
+         report-only even under --apply. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__RUNNER__</string>
+        <string>__SUITE_DIR__/memory-auto-clean.sh</string>
+        <string>--apply</string>
+    </array>
+
+    <!-- 08:30 local — offset from the 08:00 storage auto-clean so the two
+         never contend. Missed runs (machine asleep) fire on next wake. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>8</integer>
+        <key>Minute</key><integer>30</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:__HOME__/.local/bin</string>
+        <key>HOME</key>
+        <string>__HOME__</string>
+    </dict>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>Nice</key>
+    <integer>10</integer>
+
+    <!-- notify() detaches an alerter click-handler that outlives the run; by
+         default launchd kills the job's process group on exit, which would
+         kill the handler before the user can click "Open Log". -->
+    <key>AbandonProcessGroup</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/mac-analyzers/reports/memory/auto-clean.daily.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/mac-analyzers/reports/memory/auto-clean.daily.err.log</string>
+</dict>
+</plist>

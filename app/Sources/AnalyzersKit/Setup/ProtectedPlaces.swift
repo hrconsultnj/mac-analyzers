@@ -70,12 +70,12 @@ public enum FullDiskAccessProbe {
                                now: Date = Date(), places: [ProtectedPlace] = ProtectedPlaces.all) -> (state: SetupItemState, evidence: String) {
         let present = places.filter { app[$0.id] != .missing && app[$0.id] != nil }
         guard !present.isEmpty else {
-            return (.cantTell, "None of the folders Mac Analyzers checks exist on this Mac yet, so it can't tell.")
+            return (.cantTell, "None of the folders Sparehold checks exist on this Mac yet, so it can't tell.")
         }
         let denied = present.filter { app[$0.id] == .denied }
         let hidden = { (list: [ProtectedPlace]) in Names.Setup.list(list.map(\.hides)) }
         if !denied.isEmpty {
-            return (.off, "Mac Analyzers can't read \(Names.Setup.list(denied.map(\.name))), so \(hidden(denied)) are left out of the storage report.")
+            return (.off, "Sparehold can't read \(Names.Setup.list(denied.map(\.name))), so \(hidden(denied)) are left out of the storage report.")
         }
         let readable = "\(present.count == 1 ? "The folder" : "All \(present.count) folders") the storage report reads can be read by the app"
         guard let agent else {

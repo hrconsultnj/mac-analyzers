@@ -250,7 +250,7 @@ private func show(_ rows: [ActivityRow], now: Date) {
         ("Report (exit 3)", ExitExplanation.explain(exitCode: 3, verb: "write the report"),
          await now(.memoryReport, .run)),
         ("Setup, scripts missing (exit 127)",
-         "Could not find memory-analyzer/memory-manage-agents.sh — the app's copy of the analyzer scripts is incomplete.",
+         "Could not find memory/memory-manage-agents.sh — the app's copy of the analyzer scripts is incomplete.",
          await now(.installAgents, .run, code: 127)),
     ]
     for (name, before, after) in rows {

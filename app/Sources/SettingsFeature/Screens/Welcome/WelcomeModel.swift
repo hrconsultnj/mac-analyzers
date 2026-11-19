@@ -15,7 +15,7 @@ final class WelcomeModel {
     private(set) var plan: WelcomePlan?
     var index = 0
     private(set) var state = SetupState(seenVersion: WelcomePlanner.baseline)
-    /// "Open Mac Analyzers when you log in": on unless the person turns it off on the Background step.
+    /// "Open Sparehold when you log in": on unless the person turns it off on the Background step.
     var openAtLogin = true
     private(set) var version = BuildInfo.current.release
 

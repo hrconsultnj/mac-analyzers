@@ -14,7 +14,7 @@
 # Usage: tests/downloads-janitor-test.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$HERE/../storage-analyzer/downloads-janitor.sh"
+SCRIPT="$HERE/../storage/downloads-janitor.sh"
 [[ -f "$SCRIPT" ]] || { echo "SKIP: janitor not found"; exit 0; }
 
 TMP="$(mktemp -d)"
@@ -23,8 +23,8 @@ fail=0
 check() { if [[ "$2" == "ok" ]]; then echo "PASS  $1"; else echo "FAIL  $1 ($2)"; fail=1; fi; }
 
 # a copy of the script that cannot notify anyone
-mkdir -p "$TMP/tree/storage-analyzer" "$TMP/tree/lib"
-cp "$SCRIPT" "$TMP/tree/storage-analyzer/downloads-janitor.sh"
+mkdir -p "$TMP/tree/storage" "$TMP/tree/lib"
+cp "$SCRIPT" "$TMP/tree/storage/downloads-janitor.sh"
 cp "$HERE"/../lib/*.sh "$TMP/tree/lib/"                       # the reviewed-list reader is part of the script
 printf 'notify() { :; }\n' > "$TMP/tree/lib/notify.sh"
 
@@ -42,7 +42,7 @@ run_case() { # label shell
   printf 'pre-old1' > "$home/.Trash/old1.pdf"
   find "$home/Downloads" "$home/Desktop" -exec touch -h -t 202001010000 {} +
 
-  HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" --apply > "$TMP/$label.out" 2>&1
+  HOME="$home" "$sh" "$TMP/tree/storage/downloads-janitor.sh" --apply > "$TMP/$label.out" 2>&1
   local rc=$?
   check "[$label] janitor finished" "$([[ $rc -eq 0 ]] && echo ok || echo "exit $rc")"
 
@@ -87,12 +87,12 @@ run_case() { # label shell
 # a copy of the script whose lib/approved-list.sh is missing must say so and stop (exit 78), not exit 1 silently
 missing_case() { # label shell
   local label="$1" sh="$2" home="$TMP/home-$1" tree="$TMP/tree-nolib-$1"
-  mkdir -p "$home/Downloads" "$tree/storage-analyzer" "$tree/lib"
-  cp "$SCRIPT" "$tree/storage-analyzer/downloads-janitor.sh"
+  mkdir -p "$home/Downloads" "$tree/storage" "$tree/lib"
+  cp "$SCRIPT" "$tree/storage/downloads-janitor.sh"
   printf 'notify() { :; }\n' > "$tree/lib/notify.sh"
   printf 'x' > "$home/Downloads/one.pdf"; touch -t 202001010000 "$home/Downloads/one.pdf"
   printf '%s\n' "$home/Downloads/one.pdf" > "$TMP/list-$1"
-  HOME="$home" "$sh" "$tree/storage-analyzer/downloads-janitor.sh" --apply --only-paths "$TMP/list-$1" > "$TMP/$label.out" 2>&1
+  HOME="$home" "$sh" "$tree/storage/downloads-janitor.sh" --apply --only-paths "$TMP/list-$1" > "$TMP/$label.out" 2>&1
   local rc=$?
   check "[$label] list reader missing: exit 78 with the reason, nothing moved" \
         "$([[ $rc -eq 78 && -e "$home/Downloads/one.pdf" ]] && grep -q 'FATAL: lib/approved-list.sh is missing' "$TMP/$label.out" && echo ok || echo "exit $rc")"
@@ -111,7 +111,7 @@ cloud_case() { # label shell
   # du reports no blocks for such a file, as it does for a real one
   printf '#!/bin/bash\nfor a in "$@"; do [[ "$a" == *cloud-only-* ]] && { printf "0\\t%%s\\n" "$a"; exit 0; }; done\nexec /usr/bin/du "$@"\n' > "$stubs/du"
   chmod +x "$stubs/stat" "$stubs/du"
-  PATH="$stubs:$PATH" HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" > "$TMP/$label.out" 2>&1
+  PATH="$stubs:$PATH" HOME="$home" "$sh" "$TMP/tree/storage/downloads-janitor.sh" > "$TMP/$label.out" 2>&1
   check "[$label] an iCloud-only file is listed as [CLOUD] with its real size" \
         "$(grep -q '^\[CLOUD\] 27 KB  .*cloud-only-1.png' "$TMP/$label.out" && echo ok || grep 'cloud-only' "$TMP/$label.out")"
   check "[$label] a normal file is still [DRY]" "$(grep -q '^\[DRY\] .*normal.pdf' "$TMP/$label.out" && echo ok || echo "no [DRY] row")"
@@ -133,7 +133,7 @@ cloud_apply_cases() { # label shell
   }
   # 1. the scheduled run: no list
   fresh sched
-  PATH="$stubs:$PATH" HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" --apply > "$TMP/$label-sched.out" 2>&1
+  PATH="$stubs:$PATH" HOME="$home" "$sh" "$TMP/tree/storage/downloads-janitor.sh" --apply > "$TMP/$label-sched.out" 2>&1
   check "[$label] a scheduled run (no list) leaves the iCloud-only file and moves the normal one" \
         "$([[ -e "$home/Downloads/cloud-only-1.png" && ! -e "$home/Downloads/normal.pdf" && -e "$home/.Trash/normal.pdf" ]] && echo ok || echo "cloud kept: $([[ -e "$home/Downloads/cloud-only-1.png" ]] && echo y || echo n)")"
   check "[$label] the run's summary says how many were left and why" \
@@ -143,18 +143,18 @@ cloud_apply_cases() { # label shell
   # 2. a reviewed list that names it anyway
   fresh listed
   printf '%s\n%s\n' "$home/Downloads/cloud-only-1.png" "$home/Downloads/normal.pdf" > "$TMP/list-$label-listed"
-  PATH="$stubs:$PATH" HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" --apply --only-paths "$TMP/list-$label-listed" > "$TMP/$label-listed.out" 2>&1
+  PATH="$stubs:$PATH" HOME="$home" "$sh" "$TMP/tree/storage/downloads-janitor.sh" --apply --only-paths "$TMP/list-$label-listed" > "$TMP/$label-listed.out" 2>&1
   check "[$label] a reviewed list that names the iCloud-only file still does not move it" \
         "$([[ -e "$home/Downloads/cloud-only-1.png" && -e "$home/.Trash/normal.pdf" ]] && echo ok || echo moved)"
   # 3. it became a local file between the preview and the apply: no longer cloud-only (no stand-in), so it is an
   #    ordinary file; not on the reviewed list it stays, on a scheduled run it is moved
   fresh local
   printf '%s\n' "$home/Downloads/normal.pdf" > "$TMP/list-$label-local"
-  HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" --apply --only-paths "$TMP/list-$label-local" > "$TMP/$label-local.out" 2>&1
+  HOME="$home" "$sh" "$TMP/tree/storage/downloads-janitor.sh" --apply --only-paths "$TMP/list-$label-local" > "$TMP/$label-local.out" 2>&1
   check "[$label] a file that became local is not moved by a list that never named it" \
         "$([[ -e "$home/Downloads/cloud-only-1.png" && -e "$home/.Trash/normal.pdf" ]] && echo ok || echo moved)"
   fresh local2
-  HOME="$home" "$sh" "$TMP/tree/storage-analyzer/downloads-janitor.sh" --apply > "$TMP/$label-local2.out" 2>&1
+  HOME="$home" "$sh" "$TMP/tree/storage/downloads-janitor.sh" --apply > "$TMP/$label-local2.out" 2>&1
   check "[$label] a file that became local is an ordinary file again for the scheduled run" \
         "$([[ ! -e "$home/Downloads/cloud-only-1.png" ]] && echo ok || echo "still there")"
 }

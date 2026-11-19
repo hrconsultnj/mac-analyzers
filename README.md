@@ -1,4 +1,4 @@
-# mac-analyzers
+# Sparehold
 
 **Your Mac's RAM and disk, explained and defended.** A self-maintaining
 toolkit for macOS that tells you *why* Activity Monitor says 23 GB, kills the
@@ -12,7 +12,7 @@ You don't have to be a developer to have this problem. If you use AI apps,
 coding assistants, or heavyweight creative tools, your Mac quietly collects
 background processes during the day — helpers some tool started and forgot
 about. Memory fills up, the machine starts compressing and swapping, and by
-mid-afternoon everything feels sticky. Mac Analyzers watches for exactly that
+mid-afternoon everything feels sticky. Sparehold watches for exactly that
 and handles it on autopilot:
 
 - **It stops runaway processes before they freeze your Mac** — and it will
@@ -85,7 +85,7 @@ reports.
 
 ## Install
 
-The scripts are the **engine**; the app is the **face**. Mac Analyzers needs
+The scripts are the **engine**; the app is the **face**. Sparehold needs
 **macOS 26 or later** and is built on your Mac from source, which takes three
 steps:
 
@@ -102,18 +102,30 @@ steps:
 2. Download the project into your home folder:
 
    ```bash
-   git clone https://github.com/hrconsultnj/mac-analyzers.git ~/mac-analyzers
+   git clone https://github.com/hrconsultnj/sparehold.git ~/sparehold
    ```
 
-3. Open the `mac-analyzers` folder in your home folder in Finder and
-   **double-click `upgrade.command`**. It builds the app, installs it to
-   Applications, installs the background jobs (the memory guard, the daily
-   cleanup and the scheduled disk cleanup) and starts the app. The build
-   takes a minute or two; when Terminal says "Done", you can close it.
+   If you already keep this project at `~/mac-analyzers`, run `upgrade.command`
+   from there. The update moves that folder to `~/sparehold` and removes the
+   old name, so settings and reports move with it and you do not keep two
+   copies. When `~/sparehold` is already there, the checkout stays where it is.
 
-The project must live at `~/mac-analyzers`: that is where the app keeps your
-settings, reports and records. The same double-click is how you update later
-(see [Staying up to date](#staying-up-to-date)).
+3. Open that folder in Finder and **double-click `upgrade.command`**. It
+   builds the app, installs it to Applications, installs the background jobs
+   (the memory guard, the daily cleanup and the scheduled disk cleanup) and
+   starts the app. The build takes a minute or two; when Terminal says
+   "Done", you can close it.
+
+Sparehold keeps your settings, reports and records in one data folder. The
+first match wins: a folder you name with `SPAREHOLD_DATA_DIR`, `SPAREHOLD_DIR`,
+or the older `MAC_ANALYZERS_DIR`; then `~/sparehold` when that folder already
+holds `config.local.sh`, `reports/`, or `.git`; then an existing
+`~/mac-analyzers` checkout when it holds one of those. A brand-new install
+with none of those uses `~/Library/Application Support/Sparehold/`. The engine
+scripts are read from `SPAREHOLD_SUITE_DIR`, then `~/sparehold` when the
+scripts are there, then `~/mac-analyzers` when they are there, then from the
+app itself. The same double-click is how you update later (see
+[Staying up to date](#staying-up-to-date)).
 
 If your keychain holds an Apple Development certificate (free with any Apple
 ID), the build signs with it automatically — a stable identity, so macOS
@@ -123,19 +135,19 @@ runtime**, so another program on your account cannot make it load code of its
 own. On first launch it adds itself to Login Items (macOS notifies you it
 did) and asks for notification permission. The **Setup** screen in the app
 checks that every part is installed and running, and can start anything that
-is not. The app lives at `/Applications/MacAnalyzers.app` like any Mac app
+is not. The app lives at `/Applications/Sparehold.app` like any Mac app
 (the copy under `app/` is just the build output and the script-only
 fallback); clicking its Dock icon opens the main window.
 
-Want to see your machine before installing anything? `./memory-analyzer/analyze.sh`
-and `./storage-analyzer/analyze.sh` are read-only reports — always safe.
+Want to see your machine before installing anything? `./memory/analyze.sh`
+and `./storage/analyze.sh` are read-only reports — always safe.
 
 **Using Claude Code (or another agent)?** Point it at `PORT-TO-YOUR-MAC.md` —
 it's written as instructions for an AI to calibrate thresholds, protect lists,
 and schedules to your machine before installing.
 
 The launchd plists are templates hydrated at install time (paths + username),
-under the identifiable `com.mac-analyzers.*` namespace and attributed to the
+under the identifiable `com.sparehold.*` namespace and attributed to the
 app's identity, so System Settings → Login Items never shows you a mystery
 entry from this toolkit.
 
@@ -146,8 +158,8 @@ install only the background jobs:
 
 ```bash
 cd ~/mac-analyzers
-./memory-analyzer/memory-manage-agents.sh install    # memory guard + daily cleanup
-./storage-analyzer/storage-manage-agents.sh install  # scheduled disk cleanup
+./memory/memory-manage-agents.sh install    # memory guard + daily cleanup
+./storage/storage-manage-agents.sh install  # scheduled disk cleanup
 ```
 
 Notifications fall back to `alerter`
@@ -172,7 +184,7 @@ A downloadable app is not offered yet, for two reasons:
 
 Until both are solved, building from a clone (the three steps above) is the
 supported way to install. Each release on the
-[Releases page](https://github.com/hrconsultnj/mac-analyzers/releases) also
+[Releases page](https://github.com/hrconsultnj/sparehold/releases) also
 attaches the full source as a tarball (`mac-analyzers-v<version>.tar.gz`).
 
 ## Staying up to date
@@ -191,13 +203,15 @@ the app — your settings in `config.local.sh` are **never touched**. Terminal
 equivalent:
 
 ```bash
-cd ~/mac-analyzers && ./upgrade.command
+cd ~/sparehold && ./upgrade.command
 ```
 
+After that move the folder is only `~/sparehold`.
+
 **Updates.** The Updates screen opens with a status card in the style of macOS
-Software Update: whether Mac Analyzers is up to date or what is available, the
+Software Update: whether Sparehold is up to date or what is available, the
 version you have, when it last checked and a Check for Updates button. Check for
-Updates is also in the Mac Analyzers menu and in Help: it tells you you're up to
+Updates is also in the Sparehold menu and in Help: it tells you you're up to
 date, or opens a window listing what every version since yours brought, with Skip
 This Version, Remind Me Later and Install Update. **Check Automatically** (on by
 default) looks when the app opens and every 6 hours and says so once for each
@@ -231,7 +245,7 @@ changes you have not committed. A beta is never offered on Releases, and a
 Dev copy is never offered something it is already past.
 
 Not using git? Unpack the source tarball from the
-[Releases page](https://github.com/hrconsultnj/mac-analyzers/releases) in your
+[Releases page](https://github.com/hrconsultnj/sparehold/releases) in your
 home folder, so it lands at `~/mac-analyzers`, and double-click
 `rebuild.command` (`upgrade.command` needs a git clone to pull from). Such a
 copy follows Releases only; to update it, unpack the next release over it
@@ -254,17 +268,17 @@ network requests the app makes:
 
 | | Tool | What it does | Touches anything? |
 |---|---|---|---|
-| 🖥️ | `app/` — **Mac Analyzers** app | the product's face: a main window with Overview, Activity, Monitor, every storage cleanup you start as a preview you review first, system audits, Trends and Undo; a menu-bar panel with per-app Stop/Quit; actionable native notifications; settings, editable schedules and update channels | writes only its own marked block in `config.local.sh` (+ schedule edits into its own launchd plists); cleanups you start act only on what you approve; the scheduled jobs apply by themselves |
-| 🔍 | `memory-analyzer/analyze.sh` | "Why is RAM at N GB?" — Activity-Monitor-style breakdown, compressor/swap truth, per-app rollup, CPU/energy, diagnosis with verdicts | never — read-only report |
-| 🛡️ | `memory-analyzer/memory-guard.sh` | always-on listener: alerts on memory-pressure, kills a runaway dev process before the machine locks up. Meeting apps, browsers, editors are never touched | kills dev tooling only |
-| 🧹 | `memory-analyzer/memory-auto-clean.sh` | daily reaper: orphaned MCP/agent servers, dev servers forgotten since yesterday, stale headless browsers | previews by default; the scheduled daily job runs it with `--apply` |
-| 🔴 | `memory-analyzer/memory-reclaim.sh` | the "free my RAM **now**" button — reboot effect without rebooting; optionally ⌘Q's heavy apps gracefully | with `--apply` |
-| 💾 | `storage-analyzer/analyze.sh` | categorized disk report: caches, node_modules, Docker, per-app footprints, apps-by-last-used | never — read-only report |
-| 🗑️ | `storage-analyzer/cleanup.sh` + `storage-auto-clean.sh` | interactive deep clean + scheduled automation-safe sweep (protects active work) | previews by default; the scheduled daily and deep jobs run it with `--apply` |
-| ⏪ | `storage-analyzer/tm-reclaim.sh` | releases the Time Machine local snapshots that pin just-deleted blocks (the "I freed 40 GB but df didn't move" fix) | snapshots only |
-| 🔎 | `storage-analyzer/login-items-audit.sh` | finds login items / launch agents whose app was uninstalled — mechanically verified, two confidence classes | dry-run default |
-| 💡 | `storage-analyzer/spotlight-audit.sh` | Spotlight sanity: is the reindex expected or stuck, and which dev dirs (node_modules, build trees) is it wastefully indexing — fences them reversibly | dry-run default |
-| 🧺 | `storage-analyzer/temp-clean.sh` | what's really in /tmp, /var and your AI agents' folders (Claude Code, Codex, npx MCP servers): mounted disk images told apart from real usage, live sessions and open files protected, history sized but never touched | dry-run default · Trash, permanent opt-in |
+| 🖥️ | `app/` — **Sparehold** app | the product's face: a main window with Overview, Activity, Monitor, every storage cleanup you start as a preview you review first, system audits, Trends and Undo; a menu-bar panel with per-app Stop/Quit; actionable native notifications; settings, editable schedules and update channels | writes only its own marked block in `config.local.sh` (+ schedule edits into its own launchd plists); cleanups you start act only on what you approve; the scheduled jobs apply by themselves |
+| 🔍 | `memory/analyze.sh` | "Why is RAM at N GB?" — Activity-Monitor-style breakdown, compressor/swap truth, per-app rollup, CPU/energy, diagnosis with verdicts | never — read-only report |
+| 🛡️ | `memory/memory-guard.sh` | always-on listener: alerts on memory-pressure, kills a runaway dev process before the machine locks up. Meeting apps, browsers, editors are never touched | kills dev tooling only |
+| 🧹 | `memory/memory-auto-clean.sh` | daily reaper: orphaned MCP/agent servers, dev servers forgotten since yesterday, stale headless browsers | previews by default; the scheduled daily job runs it with `--apply` |
+| 🔴 | `memory/memory-reclaim.sh` | the "free my RAM **now**" button — reboot effect without rebooting; optionally ⌘Q's heavy apps gracefully | with `--apply` |
+| 💾 | `storage/analyze.sh` | categorized disk report: caches, node_modules, Docker, per-app footprints, apps-by-last-used | never — read-only report |
+| 🗑️ | `storage/cleanup.sh` + `storage-auto-clean.sh` | interactive deep clean + scheduled automation-safe sweep (protects active work) | previews by default; the scheduled daily and deep jobs run it with `--apply` |
+| ⏪ | `storage/tm-reclaim.sh` | releases the Time Machine local snapshots that pin just-deleted blocks (the "I freed 40 GB but df didn't move" fix) | snapshots only |
+| 🔎 | `storage/login-items-audit.sh` | finds login items / launch agents whose app was uninstalled — mechanically verified, two confidence classes | dry-run default |
+| 💡 | `storage/spotlight-audit.sh` | Spotlight sanity: is the reindex expected or stuck, and which dev dirs (node_modules, build trees) is it wastefully indexing — fences them reversibly | dry-run default |
+| 🧺 | `storage/temp-clean.sh` | what's really in /tmp, /var and your AI agents' folders (Claude Code, Codex, npx MCP servers): mounted disk images told apart from real usage, live sessions and open files protected, history sized but never touched | dry-run default · Trash, permanent opt-in |
 
 Every script double-clicked in Finder opens an **interactive menu**
 (preview, then confirm). Flags skip the menu — that's how the launchd agents
@@ -275,12 +289,12 @@ Every run logs exactly how it was invoked.
 ## Layout
 
 ```
-~/mac-analyzers/
-├── app/                       the "Mac Analyzers" app — the face (below)
-├── memory-analyzer/           RAM suite + its launchd templates (own README)
-├── storage-analyzer/          disk suite + its launchd templates (own README)
+~/sparehold/    the checkout. An update moves ~/mac-analyzers here and removes the old name
+├── app/                       the Sparehold app — the face (below)
+├── memory/           RAM suite + its launchd templates (own README)
+├── storage/          disk suite + its launchd templates (own README)
 ├── lib/notify.sh              shared notifier every script sources (below)
-├── extras/swiftbar-plugin/    SwiftBar surface for script-only setups
+├── extras/swiftbar-plugin/    SwiftBar surface (sparehold.5m.sh) for script-only setups
 ├── config.example.sh          → copy to config.local.sh (gitignored)
 └── reports/{memory,storage}/  every report + log the suite writes (gitignored)
 ```
@@ -346,7 +360,7 @@ Every alert — guard kills, pressure warnings, auto-clean summaries — goes
 through `lib/notify.sh`, which picks the best backend present:
 
 1. **The app's bundled CLI**
-   (`/Applications/MacAnalyzers.app/Contents/MacOS/notify`, falling back to
+   (`/Applications/Sparehold.app/Contents/MacOS/notify`, falling back to
    the repo copy under `app/`) — posts over `DistributedNotificationCenter`
    to the persistent app, which shows a real native notification under the
    app's identity; clicking it opens that run's log **inside the app**.
@@ -362,7 +376,7 @@ lives.
 
 ## The app
 
-`app/` is **Mac Analyzers**, a native SwiftUI Mac app (SPM package, Swift 6,
+`app/` is **Sparehold**, a native SwiftUI Mac app (SPM package, Swift 6,
 macOS 26 and later) — the face on the script engine. Every screen reads the same way:
 the kinds of thing it shows are tabs with a count, rows are grouped under
 the app, project or day they belong to with a total, and a group opens to
@@ -433,13 +447,13 @@ show what is in it.
   update channel (Releases, Beta or This Copy, see
   [Staying up to date](#staying-up-to-date)) and runs `upgrade.command` in
   Terminal on Install.
-- **Actionable notifications** — Open Mac Analyzers / Open Log right on the
+- **Actionable notifications** — Open Sparehold / Open Log right on the
   alert, plus **Stop Process** when the alert names a live process. Stop
   first checks that it is still the same program; if it has changed, or is
   part of a live coding session, Monitor opens on it and nothing is stopped.
 - **Launchd attribution** — the installed plists launch the engine through
   the app's compiled `agent-runner` (inside the bundle, sharing its signing
-  identity) and carry `AssociatedBundleIdentifiers` = `com.mac-analyzers.app`,
+  identity) and carry `AssociatedBundleIdentifiers` = `com.sparehold.app`,
   so System Settings → Login Items & Extensions shows the background agents
   under the app's identity instead of anonymous script rows. The app
   registers itself as a login item (`SMAppService`) on first launch.

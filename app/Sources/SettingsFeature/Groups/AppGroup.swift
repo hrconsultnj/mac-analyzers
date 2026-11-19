@@ -24,7 +24,7 @@ final class UpdateBadge {
     var updateAvailable: Bool { state?.isAvailable ?? false }
 }
 
-/// The Mac Analyzers screen and what it opens: Updates (with What's New under it), How It Works and Support.
+/// The Sparehold screen and what it opens: Updates (with What's New under it), How It Works and Support.
 /// None of them has a sidebar row: the item at the foot of the sidebar opens the app screen, which leads to the rest.
 ///
 /// A supporter build has no Support row: its badge at the foot of the

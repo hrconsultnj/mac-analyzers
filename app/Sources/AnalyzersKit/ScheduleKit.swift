@@ -1,9 +1,10 @@
 import Foundation
 
 /// Reads and edits the INSTALLED launchd plists' schedules
-/// (~/Library/LaunchAgents/com.mac-analyzers.*). The repo templates keep the
-/// defaults; the manage-agents installers preserve a customized schedule
-/// across reinstalls/upgrades, so edits made here stick.
+/// (~/Library/LaunchAgents/com.sparehold.*). A plist still named
+/// com.mac-analyzers.* is read for its schedule when the new one is absent.
+/// The repo templates keep the defaults; the manage-agents installers
+/// preserve a customized schedule across reinstalls, so edits made here stick.
 public enum ScheduleKit {
 
     public enum Schedule: Equatable, Sendable {
@@ -20,13 +21,13 @@ public enum ScheduleKit {
     }
 
     public static let jobs: [Job] = [
-        Job(label: "com.mac-analyzers.memory-autoclean.daily",
+        Job(label: LaunchdAgentID.memoryAutoCleanDaily.rawValue,
             displayName: "Memory auto-clean",
             detail: "Daily reaper — orphaned dev/AI servers, stale headless browsers"),
-        Job(label: "com.mac-analyzers.storage-autoclean.daily",
+        Job(label: LaunchdAgentID.storageAutoCleanDaily.rawValue,
             displayName: "Storage daily clean",
             detail: "Stale build caches only"),
-        Job(label: "com.mac-analyzers.storage-autoclean.deep",
+        Job(label: LaunchdAgentID.storageAutoCleanDeep.rawValue,
             displayName: "Storage deep clean",
             detail: "+ node_modules of idle repos; package-manager caches (npm's whole cache, pnpm's unreferenced only); ALL unused Docker images (starts Docker if needed, then quits it); deletes Time Machine local snapshots"),
     ]

@@ -13,7 +13,7 @@ public enum MonitorTree {
 
     // MARK: - building
 
-    /// `appProtection` answers, for an app group, why Mac Analyzers never quits it by itself (the Never Close list, a
+    /// `appProtection` answers, for an app group, why Sparehold never quits it by itself (the Never Close list, a
     /// Connection Tool, the app in front): it needs the guard's rules and what is in front, which the screen supplies.
     public static func rows(census: MemoryCensus, cpu: [Int: Double] = [:],
                             appProtection: (CensusGroup) -> MonitorProtection.Note? = { _ in nil }) -> [MonitorRow] {
@@ -111,7 +111,7 @@ public enum MonitorTree {
             // a member is never locked because its program or group is: the lock guards automatic stops only
             // except a terminal session, which ignores a polite stop: Stop would say nothing and do nothing
             if ProgramReach.selfChain().contains(Int32(process.pid)) {
-                stop = .unavailable("Stopping \(process.friendlyName) would end Mac Analyzers itself, or the program that started it.")
+                stop = .unavailable("Stopping \(process.friendlyName) would end Sparehold itself, or the program that started it.")
             } else if CensusBuilder.shells.contains(process.friendlyName),
                ProgramReach.isInteractiveShell(command: ProcTable.commandLine(of: Int32(process.pid))) {
                 stop = .unavailable("A shell is a terminal session — close its window to end it.")
@@ -151,7 +151,7 @@ public enum MonitorTree {
         return .choosePrograms(group: displayName(group.name), programs: group.programs)
     }
 
-    /// What a group of programs says about the ones in it that Mac Analyzers never stops by itself.
+    /// What a group of programs says about the ones in it that Sparehold never stops by itself.
     private static func toolsProtection(_ group: CensusGroup) -> String? {
         let held = group.programs.filter { $0.protection != nil }
         guard !held.isEmpty else { return nil }
@@ -160,8 +160,8 @@ public enum MonitorTree {
             : "\(held.count) of its \(group.programs.count) programs are"
         // the real reason: with the list unreadable nothing is known to be a session
         let reason = CodingAgentHosts.isAvailable
-            ? "part of, or host, a live coding session, which Mac Analyzers never stops by itself"
-            : "protected because Mac Analyzers could not read its list of coding agents, so it cannot tell whether a live coding session is part of them"
+            ? "part of, or host, a live coding session, which Sparehold never stops by itself"
+            : "protected because Sparehold could not read its list of coding agents, so it cannot tell whether a live coding session is part of them"
         return "\(which) \(reason). You can stop the whole group or open it and stop one program."
     }
 

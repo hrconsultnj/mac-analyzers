@@ -63,5 +63,5 @@ public enum TurnOffPermission {
     public static let confirmation = "You will be asked for your administrator password to remove the permission to delete Time Machine snapshots."
 
     /// The one sentence of the permission row: what it is, and that removing it asks for a password.
-    public static let explanation = "Lets Mac Analyzers delete Time Machine's local snapshots without asking for a password. Removing it asks for your administrator password."
+    public static let explanation = "Lets Sparehold delete Time Machine's local snapshots without asking for a password. Removing it asks for your administrator password."
 }

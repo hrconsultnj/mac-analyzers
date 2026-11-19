@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # package.sh — build the downloads other people get:
-#   MacAnalyzers-<V>.dmg   what a new user downloads: the app next to a
-#                          shortcut to the Applications folder
-#   MacAnalyzers-<V>.zip   the same signed app as an archive — what an
-#                          installed copy downloads to update itself
+#   Sparehold-<V>.dmg   what a new user downloads: the app next to a
+#                       shortcut to the Applications folder
+#   Sparehold-<V>.zip   the same signed app as an archive — what an
+#                       installed copy downloads to update itself
 #
-#   scripts/package.sh                 # → dist/MacAnalyzers-<version>.{dmg,zip}
+#   scripts/package.sh                 # → dist/Sparehold-<version>.{dmg,zip}
 #   scripts/package.sh --out ~/Desktop # write them somewhere else
 #
 # It never touches the copy of the app you are running (the build is not
-# installed) and never changes app/MacAnalyzers.app's signature — the image
+# installed) and never changes app/Sparehold.app's signature — the image
 # is made from a re-signed COPY.
 #
 # How the copy is signed decides what a stranger sees on first launch:
@@ -57,14 +57,14 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 
 version="$(tr -d ' \n' < VERSION)"
-dmg="$out/MacAnalyzers-$version.dmg"
+dmg="$out/Sparehold-$version.dmg"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 stage="$work/image"        # exactly what the disk image will contain
 mkdir -p "$stage"
 
 # ── 1. build, without installing ───────────────────────────────────────────
-echo "→ building Mac Analyzers $version"
+echo "→ building Sparehold $version"
 build_log="$work/build.log"
 # MA_STRICT_WARNINGS=1: a download for other people is never built from code
 # that has a compiler warning.
@@ -83,8 +83,8 @@ if grep -a -E '^[^ ].*: warning: ' "$build_log" >"$work/warnings.txt"; then
 fi
 
 # ── 2. a copy to sign for other people's Macs ──────────────────────────────
-app="$stage/MacAnalyzers.app"
-ditto app/MacAnalyzers.app "$app"
+app="$stage/Sparehold.app"
+ditto app/Sparehold.app "$app"
 
 identity="${MA_DIST_IDENTITY:-}"
 if [[ -z "$identity" ]]; then
@@ -112,7 +112,7 @@ mkdir -p "$out"
 rm -f "$dmg"
 # (macOS 27 prints a deprecation note for these flags; the image is the same
 #  and this form also works on macOS 26)
-hdiutil create -quiet -volname "Mac Analyzers" -srcfolder "$stage" \
+hdiutil create -quiet -volname "Sparehold" -srcfolder "$stage" \
   -format UDZO -fs HFS+ "$dmg" 2>/dev/null
 hdiutil verify -quiet "$dmg"
 
@@ -133,7 +133,7 @@ fi
 if [[ "$level" == "Developer ID, notarized" ]]; then
   xcrun stapler staple "$app" >/dev/null
 fi
-zip="$out/MacAnalyzers-$version.zip"
+zip="$out/Sparehold-$version.zip"
 rm -f "$zip"
 ditto -c -k --sequesterRsrc --keepParent "$app" "$zip"
 

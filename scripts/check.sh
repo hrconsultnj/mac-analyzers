@@ -50,7 +50,7 @@ describe() {
     lint)      echo "shellcheck on every tracked *.sh and *.command: any warning or error fails the check" ;;
     secrets)   echo "curated secret-pattern sweep over every tracked file" ;;
     changelog) echo "CHANGELOG.md has a '## Next' section or an entry for VERSION, and that entry reads as release notes" ;;
-    tests)     echo "every executable under memory-analyzer/tests/ and tests/ (macOS only; skipped, visibly, elsewhere)" ;;
+    tests)     echo "every executable under memory/tests/ and tests/ (macOS only; skipped, visibly, elsewhere)" ;;
     workflows) echo "actionlint on .github/workflows (optional: skipped, visibly, when not installed)" ;;
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root; no source file hidden by .gitignore" ;;
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
@@ -225,7 +225,7 @@ check_tests() {
       n=$((n + 1))
     fi
   done <<EOF
-$(git ls-files -- 'memory-analyzer/tests/*' 'tests/*')
+$(git ls-files -- 'memory/tests/*' 'tests/*')
 EOF
   if [ "$bad" -gt 0 ]; then DETAIL="$bad of $n test scripts failed"; return 1; fi
   if [ "$n" -eq 0 ] && [ "$unrun" -gt 0 ]; then
@@ -282,7 +282,7 @@ check_strays() {
   local ignored
   ignored="$(git ls-files --others --ignored --exclude-standard -- \
       app/Sources app/Package.swift scripts lib tests \
-      memory-analyzer storage-analyzer network-analyzer 2>/dev/null \
+      memory storage network 2>/dev/null \
     | grep -v -E '(^|/)\.[^/]+/' \
     | grep -E '\.(swift|sh|c|h|m|json|plist|strings|entitlements|command)$' || true)"
   if [ -n "$ignored" ]; then
@@ -333,9 +333,10 @@ check_spi() {
 # the runner, asks it to print every name and exits 1 on one that
 # `TitleStyle` rejects. MA_NAMES_APP points the check at another copy of app/
 # (used to prove it fails on a lowercased name).
-# The app reads no environment variable. A variable is a switch nobody can see:
-# a test hook left in shipping code changes what the installed app does for
-# whoever happens to have it set. The two tools that never ship (AgentRunner's
+# The app reads no environment variable except the data-root and engine-root
+# overrides in Paths.swift (SPAREHOLD_DATA_DIR, SPAREHOLD_DIR, MAC_ANALYZERS_DIR,
+# SPAREHOLD_SUITE_DIR), the same ones lib/paths.sh documents. Any other variable
+# is a switch nobody can see. The two tools that never ship (AgentRunner's
 # probes, SnapshotRunner) may read them and hand the value in; EngineProcess
 # passes the environment on to the engine scripts, which is its job.
 check_env() {
@@ -343,13 +344,14 @@ check_env() {
   grep -rnE 'processInfo\.environment|(^|[^A-Za-z_])(getenv|setenv|unsetenv|putenv)\(' --include='*.swift' app/Sources 2>/dev/null \
     | grep -v -E '^app/Sources/(AgentRunner|SnapshotRunner)/' \
     | grep -v -E '^app/Sources/AnalyzersKit/Jobs/EngineProcess\.swift:' \
+    | grep -v -E '^app/Sources/AnalyzersKit/Paths\.swift:' \
     | grep -v -E '^[^:]+:[0-9]+:[[:space:]]*//' \
     | cut -c1-300 >"$OUT"
   if [ -s "$OUT" ]; then
     DETAIL="shipping code reads the environment — pass the value in from AgentRunner or SnapshotRunner instead"
     return 1
   fi
-  DETAIL="no environment read outside AgentRunner, SnapshotRunner and EngineProcess"
+  DETAIL="no environment read outside AgentRunner, SnapshotRunner, EngineProcess and Paths.swift"
   return 0
 }
 

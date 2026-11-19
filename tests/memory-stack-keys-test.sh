@@ -14,7 +14,7 @@
 # Usage: tests/memory-stack-keys-test.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$HERE/../memory-analyzer/memory-auto-clean.sh"
+SCRIPT="$HERE/../memory/memory-auto-clean.sh"
 [[ -f "$SCRIPT" ]] || { echo "SKIP: script not found"; exit 0; }
 NEWER=""
 for b in /opt/homebrew/bin/bash /usr/local/bin/bash; do [[ -x "$b" ]] && NEWER="$b" && break; done
@@ -26,9 +26,9 @@ trap 'rm -rf "$TMP"' EXIT
 fail=0
 check() { if [[ "$2" == "ok" ]]; then echo "PASS  $1"; else echo "FAIL  $1 ($2)"; fail=1; fi; }
 
-mkdir -p "$TMP/tree/memory-analyzer" "$TMP/tree/lib" "$TMP/stubs" "$TMP/home/.orbstack/run" \
+mkdir -p "$TMP/tree/memory" "$TMP/tree/lib" "$TMP/stubs" "$TMP/home/.orbstack/run" \
          "$TMP/repos/site/.git" "$TMP/repos/site/supabase"
-cp "$SCRIPT" "$TMP/tree/memory-analyzer/memory-auto-clean.sh"
+cp "$SCRIPT" "$TMP/tree/memory/memory-auto-clean.sh"
 cp "$HERE"/../lib/* "$TMP/tree/lib/"                          # the live-session exemption and its list of agents are part of the script
 printf 'notify() { :; }\n' > "$TMP/tree/lib/notify.sh"       # ...but nobody is notified
 printf 'project_id = "demo"\n' > "$TMP/repos/site/supabase/config.toml"
@@ -54,7 +54,7 @@ run() { # label shell [listfile]
   : > "$TMP/docker.calls"
   STUB_LOG="$TMP/docker.calls" HOME="$TMP/home" PATH="$TMP/stubs:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin" \
     ANALYZERS_DEV_STOP_IDLE_STACKS=1 ANALYZERS_STACK_IDLE_MIN=0 ANALYZERS_STACK_REPO_ROOTS="$TMP/repos" \
-    ANALYZERS_STACK_STATE_FILE="$TMP/state" "$sh" "$TMP/tree/memory-analyzer/memory-auto-clean.sh" "${args[@]}" \
+    ANALYZERS_STACK_STATE_FILE="$TMP/state" "$sh" "$TMP/tree/memory/memory-auto-clean.sh" "${args[@]}" \
     > "$TMP/$label.out" 2>&1
 }
 dry_rows() { grep -c '^ *\[DRY\] *stack=supabase:demo ' "$TMP/$1.out"; }

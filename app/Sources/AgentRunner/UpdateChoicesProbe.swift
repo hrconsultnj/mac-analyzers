@@ -75,18 +75,18 @@ enum UpdateChoicesProbe {
             let ok = state.statusTitle == title && state.statusDetail == detail
             report("\(label): \"\(state.statusTitle)\" / \"\(state.statusDetail)\"", ok, ok ? "" : "expected \"\(title)\" / \"\(detail)\"")
         }
-        words("up to date", state(release, latest: "2.72.0"), "Mac Analyzers is up to date", "You have v2.72.0.")
-        words("a release is out", state(release, latest: "2.73.1"), "Mac Analyzers 2.73.1 is available", "You have v2.72.0.")
+        words("up to date", state(release, latest: "2.72.0"), "Sparehold is up to date", "You have v2.72.0.")
+        words("a release is out", state(release, latest: "2.73.1"), "Sparehold 2.73.1 is available", "You have v2.72.0.")
         let dev = BuildInfo(release: "2.72.0", commitsAfter: 12, commit: "8e2c9b0" + String(repeating: "0", count: 33), releaseTag: "v2.72.0")
-        words("a Dev copy on Releases offers that release", state(dev, latest: "2.72.0"), "Mac Analyzers 2.72.0", "You have Dev · 8e2c9b0.")
+        words("a Dev copy on Releases offers that release", state(dev, latest: "2.72.0"), "Sparehold 2.72.0", "You have Dev · 8e2c9b0.")
         let ahead = state(dev, latest: "2.72.0")
         ahead.preset(channel: .beta, state: .ahead(Names.ChannelText.aheadOfBeta), newest: "2.73.1 Beta", betaTargetVersion: "2.73.1-beta.1")
-        words("a Dev copy on Beta offers that beta", ahead, "Mac Analyzers 2.73.1 Beta", "You have Dev · 8e2c9b0.")
+        words("a Dev copy on Beta offers that beta", ahead, "Sparehold 2.73.1 Beta", "You have Dev · 8e2c9b0.")
         report("   and Install is offered even though nothing is newer", ahead.offersInstall && ahead.offered == nil, "")
         words("GitHub could not be reached", state(release, latest: nil, reached: false), "Couldn't check for updates", Names.ChannelText.offline)
         let beta = state(release, latest: "2.72.0")
         beta.preset(channel: .beta, state: .offered("2.73.1 Beta"), newest: "2.73.1 Beta", betaTargetVersion: "2.73.1-beta.1")
-        words("a beta is offered on Beta", beta, "Mac Analyzers 2.73.1 Beta is available", "You have v2.72.0.")
+        words("a beta is offered on Beta", beta, "Sparehold 2.73.1 Beta is available", "You have v2.72.0.")
         report("   and the offer is the beta, by its internal version and its name",
                beta.offered?.version == "2.73.1-beta.1" && beta.offered?.label == "2.73.1 Beta", "\(String(describing: beta.offered))")
         report("a downloaded copy lists Releases and Beta, never This Copy", state(release, latest: "2.72.0").channels == [.releases, .beta], "")

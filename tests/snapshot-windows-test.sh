@@ -13,7 +13,7 @@ check() { if [[ "$2" == "ok" ]]; then echo "PASS  $1"; else echo "FAIL  $1 ($2)"
 MANIFEST='// swift-tools-version: 6.0
 import PackageDescription
 let package = Package(name: "x", targets: [
-    .executableTarget(name: "MacAnalyzersApp", dependencies: ["AnalyzersKit"]),
+    .executableTarget(name: "SpareholdApp", dependencies: ["AnalyzersKit"]),
     .executableTarget(name: "AgentRunner", dependencies: ["AnalyzersKit"]),
     .executableTarget(name: "NotifierCLI", dependencies: ["AnalyzersKit"]),
     .executableTarget(name: "SnapshotRunner", dependencies: ["AnalyzersKit", "ToolWindows"]),
@@ -22,7 +22,7 @@ let package = Package(name: "x", targets: [
     .target(name: "AnalyzersKit"),
 ])'
 # what the app's build copies into the bundle, as app/build.sh does
-BUILD='cp "$BIN/MacAnalyzersApp" "$APP/Contents/MacOS/MacAnalyzersApp"
+BUILD='cp "$BIN/SpareholdApp" "$APP/Contents/MacOS/SpareholdApp"
 cp "$BIN/NotifierCLI" "$APP/Contents/MacOS/notify"
 cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"'
 # the same manifest with AgentRunner depending on ToolWindows, and the same build with SnapshotRunner copied in as well
@@ -64,7 +64,7 @@ refused "OffscreenWindow used in AgentRunner" Y AgentRunner 'import ToolWindows'
 refused "a tool that starts being bundled loses the window type" Z SnapshotRunner 'let w = OffscreenWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)' "" "$BUILD_WITH_SNAPSHOT"
 refused "a plain window in a bundled executable is still refused" AA NotifierCLI 'let w = NSWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
 passes  "an OffscreenWindow in a tool that is never bundled" R SnapshotRunner 'let w = OffscreenWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
-passes  "a window in the app itself" S MacAnalyzersApp 'let w = NSWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
+passes  "a window in the app itself" S SpareholdApp 'let w = NSWindow(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)'
 passes  "the type's own definition" T ToolWindows 'public final class OffscreenWindow: NSWindow {}'
 passes  "a mention in a comment" U SnapshotRunner '// an NSWindow( or NSAlert() here would be shown on the display'
 passes  "a mention in a block comment" V SnapshotRunner '/* NSPanel( and

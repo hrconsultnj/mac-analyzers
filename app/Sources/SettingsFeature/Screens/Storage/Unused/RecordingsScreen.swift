@@ -33,7 +33,7 @@ struct RecordingsScreen: View {
     private var noneOn: Bool { fixtureNoneOn || (fixture == nil && !config.storage.hasRecordingSources) }
 
     private var emptyText: String {
-        if noneOn { return "Choose where your recording apps save, and Mac Analyzers looks for recordings older than \(days) days." }
+        if noneOn { return "Choose where your recording apps save, and Sparehold looks for recordings older than \(days) days." }
         let names = fixture != nil && looksThrough.isEmpty ? ["Zoom", "Screen Recordings", "1 folder of yours"] : looksThrough
         let list = names.count > 1 ? names.dropLast().joined(separator: ", ") + " and " + (names.last ?? "") : names.first ?? ""
         return "Looks through \(list) for recordings older than \(days) days. Nothing is removed until you review it."

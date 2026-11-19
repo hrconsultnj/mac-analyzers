@@ -14,7 +14,7 @@ import Foundation
 
 /// The pattern the guard script uses, read from the script itself: the only copy there is.
 private func guardPattern(_ root: URL) -> NSRegularExpression? {
-    let script = root.appending(path: "memory-analyzer/memory-guard.sh")
+    let script = root.appending(path: "memory/memory-guard.sh")
     guard let text = try? String(contentsOf: script, encoding: .utf8),
           let line = text.split(whereSeparator: \.isNewline).first(where: { $0.hasPrefix("KILLABLE_RE='") }) else { return nil }
     let pattern = line.dropFirst("KILLABLE_RE='".count).dropLast()
@@ -27,7 +27,7 @@ private func selects(_ pattern: NSRegularExpression, _ text: String) -> Bool {
 
 private func useCheckout(_ args: [String]) -> URL {
     let root = probeRoot(args)
-    KindCatalog.use(file: root.appending(path: "memory-analyzer/rules/kinds.json"))
+    KindCatalog.use(file: root.appending(path: "memory/rules/kinds.json"))
     CodingAgentHosts.useList(at: root.appending(path: "lib/coding-agents.tsv"))
     return root
 }
@@ -46,7 +46,7 @@ func probeKinds(_ args: [String]) -> Never {
         exit(1)
     }
     guard let pattern = guardPattern(root) else {
-        print("FAIL could not read KILLABLE_RE from memory-analyzer/memory-guard.sh")
+        print("FAIL could not read KILLABLE_RE from memory/memory-guard.sh")
         exit(1)
     }
     var failed = false
@@ -137,7 +137,7 @@ func probeKindsFixture(_ args: [String]) -> Never {
 
     // rules the catalog must refuse: a broken file is never used in part
     func bad(_ edit: (inout [String: Any]) -> Void, _ name: String) {
-        guard let data = try? Data(contentsOf: root.appending(path: "memory-analyzer/rules/kinds.json")),
+        guard let data = try? Data(contentsOf: root.appending(path: "memory/rules/kinds.json")),
               var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             check(name, false, "cannot read the file"); return
         }

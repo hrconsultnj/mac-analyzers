@@ -75,7 +75,7 @@ public enum PersistenceWatcher {
         } else {
             try? data.write(to: logFile)
         }
-        Logger(subsystem: "com.mac-analyzers.app", category: "persistence")
+        Logger(subsystem: AppIdentity.bundleID, category: "persistence")
             .notice("\(line, privacy: .public)")
     }
 

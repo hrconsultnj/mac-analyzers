@@ -1,15 +1,37 @@
 #!/usr/bin/env bash
-# build.sh — compile the SPM package and assemble + ad-hoc-sign MacAnalyzers.app.
+# build.sh — compile the SPM package and assemble + sign Sparehold.app.
 # Requires Xcode 26.4+ / 27+ (no .xcodeproj — builds directly with `swift build`). The bundle carries
 # the menu-bar app, the `notify` CLI shim (lib/notify.sh) and the `agent-runner` launchd entry point.
 # Icon: reuses notifier/AppIcon.icns (regenerate with ../notifier/make-icon.sh).
 set -euo pipefail
+# The updater people already have copied itself before it pulls. After the
+# pull, that copy builds with this file and then runs memory-analyzer/ and
+# storage-analyzer/. Move the checkout here, so those old paths still work
+# and ~/mac-analyzers becomes ~/sparehold, before that copy looks for them.
+root="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ -f "$root/lib/layout-migrate.sh" ]]; then
+  (
+    cd "$root"
+    # shellcheck source=../lib/layout-migrate.sh
+    source lib/layout-migrate.sh
+    sparehold_migrate_layout
+  )
+fi
 cd "$(dirname "$0")"
 
-# --pro: include the local overlay package (module resolved via MA_PRO_PATH).
+# --pro: include the local overlay package. SPAREHOLD_PRO_PATH wins, then
+# MA_PRO_PATH, then ~/sparehold-pro, then ~/mac-analyzers-pro.
 # touch busts SPM's manifest cache, which does not key on environment.
 if [[ "${1:-}" == "--pro" ]]; then
-  export MA_PRO_PATH="${MA_PRO_PATH:-$HOME/mac-analyzers-pro}"
+  if [[ -z "${SPAREHOLD_PRO_PATH:-}" && -z "${MA_PRO_PATH:-}" ]]; then
+    if [[ -d "$HOME/sparehold-pro" ]]; then
+      export SPAREHOLD_PRO_PATH="$HOME/sparehold-pro"
+    else
+      export SPAREHOLD_PRO_PATH="$HOME/mac-analyzers-pro"
+    fi
+  else
+    export SPAREHOLD_PRO_PATH="${SPAREHOLD_PRO_PATH:-$MA_PRO_PATH}"
+  fi
 fi
 # This script installs on the Mac it runs on, with whatever Xcode that Mac has.
 # The package refuses warnings by default (see Package.swift); a newer compiler
@@ -18,26 +40,27 @@ fi
 # code builds strict: scripts/check.sh, the pre-push gate, GitHub's Mac run, and
 # scripts/package.sh, which sets MA_STRICT_WARNINGS=1 for the download.
 if [[ "${MA_STRICT_WARNINGS:-0}" == "1" ]]; then
-  unset MA_RELAX_WARNINGS
+  unset MA_RELAX_WARNINGS SPAREHOLD_RELAX_WARNINGS
 else
-  export MA_RELAX_WARNINGS=1
+  export SPAREHOLD_RELAX_WARNINGS=1
 fi
 # Mode switches (overlay <-> plain) poison SPM incremental state: object
 # files keep references to the overlay module. Detect and force recompiles.
-MODE="$([[ -n "${MA_PRO_PATH:-}" ]] && echo pro || echo public)"
+MODE="$([[ -n "${SPAREHOLD_PRO_PATH:-${MA_PRO_PATH:-}}" ]] && echo pro || echo public)"
 LAST_MODE_FILE=".build/.ma-build-mode"
 # Overlay source changes (new files in the local package) are invisible to
 # SPM's cached target file lists — fold the overlay's newest mtime into the
 # mode key so adding a file there forces a clean resolve.
-if [[ -n "${MA_PRO_PATH:-}" && -d "$MA_PRO_PATH/Sources" ]]; then
-  MODE="$MODE-$(find "$MA_PRO_PATH/Sources" -name '*.swift' -exec stat -f %m {} + 2>/dev/null | sort -rn | head -1)"
+PRO_DIR="${SPAREHOLD_PRO_PATH:-${MA_PRO_PATH:-}}"
+if [[ -n "$PRO_DIR" && -d "$PRO_DIR/Sources" ]]; then
+  MODE="$MODE-$(find "$PRO_DIR/Sources" -name '*.swift' -exec stat -f %m {} + 2>/dev/null | sort -rn | head -1)"
 fi
 if [[ "$(cat "$LAST_MODE_FILE" 2>/dev/null || echo none)" != "$MODE" ]]; then
   rm -rf .build   # stale overlay refs survive touch-level invalidation
   mkdir -p .build && echo "$MODE" > "$LAST_MODE_FILE"
 fi
 
-APP="MacAnalyzers.app"
+APP="Sparehold.app"
 
 # --disable-keychain + no git credential helper: SwiftPM's default is to look
 # in the macOS keychain for a saved login whenever it downloads from a host,
@@ -106,7 +129,7 @@ fi
 # (BuildInfo.isBeta); the stamp is the tag either way, so the app can tell "beta with changes" from "no beta".
 BUILD_BETA="$(./release-tag.sh --beta .. 2>/dev/null || true)"
 [[ -n "$BUILD_BETA" ]] && /usr/libexec/PlistBuddy -c "Add :MABuildBetaTag string $BUILD_BETA" "$APP/Contents/Info.plist" 2>/dev/null || true
-cp "$BIN/MacAnalyzersApp" "$APP/Contents/MacOS/MacAnalyzersApp"
+cp "$BIN/SpareholdApp" "$APP/Contents/MacOS/SpareholdApp"
 cp "$BIN/NotifierCLI" "$APP/Contents/MacOS/notify"
 cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"
 # The version this build IS, asked of BuildInfo (the app builds the same string from the same stamps):
@@ -123,7 +146,11 @@ BUILD_VERSION="$("$BIN/AgentRunner" --build-version "$(tr -d ' \n' < ../VERSION)
   "$BUILD_TREE_FLAG" "${BUILD_COMMIT:--}" "${BUILD_TAG:--}" "${BUILD_BETA:--}" 2>/dev/null || true)"
 [[ -n "$BUILD_VERSION" ]] && /usr/libexec/PlistBuddy -c "Add :MABuildVersion string $BUILD_VERSION" "$APP/Contents/Info.plist" 2>/dev/null || true
 
-[[ -f AppIcon.icns ]] || ./make-icon.sh
+# The assembled icon is gitignored. An AppIcon.icns left from the old mark
+# must not win over the Keep artwork in Assets/.
+if [[ ! -f AppIcon.icns || Assets/AppIcon/icon-Default-512.png -nt AppIcon.icns ]]; then
+  ./make-icon.sh
+fi
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 # Bundled changelog: the newest 20 entries of the repo's CHANGELOG.md — the
@@ -151,7 +178,7 @@ mkdir -p "$ENGINE"
 # git would accept. A plain recursive copy also swept up whatever happened to
 # sit in those folders on the build machine — editor and assistant session
 # state, local planning notes, .DS_Store — and shipped it inside the app.
-for dir in memory-analyzer storage-analyzer network-analyzer lib; do
+for dir in memory storage network lib; do
   [[ -d "../$dir" ]] || continue
   if git -C .. rev-parse --git-dir >/dev/null 2>&1; then
     (cd .. && git ls-files -z --cached --others --exclude-standard -- "$dir") \
@@ -174,7 +201,10 @@ cp ../upgrade.command "$ENGINE/upgrade.command"
 chmod +x "$ENGINE/upgrade.command"
 find "$ENGINE" -name '*.sh' -exec chmod +x {} +
 
-[[ -f MenuBarIcon.png ]] || ./make-menubar-icon.sh
+# Same rule as the app icon: a MenuBarIcon.png from the old mark is stale.
+if [[ ! -f MenuBarIcon.png || Assets/MenuBar/SpareholdTemplate-18@2x.png -nt MenuBarIcon.png ]]; then
+  ./make-menubar-icon.sh
+fi
 cp MenuBarIcon.png "$APP/Contents/Resources/MenuBarIcon.png"
 
 # prefer a real Apple Development identity (Team ID → BTM attribution, stable
@@ -225,7 +255,11 @@ replace_install() {
 # install to /Applications — the canonical location for the running app; the
 # repo copy is the build artifact / script-only fallback. A locally built app
 # carries no quarantine, so no DMG/notarization is involved.
-INSTALL="/Applications/MacAnalyzers.app"
+# The current updater removes Mac Analyzers after Sparehold's agent-runner
+# answers. An updater from before this rename does not: it opens Mac
+# Analyzers again. When that is what started the build, and the new app
+# answers, remove the old one here and open Sparehold.
+INSTALL="/Applications/Sparehold.app"
 # MA_NO_INSTALL=1: build the bundle and stop — scripts/package.sh uses this so
 # making a download for other people never touches the copy you are running.
 if [[ "${MA_NO_INSTALL:-0}" == "1" ]]; then
@@ -237,6 +271,13 @@ elif replace_install "$APP" "$INSTALL"; then
   # verifying (files present that the seal does not list). A running app is
   # unaffected — it keeps the files it already has open until it relaunches.
   echo "installed: $INSTALL"
+  if [[ "${SPAREHOLD_UPGRADE:-}" != 1 && -d /Applications/MacAnalyzers.app ]]; then
+    probe="/Applications/Sparehold.app/Contents/MacOS/agent-runner"
+    if [[ -x "$probe" ]] && "$probe" --probe-build >/dev/null 2>&1; then
+      rm -rf /Applications/MacAnalyzers.app
+      open -g /Applications/Sparehold.app || true
+    fi
+  fi
 else
   echo "note: could not install to /Applications (permissions?) — running from the repo copy still works"
 fi

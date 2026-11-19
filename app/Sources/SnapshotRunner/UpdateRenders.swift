@@ -19,10 +19,10 @@ enum UpdateRenders {
 
     - Memory Guard's tabs remember the one you used last. <!-- wn: open=guard icon=shield.lefthalf.filled title="Guard Tabs Remembered" -->
 
-    ## v2.73.0 — A new Mac Analyzers screen
+    ## v2.73.0 — A new Sparehold screen
     <!-- wn: released=2026-11-18 -->
 
-    - The Mac Analyzers item at the foot of the sidebar opens a screen about the app. <!-- wn: open=app icon=macwindow title="The Mac Analyzers Screen" -->
+    - The Sparehold item at the foot of the sidebar opens a screen about the app. <!-- wn: open=app icon=macwindow title="The Sparehold Screen" -->
     - Old Recordings reads every place a recording app saves. <!-- wn: open=recordings icon=film.stack title="Recording Sources" -->
 
     ## v2.72.0 — Setup and a welcome

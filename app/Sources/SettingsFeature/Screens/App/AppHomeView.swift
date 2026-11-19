@@ -3,7 +3,7 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// The Mac Analyzers screen, opened by the item at the foot of the sidebar: the app's logo, its name and version,
+/// The Sparehold screen, opened by the item at the foot of the sidebar: the app's logo, its name and version,
 /// one line about it, and the screens about the app itself (Updates, How It Works, Support) as rows that
 /// open them. They have no sidebar rows of their own.
 struct AppHomeView: View {

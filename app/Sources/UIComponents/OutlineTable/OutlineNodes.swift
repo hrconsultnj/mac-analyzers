@@ -1,3 +1,4 @@
+import AnalyzersKit
 import Foundation
 import os
 
@@ -47,7 +48,7 @@ final class OutlineNodes<Row: Identifiable> {
     /// Nodes whose line count differs from the last update, on screen or not.
     private(set) var linesChanged: [Node] = []
 
-    private static var log: Logger { Logger(subsystem: "com.mac-analyzers.app", category: "outline") }
+    private static var log: Logger { Logger(subsystem: AppIdentity.bundleID, category: "outline") }
 
     /// Builds the next structure from the caller's rows without touching what
     /// AppKit sees: existing ids reuse their node (its `row` replaced), new ids

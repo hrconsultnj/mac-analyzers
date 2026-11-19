@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # lib/guard-select.sh — what the memory guard and the cleanups may choose from, and what the app asks them to keep.
 # ---------------------------------------------------------------------------
-# Plain functions with no side effects, so memory-analyzer/tests/guard-exemption-test.sh can judge them on a stand-in
+# Plain functions with no side effects, so memory/tests/guard-exemption-test.sh can judge them on a stand-in
 # process table. Works under the bash macOS ships (3.2) and the awk it ships: no associative arrays, no mapfile.
 #
 #   guard_select_candidates KILLRE PROTRE SELFPID EXEMPT_PIDS NEVERFILE

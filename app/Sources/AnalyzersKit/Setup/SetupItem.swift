@@ -1,7 +1,7 @@
 import Foundation
 
 /// The three kinds of thing Setup holds, as the shared scope tabs: what macOS or the person controls (Permissions), what
-/// runs on its own (Background), and the choices that decide what Mac Analyzers may touch (Protection).
+/// runs on its own (Background), and the choices that decide what Sparehold may touch (Protection).
 public enum SetupTab: String, CaseIterable, Sendable, Hashable {
     case permissions, background, protection
 
@@ -66,7 +66,7 @@ public enum SetupPane: String, Sendable, Equatable {
     public var path: String {
         switch self {
         case .fullDiskAccess: "Privacy & Security › Full Disk Access"
-        case .notifications: "Notifications › Mac Analyzers"
+        case .notifications: "Notifications › Sparehold"
         case .loginItems: "General › Login Items & Extensions"
         case .automation: "Privacy & Security › Automation"
         }
@@ -75,10 +75,10 @@ public enum SetupPane: String, Sendable, Equatable {
     /// What to switch on there.
     public var instruction: String {
         switch self {
-        case .fullDiskAccess: "switch on Mac Analyzers"
+        case .fullDiskAccess: "switch on Sparehold"
         case .notifications: "switch on Allow Notifications, and choose Banners or Alerts"
-        case .loginItems: "switch on Mac Analyzers under Allow in the Background"
-        case .automation: "switch on the apps Mac Analyzers is listed under"
+        case .loginItems: "switch on Sparehold under Allow in the Background"
+        case .automation: "switch on the apps Sparehold is listed under"
         }
     }
 
@@ -132,7 +132,7 @@ public enum SetupSource: Sendable, Equatable {
     public var isRead: Bool { if case .remembered = self { false } else { true } }
 }
 
-/// Whether a row that is not On is a PROBLEM (something that stops or weakens what Mac Analyzers does for you, so it counts
+/// Whether a row that is not On is a PROBLEM (something that stops or weakens what Sparehold does for you, so it counts
 /// as a thing that needs you) or a CHOICE you have not made, or have made the other way (an optional permission, a list you
 /// have not filled in). Only problems count in the tab badges and in "N things need you".
 public enum SetupWeight: Sendable, Equatable {

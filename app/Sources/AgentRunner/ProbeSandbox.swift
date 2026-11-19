@@ -38,7 +38,7 @@ enum ProbeSandbox {
         setenv("HOME", home.path, 1)        // and whatever the probe starts
         // the engine's data files come from the checkout this binary was built from: the throwaway home has no
         // engine, and a name or a kind read from nothing would make the probe judge an empty catalog
-        let rules = sourceRoot.appending(path: "memory-analyzer/rules/kinds.json")
+        let rules = sourceRoot.appending(path: "memory/rules/kinds.json")
         if FileManager.default.fileExists(atPath: rules.path) { KindCatalog.use(file: rules) }
         let agents = sourceRoot.appending(path: "lib/coding-agents.tsv")
         if FileManager.default.fileExists(atPath: agents.path) { CodingAgentHosts.useList(at: agents) }

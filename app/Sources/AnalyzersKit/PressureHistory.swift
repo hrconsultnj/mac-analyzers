@@ -30,7 +30,7 @@ public final class PressureHistory {
         guard let fraction = Self.usedFraction() else { return }
         samples.append(fraction)
         if samples.count > capacity { samples.removeFirst(samples.count - capacity) }
-        Logger(subsystem: "com.mac-analyzers.app", category: "sparkline")
+        Logger(subsystem: AppIdentity.bundleID, category: "sparkline")
             .notice("sample \(self.samples.count, privacy: .public): \(Int(fraction * 100), privacy: .public)% used")
         Self.updateDailyBaseline(with: fraction)
     }

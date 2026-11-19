@@ -4,7 +4,7 @@ import AnalyzersKit
 import UIComponents
 
 /// The window "Check for Updates" opens when something newer is out, in the shape people know from Sparkle and OrbStack: the
-/// app's icon, "A new version of Mac Analyzers is available!", what is available and what you have, the notes of every
+/// app's icon, "A new version of Sparehold is available!", what is available and what you have, the notes of every
 /// version in between (newest first), and three buttons: Skip This Version, Remind Me Later, Install Update.
 public struct UpdateAvailableView: View {
     let offered: String

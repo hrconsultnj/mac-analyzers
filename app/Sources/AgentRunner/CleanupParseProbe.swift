@@ -15,7 +15,7 @@ import Foundation
     var dir = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
     var script: URL?
     for _ in 0..<8 {
-        let candidate = dir.appending(path: "storage-analyzer/cleanup.sh")
+        let candidate = dir.appending(path: "storage/cleanup.sh")
         if fm.fileExists(atPath: candidate.path) { script = candidate; break }
         dir = dir.deletingLastPathComponent()
     }
@@ -25,8 +25,8 @@ import Foundation
 
     let root = ProbeScratch.folder("ma-probe-cleanup-parse")
     let home = root.appending(path: "home"), tree = root.appending(path: "tree")
-    for folder in ["storage-analyzer", "lib"] { try? fm.createDirectory(at: tree.appending(path: folder), withIntermediateDirectories: true) }
-    try? fm.copyItem(at: script, to: tree.appending(path: "storage-analyzer/cleanup.sh"))
+    for folder in ["storage", "lib"] { try? fm.createDirectory(at: tree.appending(path: folder), withIntermediateDirectories: true) }
+    try? fm.copyItem(at: script, to: tree.appending(path: "storage/cleanup.sh"))
     if let libs = try? fm.contentsOfDirectory(at: repo.appending(path: "lib"), includingPropertiesForKeys: nil) {
         for lib in libs { try? fm.copyItem(at: lib, to: tree.appending(path: "lib/\(lib.lastPathComponent)")) }
     }
@@ -62,7 +62,7 @@ import Foundation
     func run(_ arguments: [String]) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [tree.appending(path: "storage-analyzer/cleanup.sh").path] + arguments
+        process.arguments = [tree.appending(path: "storage/cleanup.sh").path] + arguments
         process.environment = ["HOME": home.path, "PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
         let pipe = Pipe()
         process.standardOutput = pipe; process.standardError = pipe
@@ -84,7 +84,7 @@ import Foundation
     expect(Set(rows.rows.compactMap(\.group)) == Set(apps), "each app is a group: \(Set(rows.rows.compactMap(\.group)))")
     expect(rows.rows.filter { supportPaths.contains($0.id) }.allSatisfy { ($0.bytes ?? 0) >= 300_000 }, "each file carries its size: \(rows.rows.map { $0.bytes ?? -1 })")
     // the block is found whole in its own log, by its banner
-    let log = home.appending(path: "mac-analyzers/reports/storage/cleanup-apps.log")
+    let log = home.appending(path: "Library/Application Support/Sparehold/reports/storage/cleanup-apps.log")
     if let banner, case .block(let block) = WholeRun.find(banner: banner, in: log) {
         expect(UnusedReview.apps(lines: block.lines).rows.count == 4, "the block found in the log gives the same four rows")
     } else { expect(false, "the block was not found in cleanup-apps.log by its banner") }
@@ -129,7 +129,7 @@ import Foundation
     func runFound(_ arguments: [String]) -> (text: String, status: Int32) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [tree.appending(path: "storage-analyzer/cleanup.sh").path] + arguments
+        process.arguments = [tree.appending(path: "storage/cleanup.sh").path] + arguments
         process.environment = ["HOME": found.appending(path: "home").path, "PATH": "\(stubs.path):/usr/bin:/bin:/usr/sbin:/sbin"]
         let pipe = Pipe(); process.standardOutput = pipe; process.standardError = pipe
         do { try process.run() } catch { return ("", -1) }
@@ -149,7 +149,7 @@ import Foundation
     let leftRows = UnusedReview.apps(lines: ["### APP: Z   (bundle: com.z)", "[APP]     /p/Z.app", "last launched (Spotlight): 2024-01-02", "[DRY]        10 MB  /p/Z.app", "[LEFT]       2.0 GB  \(NSHomeDirectory())/Library/Application Support/Electron  —  it carries the app's name, but another program may use the same name"])
     expect(leftRows.rows.filter { $0.keptReason != nil }.allSatisfy { $0.bytes == nil && $0.valueText == "2.0 GB" }, "a left-in-place row shows its size but does not count it: \(leftRows.rows.map { "\($0.bytes ?? -1)/\($0.valueText ?? "-")" })")
     for (why, expected) in [("Which apps open at login can't be checked yet: run Login & Startup Items first, then preview again", UnusedReview.loginCheckNote),
-                            ("Which apps open at login can't be checked yet: the last Login & Startup Items check could not read your Login Items. Run it from the Mac Analyzers app", UnusedReview.loginUnreadableNote)] {
+                            ("Which apps open at login can't be checked yet: the last Login & Startup Items check could not read your Login Items. Run it from the Sparehold app", UnusedReview.loginUnreadableNote)] {
         let kept = UnusedReview.apps(lines: ["### APP: X   (bundle: com.x)", "[APP]     /p/X.app", "last launched (Spotlight): 2024-01-02", "[KEEP]    \(why)", ""])
         expect(kept.notes.contains(expected) && kept.notes.count == 2 && kept.notes.contains(UnusedReview.checkLimitsNote), "the reason \"\(why.prefix(60))…\" puts its own sentence over the table")
     }
@@ -164,7 +164,7 @@ import Foundation
     expect(StartupInventory.parse(readHeader)?.loginItemsUnreadable == false, "a header with logins=read: the login items were read")
     expect(StartupInventory.parse(readHeader.replacingOccurrences(of: "logins=read", with: "logins=unreadable"))?.loginItemsUnreadable == true, "a header with logins=unreadable is carried to the screen")
     expect(StartupInventory.parse("#login-items-inventory\t1\t2026-11-11 10:00:00\tdry-run\tid1\n")?.loginItemsUnreadable == false, "an older header with no field makes no claim")
-    expect(StartupInventory.loginItemsUnreadableSentence.contains("Run the audit from Mac Analyzers") && StartupInventory.loginItemsUnreadableSentence.contains("Privacy & Security, Automation"),
+    expect(StartupInventory.loginItemsUnreadableSentence.contains("Run the audit from Sparehold") && StartupInventory.loginItemsUnreadableSentence.contains("Privacy & Security, Automation"),
            "the sentence says what to do and where the permission is")
     expect(UnusedReview.loginUnreadableNote.contains("can ask for permission") && Names.Unused.leftInPlace == "Left in Place", "the unreadable note says what to do, and 'Left in Place' is in title style")
     expect(findings.rows.contains { $0.id == unusedSupport.path && ($0.bytes ?? 0) > 200_000 }, "the unused app's files are rows with sizes")
@@ -178,7 +178,7 @@ import Foundation
            && results.rows.allSatisfy { $0.detail?.hasPrefix(Names.Unused.movedToTrash) == true },
            "the apply is read as one Moved to Trash row per file: \(results.rows.map { "\($0.title): \($0.detail ?? "")" })")
     // Undo proves each trashed item is the one that was moved (the receipt's identity), so it lists them as restorable
-    let appLedger = found.appending(path: "home/mac-analyzers/reports/storage/cleanup-apps.log")
+    let appLedger = found.appending(path: "home/Library/Application Support/Sparehold/reports/storage/cleanup-apps.log")
     let undoable = UndoLedger.trashedItems(in: appLedger, source: "Unused Apps", trash: found.appending(path: "home/.Trash"))
     expect(undoable.count == 2 && undoable.allSatisfy { $0.restorability == .restorable && $0.identity != nil },
            "Undo reads the apply's receipts, with their identity, as restorable: \(undoable.map { "\(($0.originalPath as NSString).lastPathComponent): \($0.restorability)" })")
@@ -195,7 +195,7 @@ import Foundation
     expect(recordingResults.rows.map(\.id) == [oldOne] && recordingResults.rows.first?.detail?.hasPrefix(Names.Unused.removed) == true,
            "a recordings apply is read as one Removed row: \(recordingResults.rows.map { "\($0.id): \($0.detail ?? "")" })")
     expect(fm.fileExists(atPath: home.appending(path: ".Trash/Old1").path) && !fm.fileExists(atPath: oldOne), "the recording is in the Trash")
-    let recordingLedger = home.appending(path: "mac-analyzers/reports/storage/cleanup-recordings.log")
+    let recordingLedger = home.appending(path: "Library/Application Support/Sparehold/reports/storage/cleanup-recordings.log")
     let undoRecording = UndoLedger.trashedItems(in: recordingLedger, source: "Old Recordings", trash: home.appending(path: ".Trash"))
     expect(undoRecording.first?.restorability == .restorable && undoRecording.first?.identity != nil,
            "Undo reads the recording's receipt, with its identity, as restorable: \(undoRecording.first.map { "\($0.restorability)" } ?? "none")")

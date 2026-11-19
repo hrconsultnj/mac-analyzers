@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.mac-analyzers.app</string>
+    <string>com.sparehold.app</string>
     <key>CFBundleName</key>
-    <string>Mac Analyzers</string>
+    <string>Sparehold</string>
     <key>CFBundleDisplayName</key>
-    <string>Mac Analyzers</string>
+    <string>Sparehold</string>
     <key>CFBundleExecutable</key>
-    <string>MacAnalyzersApp</string>
+    <string>SpareholdApp</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>
@@ -17,7 +17,7 @@
     <key>CFBundleShortVersionString</key>
     <string>2.0</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>3</string>
     <key>LSMinimumSystemVersion</key>
     <string>26.0</string>
     <!-- menu-bar app: no Dock icon, no Cmd+Tab entry -->
@@ -25,15 +25,16 @@
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
-    <!-- macanalyzers://pane/monitor — deep links that reach a RUNNING app
-         (launch --args never do). Notification clicks and docs use these. -->
+    <!-- sparehold://pane/monitor and the old macanalyzers:// scheme — deep
+         links that reach a RUNNING app (launch --args never do). -->
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>com.mac-analyzers.app</string>
+            <string>com.sparehold.app</string>
             <key>CFBundleURLSchemes</key>
             <array>
+                <string>sparehold</string>
                 <string>macanalyzers</string>
             </array>
         </dict>
@@ -42,12 +43,12 @@
          polite quit fails silently and the janitor finds nothing. Two
          advertised actions that simply could not work. -->
     <key>NSAppleEventsUsageDescription</key>
-    <string>Mac Analyzers asks apps to quit politely — the same Quit you would choose from the menu — so unsaved work is never lost.</string>
+    <string>Sparehold asks apps to quit politely — the same Quit you would choose from the menu — so unsaved work is never lost.</string>
     <key>NSDownloadsFolderUsageDescription</key>
     <string>The Downloads janitor lists old files here so you can review them before anything is moved to the Trash.</string>
     <key>NSDesktopFolderUsageDescription</key>
-    <string>Mac Analyzers looks at your Screenshots folder to offer tidying old screenshots. It only ever moves them to the Trash, after you approve.</string>
+    <string>Sparehold looks at your Screenshots folder to offer tidying old screenshots. It only ever moves them to the Trash, after you approve.</string>
     <key>NSDocumentsFolderUsageDescription</key>
-    <string>Mac Analyzers reads folder sizes here to report what is using space. It never moves or deletes anything in Documents.</string>
+    <string>Sparehold reads folder sizes here to report what is using space. It never moves or deletes anything in Documents.</string>
 </dict>
 </plist>

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# upgrade.command — double-click me in Finder to update Mac Analyzers.
-# For anyone who already cloned the repo: pulls the latest release, rebuilds
-# the app, refreshes the background agents, and relaunches the menu-bar app.
-# Safe to run any time; your config.local.sh is never touched.
+# upgrade.command — double-click me in Finder to update Sparehold.
+# For anyone who already cloned the repo: pulls the latest release, moves an
+# old checkout onto the Sparehold folders, rebuilds the app, refreshes the
+# background agents, and relaunches the menu-bar app.
+# Safe to run any time; your config.local.sh is never edited.
 set -euo pipefail
 # Run a copy of this file, from the clone. Installing a release or a beta checks the
 # file out from that version; the copy that started is what has to quit the app and
@@ -13,7 +14,7 @@ else
   root="$(cd "$(dirname "$0")" && pwd)"
 fi
 if [[ "${MA_UPGRADE_COPY:-}" != 1 ]]; then
-  copy="$(mktemp -t mac-analyzers-upgrade)"
+  copy="$(mktemp -t sparehold-upgrade)"
   cp "$0" "$copy"
   chmod +x "$copy"
   export MA_UPGRADE_COPY=1
@@ -47,7 +48,9 @@ done
 dirty() { [[ -n "$(git status --porcelain 2>/dev/null || true)" ]]; }
 # The process name is what Launch Services records. Match that and the executable path.
 app_running() {
-  pgrep -x MacAnalyzersApp >/dev/null 2>&1 || pgrep -f '/MacAnalyzers.app/Contents/MacOS/MacAnalyzersApp' >/dev/null 2>&1
+  pgrep -x SpareholdApp >/dev/null 2>&1 || pgrep -x MacAnalyzersApp >/dev/null 2>&1 \
+    || pgrep -f '/Sparehold.app/Contents/MacOS/SpareholdApp' >/dev/null 2>&1 \
+    || pgrep -f '/MacAnalyzers.app/Contents/MacOS/MacAnalyzersApp' >/dev/null 2>&1
 }
 move_to() {
   local target="$1" label="$2" here
@@ -65,7 +68,7 @@ move_to() {
   git checkout --detach "$target"
 }
 
-echo "── Mac Analyzers upgrade ──────────────────────────"
+echo "── Sparehold upgrade ──────────────────────────────"
 if [[ "$beta" -eq 1 ]]; then
   # beta.command only moves a clone that is on development, and only forward.
   # --switch is the Updates screen choosing this beta on purpose: check it out
@@ -84,7 +87,7 @@ if [[ "$beta" -eq 1 ]]; then
   # The newest PUBLISHED version: a beta sorts below the release it leads to (versionsort.suffix), so a release that
   # has caught up with its beta is what is installed. A tag counts only when GitHub has a release for it: a bare tag
   # (a beta that was tagged and never published) is skipped.
-  api="${MA_GITHUB_API:-https://api.github.com/repos/hrconsultnj/mac-analyzers}"
+  api="${SPAREHOLD_GITHUB_API:-${MA_GITHUB_API:-https://api.github.com/repos/hrconsultnj/sparehold}}"
   newest=""
   unreachable=""
   while IFS= read -r candidate; do
@@ -138,7 +141,7 @@ elif [[ "$release" -eq 1 ]]; then
     echo "  git said: ${fetch_out}"
     exit 1
   fi
-  api="${MA_GITHUB_API:-https://api.github.com/repos/hrconsultnj/mac-analyzers}"
+  api="${SPAREHOLD_GITHUB_API:-${MA_GITHUB_API:-https://api.github.com/repos/hrconsultnj/sparehold}}"
   newest=""
   unreachable=""
   while IFS= read -r candidate; do
@@ -184,12 +187,27 @@ else
   echo "→ building this clone as it is (nothing is pulled)…"
 fi
 
+# The checkout is the new layout now. An older folder name is renamed and the
+# old name is left as a link, so a schedule or a script that still uses it
+# keeps working. The version probe's scratch clone has no copy of this file.
+# shellcheck source=lib/layout-migrate.sh
+if [[ -f lib/layout-migrate.sh ]]; then
+  source lib/layout-migrate.sh
+  sparehold_migrate_layout
+fi
+
+# build.sh also moves the checkout. This tells it the current updater is
+# driving, so it leaves quitting, removing Mac Analyzers, and opening
+# Sparehold to the steps below. An older updater does not set this, and
+# build.sh finishes that cutover itself: that updater would open Mac
+# Analyzers again.
+export SPAREHOLD_UPGRADE=1
 echo "→ rebuilding the app (this takes a minute)…"
 # The build's full output goes to a file; the screen shows the result, or the
 # errors when it fails. Compiler warnings are NOT hidden: the project is meant
 # to build with none (scripts/check.sh enforces it), so if a build ever
 # reports any, this says how many and keeps the file.
-build_log="$(mktemp -t mac-analyzers-build)"
+build_log="$(mktemp -t sparehold-build)"
 if ./app/build.sh >"$build_log" 2>&1; then
   grep -E '^(installed:|note: could not install)' "$build_log" | sed 's/^/  /' || true
   build_warnings="$(grep -c 'warning: ' "$build_log" || true)"
@@ -209,17 +227,12 @@ else
   exit 1
 fi
 
-echo "→ refreshing the background agents…"
-agents_ok=1
-./memory-analyzer/memory-manage-agents.sh install || agents_ok=0
-./storage-analyzer/storage-manage-agents.sh install || agents_ok=0
-
-echo "→ relaunching the menu-bar app…"
-# Quit, then wait until that process is gone, then open. Opening while the old
-# process is still alive only brings it forward, so the new build never starts
-# and the menu bar's Restart is the only way to see it.
+echo "→ quitting the running app before the background jobs move…"
+# Quit first. The new app is already installed beside the old one. Do not
+# delete MacAnalyzers.app until the new agent-runner answers.
 if app_running; then
   osascript -e 'tell application id "com.mac-analyzers.app" to quit' >/dev/null 2>&1 || true
+  osascript -e 'tell application id "com.sparehold.app" to quit' >/dev/null 2>&1 || true
   waited=0
   while app_running && [[ $waited -lt 8 ]]; do
     sleep 1
@@ -227,7 +240,9 @@ if app_running; then
   done
   if app_running; then
     pkill -TERM -x MacAnalyzersApp >/dev/null 2>&1 || true
+    pkill -TERM -x SpareholdApp >/dev/null 2>&1 || true
     pkill -TERM -f '/MacAnalyzers.app/Contents/MacOS/MacAnalyzersApp' >/dev/null 2>&1 || true
+    pkill -TERM -f '/Sparehold.app/Contents/MacOS/SpareholdApp' >/dev/null 2>&1 || true
     waited=0
     while app_running && [[ $waited -lt 5 ]]; do
       sleep 1
@@ -236,7 +251,9 @@ if app_running; then
   fi
   if app_running; then
     pkill -KILL -x MacAnalyzersApp >/dev/null 2>&1 || true
+    pkill -KILL -x SpareholdApp >/dev/null 2>&1 || true
     pkill -KILL -f '/MacAnalyzers.app/Contents/MacOS/MacAnalyzersApp' >/dev/null 2>&1 || true
+    pkill -KILL -f '/Sparehold.app/Contents/MacOS/SpareholdApp' >/dev/null 2>&1 || true
     waited=0
     while app_running && [[ $waited -lt 5 ]]; do
       sleep 1
@@ -244,18 +261,46 @@ if app_running; then
     done
   fi
 fi
-if [[ -d /Applications/MacAnalyzers.app ]]; then
-  open -g /Applications/MacAnalyzers.app
-else
-  open -g "$MA_UPGRADE_ROOT/app/MacAnalyzers.app"
+
+echo "→ moving the background jobs to Sparehold…"
+# install copies a custom Hour, Minute or StartInterval off the old plist when
+# the new one is not there yet, boots out the old label, deletes that plist,
+# and loads the new one. It does not boot out the new agent afterwards.
+agents_ok=1
+./memory/memory-manage-agents.sh install || agents_ok=0
+./storage/storage-manage-agents.sh install || agents_ok=0
+
+# The move is done and the jobs point at the new folders. Drop the old names
+# so this Mac does not keep a second copy.
+if declare -F sparehold_remove_old_names >/dev/null 2>&1; then
+  sparehold_remove_old_names
 fi
 
-# What is running now, by the name the app gives it (2.72.1 Beta, Dev · 8e2c9b0), not VERSION's number
-running="$(/Applications/MacAnalyzers.app/Contents/MacOS/agent-runner --probe-build 2>/dev/null | sed -n 's/^Installed Version: *//p' | head -n 1 || true)"
+echo "→ checking the new app…"
+probe_bin="/Applications/Sparehold.app/Contents/MacOS/agent-runner"
+[[ -x "$probe_bin" ]] || probe_bin="$MA_UPGRADE_ROOT/app/Sparehold.app/Contents/MacOS/agent-runner"
+if ! running="$("$probe_bin" --probe-build 2>/dev/null | sed -n 's/^Installed Version: *//p' | head -n 1)"; then
+  echo "✗ Sparehold's agent-runner did not answer, so Mac Analyzers was left installed."
+  [[ -d /Applications/MacAnalyzers.app ]] && open -g /Applications/MacAnalyzers.app || true
+  exit 1
+fi
 [[ -n "$running" ]] || running="v$(cat VERSION)"
-if [[ "$agents_ok" -eq 1 ]]; then
-  echo "✓ Done — Mac Analyzers ${running} is running. You can close this window."
+
+# Only after the new app answers. Never pkill once Sparehold is opened below.
+if [[ -d /Applications/MacAnalyzers.app ]]; then
+  echo "→ removing the previous app…"
+  rm -rf /Applications/MacAnalyzers.app
+fi
+
+echo "→ opening Sparehold…"
+if [[ -d /Applications/Sparehold.app ]]; then
+  open -g /Applications/Sparehold.app
 else
-  echo "⚠ Mac Analyzers ${running} is running, but a background job could not be started (see above)."
-  echo "  Run this again in a minute, or open Mac Analyzers → Setup to start it."
+  open -g "$MA_UPGRADE_ROOT/app/Sparehold.app"
+fi
+if [[ "$agents_ok" -eq 1 ]]; then
+  echo "✓ Done — Sparehold ${running} is running. You can close this window."
+else
+  echo "⚠ Sparehold ${running} is running, but a background job could not be started (see above)."
+  echo "  Run this again in a minute, or open Sparehold → Setup to start it."
 fi

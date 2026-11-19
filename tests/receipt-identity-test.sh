@@ -35,7 +35,7 @@ find_log() { find "$HOME_DIR" -name "$1" -type f 2>/dev/null | head -1; }
 
 # ---- the Downloads janitor
 echo old > "$HOME_DIR/Downloads/old.zip"; touch -t 202001010000 "$HOME_DIR/Downloads/old.zip"
-env_run /bin/bash "$ROOT/storage-analyzer/downloads-janitor.sh" --apply >"$TMP/janitor.out" 2>&1
+env_run /bin/bash "$ROOT/storage/downloads-janitor.sh" --apply >"$TMP/janitor.out" 2>&1
 log="$(find_log janitor.log)"
 line="$(grep '\[TRASHED\]' "$log" 2>/dev/null | head -1)"
 dest="$(printf '%s' "$line" | sed -E 's/.*->  (.*)  #id=.*/\1/')"
@@ -52,7 +52,7 @@ if [[ "${RUN_SLOW:-0}" == "1" ]]; then
   FILE="/private/tmp/ma-receipt-fixture-$$.bin"
   dd if=/dev/zero of="$FILE" bs=1048576 count=2 2>/dev/null; touch -t 202001010000 "$FILE"
   printf '%s\n' "$FILE" > "$TMP/only.txt"
-  env_run /bin/bash "$ROOT/storage-analyzer/temp-clean.sh" --apply --min-age-hours 0 --only-paths "$TMP/only.txt" >"$TMP/temp.out" 2>&1
+  env_run /bin/bash "$ROOT/storage/temp-clean.sh" --apply --min-age-hours 0 --only-paths "$TMP/only.txt" >"$TMP/temp.out" 2>&1
   rm -f "$FILE"
   log="$(find_log temp-clean.log)"
   line="$(grep "\[TRASHED\].*ma-receipt-fixture" "$log" 2>/dev/null | head -1)"

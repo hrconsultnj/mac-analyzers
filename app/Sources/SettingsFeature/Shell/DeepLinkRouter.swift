@@ -13,7 +13,7 @@ import os
 @MainActor
 public enum DeepLinkRouter {
 
-    private static let log = Logger(subsystem: "com.mac-analyzers.app", category: "router")
+    private static let log = Logger(subsystem: AppIdentity.bundleID, category: "router")
 
     /// Targets that show a screen with example data, for looking at it headless. Empty
     /// in the app people install: only `SnapshotRunner` calls `installFixtures()`, so

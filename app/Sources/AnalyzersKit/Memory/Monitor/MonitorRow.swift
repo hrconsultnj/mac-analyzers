@@ -10,7 +10,7 @@ public enum MonitorStop: Sendable {
     /// Offered nowhere, with the reason in a sentence: macOS's own, another account's, a terminal session.
     /// Never "protected": what only the automatic stops leave alone is still offered to the person.
     case unavailable(String)
-    /// An app: ask its main process to quit; the helpers leave with it. `protection` says why Mac Analyzers never quits it
+    /// An app: ask its main process to quit; the helpers leave with it. `protection` says why Sparehold never quits it
     /// by itself, when it does not: the confirmation leads with it.
     case quitApp(name: String, identities: [ProcessIdentity], processCount: Int, bytes: Int64, hosted: [String: Int],
                  protection: String?)
@@ -54,7 +54,7 @@ public struct MonitorRow: Identifiable, Sendable {
     /// Why the group is left alone or handled with care, in words (macOS, another account, a live coding session,
     /// a Connection Tool); nil when nothing is held back. Says only what Monitor's Stop and Quit do.
     public var leftAlone: String?
-    /// Why Mac Analyzers never stops this by itself (a live coding session, the Never Close list, an app in front, a
+    /// Why Sparehold never stops this by itself (a live coding session, the Never Close list, an app in front, a
     /// Connection Tool), and what stopping it costs, in words; nil when nothing protects it. A lock guards only the
     /// automatic stops: a row that has this still offers Stop or Quit, and the confirmation says it first.
     public var protection: String?

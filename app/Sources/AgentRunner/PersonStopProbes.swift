@@ -210,24 +210,24 @@ private func everyRow(_ rows: [MonitorRow]) -> [MonitorRow] { rows.flatMap { [$0
     f.check("confirming then sends nothing and says a session appeared", f.alive(root) && report.message.contains("started in"), report.message)
 }
 
-// MARK: - Mac Analyzers itself
+// MARK: - Sparehold itself
 
 @MainActor private func ownChain(_ f: Fixtures) async {
     guard let live = LiveStats.process(pid: Int(getpid())), let identity = live.identity ?? ProcessIdentity.of(pid: Int(getpid())) else {
-        f.check("Mac Analyzers' own process", false, "not found"); return
+        f.check("Sparehold' own process", false, "not found"); return
     }
     for override in [false, true] {
         let result = GuardControl.stopProcess(live, identity: identity, overridingProtection: override)
         var refused = false
-        if case .refused(let why) = result { refused = why.contains("Mac Analyzers itself") }
-        f.check("a single stop of Mac Analyzers' own process is refused (override \(override))", refused, "\(result)")
+        if case .refused(let why) = result { refused = why.contains("Sparehold itself") }
+        f.check("a single stop of Sparehold' own process is refused (override \(override))", refused, "\(result)")
     }
     let census = MemoryCensus.take()
     if let mine = census.groups.flatMap(\.programs).first(where: { $0.members.contains { $0.pid == Int(getpid()) } }) {
-        f.check("its program has no Stop, and the row says why", mine.personRefusal?.contains("Mac Analyzers itself") == true, mine.personRefusal ?? "stoppable")
+        f.check("its program has no Stop, and the row says why", mine.personRefusal?.contains("Sparehold itself") == true, mine.personRefusal ?? "stoppable")
     }
     let own = everyRow(MonitorTree.rows(census: census)).first { $0.kind == .process && $0.pid == Int(getpid()) }
     if let own {
-        f.check("its process row is unavailable", own.stopVerb == nil && own.lockedReason?.contains("Mac Analyzers itself") == true, own.lockedReason ?? "offers Stop")
+        f.check("its process row is unavailable", own.stopVerb == nil && own.lockedReason?.contains("Sparehold itself") == true, own.lockedReason ?? "offers Stop")
     }
 }

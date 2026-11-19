@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# mac-analyzers — local configuration
+# Sparehold — local configuration
 # ---------------------------------------------------------------------------
 # Copy to config.local.sh (same directory, gitignored) and edit. Every value
 # is optional — the suite runs with safe neutral defaults without it.
@@ -30,7 +30,7 @@
 # these in its main pass (App Support dirs, caches, prefs of uninstalled apps).
 #ANALYZERS_DEPRECATED_PATHS=( "$HOME/Library/Application Support/DeadApp" )
 
-# Where Old Recordings looks. The Mac Analyzers app writes this for you (Storage,
+# Where Old Recordings looks. Sparehold writes this for you (Storage,
 # Old Recordings, Sources…); each element is "id|on|path" or "id|off|path", with the
 # path last. ids come from lib/recording-sources.tsv (zoom, screenRecordings,
 # superwhisper, loomTemporary) or `custom` for a folder of yours, where every
@@ -77,13 +77,13 @@
 # worktrees, one a terminal/agent session sits in. 0 = off.
 #ANALYZERS_WORKTREE_IDLE_DAYS=0
 
-# Downloads janitor (storage-analyzer/downloads-janitor.sh). Everything it
+# Downloads janitor (storage/downloads-janitor.sh). Everything it
 # moves goes to the Trash, never deleted, and is listed for review first.
 # JANITOR_DOWNLOADS_AGE_DAYS=30      # top-level ~/Downloads items untouched this long
 # JANITOR_SCREENSHOTS_AGE_DAYS=14    # screenshot FILES older than this (folders never move)
 # JANITOR_KEEP_PATTERNS="*.dmg:Tax *"  # colon-separated globs that are never touched
 
-# Temp & AI-agent cleaner (storage-analyzer/temp-clean.sh). Dry run by default;
+# Temp & AI-agent cleaner (storage/temp-clean.sh). Dry run by default;
 # --apply moves to the Trash, --apply --permanent deletes. Nothing open, live,
 # recent, or someone else's is ever touched.
 # TEMP_CLEAN_MIN_AGE_HOURS=24        # /tmp, $TMPDIR and /var/tmp entries idle this long

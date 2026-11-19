@@ -7,10 +7,10 @@ import Foundation
 @MainActor
 public enum GuardControl {
 
-    public static let guardLabel = "com.mac-analyzers.memory-guard"
-    public static let memoryCleanLabel = "com.mac-analyzers.memory-autoclean.daily"
-    public static let storageCleanLabel = "com.mac-analyzers.storage-autoclean.daily"
-    public static let storageDeepLabel = "com.mac-analyzers.storage-autoclean.deep"
+    public static let guardLabel = LaunchdAgentID.memoryGuard.rawValue
+    public static let memoryCleanLabel = LaunchdAgentID.memoryAutoCleanDaily.rawValue
+    public static let storageCleanLabel = LaunchdAgentID.storageAutoCleanDaily.rawValue
+    public static let storageDeepLabel = LaunchdAgentID.storageAutoCleanDeep.rawValue
 
     /// Restart the guard agent so freshly-saved tunables take effect
     /// (the guard reads its env once at startup).
@@ -52,9 +52,9 @@ public enum GuardControl {
         guard let identity, identity.pid == proc.pid else {
             return .refused("\(proc.friendlyName) could not be checked before stopping, so it was left alone.")
         }
-        // never Mac Analyzers itself or what started it, whatever was chosen (the same rule as a program stop)
+        // never Sparehold itself or what started it, whatever was chosen (the same rule as a program stop)
         if ProgramReach.selfChain().contains(Int32(proc.pid)) {
-            return .refused("Stopping \(proc.friendlyName) would end Mac Analyzers itself, or the program that started it, so nothing was stopped.")
+            return .refused("Stopping \(proc.friendlyName) would end Sparehold itself, or the program that started it, so nothing was stopped.")
         }
         if overridingProtection, !proc.canQuit {
             return .refused("\(proc.friendlyName) belongs to another account, so no app of yours can stop it.")
@@ -114,7 +114,7 @@ public enum GuardControl {
     public static let defaultGrace: Duration = .seconds(5)
 
     /// STEP ONE of stopping a program, the polite one: everything in its reach is asked to
-    /// stop, deepest first, and Mac Analyzers waits. Nothing is ever killed here. What is
+    /// stop, deepest first, and Sparehold waits. Nothing is ever killed here. What is
     /// still running afterwards is returned for the person to decide about (`forceStopProgram`).
     ///
     /// The reach is worked out from the live process table (`ProgramReach`): the listed
@@ -199,7 +199,7 @@ public enum GuardControl {
     private static func signal(_ member: ProcessIdentity, _ signal: Int32) {
         #if DEBUG
         precondition(!ProgramReach.selfChain().contains(Int32(member.pid)),
-                     "a program stop must never signal Mac Analyzers or an ancestor of it")
+                     "a program stop must never signal Sparehold or an ancestor of it")
         #endif
         ProcessTree.signalIfSame(pid: Int32(member.pid), expected: member.birth, signal: signal)
     }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # login-items-audit-test.sh — regression test for vendor_has_app in
-# storage-analyzer/login-items-audit.sh. Uses only stand-in folders under a
+# storage/login-items-audit.sh. Uses only stand-in folders under a
 # temp directory: HOME is pointed there, mdfind is stubbed, and both the
 # helper-tools folder and /Applications are swapped for temp ones, so the
 # result never depends on what is installed on the machine running it.
@@ -27,7 +27,7 @@
 # Usage: tests/login-items-audit-test.sh [path-to-login-items-audit.sh]
 # (no `set -u`: the function under test must fail by its checks, not by aborting the run)
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="${1:-$HERE/../storage-analyzer/login-items-audit.sh}"
+SCRIPT="${1:-$HERE/../storage/login-items-audit.sh}"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -228,7 +228,7 @@ line="$(grep -F "launchctl bootout" <<<"$out" | grep -F "com.zzvendor.x" | head 
 [[ "$line" == *"launchctl bootout gui/$uid/com.zzvendor.x; rm "* && "$line" != *sudo* ]] && r=0 || r=1
 check "a possible leftover in your own folder: the user's own domain, plain rm, no sudo" 0 $r
 grep -q 'no administrator needed' <<<"$out"; check "and the line says no administrator is needed" 0 $?
-grep -F "com.zzvendor.x" "$TMP/h2/mac-analyzers/reports/storage/login-items.tsv" | awk -F'\t' '{print $9}' | grep -q '^launchctl bootout gui/'; check "the inventory carries the same command" 0 $?
+grep -F "com.zzvendor.x" "$TMP/h2/Library/Application Support/Sparehold/reports/storage/login-items.tsv" | awk -F'\t' '{print $9}' | grep -q '^launchctl bootout gui/'; check "the inventory carries the same command" 0 $?
 
 # ---- a tab in a name cannot be stored, so the item is never acted on ----------------
 fresh
@@ -239,7 +239,7 @@ grep -q 'a tab or line break' <<<"$out"; check "and is listed as skipped with th
 
 # ---- the inventory's header says whether the login items could be read ----------------
 fresh
-inv="$TMP/h2/mac-analyzers/reports/storage/login-items.tsv"
+inv="$TMP/h2/Library/Application Support/Sparehold/reports/storage/login-items.tsv"
 out="$(run --dry-run)"
 head="$(head -n 1 "$inv")"
 IFS=$'\t' read -r h_tag h_ver h_date h_mode h_id h_logins <<< "$head"
@@ -256,10 +256,10 @@ check "the unreadable inventory is still a version 2 file (the other rows are re
 
 # ---- the launch inventory library is missing: the audit stops, it does not guess (exit 78, before anything is read or changed) ----
 fresh
-NOLIB="$TMP/nolib"; mkdir -p "$NOLIB/storage-analyzer" "$NOLIB/lib"
-cp "$SCRIPT" "$NOLIB/storage-analyzer/login-items-audit.sh"
+NOLIB="$TMP/nolib"; mkdir -p "$NOLIB/storage" "$NOLIB/lib"
+cp "$SCRIPT" "$NOLIB/storage/login-items-audit.sh"
 for f in "$HERE"/../lib/*.sh; do [[ "${f##*/}" == launch-items.sh ]] || cp "$f" "$NOLIB/lib/"; done
-out="$(HOME="$TMP/h2" PATH="$STUBS:$PATH" "$BASH" "$NOLIB/storage-analyzer/login-items-audit.sh" --apply 2>&1)"; rc=$?
+out="$(HOME="$TMP/h2" PATH="$STUBS:$PATH" "$BASH" "$NOLIB/storage/login-items-audit.sh" --apply 2>&1)"; rc=$?
 check "a missing lib/launch-items.sh stops the audit (exit 78)" 78 "$rc"
 grep -q 'FATAL: lib/launch-items.sh is missing' <<<"$out"; check "and says which file is missing" 0 $?
 exists "$A"; ra=$?; exists "$B"; rb=$?

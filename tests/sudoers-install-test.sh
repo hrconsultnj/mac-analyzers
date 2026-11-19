@@ -13,7 +13,7 @@
 # Usage: tests/sudoers-install-test.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$HERE/../storage-analyzer/storage-manage-agents.sh"
+SCRIPT="$HERE/../storage/storage-manage-agents.sh"
 [[ -f "$SCRIPT" ]] || { echo "SKIP: script not found"; exit 0; }
 
 TMP="$(mktemp -d)"
@@ -22,13 +22,13 @@ fail=0
 check() { if [[ "$2" == "ok" ]]; then echo "PASS  $1"; else echo "FAIL  $1 ($2)"; fail=1; fi; }
 
 # a copy of the script (and the rule it installs) whose /etc/sudoers.d is a folder in the temp folder
-TREE="$TMP/tree"; mkdir -p "$TREE/storage-analyzer/sudoers.d" "$TREE/lib"
-cp "$HERE"/../storage-analyzer/sudoers.d/tmutil-thin "$TREE/storage-analyzer/sudoers.d/"
+TREE="$TMP/tree"; mkdir -p "$TREE/storage/sudoers.d" "$TREE/lib"
+cp "$HERE"/../storage/sudoers.d/tmutil-thin "$TREE/storage/sudoers.d/"
 cp "$HERE"/../lib/*.sh "$TREE/lib/" 2>/dev/null
 ETC="$TMP/etc-sudoers.d"; mkdir -p "$ETC"
 OLD="$ETC/tmutil-thin"
-sed "s#^SUDOERS_DIR=.*#SUDOERS_DIR=\"$ETC\"#" "$SCRIPT" > "$TREE/storage-analyzer/storage-manage-agents.sh"
-grep -q "^SUDOERS_DIR=\"$ETC\"" "$TREE/storage-analyzer/storage-manage-agents.sh" || { echo "FAIL  the copy did not take the temp folder"; exit 1; }
+sed "s#^SUDOERS_DIR=.*#SUDOERS_DIR=\"$ETC\"#" "$SCRIPT" > "$TREE/storage/storage-manage-agents.sh"
+grep -q "^SUDOERS_DIR=\"$ETC\"" "$TREE/storage/storage-manage-agents.sh" || { echo "FAIL  the copy did not take the temp folder"; exit 1; }
 
 S="$TMP/stubs"; mkdir -p "$S"
 cat > "$S/id" <<'STUB'
@@ -66,7 +66,7 @@ run() { # shell uid user args... -> output
   local sh="$1" uid="$2" user="$3"; shift 3
   export STUB_UID="$uid" STUB_USER="$user" STUB_LOG="$TMP/calls" STUB_VISUDO_FAIL="$TMP/visudo-fail" STUB_VISUDO_LIVE_FAIL="$TMP/visudo-live-fail"
   : > "$STUB_LOG"
-  PATH="$S:$PATH" "$sh" "$TREE/storage-analyzer/storage-manage-agents.sh" "$@" 2>&1 < /dev/null
+  PATH="$S:$PATH" "$sh" "$TREE/storage/storage-manage-agents.sh" "$@" 2>&1 < /dev/null
 }
 file_for() { echo "$ETC/tmutil-thin-$1"; }
 # the one rule the script wrote into a file: a line that starts with "#" and a user ID (the template's comments start "# ")
@@ -195,7 +195,7 @@ for sh in bash /bin/bash; do
 done
 
 # the template: exactly one rule, the one command, no wildcard, and no --for-user left in the script
-T="$HERE/../storage-analyzer/sudoers.d/tmutil-thin"
+T="$HERE/../storage/sudoers.d/tmutil-thin"
 active="$(grep -v '^[[:space:]]*#' "$T" | grep -v '^[[:space:]]*$')"
 check "template holds exactly one rule" "$([[ "$(printf '%s\n' "$active" | wc -l | tr -d ' ')" -eq 1 ]] && echo ok || echo "$active")"
 check "template rule is the exact command, for the __UID__ placeholder" "$([[ "$active" == "__UID__ ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4" ]] && echo ok || echo "$active")"

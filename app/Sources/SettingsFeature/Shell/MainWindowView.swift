@@ -88,7 +88,12 @@ public struct MainWindowView: View {
             shown: visibility != .detailOnly,
             toggle: { toggleSidebar() }))
         .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.toggleSidebarInternal)) { _ in toggleSidebar() }
+        .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.legacyToggleSidebar)) { _ in toggleSidebar() }
         .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.openPaneInternal)) { note in
+            guard let target = note.userInfo?["target"] as? String else { return }
+            DeepLinkRouter.open(target, in: navigator)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NotifyChannel.legacyOpenPane)) { note in
             guard let target = note.userInfo?["target"] as? String else { return }
             DeepLinkRouter.open(target, in: navigator)
         }

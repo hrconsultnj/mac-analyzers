@@ -123,7 +123,7 @@ public enum StorageFixtures {
     /// Every app kept because which apps open at login cannot be checked yet: nothing run, or the last run could not read them.
     public static func unusedAppsLoginFirst(unreadable: Bool) -> StorageRows {
         let reason = unreadable
-            ? "Which apps open at login can't be checked yet: the last Login & Startup Items check could not read your Login Items. Run it from the Mac Analyzers app, where macOS can ask for permission, then preview again"
+            ? "Which apps open at login can't be checked yet: the last Login & Startup Items check could not read your Login Items. Run it from the Sparehold app, where macOS can ask for permission, then preview again"
             : "Which apps open at login can't be checked yet: run Login & Startup Items first, then preview again"
         var lines: [String] = []
         for (name, days) in [("Old Editor", 520), ("Screen Recorder", 410), ("Photo Tool", 230)] {

@@ -50,7 +50,7 @@ struct NotifySettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
-                    Button("Restart Mac Analyzers") { GuardControl.restartApp() }
+                    Button("Restart Sparehold") { GuardControl.restartApp() }
                     Text("Relaunches only this menu-bar app — your other work, sessions, and the background agents keep running untouched.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -65,7 +65,7 @@ struct NotifySettingsView: View {
 
             Section {
                 SaveBar { try config.save() }
-                Text("Persistence (banner vs. alert style) and lock-screen previews are per-app macOS settings: System Settings → Notifications → Mac Analyzers.")
+                Text("Persistence (banner vs. alert style) and lock-screen previews are per-app macOS settings: System Settings → Notifications → Sparehold.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

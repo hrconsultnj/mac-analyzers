@@ -1,7 +1,7 @@
 import SwiftUI
 import AnalyzersKit
 
-/// The Stop or Quit cell of a row Mac Analyzers never stops by itself. At rest it shows a lock, the cue that the guard and
+/// The Stop or Quit cell of a row Sparehold never stops by itself. At rest it shows a lock, the cue that the guard and
 /// the cleanups leave this row alone; with the pointer on it, or when the keyboard has reached it, the lock gives way to
 /// the row's own button, in the same place, so nothing moves.
 ///

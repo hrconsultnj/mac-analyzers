@@ -14,7 +14,7 @@
 # Usage: tests/worktree-safety-test.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$HERE/../storage-analyzer/storage-auto-clean.sh"
+SCRIPT="$HERE/../storage/storage-auto-clean.sh"
 [[ -f "$SCRIPT" ]] || { echo "SKIP: script not found"; exit 0; }
 command -v git >/dev/null 2>&1 || { echo "SKIP: git not installed"; exit 0; }
 
@@ -25,10 +25,10 @@ check() { if [[ "$2" == "ok" ]]; then echo "PASS  $1"; else echo "FAIL  $1 ($2)"
 present() { [[ -e "$1" ]] && echo ok || echo "missing: ${1#"$TMP"/}"; }
 absent()  { [[ -e "$1" ]] && echo "still there: ${1#"$TMP"/}" || echo ok; }
 
-mkdir -p "$TMP/tree/storage-analyzer" "$TMP/tree/lib" "$TMP/home" "$TMP/bin"
+mkdir -p "$TMP/tree/storage" "$TMP/tree/lib" "$TMP/home" "$TMP/bin"
 # git and nothing else from outside the system folders: no package manager or Docker runs
 ln -s "$(command -v git)" "$TMP/bin/git"
-cp "$SCRIPT" "$TMP/tree/storage-analyzer/storage-auto-clean.sh"
+cp "$SCRIPT" "$TMP/tree/storage/storage-auto-clean.sh"
 cp "$HERE"/../lib/*.sh "$TMP/tree/lib/"
 printf 'notify() { :; }\n' > "$TMP/tree/lib/notify.sh"
 
@@ -68,7 +68,7 @@ run() {
   local args=(--mode deep --roots "$TMP/$1" --worktree-idle-days 1 --cache-age-days 1 --nm-age-days 1)
   [[ "$3" == apply ]] && args+=(--apply)
   HOME="$TMP/home" PATH="$TMP/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-    "$2" "$TMP/tree/storage-analyzer/storage-auto-clean.sh" "${args[@]}" > "$TMP/$1.out" 2>&1
+    "$2" "$TMP/tree/storage/storage-auto-clean.sh" "${args[@]}" > "$TMP/$1.out" 2>&1
 }
 
 for sh in bash /bin/bash; do

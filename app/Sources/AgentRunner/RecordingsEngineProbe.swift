@@ -13,7 +13,7 @@ import Foundation
     var dir = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
     var script: URL?
     for _ in 0..<8 {
-        let candidate = dir.appending(path: "storage-analyzer/cleanup.sh")
+        let candidate = dir.appending(path: "storage/cleanup.sh")
         if fm.fileExists(atPath: candidate.path) { script = candidate; break }
         dir = dir.deletingLastPathComponent()
     }
@@ -28,8 +28,8 @@ import Foundation
 
     let root = ProbeScratch.folder("ma-probe-recordings-engine").resolvingSymlinksInPath()
     let tree = root.appending(path: "tree")
-    for folder in ["storage-analyzer", "lib"] { try? fm.createDirectory(at: tree.appending(path: folder), withIntermediateDirectories: true) }
-    try? fm.copyItem(at: script, to: tree.appending(path: "storage-analyzer/cleanup.sh"))
+    for folder in ["storage", "lib"] { try? fm.createDirectory(at: tree.appending(path: folder), withIntermediateDirectories: true) }
+    try? fm.copyItem(at: script, to: tree.appending(path: "storage/cleanup.sh"))
     if let libs = try? fm.contentsOfDirectory(at: repo.appending(path: "lib"), includingPropertiesForKeys: nil) {
         for lib in libs { try? fm.copyItem(at: lib, to: tree.appending(path: "lib/\(lib.lastPathComponent)")) }
     }
@@ -80,7 +80,7 @@ import Foundation
     func run(_ shell: String, _ arguments: [String], extra: [String: String] = [:]) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: shell)
-        process.arguments = [tree.appending(path: "storage-analyzer/cleanup.sh").path] + arguments
+        process.arguments = [tree.appending(path: "storage/cleanup.sh").path] + arguments
         var environment = ["HOME": home.path, "PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
         for (key, value) in extra { environment[key] = value }
         process.environment = environment
@@ -259,7 +259,7 @@ import Foundation
           "an unconverted Zoom folder stays even when it is on the list")
     let results = UnusedReview.recordings(lines: applied, results: true)
     check(Set(results.rows.map(\.id)) == [meeting.path, shots.appending(path: "old.mov").path, audio1.path], "the apply is read as one Removed row per moved path: \(results.rows.map(\.id))")
-    let log = home.appending(path: "mac-analyzers/reports/storage/cleanup-recordings.log")
+    let log = home.appending(path: "Library/Application Support/Sparehold/reports/storage/cleanup-recordings.log")
     let undoable = UndoLedger.trashedItems(in: log, source: "Old Recordings", trash: trash)
     check(undoable.count == 3 && undoable.allSatisfy { $0.restorability == .restorable && $0.identity != nil }, "Undo reads each receipt as restorable: \(undoable.map { $0.restorability })")
     if let item = undoable.first(where: { $0.originalPath == meeting.path }) {

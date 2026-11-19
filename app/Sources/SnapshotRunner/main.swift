@@ -31,6 +31,7 @@
 // need to LOOK at them, and looking must not mean taking over the owner's
 // Mac. This process never activates, never appears in the Dock, and its
 // window is never on a display.
+import AnalyzersKit
 import AppKit
 import ToolWindows
 import UIComponents
@@ -88,7 +89,7 @@ if arguments.first == "--probe-links" {
 // never the app's. Only for a render: the probes above keep their own state per process, and
 // wiping the whole domain under probes that run side by side broke them.
 if let domain = Bundle.main.bundleIdentifier ?? Optional(ProcessInfo.processInfo.processName),
-   domain != "com.mac-analyzers.app" {
+   domain != AppIdentity.bundleID && domain != AppIdentity.legacyBundleID {
     UserDefaults.standard.removePersistentDomain(forName: domain)
 }
 // `--default <key>=true|false`: a remembered setting (a panel shown, a tab chosen) as it would be on a launch that
@@ -108,10 +109,10 @@ let changelog = ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fi
 do {
     var checkout = URL(fileURLWithPath: #filePath)
     for _ in 0..<4 { checkout.deleteLastPathComponent() }
-    let rules = checkout.appending(path: "memory-analyzer/rules/kinds.json")
+    let rules = checkout.appending(path: "memory/rules/kinds.json")
     if FileManager.default.fileExists(atPath: rules.path) { KindCatalog.use(file: rules) }
     // and the plan the same way: a render of work in progress shows that work's rules (the person's own changes are read as ever)
-    let planFolder = checkout.appending(path: "memory-analyzer/rules")
+    let planFolder = checkout.appending(path: "memory/rules")
     if FileManager.default.fileExists(atPath: planFolder.appending(path: "plan.json").path) {
         GuardRules.use(directory: planFolder, local: nil)   // (nil: the person's file, found when it is read, after --home)
     }

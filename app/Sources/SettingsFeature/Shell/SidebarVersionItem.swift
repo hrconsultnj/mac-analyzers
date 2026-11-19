@@ -4,7 +4,7 @@ import AnalyzersKit
 import UIComponents
 
 /// The pinned item at the foot of the sidebar: one row with the app's icon, its name and, under it, where it stands
-/// (Update Available, the beta's or Dev copy's short name, Up to Date, or the version while no check has answered). A click opens the Mac Analyzers
+/// (Update Available, the beta's or Dev copy's short name, Up to Date, or the version while no check has answered). A click opens the Sparehold
 /// screen, which leads to Updates, What's New, How It Works and Support; the row shows as selected on any of them.
 /// It is part of the sidebar, so it goes when the sidebar is collapsed.
 struct SidebarVersionItem: View {

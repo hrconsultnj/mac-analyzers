@@ -35,12 +35,10 @@ public actor JobLedger {
 
     public static let lineCap = 500
 
-    /// `~/mac-analyzers/reports/app-jobs.jsonl`. Built from the home folder
-    /// directly: `AnalyzersPaths.suiteRoot` can be inside the app bundle, and
-    /// the app never writes there.
+    /// `reports/app-jobs.jsonl` in the data root. `suiteRoot` can be inside
+    /// the app bundle, and the app never writes there.
     public static let standard = JobLedger(
-        url: FileManager.default.homeDirectoryForCurrentUser
-            .appending(path: "mac-analyzers/reports/app-jobs.jsonl"))
+        url: AnalyzersPaths.userRoot.appending(path: "reports/app-jobs.jsonl"))
 
     public let url: URL
     private let cap: Int

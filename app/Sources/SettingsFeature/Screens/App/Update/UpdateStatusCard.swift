@@ -71,7 +71,7 @@ struct UpdateInstallLog: View {
             if updates.phase == .installing {
                 HStack(spacing: Tokens.Space.s) {
                     ProgressView().controlSize(.small)
-                    Text("Updating… Mac Analyzers closes and opens again when this finishes.")
+                    Text("Updating… Sparehold closes and opens again when this finishes.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }

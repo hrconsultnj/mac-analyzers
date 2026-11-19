@@ -130,7 +130,7 @@ struct SystemSettingsGuidance: View {
                         .frame(width: 32, height: 32)      // the app's icon: its size is the job
                         .onDrag { NSItemProvider(object: Bundle.main.bundleURL as NSURL) }
                         .help("Drag this icon into the list in System Settings")
-                    Text("If Mac Analyzers isn't in the list, drag this icon into it, or press + and choose it in Applications.")
+                    Text("If Sparehold isn't in the list, drag this icon into it, or press + and choose it in Applications.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -145,11 +145,11 @@ struct SystemSettingsGuidance: View {
             }
             .controlSize(.small)
             if session.timedOut {
-                Label("Still off. Check that the switch next to Mac Analyzers is on.", systemImage: "exclamationmark.triangle")
+                Label("Still off. Check that the switch next to Sparehold is on.", systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if session.returned, pane == .fullDiskAccess {
-                Label("The switch may be on, but Full Disk Access applies to a program that starts after it was granted. If this stays off, quit and reopen Mac Analyzers.",
+                Label("The switch may be on, but Full Disk Access applies to a program that starts after it was granted. If this stays off, quit and reopen Sparehold.",
                       systemImage: "info.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)

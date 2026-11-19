@@ -53,7 +53,7 @@ public struct CensusGroup: Identifiable, Sendable {
     /// many. Quitting the app ends them, so the dialog says so.
     public let hostedSessions: [String: Int]
     /// What the group IS inside its category (a browser, a dev server, a macOS service). One reading, from the
-    /// catalog in `memory-analyzer/rules/kinds.json`: the Monitor, the menu-bar panel and the guard all read this.
+    /// catalog in `memory/rules/kinds.json`: the Monitor, the menu-bar panel and the guard all read this.
     public let kind: ProcessKind
     /// Which rule decided the kind, and whether it rests on an identity or only on a name.
     public let kindMatch: KindMatch
