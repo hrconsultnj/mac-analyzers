@@ -6,7 +6,7 @@ Login Items / background tasks in System Settings are identifiable at a
 glance; the plists also set `AssociatedBundleIdentifiers` =
 `com.sparehold.app`, so with the Sparehold menu-bar app installed the
 agents group under the app's identity there. An update moves a checkout at
-`~/mac-analyzers` to `~/sparehold` and leaves the old name as a link.
+`~/mac-analyzers` to `~/sparehold` and removes the old name.
 
 | Tool | Role | Mutates? |
 |------|------|----------|

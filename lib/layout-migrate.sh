@@ -3,19 +3,15 @@
 # never run on its own. Bash 3.2. It does not edit config.local.sh.
 #
 # Suite folders: memory-analyzer, storage-analyzer and network-analyzer become
-# memory, storage and network. A name that is already the new one gets the old
-# name as a relative link, so a schedule or a script that still uses the old
-# path keeps working. A file that exists on both sides is left in the old
-# folder, and that folder is not removed.
+# memory, storage and network. While the rest of this update is still running
+# the old name is a link, so the updater people already have can finish.
+# sparehold_remove_old_names then deletes that name. A real folder is deleted
+# only when every file in it is already in the new folder and identical, so
+# one copy remains and nothing unique is thrown away.
 #
 # Home folder: a checkout whose physical path is exactly ~/mac-analyzers, and
 # only when ~/sparehold does not exist, is moved to ~/sparehold. The old name
-# is left as a link. Any other checkout is not moved.
-#
-# In a git checkout the compatibility link is created only when this clone
-# ignores that path. Otherwise the next update would refuse to switch version
-# because the tree looked dirty. A copy that is not a git checkout still gets
-# the link.
+# is removed when the update has finished. Any other checkout is not moved.
 
 # 0 when a link at this path would not show up as an uncommitted change.
 sparehold_may_link() {
@@ -94,7 +90,7 @@ sparehold_migrate_home() {
     echo "→ left this checkout at ~/mac-analyzers because ~/sparehold already exists"
     return 0
   fi
-  echo "→ moving ~/mac-analyzers to ~/sparehold, and leaving the old name as a link…"
+  echo "→ moving ~/mac-analyzers to ~/sparehold…"
   inode="$(stat -f %i "$physical")" || return 1
   if ! mv -- "$physical" "$HOME/sparehold"; then
     echo "✗ Could not move ~/mac-analyzers to ~/sparehold. Nothing else was changed."
@@ -126,4 +122,62 @@ sparehold_migrate_layout() {
   sparehold_fold_suite_dir network-analyzer network
   sparehold_link_old_name extras/swiftbar-plugin/mac-analyzers.5m.sh sparehold.5m.sh
   sparehold_migrate_home
+}
+
+# Delete one old name once the new one already has those files. A link to the
+# new name is removed. A real folder loses only the files that match, and is
+# removed when nothing is left. A file that differs is kept.
+sparehold_remove_duplicate_dir() {
+  local old="$1" new="$2" path rel dest target
+  if [[ -L "$old" ]]; then
+    target="$(readlink "$old")"
+    if [[ "$target" == "$new" ]]; then
+      rm -- "$old"
+      echo "→ removed ${old}"
+    fi
+    return 0
+  fi
+  [[ -d "$old" && -d "$new" ]] || return 0
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    rel="${path#"$old"/}"
+    [[ -n "$rel" && "$rel" != "$path" ]] || continue
+    dest="$new/$rel"
+    if [[ -e "$dest" || -L "$dest" ]] && cmp -s "$path" "$dest"; then
+      rm -f -- "$path"
+    fi
+  done < <(find "$old" -mindepth 1 \( -type f -o -type l \) -print)
+  find "$old" -depth -type d -empty -exec rmdir {} \;
+  if [[ -d "$old" ]]; then
+    echo "→ left ${old}/ because it still has something ${new}/ does not"
+  else
+    echo "→ removed ${old}"
+  fi
+}
+
+# The old home name, when it is only a link to ~/sparehold.
+sparehold_remove_home_link() {
+  local link_real spare_real
+  [[ -L "$HOME/mac-analyzers" && -d "$HOME/sparehold" ]] || return 0
+  link_real="$(cd "$HOME/mac-analyzers" && pwd -P)" || return 0
+  spare_real="$(cd "$HOME/sparehold" && pwd -P)" || return 0
+  [[ "$link_real" == "$spare_real" ]] || return 0
+  if [[ -e "$HOME/sparehold/.git" ]]; then
+    git -C "$HOME/sparehold" worktree repair >/dev/null 2>&1 || true
+  fi
+  rm -- "$HOME/mac-analyzers"
+  echo "→ removed ~/mac-analyzers"
+}
+
+# Call from the checkout root, after the update has finished using the old names.
+sparehold_remove_old_names() {
+  local plugin="extras/swiftbar-plugin/mac-analyzers.5m.sh"
+  sparehold_remove_duplicate_dir memory-analyzer memory
+  sparehold_remove_duplicate_dir storage-analyzer storage
+  sparehold_remove_duplicate_dir network-analyzer network
+  if [[ -L "$plugin" && "$(readlink "$plugin")" == "sparehold.5m.sh" ]]; then
+    rm -- "$plugin"
+    echo "→ removed ${plugin}"
+  fi
+  sparehold_remove_home_link
 }

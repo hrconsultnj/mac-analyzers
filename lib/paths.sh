@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # Data root and engine root for the suite. Sourced, never executed.
 # This file only chooses a folder. It never moves one. upgrade.command moves
-# a checkout at ~/mac-analyzers to ~/sparehold and leaves the old name as a link.
+# a checkout at ~/mac-analyzers to ~/sparehold and then removes the old name.
 #
 # Data root, first match:
 #   $SPAREHOLD_DATA_DIR, else $SPAREHOLD_DIR, else $MAC_ANALYZERS_DIR,

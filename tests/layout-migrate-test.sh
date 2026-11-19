@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # layout-migrate-test.sh — the updater's folder move, on a fake home.
-# Proves: old suite folders are renamed and the old names keep working, a
-# checkout at ~/mac-analyzers moves to ~/sparehold with the old name left as
-# a link, a second run changes nothing, an existing ~/sparehold is left
-# alone, a checkout anywhere else is not moved, and the compatibility links
-# do not show up as uncommitted changes. Nothing here touches the real home.
+# Proves: a checkout at ~/mac-analyzers moves to ~/sparehold, the files exist
+# once, and the old names are removed when the update finishes. A file that
+# differs is kept. Nothing here touches the real home.
 # Runs under bash and /bin/bash (3.2).
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -64,6 +62,24 @@ migrate() {
   )
 }
 
+# The finished update: the move, then the old names deleted.
+finish() {
+  local home="$1" dir="$2" where rc=0
+  migrate "$home" "$dir" || rc=1
+  if [[ -d "$home/sparehold/memory" || -d "$home/sparehold/storage" || -d "$home/sparehold/network" ]]; then
+    where="$home/sparehold"
+  else
+    where="$dir"
+  fi
+  (
+    set -euo pipefail
+    export HOME="$home"
+    cd "$where"
+    sparehold_remove_old_names
+  ) || rc=1
+  return "$rc"
+}
+
 git_quiet() {
   git -c user.email=t@example.invalid -c user.name=test -c commit.gpgsign=false "$@"
 }
@@ -77,33 +93,29 @@ printf '%s\n' 'notes' > "$home/mac-analyzers/memory-analyzer/my notes.txt"
 printf '%s\n' 'disk' > "$home/mac-analyzers/storage-analyzer/cleanup.sh"
 printf '%s\n' 'net' > "$home/mac-analyzers/network-analyzer/network-snapshot.sh"
 printf '%s\n' 'KEEP=1' > "$home/mac-analyzers/config.local.sh"
-if migrate "$home" "$home/mac-analyzers"; then
+if finish "$home" "$home/mac-analyzers"; then
   check "old layout migrates" ok
 else
   check "old layout migrates" "the move failed"
 fi
 check "home folder is now ~/sparehold" "$([[ -d "$home/sparehold" && ! -L "$home/sparehold" ]] && echo ok || echo "sparehold missing")"
-check "old home name is a link" "$(link_to "$home/mac-analyzers" sparehold)"
+check "the old home name is gone" "$([[ ! -e "$home/mac-analyzers" && ! -L "$home/mac-analyzers" ]] && echo ok || echo "old name remains")"
 check "settings came along" "$([[ "$(cat "$home/sparehold/config.local.sh")" == "KEEP=1" ]] && echo ok || echo "settings changed")"
-check "settings still open under the old name" "$([[ "$(cat "$home/mac-analyzers/config.local.sh")" == "KEEP=1" ]] && echo ok || echo "old path lost them")"
-check "memory-analyzer points at memory" "$(link_to "$home/sparehold/memory-analyzer" memory)"
-check "storage-analyzer points at storage" "$(link_to "$home/sparehold/storage-analyzer" storage)"
-check "network-analyzer points at network" "$(link_to "$home/sparehold/network-analyzer" network)"
+check "memory-analyzer is gone" "$([[ ! -e "$home/sparehold/memory-analyzer" && ! -L "$home/sparehold/memory-analyzer" ]] && echo ok || echo "old folder remains")"
+check "storage-analyzer is gone" "$([[ ! -e "$home/sparehold/storage-analyzer" && ! -L "$home/sparehold/storage-analyzer" ]] && echo ok || echo "old folder remains")"
+check "network-analyzer is gone" "$([[ ! -e "$home/sparehold/network-analyzer" && ! -L "$home/sparehold/network-analyzer" ]] && echo ok || echo "old folder remains")"
 check "a name with a space came along" "$([[ "$(cat "$home/sparehold/memory/my notes.txt")" == "notes" ]] && echo ok || echo "missing")"
-ran="$(/bin/bash "$home/mac-analyzers/memory-analyzer/memory-guard.sh" 2>/dev/null || true)"
-check "the old script path still runs" "$([[ "$ran" == "ran-guard" ]] && echo ok || echo "got ${ran:-nothing}")"
 ran="$(/bin/bash "$home/sparehold/memory/memory-guard.sh" 2>/dev/null || true)"
-check "the new script path runs" "$([[ "$ran" == "ran-guard" ]] && echo ok || echo "got ${ran:-nothing}")"
+check "the script is only in the new folder" "$([[ "$ran" == "ran-guard" ]] && echo ok || echo "got ${ran:-nothing}")"
 
-# --- second run, from the old name and from the new one, changes nothing ---
+# --- second run changes nothing ---
 before="$(stat -f %i "$home/sparehold")"
-if migrate "$home" "$home/mac-analyzers" && migrate "$home" "$home/sparehold"; then
+if finish "$home" "$home/sparehold"; then
   check "second run is safe" ok
 else
   check "second run is safe" "the move failed"
 fi
-check "second run keeps the home link" "$(link_to "$home/mac-analyzers" sparehold)"
-check "second run does not nest the suite link" "$(link_to "$home/sparehold/memory-analyzer" memory)"
+check "second run does not bring the old name back" "$([[ ! -e "$home/mac-analyzers" && ! -L "$home/mac-analyzers" ]] && echo ok || echo "old name returned")"
 after="$(stat -f %i "$home/sparehold")"
 check "second run does not move the folder again" "$([[ "$before" == "$after" ]] && echo ok || echo "inode changed")"
 
@@ -113,15 +125,15 @@ mkdir -p "$home/sparehold" "$home/mac-analyzers/memory" "$home/mac-analyzers/ext
 printf '%s\n' 'marker' > "$home/sparehold/marker"
 printf '%s\n' 'stay' > "$home/mac-analyzers/memory/memory-guard.sh"
 printf '%s\n' 'plugin' > "$home/mac-analyzers/extras/swiftbar-plugin/sparehold.5m.sh"
-if migrate "$home" "$home/mac-analyzers"; then
+if finish "$home" "$home/mac-analyzers"; then
   check "taken sparehold migrates inside the checkout" ok
 else
   check "taken sparehold migrates inside the checkout" "the move failed"
 fi
 check "checkout stays put when ~/sparehold exists" "$([[ -d "$home/mac-analyzers" && ! -L "$home/mac-analyzers" ]] && echo ok || echo "home was moved")"
 check "existing ~/sparehold is untouched" "$([[ "$(cat "$home/sparehold/marker")" == "marker" ]] && echo ok || echo "marker changed")"
-check "suite link is still made" "$(link_to "$home/mac-analyzers/memory-analyzer" memory)"
-check "swiftbar's old name points at the new file" "$(link_to "$home/mac-analyzers/extras/swiftbar-plugin/mac-analyzers.5m.sh" sparehold.5m.sh)"
+check "the suite's old name is gone" "$([[ ! -e "$home/mac-analyzers/memory-analyzer" && ! -L "$home/mac-analyzers/memory-analyzer" ]] && echo ok || echo "old folder remains")"
+check "swiftbar's old name is gone" "$([[ ! -e "$home/mac-analyzers/extras/swiftbar-plugin/mac-analyzers.5m.sh" && ! -L "$home/mac-analyzers/extras/swiftbar-plugin/mac-analyzers.5m.sh" ]] && echo ok || echo "old name remains")"
 
 # --- both directories: a file only the old one has moves; a shared name stays ---
 home="$TMP/both"
@@ -129,7 +141,7 @@ mkdir -p "$home/mac-analyzers/memory" "$home/mac-analyzers/memory-analyzer"
 printf '%s\n' 'new' > "$home/mac-analyzers/memory/keep.sh"
 printf '%s\n' 'old' > "$home/mac-analyzers/memory-analyzer/keep.sh"
 printf '%s\n' 'extra' > "$home/mac-analyzers/memory-analyzer/extra.sh"
-if migrate "$home" "$home/mac-analyzers"; then
+if finish "$home" "$home/mac-analyzers"; then
   check "overlap migrates" ok
 else
   check "overlap migrates" "the move failed"
@@ -137,20 +149,33 @@ fi
 root="$home/sparehold"
 check "the new file wins" "$([[ "$(cat "$root/memory/keep.sh")" == "new" ]] && echo ok || echo "overwritten")"
 check "a file only the old folder had is kept" "$([[ "$(cat "$root/memory/extra.sh")" == "extra" ]] && echo ok || echo "extra missing")"
-check "the shared file is left in the old folder" "$([[ -d "$root/memory-analyzer" && ! -L "$root/memory-analyzer" && "$(cat "$root/memory-analyzer/keep.sh")" == "old" ]] && echo ok || echo "old folder was removed")"
+check "a different file is not deleted" "$([[ -d "$root/memory-analyzer" && ! -L "$root/memory-analyzer" && "$(cat "$root/memory-analyzer/keep.sh")" == "old" ]] && echo ok || echo "old folder was removed")"
 check "the moved file is not left behind" "$([[ ! -e "$root/memory-analyzer/extra.sh" ]] && echo ok || echo "extra still in the old folder")"
+
+# --- the same file in both folders is one copy, and the old folder goes ---
+home="$TMP/same"
+mkdir -p "$home/mac-analyzers/memory" "$home/mac-analyzers/memory-analyzer"
+printf '%s\n' 'same' > "$home/mac-analyzers/memory/keep.sh"
+printf '%s\n' 'same' > "$home/mac-analyzers/memory-analyzer/keep.sh"
+if finish "$home" "$home/mac-analyzers"; then
+  check "identical folders migrate" ok
+else
+  check "identical folders migrate" "the move failed"
+fi
+check "an identical old folder is removed" "$([[ ! -e "$home/sparehold/memory-analyzer" && ! -L "$home/sparehold/memory-analyzer" ]] && echo ok || echo "old folder remains")"
+check "the one copy is in the new folder" "$([[ "$(cat "$home/sparehold/memory/keep.sh")" == "same" ]] && echo ok || echo "missing")"
 
 # --- a checkout that is not ~/mac-analyzers only gets the inner links ---
 home="$TMP/elsewhere"
 mkdir -p "$home/work/repo/storage"
 printf '%s\n' 'disk' > "$home/work/repo/storage/cleanup.sh"
-if migrate "$home" "$home/work/repo"; then
+if finish "$home" "$home/work/repo"; then
   check "other location migrates" ok
 else
   check "other location migrates" "the move failed"
 fi
 check "a checkout elsewhere is not moved" "$([[ ! -e "$home/sparehold" && ! -e "$home/mac-analyzers" && -d "$home/work/repo/storage" ]] && echo ok || echo "home changed")"
-check "the suite link is made wherever the checkout is" "$(link_to "$home/work/repo/storage-analyzer" storage)"
+check "the old suite name is removed there too" "$([[ ! -e "$home/work/repo/storage-analyzer" && ! -L "$home/work/repo/storage-analyzer" && -f "$home/work/repo/storage/cleanup.sh" ]] && echo ok || echo "old name remains")"
 
 # --- git: ignored links stay out of status; without the ignore, no link is made ---
 home="$TMP/git-clean"
@@ -164,14 +189,14 @@ printf '%s\n' '/memory-analyzer' '/storage-analyzer' '/network-analyzer' '/extra
   git_quiet add .gitignore memory/memory-guard.sh extras/swiftbar-plugin/sparehold.5m.sh
   git_quiet commit -q -m fixture
 )
-if migrate "$home" "$home/mac-analyzers"; then
+if finish "$home" "$home/mac-analyzers"; then
   check "ignored links migrate" ok
 else
   check "ignored links migrate" "the move failed"
 fi
 porcelain="$(git -C "$home/sparehold" status --porcelain)"
-check "compatibility links are not uncommitted changes" "$([[ -z "$porcelain" ]] && echo ok || echo "dirty: $porcelain")"
-check "the ignored suite link exists" "$(link_to "$home/sparehold/memory-analyzer" memory)"
+check "removing the old names leaves the checkout clean" "$([[ -z "$porcelain" ]] && echo ok || echo "dirty: $porcelain")"
+check "the old suite name is gone" "$([[ ! -e "$home/sparehold/memory-analyzer" && ! -L "$home/sparehold/memory-analyzer" ]] && echo ok || echo "old name remains")"
 
 home="$TMP/git-open"
 mkdir -p "$home/work/repo/memory"
@@ -205,8 +230,13 @@ parent_out="$(
     sparehold_migrate_layout
   )
   ./memory-analyzer/memory-guard.sh
+  sparehold_remove_old_names
+  if [[ -e ./memory-analyzer || -L ./memory-analyzer || -e "$HOME/mac-analyzers" || -L "$HOME/mac-analyzers" ]]; then
+    echo "old-name-remains"
+  fi
+  ./memory/memory-guard.sh
 )"
-check "the updater can still run the old script path after the move" "$([[ "$parent_out" == *from-old-path* ]] && echo ok || echo "got ${parent_out:-nothing}")"
-check "that updater's folder is ~/sparehold" "$([[ -d "$home/sparehold/memory/memory-guard.sh" || -f "$home/sparehold/memory/memory-guard.sh" ]] && echo ok || echo "not moved")"
+check "the updater can use the old path until the update finishes" "$([[ "$parent_out" == *from-old-path* && "$parent_out" != *old-name-remains* ]] && echo ok || echo "got ${parent_out:-nothing}")"
+check "that updater's folder is ~/sparehold" "$([[ -f "$home/sparehold/memory/memory-guard.sh" ]] && echo ok || echo "not moved")"
 
 exit "$fail"

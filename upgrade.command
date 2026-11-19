@@ -270,6 +270,12 @@ agents_ok=1
 ./memory/memory-manage-agents.sh install || agents_ok=0
 ./storage/storage-manage-agents.sh install || agents_ok=0
 
+# The move is done and the jobs point at the new folders. Drop the old names
+# so this Mac does not keep a second copy.
+if declare -F sparehold_remove_old_names >/dev/null 2>&1; then
+  sparehold_remove_old_names
+fi
+
 echo "→ checking the new app…"
 probe_bin="/Applications/Sparehold.app/Contents/MacOS/agent-runner"
 [[ -x "$probe_bin" ]] || probe_bin="$MA_UPGRADE_ROOT/app/Sparehold.app/Contents/MacOS/agent-runner"

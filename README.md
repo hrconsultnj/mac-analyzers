@@ -106,10 +106,9 @@ steps:
    ```
 
    If you already keep this project at `~/mac-analyzers`, run `upgrade.command`
-   from there. The update moves that folder to `~/sparehold` and leaves
-   `~/mac-analyzers` as a link to it, so settings, reports, and anything that
-   still uses the old path keep working. When `~/sparehold` is already there,
-   the checkout stays where it is.
+   from there. The update moves that folder to `~/sparehold` and removes the
+   old name, so settings and reports move with it and you do not keep two
+   copies. When `~/sparehold` is already there, the checkout stays where it is.
 
 3. Open that folder in Finder and **double-click `upgrade.command`**. It
    builds the app, installs it to Applications, installs the background jobs
@@ -207,7 +206,7 @@ equivalent:
 cd ~/sparehold && ./upgrade.command
 ```
 
-`~/mac-analyzers` still opens the same folder after that move.
+After that move the folder is only `~/sparehold`.
 
 **Updates.** The Updates screen opens with a status card in the style of macOS
 Software Update: whether Sparehold is up to date or what is available, the
@@ -290,7 +289,7 @@ Every run logs exactly how it was invoked.
 ## Layout
 
 ```
-~/sparehold/    the checkout. An update moves ~/mac-analyzers here and leaves the old name as a link
+~/sparehold/    the checkout. An update moves ~/mac-analyzers here and removes the old name
 ├── app/                       the Sparehold app — the face (below)
 ├── memory/           RAM suite + its launchd templates (own README)
 ├── storage/          disk suite + its launchd templates (own README)

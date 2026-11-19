@@ -77,6 +77,16 @@ case "$cmd" in
       exit 1
     fi
     echo "Done. View schedule with: $0 status"
+    # The updater people already have calls this last, through the old folder
+    # name. The jobs are loaded, so that name can go.
+    if [[ -f "${HERE}/../lib/layout-migrate.sh" ]]; then
+      (
+        cd "${HERE}/.."
+        # shellcheck source=../lib/layout-migrate.sh
+        source lib/layout-migrate.sh
+        sparehold_remove_old_names
+      ) || echo "→ the old folder names could not be removed"
+    fi
     ;;
   uninstall)
     for a in "${AGENTS[@]}"; do
