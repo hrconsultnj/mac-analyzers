@@ -1,7 +1,7 @@
 import Foundation
 
 /// One rule of Memory Guard, as data: a limit a kind may not stay over, or a step of what to do when memory has run out.
-/// The rules come from `memory-analyzer/rules/plan.json` (what ships), changed only by the person's sparse
+/// The rules come from `memory/rules/plan.json` (what ships), changed only by the person's sparse
 /// `rules.local.json`; see `GuardRules`. In this version no rule acts through the app: a rule is Acting only where the
 /// guard script already does the same thing today, and every other rule is Watching, which writes a "would have" row and
 /// stops nothing.

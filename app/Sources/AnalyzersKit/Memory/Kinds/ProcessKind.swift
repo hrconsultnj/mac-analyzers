@@ -1,7 +1,7 @@
 import Foundation
 
 /// What a process IS inside the category the census put it in: a browser, a dev server, a macOS service.
-/// One kind per group, read from `memory-analyzer/rules/kinds.json` by `KindCatalog`; the Monitor, the
+/// One kind per group, read from `memory/rules/kinds.json` by `KindCatalog`; the Monitor, the
 /// menu-bar panel, the guard and `agent-runner --probe-kinds` all read this one field, so nothing
 /// classifies a second time.
 public struct ProcessKind: Identifiable, Sendable, Hashable {

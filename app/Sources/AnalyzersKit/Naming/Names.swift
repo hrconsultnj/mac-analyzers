@@ -748,7 +748,7 @@ public enum Names {
         public static let whatItIs = "What It Is"
     }
 
-    // MARK: - kinds of process (memory-analyzer/rules/kinds.json holds the ids, this holds the names)
+    // MARK: - kinds of process (memory/rules/kinds.json holds the ids, this holds the names)
 
     public enum Kind {
         public static let connectionTools = "Connection Tools"

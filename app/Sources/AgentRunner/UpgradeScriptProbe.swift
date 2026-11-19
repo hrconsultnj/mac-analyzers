@@ -102,8 +102,8 @@ mkdir -p "$root/app/Sparehold.app/Contents/MacOS"
 printf '%s\\n' '#!/bin/sh' 'echo "Installed Version: vstub"' > "$root/app/Sparehold.app/Contents/MacOS/agent-runner"
 chmod +x "$root/app/Sparehold.app/Contents/MacOS/agent-runner"
 """)
-            write(seed, "memory-analyzer/memory-manage-agents.sh", "#!/bin/sh\nexit 0\n")
-            write(seed, "storage-analyzer/storage-manage-agents.sh", "#!/bin/sh\nexit 0\n")
+            write(seed, "memory/memory-manage-agents.sh", "#!/bin/sh\nexit 0\n")
+            write(seed, "storage/storage-manage-agents.sh", "#!/bin/sh\nexit 0\n")
             func commit(_ n: String) -> String {
                 write(seed, "n.txt", n + "\n", executable: false)
                 _ = git(seed, ["add", "-A"]); _ = git(seed, ["commit", "-q", "-m", n])

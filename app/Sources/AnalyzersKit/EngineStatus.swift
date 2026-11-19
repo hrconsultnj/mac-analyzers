@@ -53,9 +53,9 @@ public struct EngineStatus: Sendable {
         let root = AnalyzersPaths.suiteRoot
         let rootExists = fm.fileExists(atPath: root.path)
         let scripts = [
-            "memory-analyzer/memory-guard.sh",
-            "memory-analyzer/memory-auto-clean.sh",
-            "storage-analyzer/storage-auto-clean.sh",
+            "memory/memory-guard.sh",
+            "memory/memory-auto-clean.sh",
+            "storage/storage-auto-clean.sh",
         ].allSatisfy { fm.isExecutableFile(atPath: root.appending(path: $0).path) }
 
         var cleaners: [String: AgentState] = [:]

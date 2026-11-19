@@ -42,7 +42,7 @@ notify() {  # title, message, [sound], [log path], [subtitle], [pid]
       printf '%s\n' "$SPAREHOLD_SUITE_DIR"
       return
     fi
-    if [[ -x "$HOME/sparehold/memory-analyzer/memory-guard.sh" ]]; then
+    if [[ -x "$HOME/sparehold/memory/memory-guard.sh" ]]; then
       printf '%s\n' "$HOME/sparehold"
       return
     fi

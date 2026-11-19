@@ -10,7 +10,7 @@
 # Usage: tests/storage-prune-keys-test.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$HERE/../storage-analyzer/storage-auto-clean.sh"
+SCRIPT="$HERE/../storage/storage-auto-clean.sh"
 [[ -f "$SCRIPT" ]] || { echo "SKIP: script not found"; exit 0; }
 
 TMP="$(mktemp -d)"
@@ -18,8 +18,8 @@ trap 'rm -rf "$TMP"' EXIT
 fail=0
 check() { if [[ "$2" == "ok" ]]; then echo "PASS  $1"; else echo "FAIL  $1 ($2)"; fail=1; fi; }
 
-mkdir -p "$TMP/tree/storage-analyzer" "$TMP/tree/lib" "$TMP/stubs" "$TMP/stubs-nopnpm" "$TMP/home" "$TMP/root"
-cp "$SCRIPT" "$TMP/tree/storage-analyzer/storage-auto-clean.sh"
+mkdir -p "$TMP/tree/storage" "$TMP/tree/lib" "$TMP/stubs" "$TMP/stubs-nopnpm" "$TMP/home" "$TMP/root"
+cp "$SCRIPT" "$TMP/tree/storage/storage-auto-clean.sh"
 cp "$HERE"/../lib/*.sh "$TMP/tree/lib/"                       # the reviewed-list reader is part of the script
 printf 'notify() { :; }\n' > "$TMP/tree/lib/notify.sh"
 stub() { printf '#!/bin/bash\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"; }
@@ -47,7 +47,7 @@ run() {
   [[ -n "$list" ]] && args+=(--only-paths "$list")
   : > "$TMP/$label.calls"
   STUB_LOG="$TMP/$label.calls" HOME="$TMP/home" ANALYZERS_TOOL_CACHES=brew,simulators \
-    PATH="$stubs:/usr/bin:/bin:/usr/sbin:/sbin" "$sh" "$TMP/tree/storage-analyzer/storage-auto-clean.sh" "${args[@]}" \
+    PATH="$stubs:/usr/bin:/bin:/usr/sbin:/sbin" "$sh" "$TMP/tree/storage/storage-auto-clean.sh" "${args[@]}" \
     > "$TMP/$label.out" 2>&1
 }
 calls() { grep -v '^docker context' "$TMP/$1.calls" | tr '\n' ';'; }

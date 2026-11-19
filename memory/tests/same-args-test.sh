@@ -2,7 +2,7 @@
 # same-args-test.sh — regression test for the same_args pid-recycling guard in
 # memory-auto-clean.sh. Starts harmless stand-in processes of its own (a node
 # that rewrites process.title like npm does) and never touches anything else.
-# Usage: memory-analyzer/tests/same-args-test.sh
+# Usage: memory/tests/same-args-test.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT="$HERE/../memory-auto-clean.sh"

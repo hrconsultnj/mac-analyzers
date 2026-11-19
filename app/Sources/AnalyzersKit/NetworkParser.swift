@@ -89,5 +89,5 @@ public enum NetworkParser {
 public extension AnalyzersPaths {
     static let networkReports = userRoot.appending(path: "reports/network")
     static let networkLog = networkReports.appending(path: "top-talkers.log")
-    static let networkScript = suiteRoot.appending(path: "network-analyzer/network-snapshot.sh")
+    static let networkScript = suiteRoot.appending(path: "network/network-snapshot.sh")
 }

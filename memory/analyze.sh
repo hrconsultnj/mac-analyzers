@@ -43,7 +43,7 @@ b2gb() { awk -v b="$1" 'BEGIN{printf "%.2f", b/1073741824}'; }
 
 section() { echo ""; echo "## $1"; echo ""; }
 
-# run a command with a timeout (macOS ships no `timeout`) — same as storage-analyzer
+# run a command with a timeout (macOS ships no `timeout`) — same as storage
 timed() {
   local secs="$1"; shift
   local tmpf; tmpf="$(mktemp)"

@@ -1,9 +1,9 @@
 # Storage Toolkit — command reference
 
-The disk suite, in `~/mac-analyzers/storage-analyzer/`. **Everything that deletes files is dry-run / read-only by default** — nothing deletes until you add `--execute` (or `--apply`). (`tm-reclaim.sh` also looks first and acts only with `--apply`; it touches no files, only ephemeral local snapshots.)
+The disk suite, in `~/mac-analyzers/storage/`. **Everything that deletes files is dry-run / read-only by default** — nothing deletes until you add `--execute` (or `--apply`). (`tm-reclaim.sh` also looks first and acts only with `--apply`; it touches no files, only ephemeral local snapshots.)
 
 ```bash
-cd ~/mac-analyzers/storage-analyzer    # run the ./ commands below from here
+cd ~/mac-analyzers/storage    # run the ./ commands below from here
 ```
 
 | Script | Job | Default |
@@ -208,4 +208,4 @@ sudo tmutil thinlocalsnapshots / 999999999999 4     # raw one-liner equivalent
   To shrink the `Docker.raw` file itself: Docker Desktop → Troubleshoot → "Clean / Purge data".
 
 ---
-_Report output: `~/mac-analyzers/reports/storage/` · scripts: `~/mac-analyzers/storage-analyzer/`_
+_Report output: `~/mac-analyzers/reports/storage/` · scripts: `~/mac-analyzers/storage/`_

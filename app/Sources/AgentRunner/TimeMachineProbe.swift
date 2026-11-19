@@ -15,7 +15,7 @@ import Foundation
     var dir = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
     var script: URL?
     for _ in 0..<8 {
-        let candidate = dir.appending(path: "storage-analyzer/tm-reclaim.sh")
+        let candidate = dir.appending(path: "storage/tm-reclaim.sh")
         if fm.fileExists(atPath: candidate.path) { script = candidate; break }
         dir = dir.deletingLastPathComponent()
     }

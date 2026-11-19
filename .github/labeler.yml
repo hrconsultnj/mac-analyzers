@@ -2,19 +2,19 @@
 # Labels expected to exist: memory, storage, system, app-ui, engine, docs, ci
 memory:
   - changed-files:
-      - any-glob-to-any-file: ['memory-analyzer/**']
+      - any-glob-to-any-file: ['memory/**']
 storage:
   - changed-files:
-      - any-glob-to-any-file: ['storage-analyzer/**']
+      - any-glob-to-any-file: ['storage/**']
 system:
   - changed-files:
-      - any-glob-to-any-file: ['network-analyzer/**', 'lib/**', 'extras/**', '*.command']
+      - any-glob-to-any-file: ['network/**', 'lib/**', 'extras/**', '*.command']
 app-ui:
   - changed-files:
       - any-glob-to-any-file: ['app/**']
 engine:
   - changed-files:
-      - any-glob-to-any-file: ['memory-analyzer/**', 'storage-analyzer/**', 'network-analyzer/**', 'lib/**', 'tests/**']
+      - any-glob-to-any-file: ['memory/**', 'storage/**', 'network/**', 'lib/**', 'tests/**']
 docs:
   - changed-files:
       - any-glob-to-any-file: ['**/*.md', 'examples/**']

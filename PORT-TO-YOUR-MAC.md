@@ -7,9 +7,9 @@ port, but calibrate it, don't just install it.
 ## What this is
 
 Two sibling suites (the engine) + shared plumbing + the native app (the face):
-- `memory-analyzer/` — RAM report (`analyze.sh`), always-on spike guard, daily
+- `memory/` — RAM report (`analyze.sh`), always-on spike guard, daily
   orphan reaper, manual "free RAM now" reclaim. See its README.
-- `storage-analyzer/` — disk report, interactive deep clean, scheduled
+- `storage/` — disk report, interactive deep clean, scheduled
   auto-clean, Time Machine local-snapshot reclaim. See its README.
 - `lib/notify.sh` — the notifier every script sources: menu-bar app's CLI →
   `alerter` → plain `osascript` banner, whichever is present.
@@ -60,9 +60,9 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
    templates before installing if they collide with your user's hours.
 7. Dry-run everything once with your user watching (`auto-clean` scripts are
    dry-run by default; double-clicking any script opens an interactive menu),
-   THEN `./memory-analyzer/memory-manage-agents.sh install` and
-   `./storage-analyzer/storage-manage-agents.sh install`.
-8. Optional: `./storage-analyzer/storage-manage-agents.sh sudoers-install`
+   THEN `./memory/memory-manage-agents.sh install` and
+   `./storage/storage-manage-agents.sh install`.
+8. Optional: `./storage/storage-manage-agents.sh sudoers-install`
    (real terminal; asks for password) enables passwordless Time Machine
    snapshot thinning — read the sudoers file first; it's scoped to one exact
    command.
@@ -79,8 +79,8 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
     keychain has one (free with any Apple ID; keeps the permission identity
     stable across rebuilds), falls back to ad-hoc, and **installs the app to
     `/Applications`** — the repo `app/` copy is just the build artifact.
-    The build also copies `memory-analyzer/`, `storage-analyzer/`,
-    `network-analyzer/` and `lib/` into `Contents/Resources/engine/`, so the
+    The build also copies `memory/`, `storage/`,
+    `network/` and `lib/` into `Contents/Resources/engine/`, so the
     installed app carries its own engine. An existing checkout at
     `~/mac-analyzers` still wins when the engine scripts are there — that is
     the copy you edit — until the person moves it. Settings and reports

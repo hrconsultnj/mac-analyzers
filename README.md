@@ -139,8 +139,8 @@ is not. The app lives at `/Applications/Sparehold.app` like any Mac app
 (the copy under `app/` is just the build output and the script-only
 fallback); clicking its Dock icon opens the main window.
 
-Want to see your machine before installing anything? `./memory-analyzer/analyze.sh`
-and `./storage-analyzer/analyze.sh` are read-only reports — always safe.
+Want to see your machine before installing anything? `./memory/analyze.sh`
+and `./storage/analyze.sh` are read-only reports — always safe.
 
 **Using Claude Code (or another agent)?** Point it at `PORT-TO-YOUR-MAC.md` —
 it's written as instructions for an AI to calibrate thresholds, protect lists,
@@ -158,8 +158,8 @@ install only the background jobs:
 
 ```bash
 cd ~/mac-analyzers
-./memory-analyzer/memory-manage-agents.sh install    # memory guard + daily cleanup
-./storage-analyzer/storage-manage-agents.sh install  # scheduled disk cleanup
+./memory/memory-manage-agents.sh install    # memory guard + daily cleanup
+./storage/storage-manage-agents.sh install  # scheduled disk cleanup
 ```
 
 Notifications fall back to `alerter`
@@ -267,16 +267,16 @@ network requests the app makes:
 | | Tool | What it does | Touches anything? |
 |---|---|---|---|
 | 🖥️ | `app/` — **Sparehold** app | the product's face: a main window with Overview, Activity, Monitor, every storage cleanup you start as a preview you review first, system audits, Trends and Undo; a menu-bar panel with per-app Stop/Quit; actionable native notifications; settings, editable schedules and update channels | writes only its own marked block in `config.local.sh` (+ schedule edits into its own launchd plists); cleanups you start act only on what you approve; the scheduled jobs apply by themselves |
-| 🔍 | `memory-analyzer/analyze.sh` | "Why is RAM at N GB?" — Activity-Monitor-style breakdown, compressor/swap truth, per-app rollup, CPU/energy, diagnosis with verdicts | never — read-only report |
-| 🛡️ | `memory-analyzer/memory-guard.sh` | always-on listener: alerts on memory-pressure, kills a runaway dev process before the machine locks up. Meeting apps, browsers, editors are never touched | kills dev tooling only |
-| 🧹 | `memory-analyzer/memory-auto-clean.sh` | daily reaper: orphaned MCP/agent servers, dev servers forgotten since yesterday, stale headless browsers | previews by default; the scheduled daily job runs it with `--apply` |
-| 🔴 | `memory-analyzer/memory-reclaim.sh` | the "free my RAM **now**" button — reboot effect without rebooting; optionally ⌘Q's heavy apps gracefully | with `--apply` |
-| 💾 | `storage-analyzer/analyze.sh` | categorized disk report: caches, node_modules, Docker, per-app footprints, apps-by-last-used | never — read-only report |
-| 🗑️ | `storage-analyzer/cleanup.sh` + `storage-auto-clean.sh` | interactive deep clean + scheduled automation-safe sweep (protects active work) | previews by default; the scheduled daily and deep jobs run it with `--apply` |
-| ⏪ | `storage-analyzer/tm-reclaim.sh` | releases the Time Machine local snapshots that pin just-deleted blocks (the "I freed 40 GB but df didn't move" fix) | snapshots only |
-| 🔎 | `storage-analyzer/login-items-audit.sh` | finds login items / launch agents whose app was uninstalled — mechanically verified, two confidence classes | dry-run default |
-| 💡 | `storage-analyzer/spotlight-audit.sh` | Spotlight sanity: is the reindex expected or stuck, and which dev dirs (node_modules, build trees) is it wastefully indexing — fences them reversibly | dry-run default |
-| 🧺 | `storage-analyzer/temp-clean.sh` | what's really in /tmp, /var and your AI agents' folders (Claude Code, Codex, npx MCP servers): mounted disk images told apart from real usage, live sessions and open files protected, history sized but never touched | dry-run default · Trash, permanent opt-in |
+| 🔍 | `memory/analyze.sh` | "Why is RAM at N GB?" — Activity-Monitor-style breakdown, compressor/swap truth, per-app rollup, CPU/energy, diagnosis with verdicts | never — read-only report |
+| 🛡️ | `memory/memory-guard.sh` | always-on listener: alerts on memory-pressure, kills a runaway dev process before the machine locks up. Meeting apps, browsers, editors are never touched | kills dev tooling only |
+| 🧹 | `memory/memory-auto-clean.sh` | daily reaper: orphaned MCP/agent servers, dev servers forgotten since yesterday, stale headless browsers | previews by default; the scheduled daily job runs it with `--apply` |
+| 🔴 | `memory/memory-reclaim.sh` | the "free my RAM **now**" button — reboot effect without rebooting; optionally ⌘Q's heavy apps gracefully | with `--apply` |
+| 💾 | `storage/analyze.sh` | categorized disk report: caches, node_modules, Docker, per-app footprints, apps-by-last-used | never — read-only report |
+| 🗑️ | `storage/cleanup.sh` + `storage-auto-clean.sh` | interactive deep clean + scheduled automation-safe sweep (protects active work) | previews by default; the scheduled daily and deep jobs run it with `--apply` |
+| ⏪ | `storage/tm-reclaim.sh` | releases the Time Machine local snapshots that pin just-deleted blocks (the "I freed 40 GB but df didn't move" fix) | snapshots only |
+| 🔎 | `storage/login-items-audit.sh` | finds login items / launch agents whose app was uninstalled — mechanically verified, two confidence classes | dry-run default |
+| 💡 | `storage/spotlight-audit.sh` | Spotlight sanity: is the reindex expected or stuck, and which dev dirs (node_modules, build trees) is it wastefully indexing — fences them reversibly | dry-run default |
+| 🧺 | `storage/temp-clean.sh` | what's really in /tmp, /var and your AI agents' folders (Claude Code, Codex, npx MCP servers): mounted disk images told apart from real usage, live sessions and open files protected, history sized but never touched | dry-run default · Trash, permanent opt-in |
 
 Every script double-clicked in Finder opens an **interactive menu**
 (preview, then confirm). Flags skip the menu — that's how the launchd agents
@@ -289,8 +289,8 @@ Every run logs exactly how it was invoked.
 ```
 ~/sparehold/    or the existing ~/mac-analyzers/ checkout, until you move it
 ├── app/                       the Sparehold app — the face (below)
-├── memory-analyzer/           RAM suite + its launchd templates (own README)
-├── storage-analyzer/          disk suite + its launchd templates (own README)
+├── memory/           RAM suite + its launchd templates (own README)
+├── storage/          disk suite + its launchd templates (own README)
 ├── lib/notify.sh              shared notifier every script sources (below)
 ├── extras/swiftbar-plugin/    SwiftBar surface (sparehold.5m.sh) for script-only setups
 ├── config.example.sh          → copy to config.local.sh (gitignored)

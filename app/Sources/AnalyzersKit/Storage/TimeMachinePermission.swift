@@ -115,7 +115,7 @@ public enum TimeMachinePermission {
     /// is the one this copy of the suite really has (the clone, or the copy inside the app when there is no clone),
     /// quoted for a shell.
     public static func uninstallCommand(suiteRoot: URL = AnalyzersPaths.suiteRoot) -> String {
-        let script = suiteRoot.appending(path: "storage-analyzer/storage-manage-agents.sh").path
+        let script = suiteRoot.appending(path: "storage/storage-manage-agents.sh").path
         return "'" + script.replacingOccurrences(of: "'", with: "'\\''") + "' sudoers-uninstall"
     }
 

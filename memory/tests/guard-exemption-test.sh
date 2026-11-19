@@ -2,7 +2,7 @@
 # guard-exemption-test.sh — the memory guard's live-session exemption covers EVERY agent in lib/coding-agents.tsv, fails
 # closed when that list cannot be read, and honours what the rules engine writes for it (Never Close paths, matched as
 # plain text). Judged on a stand-in process table (a fake `ps`); it signals nothing except one `sleep` it starts itself.
-# Runs under bash and /bin/bash (3.2).   Usage: memory-analyzer/tests/guard-exemption-test.sh
+# Runs under bash and /bin/bash (3.2).   Usage: memory/tests/guard-exemption-test.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$HERE/../.."
@@ -13,8 +13,8 @@ fail=0
 check() { if [[ "$2" == "ok" ]]; then echo "PASS  $1"; else echo "FAIL  $1 ($2)"; fail=1; fi; }
 
 # the guard's own patterns, read from the script (never copied here)
-KILLABLE_RE="$(sed -n "s/^KILLABLE_RE='\(.*\)'$/\1/p" "$ROOT/memory-analyzer/memory-guard.sh")"
-PROTECT_RE="$(sed -n "s/^PROTECT_RE='\(.*\)'$/\1/p" "$ROOT/memory-analyzer/memory-guard.sh")"
+KILLABLE_RE="$(sed -n "s/^KILLABLE_RE='\(.*\)'$/\1/p" "$ROOT/memory/memory-guard.sh")"
+PROTECT_RE="$(sed -n "s/^PROTECT_RE='\(.*\)'$/\1/p" "$ROOT/memory/memory-guard.sh")"
 [[ -n "$KILLABLE_RE" && -n "$PROTECT_RE" ]] || { echo "FAIL  could not read the guard's patterns"; exit 1; }
 
 # a fake process table: ps axo pid=,args= / pid=,ppid= / pid=,rss=,args=
@@ -95,8 +95,8 @@ printf '# only comments\n' > "$TMP/lib2/coding-agents.tsv"
 check "a list that names no agent refuses to load" "$([[ $rc -ne 0 ]] && echo ok || echo "loaded")"
 
 # kill_proc fails closed: taken from the guard script itself, run against one sleep this test started
-eval "$(sed -n '/^kill_proc() {/,/^}/p' "$ROOT/memory-analyzer/memory-guard.sh")"
-eval "$(sed -n '/^short_name() {/,/^}/p' "$ROOT/memory-analyzer/memory-guard.sh")"
+eval "$(sed -n '/^kill_proc() {/,/^}/p' "$ROOT/memory/memory-guard.sh")"
+eval "$(sed -n '/^short_name() {/,/^}/p' "$ROOT/memory/memory-guard.sh")"
 LOGOUT="$TMP/log.txt"; : > "$LOGOUT"
 log() { echo "$*" >> "$LOGOUT"; }
 notify() { :; }
@@ -172,7 +172,7 @@ check "a line with a stray field, a carriage return, an unknown key or a path th
   "$([[ "$hostile" == "$without" ]] && echo ok || echo "candidates: $hostile (expected $without)")"
 
 # the numbers come from config.local.sh alone: a file that lowers the cap or switches a stop on loses
-eval "$(sed -n '/^read_fallback() {/,/^}/p' "$ROOT/memory-analyzer/memory-guard.sh")"
+eval "$(sed -n '/^read_fallback() {/,/^}/p' "$ROOT/memory/memory-guard.sh")"
 printf 'hardCapMB\t1\nhardCapStop\t1\npressureStop\t1\npause\t0\nneverClosePath\t/x\n' > "$TMP/tries.tsv"
 export FALLBACK_FILE="$TMP/tries.tsv" GUARD_SELECT_OK=1   # read by read_fallback, which is evaluated from the guard script
 HARD_CAP_MB=6144; HARDCAP_KILL=0; PRESSURE_KILL=0; FALLBACK_PAUSE=0
@@ -190,7 +190,7 @@ check "the guard reads back what the app wrote, and nothing for a missing key or
 
 # the cleanups honour the same file: memory-auto-clean.sh's own candidates() with the pids the file protects, and the helpers
 SNAP="$(printf '7100\t1\t700000\t3600\tnode /Users/x/a/server.js\n7101\t1\t700000\t3600\tnode /Users/x/b/app.js\n7102\t1\t700000\t3600\t/Users/x/bin/other --x node\n')"
-eval "$(sed -n '/^candidates() {/,/^}/p' "$ROOT/memory-analyzer/memory-auto-clean.sh")"
+eval "$(sed -n '/^candidates() {/,/^}/p' "$ROOT/memory/memory-auto-clean.sh")"
 NEVER_PIDS="$(echo "$SNAP" | guard_never_pids "$FB" 5 | tr '\n' ' ')"
 cleaned="$(candidates 'node' | pids)"
 check "the cleanup's candidate list leaves out what the Never Close list protects (by name and by path)" \
@@ -201,6 +201,6 @@ guard_is_never_closed "$TMP/none" "/Users/x/bin/other --run"; nofile=$?
 check "a single command line is checked the same way (the cleanups use it for a simulator and for what they quit)" \
   "$([[ $yes -eq 0 && $no -ne 0 && $nofile -ne 0 ]] && echo ok || echo "yes=$yes no=$no nofile=$nofile")"
 for script in memory-auto-clean.sh memory-reclaim.sh; do
-  check "$script reads the Never Close list" "$(grep -q 'guard-select.sh' "$ROOT/memory-analyzer/$script" && grep -q 'NEVER_FILE' "$ROOT/memory-analyzer/$script" && echo ok || echo "not wired")"
+  check "$script reads the Never Close list" "$(grep -q 'guard-select.sh' "$ROOT/memory/$script" && grep -q 'NEVER_FILE' "$ROOT/memory/$script" && echo ok || echo "not wired")"
 done
 exit "$fail"

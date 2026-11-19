@@ -19,7 +19,7 @@ through `config.local.sh` (never hardcoded).
   the person moves it. Never move or delete it. Engine root: `$SPAREHOLD_SUITE_DIR`,
   then `~/sparehold` when the engine scripts are there, then `~/mac-analyzers`
   when they are, then the bundle engine. The app BUNDLES the engine (`build.sh`
-  copies `memory-analyzer/`, `storage-analyzer/`, `network-analyzer/`, `lib/` into
+  copies `memory/`, `storage/`, `network/`, `lib/` into
   `Contents/Resources/engine/`). Config and reports are ALWAYS read from the
   data root, never from inside the bundle. `lib/paths.sh` is the shell copy of
   this rule.
@@ -91,7 +91,7 @@ through `config.local.sh` (never hardcoded).
   `upgrade.command` reports the count. Never set that variable to get your
   own change through.
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
-  output. The one automated suite is `memory-analyzer/tests/`; otherwise the
+  output. The one automated suite is `memory/tests/`; otherwise the
   dry-run IS the test. For the app:
   `cd app && swift build` (bundle assembly is `./app/build.sh` — Xcode 26.4 or later, no Xcode project; it
   signs with an Apple Development identity when present, ad-hoc fallback, and
@@ -271,7 +271,7 @@ through `config.local.sh` (never hardcoded).
   `agent-runner --probe-memory [--all]` prints the Monitor pane's memory
   census as text (where memory is + every process group with its total).
   The census is the ONE classifier: it gives every group its category AND its
-  kind (`CensusGroup.kind`, from `memory-analyzer/rules/kinds.json` through
+  kind (`CensusGroup.kind`, from `memory/rules/kinds.json` through
   `AnalyzersKit/Memory/Kinds/`); the app's screens read that field and never
   classify a process a second time. The guard script does not read it yet: it keeps its own `KILLABLE_RE` until the rules engine
   (phase B) replaces that, and its live-session exemption must first cover every
@@ -331,7 +331,7 @@ through `config.local.sh` (never hardcoded).
   --probe-activity [--real]` prints the sections, `--probe-activity-ids` proves
   ids survive a log growing, `--probe-failures` prints the failure sentences, and
   `--probe-pid-recycle` proves a stop refuses a recycled pid.
-- **Memory Guard's rules are data, and in this version they only watch.** `memory-analyzer/rules/{kinds,plan,protected}.json`
+- **Memory Guard's rules are data, and in this version they only watch.** `memory/rules/{kinds,plan,protected}.json`
   are read by `AnalyzersKit/Rules/` (`GuardRules`: the plan plus the person's sparse `~/mac-analyzers/rules.local.json`;
   an unknown field makes that rule, or the whole local file, unusable and says so). `RulesEngine` looks at the census once a
   minute while the app runs and `RuleEvaluator` says what each rule would do; the only thing written is a would-have row
@@ -339,7 +339,7 @@ through `config.local.sh` (never hardcoded).
   one the guard SCRIPT already carries out (the dev-tooling cap and the critical-pressure step), and the engine writes no
   row for it. The script reads from the app only `.guard-fallback.tsv` (`lib/guard-select.sh`: the Never Close names and paths and a
   pause, which can only NARROW what it does; the cap and the stop switches are `config.local.sh`'s alone) and its own `KILLABLE_RE`, and spares
-  every live coding session of `lib/coding-agents.tsv` (`memory-analyzer/tests/guard-exemption-test.sh`). Acting rules and
+  every live coding session of `lib/coding-agents.tsv` (`memory/tests/guard-exemption-test.sh`). Acting rules and
   CONTRIBUTING's invariant text are a later phase. `agent-runner --check-rules`, `--compare-legacy [--real]` (the script's
   set against the engine's: the engine's must be inside) and `--rules-once` show it; `--probe-rules-fixture` judges it.
 - **One period, one loader.** A screen with a period (Trends, Memory Guard) takes it from the shared

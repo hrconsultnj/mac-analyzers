@@ -29,7 +29,7 @@ on:
       - '**.sh'
       - '**.command'
       - 'tests/**'
-      - 'memory-analyzer/tests/**'
+      - 'memory/tests/**'
       - '.github/workflows/mac.yml'
   workflow_dispatch:
 

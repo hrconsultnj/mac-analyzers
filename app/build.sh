@@ -133,7 +133,11 @@ BUILD_VERSION="$("$BIN/AgentRunner" --build-version "$(tr -d ' \n' < ../VERSION)
   "$BUILD_TREE_FLAG" "${BUILD_COMMIT:--}" "${BUILD_TAG:--}" "${BUILD_BETA:--}" 2>/dev/null || true)"
 [[ -n "$BUILD_VERSION" ]] && /usr/libexec/PlistBuddy -c "Add :MABuildVersion string $BUILD_VERSION" "$APP/Contents/Info.plist" 2>/dev/null || true
 
-[[ -f AppIcon.icns ]] || ./make-icon.sh
+# The assembled icon is gitignored. An AppIcon.icns left from the old mark
+# must not win over the Keep artwork in Assets/.
+if [[ ! -f AppIcon.icns || Assets/AppIcon/icon-Default-512.png -nt AppIcon.icns ]]; then
+  ./make-icon.sh
+fi
 cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 # Bundled changelog: the newest 20 entries of the repo's CHANGELOG.md — the
@@ -161,7 +165,7 @@ mkdir -p "$ENGINE"
 # git would accept. A plain recursive copy also swept up whatever happened to
 # sit in those folders on the build machine — editor and assistant session
 # state, local planning notes, .DS_Store — and shipped it inside the app.
-for dir in memory-analyzer storage-analyzer network-analyzer lib; do
+for dir in memory storage network lib; do
   [[ -d "../$dir" ]] || continue
   if git -C .. rev-parse --git-dir >/dev/null 2>&1; then
     (cd .. && git ls-files -z --cached --others --exclude-standard -- "$dir") \
@@ -184,7 +188,10 @@ cp ../upgrade.command "$ENGINE/upgrade.command"
 chmod +x "$ENGINE/upgrade.command"
 find "$ENGINE" -name '*.sh' -exec chmod +x {} +
 
-[[ -f MenuBarIcon.png ]] || ./make-menubar-icon.sh
+# Same rule as the app icon: a MenuBarIcon.png from the old mark is stale.
+if [[ ! -f MenuBarIcon.png || Assets/MenuBar/SpareholdTemplate-18@2x.png -nt MenuBarIcon.png ]]; then
+  ./make-menubar-icon.sh
+fi
 cp MenuBarIcon.png "$APP/Contents/Resources/MenuBarIcon.png"
 
 # prefer a real Apple Development identity (Team ID → BTM attribution, stable

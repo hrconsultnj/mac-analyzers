@@ -50,7 +50,7 @@ describe() {
     lint)      echo "shellcheck on every tracked *.sh and *.command: any warning or error fails the check" ;;
     secrets)   echo "curated secret-pattern sweep over every tracked file" ;;
     changelog) echo "CHANGELOG.md has a '## Next' section or an entry for VERSION, and that entry reads as release notes" ;;
-    tests)     echo "every executable under memory-analyzer/tests/ and tests/ (macOS only; skipped, visibly, elsewhere)" ;;
+    tests)     echo "every executable under memory/tests/ and tests/ (macOS only; skipped, visibly, elsewhere)" ;;
     workflows) echo "actionlint on .github/workflows (optional: skipped, visibly, when not installed)" ;;
     strays)    echo "no untracked Package.swift, .build* or zero-byte file at the repository root; no source file hidden by .gitignore" ;;
     spi)       echo "@_spi(TestSupport) appears only in AnalyzersKit (its declarations), AgentRunner and SnapshotRunner" ;;
@@ -225,7 +225,7 @@ check_tests() {
       n=$((n + 1))
     fi
   done <<EOF
-$(git ls-files -- 'memory-analyzer/tests/*' 'tests/*')
+$(git ls-files -- 'memory/tests/*' 'tests/*')
 EOF
   if [ "$bad" -gt 0 ]; then DETAIL="$bad of $n test scripts failed"; return 1; fi
   if [ "$n" -eq 0 ] && [ "$unrun" -gt 0 ]; then
@@ -282,7 +282,7 @@ check_strays() {
   local ignored
   ignored="$(git ls-files --others --ignored --exclude-standard -- \
       app/Sources app/Package.swift scripts lib tests \
-      memory-analyzer storage-analyzer network-analyzer 2>/dev/null \
+      memory storage network 2>/dev/null \
     | grep -v -E '(^|/)\.[^/]+/' \
     | grep -E '\.(swift|sh|c|h|m|json|plist|strings|entitlements|command)$' || true)"
   if [ -n "$ignored" ]; then

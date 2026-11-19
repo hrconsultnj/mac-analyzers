@@ -1,6 +1,6 @@
 import Foundation
 
-/// `memory-analyzer/rules/plan.json` read and checked. A rule with a field this version does not know, a value out of its
+/// `memory/rules/plan.json` read and checked. A rule with a field this version does not know, a value out of its
 /// range, or a selector that targets no kind, is kept with its `problem` and can't run; the rest of the plan still works.
 /// A file that is not a plan at all (not JSON, schema other than 1) has no rules and says why in `problems`.
 public struct GuardPlan: Sendable {

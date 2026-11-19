@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # memory-manage-agents.sh — install / uninstall / status for the memory-guard +
-# daily RAM auto-clean LaunchAgents. Mirrors storage-analyzer/storage-manage-agents.sh.
+# daily RAM auto-clean LaunchAgents. Mirrors storage/storage-manage-agents.sh.
 #
 #   ./memory-manage-agents.sh install     # validate, copy to ~/Library/LaunchAgents, load
 #   ./memory-manage-agents.sh uninstall   # unload + remove
@@ -77,8 +77,8 @@ case "$cmd" in
         echo "not set  ${a}"
       fi
     done
-    if pgrep -qf "memory-analyzer/memory-guard.sh"; then
-      echo "guard    RUNNING (pid $(pgrep -f 'memory-analyzer/memory-guard.sh' | head -1))$([[ -e "$PAUSE_FLAG" ]] && echo ' — PAUSED via flag')"
+    if pgrep -qf "memory/memory-guard.sh"; then
+      echo "guard    RUNNING (pid $(pgrep -f 'memory/memory-guard.sh' | head -1))$([[ -e "$PAUSE_FLAG" ]] && echo ' — PAUSED via flag')"
     else
       echo "guard    NOT running"
     fi

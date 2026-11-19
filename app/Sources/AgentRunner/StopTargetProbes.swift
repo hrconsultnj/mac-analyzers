@@ -454,7 +454,7 @@ func relaunchDetached(_ args: [String]) -> Never {
         ("zsh", true), ("-zsh", true), ("/bin/zsh -f -i", true),
         ("bash --noprofile --init-file /tmp/x.rc -i", true), ("bash -l", true),
         ("bash -lc some command", false), ("zsh -c source x", false), ("sh -c echo hi", false),
-        ("bash /Users/x/mac-analyzers/memory-analyzer/memory-guard.sh", false), ("node server.js", false)]
+        ("bash /Users/x/mac-analyzers/memory/memory-guard.sh", false), ("node server.js", false)]
     let wrong = table.filter { GuardControl.isInteractiveShell(command: $0.0) != $0.1 }
     f.check("what counts as a terminal session", wrong.isEmpty,
             wrong.isEmpty ? "\(table.count) command lines classified as intended" : "wrong: \(wrong.map(\.0))")

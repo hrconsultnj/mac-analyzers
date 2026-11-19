@@ -162,7 +162,7 @@ func probeUndoFixture(_ args: [String]) {
         fm.createFile(atPath: path, contents: Data(text.utf8))
     }
     let stamp = DateFormatter(); stamp.dateFormat = "yyyy-MM-dd HH:mm:ss"; stamp.locale = Locale(identifier: "en_US_POSIX")
-    func banner(_ date: Date) -> String { "storage-analyzer | mode=fixture | APPLY | \(stamp.string(from: date)) | fixture" }
+    func banner(_ date: Date) -> String { "storage | mode=fixture | APPLY | \(stamp.string(from: date)) | fixture" }
     func ledger(_ name: String, _ lines: [String]) -> URL {
         let url = root.appending(path: name); write(lines.joined(separator: "\n") + "\n", to: url); return url
     }

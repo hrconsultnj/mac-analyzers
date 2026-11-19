@@ -11,6 +11,6 @@
 # written into a file root reads. Each account has its own file, /etc/sudoers.d/tmutil-thin-<user ID>.
 #
 # Install:  Mac Analyzers > Storage > Time Machine > Allow…   (the macOS administrator prompt), or in Terminal, as
-#           yourself:  ./storage-analyzer/storage-manage-agents.sh sudoers-install   (validates with visudo first)
-# Remove:   Time Machine > Options > Remove Permission…, or  ./storage-analyzer/storage-manage-agents.sh sudoers-uninstall
+#           yourself:  ./storage/storage-manage-agents.sh sudoers-install   (validates with visudo first)
+# Remove:   Time Machine > Options > Remove Permission…, or  ./storage/storage-manage-agents.sh sudoers-uninstall
 __UID__ ALL=(root) NOPASSWD: /usr/bin/tmutil thinlocalsnapshots / 999999999999 4

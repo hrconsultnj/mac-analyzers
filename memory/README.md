@@ -1,6 +1,6 @@
-# memory-analyzer
+# memory
 
-RAM suite for macOS — the sibling of `../storage-analyzer`, but for memory.
+RAM suite for macOS — the sibling of `../storage`, but for memory.
 Scripts and launchd labels are prefixed `memory-` (`com.sparehold.*`) so
 Login Items / background tasks in System Settings are identifiable at a
 glance; the plists also set `AssociatedBundleIdentifiers` =
@@ -77,7 +77,7 @@ live coding session**: an agent in `lib/coding-agents.tsv` (Claude Code, Codex, 
 CLI, Copilot, OpenCode, …) and everything it started, its MCP servers and dev servers
 included (`lib/live-sessions.sh`, the same list the app and the cleaners read). If that
 list cannot be read the guard stops nothing and logs `KILL-SKIPPED`; it still alerts.
-`memory-analyzer/tests/guard-exemption-test.sh` proves it for every agent in the list.
+`memory/tests/guard-exemption-test.sh` proves it for every agent in the list.
 
 **What the app tells the scripts:** `~/mac-analyzers/reports/memory/.guard-fallback.tsv`,
 plain `key<TAB>value` lines the app writes whenever your Never Close list changes

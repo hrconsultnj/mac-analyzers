@@ -251,8 +251,8 @@ echo "→ moving the background jobs to Sparehold…"
 # the new one is not there yet, boots out the old label, deletes that plist,
 # and loads the new one. It does not boot out the new agent afterwards.
 agents_ok=1
-./memory-analyzer/memory-manage-agents.sh install || agents_ok=0
-./storage-analyzer/storage-manage-agents.sh install || agents_ok=0
+./memory/memory-manage-agents.sh install || agents_ok=0
+./storage/storage-manage-agents.sh install || agents_ok=0
 
 echo "→ checking the new app…"
 probe_bin="/Applications/Sparehold.app/Contents/MacOS/agent-runner"

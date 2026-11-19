@@ -13,7 +13,7 @@ import Foundation
     var dir = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
     var script: URL?
     for _ in 0..<8 {
-        let candidate = dir.appending(path: "storage-analyzer/cleanup.sh")
+        let candidate = dir.appending(path: "storage/cleanup.sh")
         if fm.fileExists(atPath: candidate.path) { script = candidate; break }
         dir = dir.deletingLastPathComponent()
     }
@@ -28,8 +28,8 @@ import Foundation
 
     let root = ProbeScratch.folder("ma-probe-recordings-engine").resolvingSymlinksInPath()
     let tree = root.appending(path: "tree")
-    for folder in ["storage-analyzer", "lib"] { try? fm.createDirectory(at: tree.appending(path: folder), withIntermediateDirectories: true) }
-    try? fm.copyItem(at: script, to: tree.appending(path: "storage-analyzer/cleanup.sh"))
+    for folder in ["storage", "lib"] { try? fm.createDirectory(at: tree.appending(path: folder), withIntermediateDirectories: true) }
+    try? fm.copyItem(at: script, to: tree.appending(path: "storage/cleanup.sh"))
     if let libs = try? fm.contentsOfDirectory(at: repo.appending(path: "lib"), includingPropertiesForKeys: nil) {
         for lib in libs { try? fm.copyItem(at: lib, to: tree.appending(path: "lib/\(lib.lastPathComponent)")) }
     }
@@ -80,7 +80,7 @@ import Foundation
     func run(_ shell: String, _ arguments: [String], extra: [String: String] = [:]) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: shell)
-        process.arguments = [tree.appending(path: "storage-analyzer/cleanup.sh").path] + arguments
+        process.arguments = [tree.appending(path: "storage/cleanup.sh").path] + arguments
         var environment = ["HOME": home.path, "PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
         for (key, value) in extra { environment[key] = value }
         process.environment = environment

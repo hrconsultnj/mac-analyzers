@@ -16,7 +16,7 @@ import Foundation
 
 private func useCheckout(_ args: [String]) -> URL {
     let root = probeRoot(args)
-    KindCatalog.use(file: root.appending(path: "memory-analyzer/rules/kinds.json"))
+    KindCatalog.use(file: root.appending(path: "memory/rules/kinds.json"))
     CodingAgentHosts.useList(at: root.appending(path: "lib/coding-agents.tsv"))
     return root
 }
@@ -33,7 +33,7 @@ private func pad(_ text: String, _ width: Int) -> String {
 
 func probeCheckRules(_ args: [String]) -> Never {
     let root = useCheckout(args)
-    let dir = option(args, "--dir").map { URL(fileURLWithPath: $0) } ?? root.appending(path: "memory-analyzer/rules")
+    let dir = option(args, "--dir").map { URL(fileURLWithPath: $0) } ?? root.appending(path: "memory/rules")
     GuardRules.use(directory: dir, local: option(args, "--local").map { URL(fileURLWithPath: $0) } ?? dir.appending(path: "rules.local.json"))
     let rules = GuardRules.load()
     var failed = false
@@ -61,7 +61,7 @@ func probeCheckRules(_ args: [String]) -> Never {
 
 func probeRulesOnce(_ args: [String]) -> Never {
     _ = useCheckout(args)
-    GuardRules.use(directory: probeRoot(args).appending(path: "memory-analyzer/rules"), local: nil)
+    GuardRules.use(directory: probeRoot(args).appending(path: "memory/rules"), local: nil)
     let rules = GuardRules.load()
     let groups = MemoryCensus.take().groups
     var state = RulesState()
@@ -86,7 +86,7 @@ func probeRulesOnce(_ args: [String]) -> Never {
 // MARK: - --compare-legacy
 
 private func guardPatterns(_ root: URL) -> (kill: String, protect: String)? {
-    guard let text = try? String(contentsOf: root.appending(path: "memory-analyzer/memory-guard.sh"), encoding: .utf8) else { return nil }
+    guard let text = try? String(contentsOf: root.appending(path: "memory/memory-guard.sh"), encoding: .utf8) else { return nil }
     func value(_ name: String) -> String? {
         text.split(whereSeparator: \.isNewline).first { $0.hasPrefix("\(name)='") }.map { String($0.dropFirst(name.count + 2).dropLast()) }
     }
@@ -175,7 +175,7 @@ private func compare(_ table: [TableRow], root: URL, rules: GuardRules) -> (line
 func probeCompareLegacy(_ args: [String]) -> Never {
     let root = useCheckout(args)
     // the plan that ships, with none of the person's own changes: the comparison is about the guard script's rule and the plan's
-    GuardRules.use(directory: root.appending(path: "memory-analyzer/rules"), local: root.appending(path: "memory-analyzer/rules/no-local-changes.json"))
+    GuardRules.use(directory: root.appending(path: "memory/rules"), local: root.appending(path: "memory/rules/no-local-changes.json"))
     let rules = GuardRules.load()
     var table = readTable(recordedTable)
     var heading = "recorded table (\(table.count) processes)"
@@ -197,7 +197,7 @@ func probeCompareLegacy(_ args: [String]) -> Never {
 
 func probeRulesFixture(_ args: [String]) -> Never {
     let root = useCheckout(args)
-    let rulesDir = root.appending(path: "memory-analyzer/rules")
+    let rulesDir = root.appending(path: "memory/rules")
     var failed = false
     func check(_ name: String, _ ok: Bool, _ detail: String = "") {
         print("  \(ok ? "ok  " : "FAIL") \(name)\(detail.isEmpty ? "" : ": \(detail)")")

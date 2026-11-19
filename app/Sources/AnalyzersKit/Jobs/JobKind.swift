@@ -111,16 +111,16 @@ public enum JobKind: String, Codable, CaseIterable, Identifiable, Sendable {
         case .janitor: return [AnalyzersPaths.janitorScript]
         case .tempClean, .eject: return [AnalyzersPaths.tempCleanScript]
         case .spotlight: return [AnalyzersPaths.spotlightAuditScript]
-        case .loginItems: return [root.appending(path: "storage-analyzer/login-items-audit.sh")]
-        case .tmReclaim: return [root.appending(path: "storage-analyzer/tm-reclaim.sh")]
-        case .unusedApps, .recordings: return [root.appending(path: "storage-analyzer/cleanup.sh")]
+        case .loginItems: return [root.appending(path: "storage/login-items-audit.sh")]
+        case .tmReclaim: return [root.appending(path: "storage/tm-reclaim.sh")]
+        case .unusedApps, .recordings: return [root.appending(path: "storage/cleanup.sh")]
         case .networkSnapshot: return [AnalyzersPaths.networkScript]
         case .memoryReport: return [AnalyzersPaths.memoryAnalyzeScript]
         case .storageReport: return [AnalyzersPaths.storageAnalyzeScript]
         case .installAgents, .uninstallAgents:
-            return [root.appending(path: "memory-analyzer/memory-manage-agents.sh"),
-                    root.appending(path: "storage-analyzer/storage-manage-agents.sh")]
-        case .sudoersInstall: return [root.appending(path: "storage-analyzer/storage-manage-agents.sh")]
+            return [root.appending(path: "memory/memory-manage-agents.sh"),
+                    root.appending(path: "storage/storage-manage-agents.sh")]
+        case .sudoersInstall: return [root.appending(path: "storage/storage-manage-agents.sh")]
         }
     }
 

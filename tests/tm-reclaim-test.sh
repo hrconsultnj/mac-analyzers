@@ -12,7 +12,7 @@
 # Usage: tests/tm-reclaim-test.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$HERE/../storage-analyzer/tm-reclaim.sh"
+SCRIPT="$HERE/../storage/tm-reclaim.sh"
 [[ -f "$SCRIPT" ]] || { echo "SKIP: script not found"; exit 0; }
 
 TMP="$(mktemp -d)"

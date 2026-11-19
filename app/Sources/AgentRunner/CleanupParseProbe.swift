@@ -15,7 +15,7 @@ import Foundation
     var dir = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent()
     var script: URL?
     for _ in 0..<8 {
-        let candidate = dir.appending(path: "storage-analyzer/cleanup.sh")
+        let candidate = dir.appending(path: "storage/cleanup.sh")
         if fm.fileExists(atPath: candidate.path) { script = candidate; break }
         dir = dir.deletingLastPathComponent()
     }
@@ -25,8 +25,8 @@ import Foundation
 
     let root = ProbeScratch.folder("ma-probe-cleanup-parse")
     let home = root.appending(path: "home"), tree = root.appending(path: "tree")
-    for folder in ["storage-analyzer", "lib"] { try? fm.createDirectory(at: tree.appending(path: folder), withIntermediateDirectories: true) }
-    try? fm.copyItem(at: script, to: tree.appending(path: "storage-analyzer/cleanup.sh"))
+    for folder in ["storage", "lib"] { try? fm.createDirectory(at: tree.appending(path: folder), withIntermediateDirectories: true) }
+    try? fm.copyItem(at: script, to: tree.appending(path: "storage/cleanup.sh"))
     if let libs = try? fm.contentsOfDirectory(at: repo.appending(path: "lib"), includingPropertiesForKeys: nil) {
         for lib in libs { try? fm.copyItem(at: lib, to: tree.appending(path: "lib/\(lib.lastPathComponent)")) }
     }
@@ -62,7 +62,7 @@ import Foundation
     func run(_ arguments: [String]) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [tree.appending(path: "storage-analyzer/cleanup.sh").path] + arguments
+        process.arguments = [tree.appending(path: "storage/cleanup.sh").path] + arguments
         process.environment = ["HOME": home.path, "PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
         let pipe = Pipe()
         process.standardOutput = pipe; process.standardError = pipe
@@ -129,7 +129,7 @@ import Foundation
     func runFound(_ arguments: [String]) -> (text: String, status: Int32) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [tree.appending(path: "storage-analyzer/cleanup.sh").path] + arguments
+        process.arguments = [tree.appending(path: "storage/cleanup.sh").path] + arguments
         process.environment = ["HOME": found.appending(path: "home").path, "PATH": "\(stubs.path):/usr/bin:/bin:/usr/sbin:/sbin"]
         let pipe = Pipe(); process.standardOutput = pipe; process.standardError = pipe
         do { try process.run() } catch { return ("", -1) }

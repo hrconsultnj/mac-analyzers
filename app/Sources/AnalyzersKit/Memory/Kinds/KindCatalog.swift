@@ -2,7 +2,7 @@ import Foundation
 import os
 import Synchronization
 
-/// The kinds of process, read from `memory-analyzer/rules/kinds.json` (bundled with the engine, updated with the app).
+/// The kinds of process, read from `memory/rules/kinds.json` (bundled with the engine, updated with the app).
 ///
 /// This file is the loading and the checking. How a process is matched to a kind is in
 /// `KindCatalog+Recognition.swift`; what the system supplies that the rules ask about (the apps that open web
@@ -201,9 +201,9 @@ public final class KindCatalog: Sendable {
     /// The checkout's file, else the copy bundled in the app: a clone older than this app (it has no `rules/` yet)
     /// must not leave every process unclassified.
     private static var defaultFile: URL {
-        let checkout = AnalyzersPaths.suiteRoot.appending(path: "memory-analyzer/rules/kinds.json")
+        let checkout = AnalyzersPaths.suiteRoot.appending(path: "memory/rules/kinds.json")
         if FileManager.default.fileExists(atPath: checkout.path) { return checkout }
-        let bundled = Bundle.main.resourceURL?.appending(path: "engine/memory-analyzer/rules/kinds.json")
+        let bundled = Bundle.main.resourceURL?.appending(path: "engine/memory/rules/kinds.json")
         if let bundled, FileManager.default.fileExists(atPath: bundled.path) { return bundled }
         return checkout
     }

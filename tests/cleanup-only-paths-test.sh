@@ -9,7 +9,7 @@
 # Usage: tests/cleanup-only-paths-test.sh
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="$HERE/../storage-analyzer/cleanup.sh"
+SCRIPT="$HERE/../storage/cleanup.sh"
 [[ -f "$SCRIPT" ]] || { echo "SKIP: script not found"; exit 0; }
 
 TMP="$(mktemp -d)"
@@ -18,8 +18,8 @@ fail=0
 check() { if [[ "$2" == "ok" ]]; then echo "PASS  $1"; else echo "FAIL  $1 ($2)"; fail=1; fi; }
 
 make_tree() { # dir: a copy of the script that cannot reach the person's config
-  mkdir -p "$1/storage-analyzer" "$1/lib"
-  cp "$SCRIPT" "$1/storage-analyzer/cleanup.sh"
+  mkdir -p "$1/storage" "$1/lib"
+  cp "$SCRIPT" "$1/storage/cleanup.sh"
   cp "$HERE"/../lib/*.sh "$1/lib/"
 }
 make_home() { # dir: two fixture apps with a footprint each, two old recording folders
@@ -44,7 +44,7 @@ for sh in bash /bin/bash; do
   tree="$TMP/tree-$k"; home="$TMP/home-$k"
   make_tree "$tree"; make_home "$home"; write_config "$tree" "$home"
   one="$home/Applications/FixtureOne.app"; two="$home/Applications/FixtureTwo.app"
-  cleanup() { HOME="$home" "$sh" "$tree/storage-analyzer/cleanup.sh" "$@" 2>&1; }
+  cleanup() { HOME="$home" "$sh" "$tree/storage/cleanup.sh" "$@" 2>&1; }
 
   # (a) a preview is a block with the standard banner, in the log of its own, and removes nothing
   out="$(cleanup --stale-apps)"
@@ -86,7 +86,7 @@ STUB
   printf '#!/bin/bash\nexit 1\n' > "$disc/stubs/pgrep"        # nothing is running, whatever the real machine has
   chmod +x "$disc/stubs/mdls" "$disc/stubs/mdutil" "$disc/stubs/pgrep"
   dtree="$TMP/dtree-$k"; make_tree "$dtree"; printf 'ANALYZERS_APP_DIRS="%s/apps"\nANALYZERS_LAUNCH_DIRS="%s/launch"\nANALYZERS_LOGIN_INVENTORY="%s/login-items.tsv"\n' "$disc" "$disc" "$disc" > "$dtree/config.local.sh"
-  dscript="$dtree/storage-analyzer/cleanup.sh"
+  dscript="$dtree/storage/cleanup.sh"
   dcleanup() { PATH="$disc/stubs:$PATH" HOME="$disc/home" "$sh" "$dscript" "$@" 2>&1; }
   out="$(dcleanup --stale-apps)"
   rowfor() { sed -n "/^### APP: $1 /,/^### APP:/p" <<<"$out"; }
@@ -138,7 +138,7 @@ STUB
   out="$(cleanup --stale-apps --only-paths "$TMP/nope-$k")"; rc=$?
   check "[$sh] a list file that does not exist: exit 78, nothing touched" "$([[ $rc -eq 78 && -d "$one" && "$out" == *"not found"* ]] && echo ok || echo "exit $rc")"
   nolib="$TMP/nolib-$k"; make_tree "$nolib"; write_config "$nolib" "$home"; rm "$nolib/lib/approved-list.sh"
-  out="$(HOME="$home" "$sh" "$nolib/storage-analyzer/cleanup.sh" --stale-apps --only-paths "$TMP/list-$k" 2>&1)"; rc=$?
+  out="$(HOME="$home" "$sh" "$nolib/storage/cleanup.sh" --stale-apps --only-paths "$TMP/list-$k" 2>&1)"; rc=$?
   check "[$sh] a missing lib/approved-list.sh: exit 78 with the reason" "$([[ $rc -eq 78 && "$out" == *"approved-list.sh is missing"* ]] && echo ok || echo "exit $rc")"
 
   # (d) a real run, on these fixtures only: the listed app and its footprint go, the unlisted one stays

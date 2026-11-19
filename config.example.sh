@@ -77,13 +77,13 @@
 # worktrees, one a terminal/agent session sits in. 0 = off.
 #ANALYZERS_WORKTREE_IDLE_DAYS=0
 
-# Downloads janitor (storage-analyzer/downloads-janitor.sh). Everything it
+# Downloads janitor (storage/downloads-janitor.sh). Everything it
 # moves goes to the Trash, never deleted, and is listed for review first.
 # JANITOR_DOWNLOADS_AGE_DAYS=30      # top-level ~/Downloads items untouched this long
 # JANITOR_SCREENSHOTS_AGE_DAYS=14    # screenshot FILES older than this (folders never move)
 # JANITOR_KEEP_PATTERNS="*.dmg:Tax *"  # colon-separated globs that are never touched
 
-# Temp & AI-agent cleaner (storage-analyzer/temp-clean.sh). Dry run by default;
+# Temp & AI-agent cleaner (storage/temp-clean.sh). Dry run by default;
 # --apply moves to the Trash, --apply --permanent deletes. Nothing open, live,
 # recent, or someone else's is ever touched.
 # TEMP_CLEAN_MIN_AGE_HOURS=24        # /tmp, $TMPDIR and /var/tmp entries idle this long

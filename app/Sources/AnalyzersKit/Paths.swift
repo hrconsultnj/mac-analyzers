@@ -145,7 +145,7 @@ public enum AnalyzersPaths {
 
     private static func hasEngine(_ directory: URL) -> Bool {
         FileManager.default.isExecutableFile(
-            atPath: directory.appending(path: "memory-analyzer/memory-guard.sh").path)
+            atPath: directory.appending(path: "memory/memory-guard.sh").path)
     }
 
     /// Newest guard-critical forensics dump, if any (they live in dated subdirs).

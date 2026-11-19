@@ -18,7 +18,7 @@ sparehold_has_data() {
 
 sparehold_has_engine() {
   local dir="$1"
-  [[ -x "$dir/memory-analyzer/memory-guard.sh" ]]
+  [[ -x "$dir/memory/memory-guard.sh" ]]
 }
 
 sparehold_user_root() {

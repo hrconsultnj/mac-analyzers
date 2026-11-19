@@ -122,9 +122,9 @@ public struct GuardRules: Sendable {
 
     private static func rulesFile(_ name: String) -> URL {
         if let directory = source.withLock({ $0.directory }) { return directory.appending(path: name) }
-        let checkout = AnalyzersPaths.suiteRoot.appending(path: "memory-analyzer/rules/\(name)")
+        let checkout = AnalyzersPaths.suiteRoot.appending(path: "memory/rules/\(name)")
         if FileManager.default.fileExists(atPath: checkout.path) { return checkout }
-        let bundled = Bundle.main.resourceURL?.appending(path: "engine/memory-analyzer/rules/\(name)")
+        let bundled = Bundle.main.resourceURL?.appending(path: "engine/memory/rules/\(name)")
         if let bundled, FileManager.default.fileExists(atPath: bundled.path) { return bundled }
         return checkout
     }

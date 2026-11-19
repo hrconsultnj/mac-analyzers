@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # login-items-audit-test.sh — regression test for vendor_has_app in
-# storage-analyzer/login-items-audit.sh. Uses only stand-in folders under a
+# storage/login-items-audit.sh. Uses only stand-in folders under a
 # temp directory: HOME is pointed there, mdfind is stubbed, and both the
 # helper-tools folder and /Applications are swapped for temp ones, so the
 # result never depends on what is installed on the machine running it.
@@ -27,7 +27,7 @@
 # Usage: tests/login-items-audit-test.sh [path-to-login-items-audit.sh]
 # (no `set -u`: the function under test must fail by its checks, not by aborting the run)
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="${1:-$HERE/../storage-analyzer/login-items-audit.sh}"
+SCRIPT="${1:-$HERE/../storage/login-items-audit.sh}"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -256,10 +256,10 @@ check "the unreadable inventory is still a version 2 file (the other rows are re
 
 # ---- the launch inventory library is missing: the audit stops, it does not guess (exit 78, before anything is read or changed) ----
 fresh
-NOLIB="$TMP/nolib"; mkdir -p "$NOLIB/storage-analyzer" "$NOLIB/lib"
-cp "$SCRIPT" "$NOLIB/storage-analyzer/login-items-audit.sh"
+NOLIB="$TMP/nolib"; mkdir -p "$NOLIB/storage" "$NOLIB/lib"
+cp "$SCRIPT" "$NOLIB/storage/login-items-audit.sh"
 for f in "$HERE"/../lib/*.sh; do [[ "${f##*/}" == launch-items.sh ]] || cp "$f" "$NOLIB/lib/"; done
-out="$(HOME="$TMP/h2" PATH="$STUBS:$PATH" "$BASH" "$NOLIB/storage-analyzer/login-items-audit.sh" --apply 2>&1)"; rc=$?
+out="$(HOME="$TMP/h2" PATH="$STUBS:$PATH" "$BASH" "$NOLIB/storage/login-items-audit.sh" --apply 2>&1)"; rc=$?
 check "a missing lib/launch-items.sh stops the audit (exit 78)" 78 "$rc"
 grep -q 'FATAL: lib/launch-items.sh is missing' <<<"$out"; check "and says which file is missing" 0 $?
 exists "$A"; ra=$?; exists "$B"; rb=$?

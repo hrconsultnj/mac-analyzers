@@ -69,7 +69,7 @@ import Foundation
 
     // ---- the command the "earlier permission" bar shows ----
     let plain = TimeMachinePermission.uninstallCommand(suiteRoot: URL(fileURLWithPath: "/Users/someone/mac-analyzers"))
-    expect(plain == "'/Users/someone/mac-analyzers/storage-analyzer/storage-manage-agents.sh' sudoers-uninstall", "the bar's command is the suite's own sudoers-uninstall, with the real path: \(plain)")
+    expect(plain == "'/Users/someone/mac-analyzers/storage/storage-manage-agents.sh' sudoers-uninstall", "the bar's command is the suite's own sudoers-uninstall, with the real path: \(plain)")
     let odd = TimeMachinePermission.uninstallCommand(suiteRoot: URL(fileURLWithPath: "/Applications/Sparehold's.app/Contents/Resources/engine"))
     expect(odd.hasPrefix("'/Applications/Sparehold'\\''s.app/") && odd.hasSuffix("storage-manage-agents.sh' sudoers-uninstall"), "a path with a space and a quote is quoted for a shell: \(odd)")
     expect(!plain.contains("sudo rm") && !Names.TimeMachine.earlierPermissionDetail.contains("sudo rm") && Names.TimeMachine.earlierPermissionDetail.contains("if it is this account's"),
@@ -106,7 +106,7 @@ import Foundation
     expect(Names.TimeMachine.removePermission == "Remove Permission…", "the button has the Time Machine screen's own name")
 
     // ---- the template and the engine ----
-    let template = (try? String(contentsOf: repo.appending(path: "storage-analyzer/sudoers.d/tmutil-thin"), encoding: .utf8)) ?? ""
+    let template = (try? String(contentsOf: repo.appending(path: "storage/sudoers.d/tmutil-thin"), encoding: .utf8)) ?? ""
     let active = template.split(separator: "\n").map(String.init).filter { !$0.hasPrefix("#") && !$0.trimmingCharacters(in: .whitespaces).isEmpty }
     let templateTail = active.first.map { $0.split(separator: " ", maxSplits: 1).dropFirst().joined() } ?? ""
     let templateHead = active.first.map { String($0.split(separator: " ").first ?? "") } ?? ""
@@ -116,7 +116,7 @@ import Foundation
     expect(active.count == 1 && templateTail == TimeMachinePermission.ruleTail, "the repository's template says, after its first field, the app's constant word for word: \(active)")
     expect(!(active.first ?? "").contains("*"), "the rule has no wildcard: the arguments must match exactly")
     for name in ["tm-reclaim.sh", "storage-auto-clean.sh"] {
-        let text = (try? String(contentsOf: repo.appending(path: "storage-analyzer/\(name)"), encoding: .utf8)) ?? ""
+        let text = (try? String(contentsOf: repo.appending(path: "storage/\(name)"), encoding: .utf8)) ?? ""
         let uses = text.components(separatedBy: "\n").filter { $0.contains("/usr/bin/tmutil thinlocalsnapshots") && !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
         expect(!uses.isEmpty && uses.allSatisfy { $0.contains(TimeMachinePermission.thinCommand) }, "\(name) runs exactly the allowed command line: \(uses)")
     }

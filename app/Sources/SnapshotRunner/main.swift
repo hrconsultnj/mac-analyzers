@@ -109,10 +109,10 @@ let changelog = ProcessInfo.processInfo.environment["MA_CHANGELOG"].map { URL(fi
 do {
     var checkout = URL(fileURLWithPath: #filePath)
     for _ in 0..<4 { checkout.deleteLastPathComponent() }
-    let rules = checkout.appending(path: "memory-analyzer/rules/kinds.json")
+    let rules = checkout.appending(path: "memory/rules/kinds.json")
     if FileManager.default.fileExists(atPath: rules.path) { KindCatalog.use(file: rules) }
     // and the plan the same way: a render of work in progress shows that work's rules (the person's own changes are read as ever)
-    let planFolder = checkout.appending(path: "memory-analyzer/rules")
+    let planFolder = checkout.appending(path: "memory/rules")
     if FileManager.default.fileExists(atPath: planFolder.appending(path: "plan.json").path) {
         GuardRules.use(directory: planFolder, local: nil)   // (nil: the person's file, found when it is read, after --home)
     }
