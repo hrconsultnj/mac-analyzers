@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 @_spi(TestSupport) import AnalyzersKit
 
@@ -83,11 +84,7 @@ final class Fixtures {
 
     /// Starts `shellCommand` detached; `tag` appears in the resulting command line.
     func detach(_ shellCommand: String, tag: String, settled: Bool = true) async -> Int32? {
-        let wrapper = Process()
-        wrapper.executableURL = URL(fileURLWithPath: "/bin/bash")
-        wrapper.arguments = ["-c", "( \(shellCommand) ) </dev/null >/dev/null 2>&1 &"]
-        try? wrapper.run()
-        wrapper.waitUntilExit()
+        runDisclaimedBash(["-c", "( \(shellCommand) ) </dev/null >/dev/null 2>&1 &"])
         guard let pid = await find(tag, execed: settled) else { return nil }
         started.append(pid)
         if settled { await settle(pid) }
@@ -152,6 +149,33 @@ final class Fixtures {
     }
 }
 
+/// Runs `/bin/bash` with `responsibility_spawnattrs_setdisclaim` set so any process it launches
+/// in the background becomes responsible for itself instead of inheriting the IDE or terminal app
+/// that ran the probe (`CensusBuilder.owner(of:)` queries `Responsibility.pid`).
+private func runDisclaimedBash(_ arguments: [String], environment: [String: String]? = nil) {
+    typealias SetDisclaim = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, Int32) -> Int32
+    var attr: posix_spawnattr_t? = nil
+    posix_spawnattr_init(&attr)
+    defer { posix_spawnattr_destroy(&attr) }
+    if let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "responsibility_spawnattrs_setdisclaim") {
+        let disclaim = unsafeBitCast(sym, to: SetDisclaim.self)
+        _ = disclaim(&attr, 1)
+    }
+    let argvStrings = ["/bin/bash"] + arguments
+    let cArgs: [UnsafeMutablePointer<CChar>?] = argvStrings.map { strdup($0) } + [nil]
+    defer { for ptr in cArgs { if let ptr { free(ptr) } } }
+
+    let envPairs: [String] = (environment ?? ProcessInfo.processInfo.environment).map { "\($0.key)=\($0.value)" }
+    let cEnv: [UnsafeMutablePointer<CChar>?] = envPairs.map { strdup($0) } + [nil]
+    defer { for ptr in cEnv { if let ptr { free(ptr) } } }
+
+    var pid: pid_t = 0
+    if posix_spawn(&pid, "/bin/bash", nil, &attr, cArgs, cEnv) == 0 {
+        var status: Int32 = 0
+        _ = waitpid(pid, &status, 0)
+    }
+}
+
 /// Runs this probe again with its parent set to launchd, so no case that signals runs from a
 /// shell that is a child of a coding session, and prints what it prints. Never returns.
 func relaunchDetached(_ args: [String]) -> Never {
@@ -160,12 +184,10 @@ func relaunchDetached(_ args: [String]) -> Never {
     let status = scratch.appending(path: "status.txt").path
     FileManager.default.createFile(atPath: out, contents: Data())
     let exe = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.path
-    let wrapper = Process()
-    wrapper.executableURL = URL(fileURLWithPath: "/bin/bash")
-    wrapper.arguments = ["-c", "( \"$0\" \"$@\" --detached-child </dev/null >\"$OUT\" 2>&1; echo $? >\"$STATUS\" ) &", exe] + args
-    wrapper.environment = ["OUT": out, "STATUS": status, "PATH": "/usr/bin:/bin"]
-    try? wrapper.run()
-    wrapper.waitUntilExit()
+    runDisclaimedBash(
+        ["-c", "( \"$0\" \"$@\" --detached-child </dev/null >\"$OUT\" 2>&1; echo $? >\"$STATUS\" ) &", exe] + args,
+        environment: ["OUT": out, "STATUS": status, "PATH": "/usr/bin:/bin"]
+    )
     var printed = 0
     for _ in 0..<2400 {   // up to four minutes
         if let data = FileManager.default.contents(atPath: out), data.count > printed {
