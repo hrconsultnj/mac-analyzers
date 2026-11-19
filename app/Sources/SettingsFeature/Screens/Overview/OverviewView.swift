@@ -32,6 +32,8 @@ struct OverviewView: View {
     @State var panel: MenuPanelModel?
     /// Why Scan Everything did not start, in words.
     @State var scanNotice: String?
+    /// Scan Everything left Login & Startup Items out because System Events is not allowed yet.
+    @State var loginItemsLeftOut = false
 
     /// Everything the screen says, rebuilt from the stores each time they change.
     var model: OverviewModel {

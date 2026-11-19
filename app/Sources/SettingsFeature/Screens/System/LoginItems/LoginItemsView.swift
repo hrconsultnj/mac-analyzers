@@ -168,6 +168,11 @@ struct LoginItemsView: View {
                         Label("No Audit Yet", systemImage: "person.crop.circle.badge.questionmark")
                     } description: {
                         Text(model.permission.sentence ?? "Run the audit to see everything that starts by itself.")
+                    } actions: {
+                        Button("Audit") { model.startAudit(in: store) }
+                        if model.permission == .denied, let url = URL(string: SetupPane.automation.link) {
+                            Button(Names.Setup.openSystemSettings) { NSWorkspace.shared.open(url) }
+                        }
                     }
                 }
             } else if groups.isEmpty {
