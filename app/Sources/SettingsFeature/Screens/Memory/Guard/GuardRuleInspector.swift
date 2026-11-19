@@ -8,14 +8,15 @@ struct GuardRuleInspector: View {
     let selected: GuardCategoryTab.Row?
 
     var body: some View {
-        Form {
-            if let selected {
+        if let selected {
+            Form {
                 if let resolved = selected.rule { ruleSections(resolved, kind: selected.kind) } else { kindSections(selected.kind) }
-            } else {
-                Section { Text("Choose a kind or a rule to see what Memory Guard does about it.").foregroundStyle(.secondary) }
             }
+            .formStyle(.grouped)
+        } else {
+            EmptyState("Select a Rule", systemImage: "shield.lefthalf.filled",
+                       description: Text("Choose a kind or a rule to see what Memory Guard does about it."))
         }
-        .formStyle(.grouped)
     }
 
     @ViewBuilder private func kindSections(_ kind: ProcessKind) -> some View {

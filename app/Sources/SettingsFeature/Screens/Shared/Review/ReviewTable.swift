@@ -199,7 +199,7 @@ struct ReviewTable: View {
                 Button(Names.Review.selectNone) { session.selectNone() }
                     .disabled(!session.hasTicked)
                 Button(applyTitle) { confirmation == nil ? apply() : openConfirmation() }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.borderedProminent)
                     .disabled(offer.map(applyDisabled) ?? true)
             }
         }
