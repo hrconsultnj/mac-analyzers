@@ -10,7 +10,7 @@ Older entries below keep the name the app had when they shipped.
 
 ## Next
 
-- Mac Analyzers is now Sparehold. Your settings, reports, and the times your cleanups run stay where they are. A folder named mac-analyzers in your home folder remains the copy Sparehold uses until you move it. Nothing in this update moves or deletes that folder. The first time you open Sparehold, macOS may ask you to allow Full Disk Access again, because the app has a new identity. Drag Sparehold into the list, or use the add button, on the Setup screen. <!-- wn: open=setup icon=arrow.triangle.2.circlepath title="Mac Analyzers Is Now Sparehold" -->
+- Mac Analyzers is now Sparehold. Your settings, reports, and the times your cleanups run stay with you. When you update, a folder named mac-analyzers in your home folder is renamed to sparehold, and the old name is left as a link, so anything still using it keeps working. The memory, storage, and network folders inside it are brought along the same way, and an older path to those scripts keeps working. The first time you open Sparehold, macOS may ask you to allow Full Disk Access again, because the app has a new identity. Drag Sparehold into the list, or use the add button, on the Setup screen. <!-- wn: open=setup icon=arrow.triangle.2.circlepath title="Mac Analyzers Is Now Sparehold" -->
 - Check for Updates looks for Sparehold. It still tells you when you are up to date, when a newer version is listed, and when the update list cannot be reached. <!-- wn: open=update icon=arrow.down.circle title="Updates Follow Sparehold" -->
 
 ## v2.73.1 — Install the release, the beta, or this clone

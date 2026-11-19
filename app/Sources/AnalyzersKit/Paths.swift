@@ -4,7 +4,9 @@ import Synchronization
 /// Canonical file locations shared by every module. The same chain as
 /// `lib/paths.sh`: an explicit data directory, then `~/sparehold` when it
 /// already holds data, then an existing `~/mac-analyzers`, then Application
-/// Support. Nothing here moves or deletes `~/mac-analyzers`.
+/// Support. This resolver never moves or deletes a folder. The update moves
+/// a checkout at `~/mac-analyzers` to `~/sparehold` and leaves the old name
+/// as a link.
 ///
 /// This file is the paths only. Next to it:
 ///   Navigation/NotifyChannel.swift   the notification names the app and CLI share

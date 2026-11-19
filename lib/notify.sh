@@ -32,7 +32,8 @@ notify() {  # title, message, [sound], [log path], [subtitle], [pid]
   # preferred: the menu-bar app's bundled CLI (posts to the persistent app —
   # live click handling; a pid adds a "Stop Process" notification button).
   # /Applications is the canonical install; the checkout is the fallback.
-  # An existing ~/mac-analyzers checkout still holds the engine until moved.
+  # An update moves a checkout at ~/mac-analyzers to ~/sparehold and leaves
+  # the old name as a link. Until that runs, the old path still holds the engine.
   notify_repo() {
     if [[ -n "${ANALYZERS_ROOT:-}" ]]; then
       printf '%s\n' "$ANALYZERS_ROOT"

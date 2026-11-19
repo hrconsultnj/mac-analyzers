@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # upgrade.command — double-click me in Finder to update Sparehold.
-# For anyone who already cloned the repo: pulls the latest release, rebuilds
-# the app, refreshes the background agents, and relaunches the menu-bar app.
-# Safe to run any time; your config.local.sh is never touched.
+# For anyone who already cloned the repo: pulls the latest release, moves an
+# old checkout onto the Sparehold folders, rebuilds the app, refreshes the
+# background agents, and relaunches the menu-bar app.
+# Safe to run any time; your config.local.sh is never edited.
 set -euo pipefail
 # Run a copy of this file, from the clone. Installing a release or a beta checks the
 # file out from that version; the copy that started is what has to quit the app and
@@ -184,6 +185,15 @@ elif [[ "$pull" -eq 1 ]]; then
   git pull --ff-only
 else
   echo "→ building this clone as it is (nothing is pulled)…"
+fi
+
+# The checkout is the new layout now. An older folder name is renamed and the
+# old name is left as a link, so a schedule or a script that still uses it
+# keeps working. The version probe's scratch clone has no copy of this file.
+# shellcheck source=lib/layout-migrate.sh
+if [[ -f lib/layout-migrate.sh ]]; then
+  source lib/layout-migrate.sh
+  sparehold_migrate_layout
 fi
 
 echo "→ rebuilding the app (this takes a minute)…"

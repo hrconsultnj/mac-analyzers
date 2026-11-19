@@ -10,8 +10,8 @@
 # <swiftbar.hideAbout>true</swiftbar.hideAbout>
 # <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
 
-# Same data root as lib/paths.sh. An existing ~/mac-analyzers checkout stays
-# the data until you move it. Nothing here moves or deletes that folder.
+# Same data root as lib/paths.sh. This plugin only reads it. An update moves
+# a checkout at ~/mac-analyzers to ~/sparehold and leaves the old name as a link.
 if [[ -n "${SPAREHOLD_DATA_DIR:-}" ]]; then
   ROOT="$SPAREHOLD_DATA_DIR"
 elif [[ -n "${SPAREHOLD_DIR:-}" ]]; then

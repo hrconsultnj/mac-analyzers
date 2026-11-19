@@ -5,8 +5,8 @@ Scripts and launchd labels are prefixed `memory-` (`com.sparehold.*`) so
 Login Items / background tasks in System Settings are identifiable at a
 glance; the plists also set `AssociatedBundleIdentifiers` =
 `com.sparehold.app`, so with the Sparehold menu-bar app installed the
-agents group under the app's identity there. An existing `~/mac-analyzers`
-checkout remains the data and the engine until you move it.
+agents group under the app's identity there. An update moves a checkout at
+`~/mac-analyzers` to `~/sparehold` and leaves the old name as a link.
 
 | Tool | Role | Mutates? |
 |------|------|----------|
