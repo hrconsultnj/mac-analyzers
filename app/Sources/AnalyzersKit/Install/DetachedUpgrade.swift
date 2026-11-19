@@ -15,7 +15,15 @@ public enum DetachedUpgrade {
     /// The new process's pid, or nil when the script is missing or could not be started.
     /// `beta` moves the clone to the newest published beta. `rebuildOnly` builds the clone as it is.
     public static func launch(rebuildOnly: Bool, beta: Bool) -> pid_t? {
-        let script = AnalyzersPaths.suiteRoot.appending(path: "upgrade.command")
+        // The copy this app was built with. The clone's own file can be an older
+        // commit (an install detaches HEAD), and that file would not know --release.
+        let bundled = Bundle.main.resourceURL?.appending(path: "engine/upgrade.command")
+        let script: URL
+        if let bundled, FileManager.default.isExecutableFile(atPath: bundled.path) {
+            script = bundled
+        } else {
+            script = AnalyzersPaths.suiteRoot.appending(path: "upgrade.command")
+        }
         guard FileManager.default.isExecutableFile(atPath: script.path) else { return nil }
         let log = logURL
         try? FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -44,7 +52,9 @@ public enum DetachedUpgrade {
         } else {
             arguments.append("--release")
         }
-        let environment = EngineProcess.engineEnvironment().map { "\($0.key)=\($0.value)" }.sorted()
+        var environment = EngineProcess.engineEnvironment().map { "\($0.key)=\($0.value)" }
+        environment.append("MA_UPGRADE_ROOT=\(AnalyzersPaths.suiteRoot.path)")
+        environment.sort()
         return spawn(path: script.path, arguments: arguments, environment: environment, actions: &actions, attr: &attr)
     }
 

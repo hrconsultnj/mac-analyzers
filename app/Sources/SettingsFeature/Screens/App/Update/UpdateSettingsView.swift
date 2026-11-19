@@ -26,18 +26,6 @@ struct UpdateSettingsView: View {
     private var installed: String { updates.installed }
     private var latest: String? { updates.latest }
     private var checking: Bool { updates.phase == .checking }
-    private var updateAvailable: Bool { updates.isAvailable }
-
-    private var installTitle: String {
-        switch updates.channel {
-        case .releases:
-            updates.latest.map { "Install \(BuildInfo.label(forVersion: $0))" } ?? Names.Update.installUpdate
-        case .beta:
-            updates.betaTarget.map { "Install \(BuildInfo.label(forVersion: $0))" } ?? Names.Channel.installBeta
-        case .thisCopy:
-            Names.Channel.rebuild
-        }
-    }
 
     /// Releases this copy already contains. A newer published version is an update, not a What's New card.
     private var installedNotes: [ReleaseNote] {
@@ -64,7 +52,7 @@ struct UpdateSettingsView: View {
         ScrollViewReader { proxy in
         Form {
             Section {
-                UpdateStatusCard(updates: updates, installTitle: installTitle)
+                UpdateStatusCard(updates: updates, installTitle: updates.installTitle)
                 if let held = heldNote {
                     HeldNotesRow(note: held)
                 }

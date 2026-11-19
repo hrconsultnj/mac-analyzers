@@ -1,19 +1,13 @@
 import AppKit
-import SwiftUI
 import AnalyzersKit
 
-/// "Check for Updates…", the command in the app menu and in Help: the app's ONE update state looks now, and the answer is
-/// one of three things a person sees:
-/// - up to date: the system's alert, "You're up to date!";
-/// - something newer: the update window (the notes of every version in between; Skip This Version, Remind Me Later,
-///   Install Update, which runs the same install path as the Updates screen's button and still asks first);
-/// - GitHub could not be reached: an alert that says so.
-/// On This Copy a newer clone is a rebuild, not a version: its own alert.
+/// "Check for Updates…", the command in the app menu and in Help. It installs the channel that is picked:
+/// the latest release, the latest beta, or a rebuild of Development. When that is already what is running,
+/// it says so. When GitHub cannot be reached and there is nothing to install, it says so.
 @MainActor
 public final class UpdateCoordinator {
     public static let shared = UpdateCoordinator()
     private weak var updates: UpdateState?
-    private var window: NSWindow?
 
     /// The app hands over its one update state when its menu-bar label starts.
     public func attach(_ state: UpdateState) { updates = state }
@@ -28,42 +22,16 @@ public final class UpdateCoordinator {
 
     private func present(for updates: UpdateState) async {
         NSApp.activate()
-        if updates.reachedGitHub == false {
+        if updates.reachedGitHub == false, !updates.offersInstall {
             UpdateAlerts.unreachable().runModal()
             return
         }
-        if let offered = updates.offered {
-            let notes = await updates.notesForOffered()
-            show(offered: offered, installed: updates.build.label, notes: notes, updates: updates)
-            return
-        }
-        if updates.channel == .thisCopy, updates.isAvailable {
-            let alert = UpdateAlerts.cloneNewer(rebuildTitle: Names.Channel.rebuild)
-            if alert.runModal() == .alertFirstButtonReturn { updates.requestInstall() }
+        // The channel that is picked is what gets installed: the release, the beta, or Development.
+        if updates.offersInstall {
+            updates.requestInstall()
             return
         }
         UpdateAlerts.upToDate(updates: updates).runModal()
-    }
-
-    private func show(offered: UpdateState.Offered, installed: String, notes: [ReleaseNote], updates: UpdateState) {
-        window?.close()
-        let view = UpdateAvailableView(
-            offered: offered.label, installed: installed, notes: notes,
-            skip: { [weak self] in UpdateChoices.skip(offered.version); self?.close() },
-            remindLater: { [weak self] in UpdateChoices.remindLater(); self?.close() },
-            install: { [weak self] in self?.close(); updates.requestInstall() })
-        let panel = NSWindow(contentViewController: NSHostingController(rootView: view))
-        panel.title = Names.Update.windowTitle
-        panel.styleMask = [.titled, .closable]
-        panel.isReleasedWhenClosed = false
-        panel.center()
-        panel.makeKeyAndOrderFront(nil)
-        window = panel
-    }
-
-    private func close() {
-        window?.close()
-        window = nil
     }
 }
 

@@ -14,10 +14,10 @@ extension MenuContentView {
             } label: {
                 Label("Open \(Names.app)", systemImage: "macwindow")
             }
-            if let title = updates.availableTitle {
-                Button(title) { updates.requestInstall() }
+            if updates.offersInstall {
+                Button(updates.installTitle) { updates.requestInstall() }
                     .buttonStyle(.borderedProminent)
-                    .help("Updates in Mac Analyzers, then relaunches. Settings are kept")
+                    .help("Installs the channel you picked, then quits and opens the new copy. Settings are kept")
             } else {
                 Text(updates.build.shortVersionText)
                     .font(.caption)

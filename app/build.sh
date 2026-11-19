@@ -168,6 +168,10 @@ for dir in memory-analyzer storage-analyzer network-analyzer lib; do
 done
 cp ../config.example.sh "$ENGINE/" 2>/dev/null || true
 cp ../VERSION "$ENGINE/" 2>/dev/null || true
+# The updater the app runs. The clone's own copy can be an older commit after a
+# channel install detaches HEAD; this is the one this build knows.
+cp ../upgrade.command "$ENGINE/upgrade.command"
+chmod +x "$ENGINE/upgrade.command"
 find "$ENGINE" -name '*.sh' -exec chmod +x {} +
 
 [[ -f MenuBarIcon.png ]] || ./make-menubar-icon.sh

@@ -165,7 +165,19 @@ public final class UpdateState {
             if build.isBeta, build.version == betaTarget { return false }
             return true
         case .thisCopy:
-            return isAvailable
+            return hasClone
+        }
+    }
+
+    /// The Install button for the channel in use: the release, the beta, or a rebuild of Development.
+    public var installTitle: String {
+        switch channel {
+        case .releases:
+            latest.map { "Install \(BuildInfo.label(forVersion: $0))" } ?? Names.Update.installUpdate
+        case .beta:
+            betaTarget.map { "Install \(BuildInfo.label(forVersion: $0))" } ?? Names.Channel.installBeta
+        case .thisCopy:
+            Names.Channel.rebuild
         }
     }
 
@@ -445,9 +457,15 @@ public final class UpdateState {
                     let finalText = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
                     let finalLines = finalText.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
                     self?.installLines = Array(finalLines.suffix(12)).filter { !$0.isEmpty }
-                    // Exited, and this app is still here: it did not get as far as replacing this process.
+                    // Exited, and this process is still the one that started the install.
+                    // A clean finish quits and opens the new copy, the same way Restart does.
+                    // Opening from the script while this process is alive does not replace it.
                     let clean = waited == pid && (status & 0x7f) == 0 && ((status >> 8) & 0xff) == 0
-                    if !clean { self?.installFailed = true }
+                    if clean {
+                        GuardControl.restartApp()
+                        return
+                    }
+                    self?.installFailed = true
                     self?.phase = .idle
                     return
                 }

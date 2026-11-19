@@ -4,7 +4,23 @@
 # the app, refreshes the background agents, and relaunches the menu-bar app.
 # Safe to run any time; your config.local.sh is never touched.
 set -euo pipefail
-cd "$(dirname "$0")"
+# Run a copy of this file, from the clone. Installing a release or a beta checks the
+# file out from that version; the copy that started is what has to quit the app and
+# open it again. MA_UPGRADE_ROOT is the clone when the app runs the copy it was built with.
+if [[ -n "${MA_UPGRADE_ROOT:-}" ]]; then
+  root="$MA_UPGRADE_ROOT"
+else
+  root="$(cd "$(dirname "$0")" && pwd)"
+fi
+if [[ "${MA_UPGRADE_COPY:-}" != 1 ]]; then
+  copy="$(mktemp -t mac-analyzers-upgrade)"
+  cp "$0" "$copy"
+  chmod +x "$copy"
+  export MA_UPGRADE_COPY=1
+  export MA_UPGRADE_ROOT="$root"
+  exec "${BASH:-/bin/bash}" "$copy" "$@"
+fi
+cd "$MA_UPGRADE_ROOT"
 
 # --no-pull: rebuild from this clone as it is (rebuild.command), for work that is not committed yet
 # --beta: move this clone forward to the newest published beta (beta.command). With --switch, check that
@@ -29,6 +45,10 @@ done
 
 # A dirty tree is never thrown away. Checking out another version leaves the branch pointers where they are.
 dirty() { [[ -n "$(git status --porcelain 2>/dev/null || true)" ]]; }
+# The process name is what Launch Services records. Match that and the executable path.
+app_running() {
+  pgrep -x MacAnalyzersApp >/dev/null 2>&1 || pgrep -f '/MacAnalyzers.app/Contents/MacOS/MacAnalyzersApp' >/dev/null 2>&1
+}
 move_to() {
   local target="$1" label="$2" here
   here="$(git rev-parse HEAD)"
@@ -195,25 +215,39 @@ agents_ok=1
 ./storage-analyzer/storage-manage-agents.sh install || agents_ok=0
 
 echo "→ relaunching the menu-bar app…"
-# Ask the app to quit the way a person would (so it can offer to stop or finish a
-# running cleanup and record it), wait a bounded time, and only then end it.
-if pgrep -x MacAnalyzersApp >/dev/null 2>&1; then
-  # Wait only if the request got through: when macOS refuses to let Terminal
-  # ask (the Automation permission), waiting a minute would achieve nothing.
-  if osascript -e 'tell application id "com.mac-analyzers.app" to quit' >/dev/null 2>&1; then
+# Quit, then wait until that process is gone, then open. Opening while the old
+# process is still alive only brings it forward, so the new build never starts
+# and the menu bar's Restart is the only way to see it.
+if app_running; then
+  osascript -e 'tell application id "com.mac-analyzers.app" to quit' >/dev/null 2>&1 || true
+  waited=0
+  while app_running && [[ $waited -lt 8 ]]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if app_running; then
+    pkill -TERM -x MacAnalyzersApp >/dev/null 2>&1 || true
+    pkill -TERM -f '/MacAnalyzers.app/Contents/MacOS/MacAnalyzersApp' >/dev/null 2>&1 || true
     waited=0
-    while pgrep -x MacAnalyzersApp >/dev/null 2>&1 && [[ $waited -lt 60 ]]; do
+    while app_running && [[ $waited -lt 5 ]]; do
       sleep 1
       waited=$((waited + 1))
     done
   fi
-  pkill -x MacAnalyzersApp 2>/dev/null || true
+  if app_running; then
+    pkill -KILL -x MacAnalyzersApp >/dev/null 2>&1 || true
+    pkill -KILL -f '/MacAnalyzers.app/Contents/MacOS/MacAnalyzersApp' >/dev/null 2>&1 || true
+    waited=0
+    while app_running && [[ $waited -lt 5 ]]; do
+      sleep 1
+      waited=$((waited + 1))
+    done
+  fi
 fi
-sleep 1
 if [[ -d /Applications/MacAnalyzers.app ]]; then
   open -g /Applications/MacAnalyzers.app
 else
-  open -g app/MacAnalyzers.app
+  open -g "$MA_UPGRADE_ROOT/app/MacAnalyzers.app"
 fi
 
 # What is running now, by the name the app gives it (2.72.1 Beta, Dev · 8e2c9b0), not VERSION's number
