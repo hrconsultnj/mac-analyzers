@@ -50,6 +50,13 @@ public final class JobStore {
     @_spi(TestSupport) @ObservationIgnored public var scheduleReader: (String) -> (script: String, arguments: [String])? =
         { ScheduleKit.scriptAndArguments(for: $0) }
 
+    /// The jobs the last `enqueueBatch` queued, oldest first. Kept here, not in a screen, because the screen that
+    /// started them can close and open again while they run.
+    public private(set) var batch: [Job] = []
+
+    /// Some of the last batch is still waiting or running.
+    public var batchIsActive: Bool { batch.contains { !$0.state.isFinished } }
+
     /// Previews and applies a person has dismissed (Discard, New preview, Try
     /// again). A screen never takes a dismissed job back when it reappears.
     public private(set) var dismissed: Set<UUID> = []
@@ -184,6 +191,20 @@ public final class JobStore {
         let (resolved, problem) = resolvedSchedule(request, trigger: trigger)
         guard let resolved else { return rejected(request, trigger: trigger, reason: problem ?? "Not allowed.") }
         return add(resolved, trigger: trigger)
+    }
+
+    /// Queues `requests` as one batch, in order, each through `enqueue` and so under the same rules. Nothing is
+    /// queued, and nothing is returned, while an earlier batch still has work waiting or running.
+    @discardableResult
+    public func enqueueBatch(_ requests: [JobRequest], trigger: JobTrigger) -> [Job] {
+        guard !batchIsActive else { return [] }
+        batch = requests.map { enqueue($0, trigger: trigger) }
+        return batch
+    }
+
+    /// Cancels the batch's jobs that have not started. The one that is running is left to finish.
+    public func cancelRestOfBatch() {
+        for job in batch where job.state.isQueued { job.cancel() }
     }
 
     /// The only way to build a cleaner apply: from a finished preview, with the

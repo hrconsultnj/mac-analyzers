@@ -217,6 +217,10 @@ if args.first == "--probe-disk-runway" {
 if args.first == "--probe-tm" {
     await probeTimeMachine()
 }
+// `--probe-scan-plan` proves what Overview's Scan Everything queues and how its batch behaves. See ScanPlanProbe.swift.
+if args.first == "--probe-scan-plan" {
+    await probeScanPlan()
+}
 if args.first == "--probe-recording-sources" {
     await probeRecordingSources()
 }

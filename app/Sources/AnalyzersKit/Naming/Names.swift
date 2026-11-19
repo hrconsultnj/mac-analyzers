@@ -337,6 +337,12 @@ public enum Names {
         public static let cancel = "Cancel"
     }
 
+    /// Overview's Scan Everything button and the batch it starts.
+    public enum Overview {
+        public static let scanEverything = "Scan Everything"
+        public static let cancelTheRest = "Cancel the Rest"
+    }
+
     /// The Welcome flow: its window, steps and buttons.
     public enum Welcome {
         public static let windowTitle = "Welcome to Mac Analyzers"
@@ -956,6 +962,7 @@ public enum Names {
                  StorageTab.diskImages, StorageTab.packageManagers, StorageTab.xcodeSimulators,
                  StorageTab.docker, StorageTab.toolCaches].map { ("Storage tab", $0) }
         rows += [Prune.pnpm, Prune.npm, Prune.brew, Prune.simulators, Prune.docker].map { ("Prune", $0) }
+        rows += [Overview.scanEverything, Overview.cancelTheRest].map { ("Overview", $0) }
         rows += [Welcome.windowTitle, Welcome.newInThisVersion, Welcome.stepWelcome, Welcome.stepBackground, Welcome.stepGuard,
                  Welcome.stepNotifications, Welcome.stepFullDiskAccess, Welcome.stepTimeMachine, Welcome.stepDone, Welcome.next,
                  Welcome.back, Welcome.setUpLater, Welcome.notNow, Welcome.turnOn, Welcome.openMacAnalyzers,
