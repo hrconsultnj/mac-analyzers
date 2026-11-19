@@ -1,13 +1,15 @@
 import AppKit
+import Darwin
 import Foundation
 import Observation
 
 /// Where the app stands against the latest release, as one observable value
 /// every surface reads: the Updates screen, the status item and the menu footer.
 ///
-/// State and API only. Today `install()` hands the work to `upgrade.command`
-/// in Terminal, exactly as the Install buttons always did; the in-app updater
-/// replaces what is behind `install()` without changing what the screens call.
+/// State and API only. `install()` runs `upgrade.command` in the background and the Updates
+/// screen shows its lines. A downloaded copy, which has no clone to run the script on, opens
+/// the latest release on GitHub. Sparkle replaces that download path later; the screens keep
+/// calling `install()`.
 /// The once-per-version notification stays with the update watcher in
 /// `NotifierKit`, so a release is announced once, not once per reader.
 @MainActor @Observable
@@ -16,7 +18,7 @@ public final class UpdateState {
     public enum Phase: Equatable, Sendable {
         case idle
         case checking
-        /// `install()` was called; the upgrade runs in Terminal and relaunches the app.
+        /// `install()` was called. The upgrade runs in the background and relaunches the app.
         case installing
     }
 
@@ -34,6 +36,10 @@ public final class UpdateState {
     }
     /// When the last check answered, for "Checked 4 min ago".
     public private(set) var checkedAt: Date?
+    /// The latest lines of an update that was started from this launch. Empty once a later check replaces them.
+    public private(set) var installLines: [String] = []
+    /// The update process ended and this app is still running, so it did not get as far as relaunching.
+    public private(set) var installFailed = false
 
     public let installed: String
     /// How far this copy is from the release it is named after.
@@ -176,6 +182,10 @@ public final class UpdateState {
     /// The line under the headline: the installed version, or why a Dev copy has nothing to install, or that GitHub was not reached.
     public var statusDetail: String {
         if reachedGitHub == false, latest == nil { return Names.ChannelText.offline }
+        // Beta and This Copy say what THAT channel found. Releases keeps the release sentence.
+        if channel != .releases, let state = channelState, offered == nil, !isAvailable {
+            return state.sentence(for: channel, facts: cloneFacts)
+        }
         if build.isDevelopment, offered == nil, !isAvailable {
             return build.developmentSentence(latest: latest)
         }
@@ -398,10 +408,47 @@ public final class UpdateState {
             return
         }
         phase = .installing
+        installFailed = false
+        installLines = []
         // This Copy rebuilds the clone as it is (nothing is pulled); Beta moves the clone to the newest beta's tag;
-        // Releases pulls; each then rebuilds
-        if !GuardControl.runUpgrade(rebuildOnly: rebuildOnly, beta: beta) {
+        // Releases pulls; each then rebuilds. The script is not a Terminal window.
+        guard let pid = GuardControl.runUpgrade(rebuildOnly: rebuildOnly, beta: beta) else {
             phase = .idle
+            installFailed = true
+            installLines = ["The update could not be started."]
+            return
+        }
+        watchInstall(pid)
+    }
+
+    /// Reads the update's log while it runs. When the process has gone and this app is still here, the
+    /// update stopped short of relaunching, and the lines stay so the reason can be read.
+    private func watchInstall(_ pid: pid_t) {
+        installWatch?.cancel()
+        let log = DetachedUpgrade.logURL
+        installWatch = Task { [weak self] in
+            while !Task.isCancelled {
+                let text = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
+                let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+                let tail = Array(lines.suffix(12)).filter { !$0.isEmpty }
+                self?.installLines = tail
+                var status: Int32 = 0
+                let waited = waitpid(pid, &status, WNOHANG)
+                if waited == pid || (waited < 0 && errno == ECHILD) {
+                    // One more read: the last lines are written as the process exits.
+                    let finalText = (try? String(contentsOf: log, encoding: .utf8)) ?? ""
+                    let finalLines = finalText.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+                    self?.installLines = Array(finalLines.suffix(12)).filter { !$0.isEmpty }
+                    // Exited, and this app is still here: it did not get as far as replacing this process.
+                    let clean = waited == pid && (status & 0x7f) == 0 && ((status >> 8) & 0xff) == 0
+                    if !clean { self?.installFailed = true }
+                    self?.phase = .idle
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
         }
     }
+
+    @ObservationIgnored private var installWatch: Task<Void, Never>?
 }

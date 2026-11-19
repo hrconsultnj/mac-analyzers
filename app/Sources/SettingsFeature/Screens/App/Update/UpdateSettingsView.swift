@@ -2,9 +2,11 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// The Updates screen: a status card in the shape of the system's Software Update, then where updates come from (Releases,
-/// Beta, This Copy) and whether the app checks by itself, then What's New, which follows the channel. Installing runs the
-/// repo's upgrade.command (in Terminal, so progress is visible) and always asks first.
+/// The Updates screen, in the order of System Settings → Software Update: the status and Check for Updates, then
+/// Check Automatically on that same card, then where updates come from (Releases, Beta, This Copy — the beta choice),
+/// then What's New. The channel that is selected is the one Install updates from. A clone runs that update in the
+/// background and the lines appear on this card; the app closes and opens again when it finishes. A downloaded copy
+/// opens the latest release on GitHub. Sparkle is not in this build.
 struct UpdateSettingsView: View {
 
     @Environment(UpdateState.self) private var updates
@@ -27,21 +29,24 @@ struct UpdateSettingsView: View {
 
     private var installTitle: String {
         switch updates.channel {
-        case .releases: "Install Update…"
-        case .beta: Names.Channel.installBeta + "…"
-        case .thisCopy: Names.Channel.rebuild + "…"
+        case .releases: Names.Update.installUpdate
+        case .beta: Names.Channel.installBeta
+        case .thisCopy: Names.Channel.rebuild
         }
     }
 
-    private var installExplanation: String {
-        switch updates.channel {
-        case .releases:
-            "Install opens Terminal and runs upgrade.command on your clone: it pulls the newest version of the branch your clone is on (on main, the newest release), rebuilds the app, refreshes the background agents, and relaunches. Your settings and protected lists are never touched."
-        case .beta:
-            "Updating opens Terminal and runs beta.command on your clone: it moves your clone to the newest beta (or to the newer release, once one is out), rebuilds the app, refreshes the background agents, and relaunches. It never happens by itself. Your settings and protected lists are never touched."
-        case .thisCopy:
-            "Rebuilding opens Terminal and runs rebuild.command: builds your clone as it is, uncommitted changes included, refreshes the background agents, and relaunches. Nothing is pulled. Your settings and protected lists are never touched."
+    /// Releases this copy already contains. A newer published version is an update, not a What's New card.
+    private var installedNotes: [ReleaseNote] {
+        notes.filter { note in
+            guard let version = note.version else { return false }
+            return !UpdateChecker.isNewer(version, than: installed)
         }
+    }
+
+    /// What this copy holds that has not shipped: "Not Released Yet" on This Copy, otherwise the build's own
+    /// unreleased notes. A beta you could install, and are not running, is not this.
+    private var heldNote: ReleaseNote? {
+        notes.first { $0.title == ReleaseNote.notReleasedTitle || $0.title == ReleaseNote.unreleasedTitle }
     }
 
     private func scrollIfAsked(_ proxy: ScrollViewProxy) {
@@ -54,16 +59,24 @@ struct UpdateSettingsView: View {
         DataScreen(title: Names.Screen.updates, subtitle: updates.build.versionText) {
         ScrollViewReader { proxy in
         Form {
-            Section { UpdateStatusCard(updates: updates, installTitle: installTitle) }
-            UpdateChannelSection(updates: updates, checking: checking, installExplanation: installExplanation)
-            AutomaticChecksRow(updates: updates)
+            Section {
+                UpdateStatusCard(updates: updates, installTitle: installTitle)
+                if let held = heldNote {
+                    HeldNotesRow(note: held)
+                }
+                if updates.phase == .installing || updates.installFailed || !updates.installLines.isEmpty {
+                    UpdateInstallLog(updates: updates)
+                }
+                AutomaticChecksRow(updates: updates)
+            }
+            UpdateChannelSection(updates: updates, checking: checking)
             Section {
                 if !loaded {
                     ProgressView().controlSize(.small)
-                } else if notes.isEmpty {
+                } else if installedNotes.isEmpty {
                     Text(Names.WhatsNew.notInTheseNotes).foregroundStyle(.secondary)
                 } else {
-                    ForEach(notes) { note in
+                    ForEach(installedNotes) { note in
                         WhatsNewReleaseCard(note: note, seen: seenBefore)
                     }
                 }

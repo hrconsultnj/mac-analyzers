@@ -17,7 +17,7 @@ extension MenuContentView {
             if let title = updates.availableTitle {
                 Button(title) { updates.requestInstall() }
                     .buttonStyle(.borderedProminent)
-                    .help("Update in Terminal, then relaunch; settings are kept")
+                    .help("Updates in Mac Analyzers, then relaunches. Settings are kept")
             } else {
                 Text(updates.build.shortVersionText)
                     .font(.caption)

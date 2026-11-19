@@ -54,3 +54,42 @@ struct WhatsNewReleaseCard: View {
         return note.version.map { "v\($0) · \(features)" } ?? features
     }
 }
+
+/// The notes this copy holds and has not shipped, as one short row on the update card rather than a full
+/// What's New card. Two lines are shown; the tooltip names each screen, and the row opens that release.
+struct HeldNotesRow: View {
+    let note: ReleaseNote
+    @Environment(Navigator.self) private var navigator
+
+    private var groups: [WhatsNewGroup] { WhatsNewGroups.build(items: note.listedItems) }
+
+    /// The first screens, and how many did not fit on the row.
+    private var preview: String {
+        let screens = groups.map(\.title)
+        let head = screens.prefix(2).joined(separator: ", ")
+        if head.isEmpty { return Names.WhatsNew.featureCount(note.listedItems.count) }
+        let more = screens.count - 2
+        return more > 0 ? "\(head), and \(more) more" : head
+    }
+
+    /// Every screen and the features on it: what the row does not have room to show.
+    private var tip: String {
+        groups.map { group in
+            let names = group.items.map { $0.tagTitle ?? $0.summary }.joined(separator: ", ")
+            return "\(group.title) — \(names)"
+        }.joined(separator: "\n")
+    }
+
+    var body: some View {
+        Button { navigator.push(.app(.release(WhatsNewReleaseScreen.key(note)))) } label: {
+            VStack(alignment: .leading, spacing: Tokens.Space.xxs) {
+                Text(note.title).font(.callout.weight(.semibold))
+                // two lines: the rest is the tooltip, and the screen this row opens
+                Text(preview).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+        }
+        .buttonStyle(.plain)
+        .help(tip.isEmpty ? note.title : tip)
+        .accessibilityHint("Opens \(note.title)")
+    }
+}

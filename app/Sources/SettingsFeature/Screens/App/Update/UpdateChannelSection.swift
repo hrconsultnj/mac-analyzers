@@ -3,12 +3,11 @@ import AnalyzersKit
 import UIComponents
 
 /// "Updates From": which channel this copy follows (Releases and Beta always, This Copy only for a copy built from a clone),
-/// the one line that says what the channel is, and, for Beta and This Copy, what that channel found. What installing does
-/// is the caption at the end, in plain words per channel.
+/// the one line that says what the channel is, and, for Beta and This Copy, what that channel found. The install button
+/// on the status card installs this channel.
 struct UpdateChannelSection: View {
     @Bindable var updates: UpdateState
     let checking: Bool
-    let installExplanation: String
 
     var body: some View {
         Section {
@@ -18,45 +17,39 @@ struct UpdateChannelSection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             UpdateChannelRows(updates: updates, checking: checking)
-            if updates.isAvailable {
-                Text(installExplanation)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         } header: {
             Text(Names.Update.updatesFrom).font(.headline)
         }
     }
 }
 
-/// "Check Automatically": the one switch about notices, with what it does behind an info button. It is honest about what
-/// exists today: the app looks every 6 hours and says so once per version; there is no automatic install.
+/// "Check Automatically": the one switch about notices, with what it does behind an info button. It sits in the status
+/// section, under Check for Updates, the way Software Update puts Automatic Updates under the version. It is honest
+/// about what exists today: the app looks every 6 hours and says so once per version; there is no automatic install.
 struct AutomaticChecksRow: View {
     @Bindable var updates: UpdateState
     @State private var showingInfo = false
 
     var body: some View {
-        Section {
-            // a switch on the right of the row, the system's own way; the info button sits beside the title
-            Toggle(isOn: $updates.automaticChecks) {
-                HStack(spacing: Tokens.Space.s) {
-                    Text(Names.Update.checkAutomatically)
-                    Button { showingInfo.toggle() } label: {
-                        Image(systemName: "info.circle")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help(Names.Update.neverByItself)
-                    .accessibilityLabel("About \(Names.Update.checkAutomatically)")
-                    .popover(isPresented: $showingInfo, arrowEdge: .bottom) {
-                        Text(Names.Update.automaticallyInfo)
-                            .padding()
-                            .frame(width: 320)   // fixed: a popover has no width of its own to take from the list
-                    }
+        // a switch on the right of the row, the system's own way; the info button sits beside the title
+        Toggle(isOn: $updates.automaticChecks) {
+            HStack(spacing: Tokens.Space.s) {
+                Text(Names.Update.checkAutomatically)
+                Button { showingInfo.toggle() } label: {
+                    Image(systemName: "info.circle")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(Names.Update.neverByItself)
+                .accessibilityLabel("About \(Names.Update.checkAutomatically)")
+                .popover(isPresented: $showingInfo, arrowEdge: .bottom) {
+                    Text(Names.Update.automaticallyInfo)
+                        .padding()
+                        .frame(width: 320)   // fixed: a popover has no width of its own to take from the list
                 }
             }
-            .toggleStyle(.switch)
         }
+        .toggleStyle(.switch)
     }
 }
 
