@@ -7,15 +7,7 @@ without an entry here — see `scripts/cut-release.sh`. The app lists each
 bullet as a feature of its own, so every bullet ends with a short tag that
 GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 
-## Next
-
-Notes for the release being worked on collect here. When it ships, this
-heading becomes its version and title, and this note is deleted. Every bullet
-ends with one tag after its last word, written exactly like this one: `<!-- wn: open=guard icon=shield.lefthalf.filled title="Short Title" -->`.
-The screen is a deep-link name such as `monitor`, `trends` or `recordings`
-(`-` for a change across the whole app), the icon is an SF Symbol, and the
-title is optional. One screen per bullet: a change that touches two screens
-is two bullets. The release date is added when the release is cut.
+## v2.73.1 — Install the release, the beta, or this clone
 
 - Check for Updates on the Updates screen now answers, the same way the menu command does: you are up to date, a newer version is listed, or GitHub could not be reached. Check Automatically sits on that same card, under the button. Installing the channel you picked (Releases, Beta, or Development) runs in Mac Analyzers and shows its progress there. It no longer opens Terminal, and the app closes and opens again when the update finishes. <!-- wn: open=update icon=arrow.triangle.2.circlepath title="Updates Run in the App" -->
 - Scan Everything keeps the rest of Overview on screen. While it runs you see the scan that is going, one line for how many are still waiting, and Cancel the Rest. It counts only scans that finished, and names any that failed or were not started, and that line stays after the batch ends until you dismiss it. Login & Startup Items is included only when macOS has already allowed System Events. Otherwise the batch says it was left out, and you run Audit on that screen. <!-- wn: open=overview icon=sparkle.magnifyingglass title="Scan Everything Stays in View" -->
