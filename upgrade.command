@@ -196,6 +196,12 @@ if [[ -f lib/layout-migrate.sh ]]; then
   sparehold_migrate_layout
 fi
 
+# build.sh also moves the checkout. This tells it the current updater is
+# driving, so it leaves quitting, removing Mac Analyzers, and opening
+# Sparehold to the steps below. An older updater does not set this, and
+# build.sh finishes that cutover itself: that updater would open Mac
+# Analyzers again.
+export SPAREHOLD_UPGRADE=1
 echo "→ rebuilding the app (this takes a minute)…"
 # The build's full output goes to a file; the screen shows the result, or the
 # errors when it fails. Compiler warnings are NOT hidden: the project is meant

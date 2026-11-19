@@ -191,4 +191,22 @@ check "a link that git would show is not created" "$([[ ! -e "$home/work/repo/me
 porcelain="$(git -C "$home/work/repo" status --porcelain)"
 check "skipping that link leaves the checkout clean" "$([[ -z "$porcelain" ]] && echo ok || echo "dirty: $porcelain")"
 
+# The updater a person already has stays in this folder and, after the pull,
+# runs the build, which moves the folder, then looks up memory-analyzer/.
+home="$TMP/parent-cwd"
+mkdir -p "$home/mac-analyzers/memory-analyzer"
+printf '%s\n' '#!/bin/bash' 'echo from-old-path' > "$home/mac-analyzers/memory-analyzer/memory-guard.sh"
+chmod +x "$home/mac-analyzers/memory-analyzer/memory-guard.sh"
+parent_out="$(
+  export HOME="$home"
+  cd "$home/mac-analyzers"
+  (
+    set -euo pipefail
+    sparehold_migrate_layout
+  )
+  ./memory-analyzer/memory-guard.sh
+)"
+check "the updater can still run the old script path after the move" "$([[ "$parent_out" == *from-old-path* ]] && echo ok || echo "got ${parent_out:-nothing}")"
+check "that updater's folder is ~/sparehold" "$([[ -d "$home/sparehold/memory/memory-guard.sh" || -f "$home/sparehold/memory/memory-guard.sh" ]] && echo ok || echo "not moved")"
+
 exit "$fail"

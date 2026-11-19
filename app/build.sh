@@ -4,6 +4,19 @@
 # the menu-bar app, the `notify` CLI shim (lib/notify.sh) and the `agent-runner` launchd entry point.
 # Icon: reuses notifier/AppIcon.icns (regenerate with ../notifier/make-icon.sh).
 set -euo pipefail
+# The updater people already have copied itself before it pulls. After the
+# pull, that copy builds with this file and then runs memory-analyzer/ and
+# storage-analyzer/. Move the checkout here, so those old paths still work
+# and ~/mac-analyzers becomes ~/sparehold, before that copy looks for them.
+root="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ -f "$root/lib/layout-migrate.sh" ]]; then
+  (
+    cd "$root"
+    # shellcheck source=../lib/layout-migrate.sh
+    source lib/layout-migrate.sh
+    sparehold_migrate_layout
+  )
+fi
 cd "$(dirname "$0")"
 
 # --pro: include the local overlay package. SPAREHOLD_PRO_PATH wins, then
@@ -242,8 +255,10 @@ replace_install() {
 # install to /Applications — the canonical location for the running app; the
 # repo copy is the build artifact / script-only fallback. A locally built app
 # carries no quarantine, so no DMG/notarization is involved.
-# Sparehold is installed beside a Mac Analyzers copy. This script does not
-# delete /Applications/MacAnalyzers.app; upgrade.command removes it last.
+# The current updater removes Mac Analyzers after Sparehold's agent-runner
+# answers. An updater from before this rename does not: it opens Mac
+# Analyzers again. When that is what started the build, and the new app
+# answers, remove the old one here and open Sparehold.
 INSTALL="/Applications/Sparehold.app"
 # MA_NO_INSTALL=1: build the bundle and stop — scripts/package.sh uses this so
 # making a download for other people never touches the copy you are running.
@@ -256,6 +271,13 @@ elif replace_install "$APP" "$INSTALL"; then
   # verifying (files present that the seal does not list). A running app is
   # unaffected — it keeps the files it already has open until it relaunches.
   echo "installed: $INSTALL"
+  if [[ "${SPAREHOLD_UPGRADE:-}" != 1 && -d /Applications/MacAnalyzers.app ]]; then
+    probe="/Applications/Sparehold.app/Contents/MacOS/agent-runner"
+    if [[ -x "$probe" ]] && "$probe" --probe-build >/dev/null 2>&1; then
+      rm -rf /Applications/MacAnalyzers.app
+      open -g /Applications/Sparehold.app || true
+    fi
+  fi
 else
   echo "note: could not install to /Applications (permissions?) — running from the repo copy still works"
 fi
