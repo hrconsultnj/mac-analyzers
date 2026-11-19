@@ -25,25 +25,33 @@ public enum UpdateChecker {
     /// copy already carries) — treated as stale and refetched. A beta or Dev copy compares by that release number, not by
     /// its own version, so being past the latest release never makes the cache stale.
     public static func latestVersion(force: Bool = false) async -> String? {
+        await latestRelease(force: force).version
+    }
+
+    /// The same, and whether GitHub answered: `reached` is false when the request failed (offline, a proxy, a limit) and
+    /// `version` is only the last one known, so "Check for Updates" can say it could not reach GitHub instead of "up to date".
+    /// A cached answer counts as reached.
+    public static func latestRelease(force: Bool = false) async -> (version: String?, reached: Bool) {
         let defaults = UserDefaults.standard
         let lastCheck = defaults.double(forKey: "updateCheckAt")
         if !force,
            Date().timeIntervalSince1970 - lastCheck < 6 * 3600,
            let cached = defaults.string(forKey: "updateLatest"),
            !isNewer(BuildInfo.current.release, than: cached) {
-            return cached
+            return (cached, true)
         }
         guard let url = URL(string: "https://api.github.com/repos/hrconsultnj/mac-analyzers/releases/latest"),
-              let (data, _) = try? await URLSession.shared.data(from: url),
+              let (data, response) = try? await URLSession.shared.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode == 200,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let tag = json["tag_name"] as? String
         else {
-            return defaults.string(forKey: "updateLatest")   // offline → last known
+            return (defaults.string(forKey: "updateLatest"), false)   // offline → last known
         }
         let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
         defaults.set(version, forKey: "updateLatest")
         defaults.set(Date().timeIntervalSince1970, forKey: "updateCheckAt")
-        return version
+        return (version, true)
     }
 
     /// Semantic-versioning precedence ("2.10.0" beats "2.9.0" — string compare lies; a prerelease is below its

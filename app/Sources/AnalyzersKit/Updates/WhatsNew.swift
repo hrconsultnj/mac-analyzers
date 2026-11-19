@@ -138,6 +138,20 @@ public struct ReleaseNote: Identifiable, Sendable {
     private static let developmentFile = OSAllocatedUnfairLock<URL?>(initialState: nil)
     public static func useDevelopmentFile(_ url: URL?) { developmentFile.withLock { $0 = url } }
 
+    /// The notes of every version an update brings: the releases after `installed` up to and including `offered`, newest
+    /// first as the changelog writes them, from the changelog at the offered version's tag; and when `offered` is a beta,
+    /// its own unreleased section named by `label`. `installed` and `offered` are internal versions ("2.72.1-beta.1").
+    public static func forUpdate(changelog: String, installed: String, offered: String, label: String) -> [ReleaseNote] {
+        let parsed = parse(changelog, includeNext: true)
+        let releases = parsed.filter { note in
+            guard let version = note.version else { return false }
+            return UpdateChecker.isNewer(version, than: installed) && !UpdateChecker.isNewer(version, than: offered)
+        }
+        let isBeta = offered.contains("-beta.")
+        guard isBeta, let next = parsed.first(where: { $0.isUnreleased }) else { return releases }
+        return [next.asBeta(label)] + releases
+    }
+
     /// The title of the clone's own unreleased section on This Copy.
     public static let notReleasedTitle = "Not Released Yet"
 

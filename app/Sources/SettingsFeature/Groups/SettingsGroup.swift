@@ -67,6 +67,3 @@ enum SettingsGroup {
         }
     }
 }
-
-/// The name What's New's grouping (`Screens/App/Update/WhatsNewGroups.swift`) still uses for this group's location lookup.
-typealias PreferencesGroup = SettingsGroup

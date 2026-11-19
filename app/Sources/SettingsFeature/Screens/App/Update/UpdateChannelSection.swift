@@ -2,28 +2,65 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// The channel part of the Updates screen: which channel this copy follows (a segmented picker, shown
-/// when there is more than one to choose from) and, for Beta and This Copy, what that channel found. Releases
-/// is the screen's own rows; this adds nothing to it but the picker.
+/// "Updates From": which channel this copy follows (Releases and Beta always, This Copy only for a copy built from a clone),
+/// the one line that says what the channel is, and, for Beta and This Copy, what that channel found. What installing does
+/// is the caption at the end, in plain words per channel.
 struct UpdateChannelSection: View {
     @Bindable var updates: UpdateState
     let checking: Bool
+    let installExplanation: String
 
     var body: some View {
         Section {
-            if updates.channels.count > 1 {
-                FullWidthSegments(options: updates.channels.map { ($0, $0.title) }, selection: $updates.channel,
-                                  help: "Releases: the newest published release. Beta: the newest pre-release, published ahead of the next release (a release newer than it is offered too). This Copy: your own clone, uncommitted changes included.")
-            } else {
-                Text(Names.ChannelText.notAClone)
+            FullWidthSegments(options: updates.channels.map { ($0, $0.title) }, selection: $updates.channel,
+                              help: "Releases: the newest published release. Beta: the newest pre-release. This Copy: your own clone, uncommitted changes included.")
+            Text(Names.ChannelText.describes(updates.channel))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            UpdateChannelRows(updates: updates, checking: checking)
+            if updates.isAvailable {
+                Text(installExplanation)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        } header: {
+            Text(Names.Update.updatesFrom).font(.headline)
         }
     }
 }
 
-/// The rows a development channel adds under the installed version.
+/// "Check Automatically": the one switch about notices, with what it does behind an info button. It is honest about what
+/// exists today: the app looks every 6 hours and says so once per version; there is no automatic install.
+struct AutomaticChecksRow: View {
+    @Bindable var updates: UpdateState
+    @State private var showingInfo = false
+
+    var body: some View {
+        Section {
+            // a switch on the right of the row, the system's own way; the info button sits beside the title
+            Toggle(isOn: $updates.automaticChecks) {
+                HStack(spacing: Tokens.Space.s) {
+                    Text(Names.Update.checkAutomatically)
+                    Button { showingInfo.toggle() } label: {
+                        Image(systemName: "info.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(Names.Update.neverByItself)
+                    .accessibilityLabel("About \(Names.Update.checkAutomatically)")
+                    .popover(isPresented: $showingInfo, arrowEdge: .bottom) {
+                        Text(Names.Update.automaticallyInfo)
+                            .padding()
+                            .frame(width: 320)   // fixed: a popover has no width of its own to take from the list
+                    }
+                }
+            }
+            .toggleStyle(.switch)
+        }
+    }
+}
+
+/// The rows a development channel adds under the picker.
 struct UpdateChannelRows: View {
     let updates: UpdateState
     let checking: Bool

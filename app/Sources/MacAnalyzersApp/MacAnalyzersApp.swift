@@ -71,6 +71,7 @@ struct MenuBarLabelView: View {
             updates.startChecking()
             QuitGuard.jobs = jobs      // so quitting while a job runs can ask first
             updates.jobs = jobs        // and installing an update cannot start under one
+            UpdateCoordinator.shared.attach(updates)   // the "Check for Updates…" commands look through the same state
         }
         .notifyWhenJobsFinish(jobs)
         .onReceive(NotificationCenter.default.publisher(

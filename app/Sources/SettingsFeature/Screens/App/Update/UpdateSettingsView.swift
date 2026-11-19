@@ -2,8 +2,9 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// Update pane: installed vs latest release, one-click upgrade via the
-/// repo's upgrade.command (runs in Terminal so progress is visible).
+/// The Updates screen: a status card in the shape of the system's Software Update, then where updates come from (Releases,
+/// Beta, This Copy) and whether the app checks by itself, then What's New, which follows the channel. Installing runs the
+/// repo's upgrade.command (in Terminal, so progress is visible) and always asks first.
 struct UpdateSettingsView: View {
 
     @Environment(UpdateState.self) private var updates
@@ -52,52 +53,10 @@ struct UpdateSettingsView: View {
     var body: some View {
         DataScreen(title: Names.Screen.updates, subtitle: updates.build.versionText) {
         ScrollViewReader { proxy in
-        List {
-            UpdateChannelSection(updates: updates, checking: checking)
-            Section {
-                LabeledContent("Installed Version") { Text(updates.build.versionText).monospacedDigit() }
-                if let build = UpdateChecker.installedBuild {
-                    LabeledContent("Build") {
-                        Text(build)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                    }
-                    .help("The exact build of this copy; the version changes only on release")
-                }
-                if updates.channel == .releases {
-                    LabeledContent("Latest Release") {
-                        Text(latest.map { "v\($0)" } ?? (checking ? "Checking…" : "—"))
-                            .monospacedDigit()
-                    }
-                    if updateAvailable {
-                        Label(Names.State.updateAvailable, systemImage: "exclamationmark.circle.fill")
-                            .foregroundStyle(.orange)
-                    } else if updates.build.isDevelopment {
-                        Label(updates.build.developmentSentence(latest: latest), systemImage: "hammer.fill")
-                            .foregroundStyle(.blue)
-                    } else if latest != nil {
-                        Label(Names.State.upToDate, systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    }
-                } else {
-                    UpdateChannelRows(updates: updates, checking: checking)
-                }
-            }
-            Section {
-                HStack {
-                    Button(checking ? "Checking…" : "Check Now") {
-                        Task { await updates.check(force: true) }
-                    }
-                    .disabled(checking)
-                    Spacer()
-                    Button(installTitle) { updates.requestInstall() }
-                        .buttonStyle(.glassProminent)
-                        .disabled(!updateAvailable)
-                }
-                Text(installExplanation)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        Form {
+            Section { UpdateStatusCard(updates: updates, installTitle: installTitle) }
+            UpdateChannelSection(updates: updates, checking: checking, installExplanation: installExplanation)
+            AutomaticChecksRow(updates: updates)
             Section {
                 if !loaded {
                     ProgressView().controlSize(.small)
@@ -106,7 +65,6 @@ struct UpdateSettingsView: View {
                 } else {
                     ForEach(notes) { note in
                         WhatsNewReleaseCard(note: note, seen: seenBefore)
-                            .listRowSeparator(.hidden)
                     }
                 }
             } header: {
@@ -114,7 +72,7 @@ struct UpdateSettingsView: View {
             }
             .id(WhatsNewSections.anchor)
         }
-        .listStyle(.inset)
+        .formStyle(.grouped)
         // a link to the list (`updates:whatsNew`) scrolls to it once the screen is showing and the list is loaded
         .onChange(of: navigator.pendingIntent) { scrollIfAsked(proxy) }
         .onAppear { scrollIfAsked(proxy) }
