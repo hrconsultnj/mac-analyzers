@@ -8,6 +8,7 @@ bullet as a feature of its own, so every bullet ends with a short tag that
 GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 
 ## v2.73.1 — Install the release, the beta, or this clone
+<!-- wn: released=2026-11-18 -->
 
 - Check for Updates on the Updates screen now answers, the same way the menu command does: you are up to date, a newer version is listed, or GitHub could not be reached. Check Automatically sits on that same card, under the button. Installing the channel you picked (Releases, Beta, or Development) runs in Mac Analyzers and shows its progress there. It no longer opens Terminal, and the app closes and opens again when the update finishes. <!-- wn: open=update icon=arrow.triangle.2.circlepath title="Updates Run in the App" -->
 - Scan Everything keeps the rest of Overview on screen. While it runs you see the scan that is going, one line for how many are still waiting, and Cancel the Rest. It counts only scans that finished, and names any that failed or were not started, and that line stays after the batch ends until you dismiss it. Login & Startup Items is included only when macOS has already allowed System Events. Otherwise the batch says it was left out, and you run Audit on that screen. <!-- wn: open=overview icon=sparkle.magnifyingglass title="Scan Everything Stays in View" -->
