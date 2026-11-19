@@ -3,10 +3,9 @@ import AppKit
 import AnalyzersKit
 import UIComponents
 
-/// The top of Updates, in the three states of System Settings → Software Update.
-/// While a check runs, one line and a spinner. When nothing newer is available, a check mark, what you have,
-/// and Check for Updates. When a version is available, the app icon and the install button of the channel in
-/// use — Check for Updates is not shown, the same way Software Update hides it once Update Now is there.
+/// The top of Updates. The app's own icon stays in every state. While a check runs, one line and a spinner.
+/// When nothing newer is available, Check for Updates is the button. When a version is available, that button
+/// is not shown: the button installs the channel in use.
 struct UpdateStatusCard: View {
     let updates: UpdateState
     let installTitle: String
@@ -19,7 +18,7 @@ struct UpdateStatusCard: View {
                 ProgressView().controlSize(.small)
             }
             .padding(.vertical, Tokens.Space.s)
-        } else if updates.isAvailable || updates.phase == .installing {
+        } else {
             headline {
                 // fixed: the app's icon is the one thing here that has a size of its own
                 Image(nsImage: NSApp.applicationIconImage)
@@ -27,23 +26,16 @@ struct UpdateStatusCard: View {
                     .frame(width: Tokens.Icon.hero + 20, height: Tokens.Icon.hero + 20)
                     .accessibilityHidden(true)
             } trailing: {
-                Button(installTitle) { updates.requestInstall() }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(updates.phase == .installing)
-            }
-        } else {
-            headline {
-                // fixed: the same slot as the app icon, so the row does not jump when a check finishes
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: Tokens.Icon.hero))
-                    .foregroundStyle(.green)
-                    .frame(width: Tokens.Icon.hero + 20, height: Tokens.Icon.hero + 20)
-                    .accessibilityHidden(true)
-            } trailing: {
-                Button(Names.Update.checkForUpdates + "…") {
-                    Task { await UpdateCoordinator.shared.checkForUpdates() }
+                if updates.isAvailable || updates.phase == .installing {
+                    Button(installTitle) { updates.requestInstall() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(updates.phase == .installing)
+                } else {
+                    Button(Names.Update.checkForUpdates + "…") {
+                        Task { await UpdateCoordinator.shared.checkForUpdates() }
+                    }
+                    .disabled(!UpdateCoordinator.shared.isReady)
                 }
-                .disabled(!UpdateCoordinator.shared.isReady)
             }
         }
     }
