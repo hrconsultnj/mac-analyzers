@@ -4,7 +4,7 @@ import AnalyzersKit
 import UIComponents
 
 /// The pinned item at the foot of the sidebar: one row with the app's icon, its name and, under it, where it stands
-/// (Up to Date, Update Available, or the version while no check has answered). A click opens the Mac Analyzers
+/// (Update Available, the beta's or Dev copy's short name, Up to Date, or the version while no check has answered). A click opens the Mac Analyzers
 /// screen, which leads to Updates, What's New, How It Works and Support; the row shows as selected on any of them.
 /// It is part of the sidebar, so it goes when the sidebar is collapsed.
 struct SidebarVersionItem: View {
@@ -58,8 +58,12 @@ struct SidebarVersionItem: View {
     private var state: (text: String, symbol: String, tint: Color)? {
         switch updates.summary {
         case .updateAvailable?: return (Names.State.updateAvailable, "arrow.down.circle.fill", .orange)
-        case .developmentBuild?: return (Names.State.developmentBuild, "hammer.fill", .blue)
-        case .upToDate?: return (Names.State.upToDate, "checkmark.circle.fill", .secondary)
+        // a Dev copy names itself ("Dev · 8e2c9b0") and a beta that is current says it is the beta ("2.72.1 Beta"):
+        // the same short name every other surface reads from the build
+        case .developmentBuild?: return (updates.build.label, "hammer.fill", .blue)
+        case .upToDate?:
+            if updates.build.isBeta { return (updates.build.label, "testtube.2", .purple) }
+            return (Names.State.upToDate, "checkmark.circle.fill", .secondary)
         case nil: return nil
         }
     }

@@ -17,6 +17,11 @@ enum ToolbarRank {
 
 extension ToolbarContent {
     @ToolbarContentBuilder func toolbarRank(_ rank: ToolbarRank) -> some ToolbarContent {
-        self.visibilityPriority(rank == .primary ? .high : .low)
+        // visibilityPriority is macOS 26.1+; on 26.0 the rank does nothing and the system's own overflow order applies
+        if #available(macOS 26.1, *) {
+            self.visibilityPriority(rank == .primary ? .high : .low)
+        } else {
+            self
+        }
     }
 }

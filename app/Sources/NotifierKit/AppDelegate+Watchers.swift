@@ -42,15 +42,17 @@ extension AppDelegate {
     func startUpdateWatcher() {
         Task { @MainActor in
             while true {
-                if let latest = await UpdateChecker.latestVersion(),
+                // switched off: no checking and no notices (the Updates screen and "Check for Updates…" still look when asked)
+                if UpdateChoices.automatic,
+                   let latest = await UpdateChecker.latestVersion(),
                    UpdateChecker.isNewer(latest, than: BuildInfo.current.version),
-                   UserDefaults.standard.string(forKey: "updateNotifiedFor") != latest {
+                   UpdateChoices.shouldNotify(of: latest) {
                     NotificationPoster.shared.post(
                         title: "\(Names.app) \(Names.State.updateAvailable)",
                         subtitle: "v\(latest)",
-                        message: "You're on v\(BuildInfo.current.shortVersion). Click to open \(Names.Screen.updates) and install with one click.",
+                        message: "You're on \(BuildInfo.current.versionText). Click to open \(Names.Screen.updates) and install with one click.",
                         sound: nil, logPath: nil, paneTarget: "update")
-                    UserDefaults.standard.set(latest, forKey: "updateNotifiedFor")
+                    UpdateChoices.didNotify(of: latest)
                 }
                 try? await Task.sleep(for: .seconds(6 * 3600))
             }

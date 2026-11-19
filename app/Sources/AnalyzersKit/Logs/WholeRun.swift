@@ -84,9 +84,21 @@ public enum WholeRun {
     }
 
     /// The newest block that is a dry run, for a screen that shows the last preview.
+    /// Returns `.notFound` if a newer applied/executed block appears after the last dry run,
+    /// because that preview's items have already been acted on.
     public static func newestPreview(in url: URL, reach: Int = reach) -> Found {
-        search(in: url, reach: reach, firstChunk: firstChunk) { lines, banners in
-            banners.last { lines[$0].contains("DRY RUN") }
+        var appliedAfter = false
+        return search(in: url, reach: reach, firstChunk: firstChunk) { lines, banners in
+            guard !appliedAfter else { return nil }
+            for index in banners.reversed() {
+                let banner = lines[index]
+                if banner.contains("DRY RUN") { return index }
+                if banner.contains("APPLY") {
+                    appliedAfter = true
+                    return nil
+                }
+            }
+            return nil
         }
     }
 

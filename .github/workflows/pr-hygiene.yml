@@ -1,0 +1,70 @@
+name: pr-hygiene
+
+# The rules about a pull request itself, not its code (checks.yml and mac.yml
+# judge the code): it must target development, and a change people would
+# notice must say so in CHANGELOG.md under "## Next", in the format
+# scripts/changelog-check.sh requires. The logic is in
+# scripts/pr-changelog-check.sh; this file only provides the machine.
+#
+# Fork pull requests: this runs with the read-only token and no secrets, which
+# is all it needs. It checks out the BASE branch and reads the contribution's
+# changelog with git, so the rules that judge a pull request are never ones the
+# pull request itself changed.
+#
+# Runs again when the label changes, so a maintainer adding "no-changelog"
+# turns a red check green without a new push.
+
+on:
+  pull_request:
+    branches: [development, main]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  target:
+    name: target branch
+    runs-on: ubuntu-26.04
+    timeout-minutes: 2
+    steps:
+      - name: Pull requests go to development
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$BASE_REF" != "development" ]; then
+            echo "::error title=Wrong target branch::This pull request targets '$BASE_REF'. Please change its base branch to 'development': main is the release line and only the maintainer's release merges land there. See CONTRIBUTING.md."
+            exit 1
+          fi
+
+  changelog:
+    name: release notes
+    needs: target
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1 — pinned to a commit: a tag can be moved, a commit cannot
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the contribution (read only, never run)
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "refs/pull/${PR_NUMBER}/head"
+
+      - name: Check the release notes
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          HAS_NO_CHANGELOG: ${{ contains(github.event.pull_request.labels.*.name, 'no-changelog') }}
+        run: |
+          flag=""
+          [ "$HAS_NO_CHANGELOG" = "true" ] && flag="--no-changelog"
+          # shellcheck disable=SC2086  # $flag is empty or one fixed word
+          scripts/pr-changelog-check.sh "$PR_BASE" "$PR_HEAD" $flag

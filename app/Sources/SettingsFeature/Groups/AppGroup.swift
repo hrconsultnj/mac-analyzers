@@ -11,8 +11,6 @@ enum AppRoute: Hashable, Codable, Sendable {
     case whatsNew(String)
     /// One How It Works topic.
     case topic(HowItWorksTopic)
-    /// What's New: one card per release.
-    case releases
     /// One release's features, by its version ("next" for the unreleased section, "latest" for the newest shipped one).
     case release(String)
 }
@@ -26,7 +24,7 @@ final class UpdateBadge {
     var updateAvailable: Bool { state?.isAvailable ?? false }
 }
 
-/// The Mac Analyzers screen and what it opens: Updates, What's New, How It Works and Support.
+/// The Mac Analyzers screen and what it opens: Updates (with What's New under it), How It Works and Support.
 /// None of them has a sidebar row: the item at the foot of the sidebar opens the app screen, which leads to the rest.
 ///
 /// A supporter build has no Support row: its badge at the foot of the
@@ -54,9 +52,6 @@ enum AppGroup {
             "about": .main(Location(howItWorks)),
             "howItWorks": .main(Location(howItWorks)),
             "support": .main(Location(support)),
-            // the What's New list of releases, or the newest release's own screen on top of it
-            "updates:whatsNew": .main(Location(updates, path: [.app(.releases)])),
-            "updates:whatsNew:latest": .main(Location(updates, path: [.app(.releases), .app(.release("latest"))])),
         ],
         resolveDynamic: { target in
             if let link = whatsNewLink(target) { return link }
@@ -71,13 +66,20 @@ enum AppGroup {
         },
         load: nil)
 
-    /// `updates:whatsNew:<version>`: the first feature of that release on its own screen, over the release and the list.
+    /// What's New lives on Updates, under the channel picker. `updates:whatsNew` opens Updates scrolled to the list,
+    /// `updates:whatsNew:latest` pushes the newest release's screen over it, and `updates:whatsNew:<version>` the first
+    /// feature of that release over the release.
     private static func whatsNewLink(_ target: String) -> Resolution? {
+        if target == "updates:whatsNew" {
+            // a one-shot request the Updates screen takes when it shows (never a flag a resolve could leave behind)
+            return .mainWithIntent(Location(updates), SectionIntent(section: updates, payload: "whatsNew"))
+        }
         let prefix = "updates:whatsNew:"
         guard target.hasPrefix(prefix) else { return nil }
         let version = String(target.dropFirst(prefix.count))
         guard !version.isEmpty else { return nil }
-        return .main(Location(updates, path: [.app(.releases), .app(.release(version)), .app(.whatsNew("\(version)#0"))]))
+        if version == "latest" { return .main(Location(updates, path: [.app(.release("latest"))])) }
+        return .main(Location(updates, path: [.app(.release(version)), .app(.whatsNew("\(version)#0"))]))
     }
 
     private static var rows: [SidebarRow] {
@@ -111,7 +113,6 @@ enum AppGroup {
         switch route {
         case .whatsNew(let id): WhatsNewDetailScreen(id: id)
         case .topic(let topic): TopicScreen(topic: topic)
-        case .releases: WhatsNewReleasesView()
         case .release(let version): WhatsNewReleaseScreen(version: version)
         }
     }

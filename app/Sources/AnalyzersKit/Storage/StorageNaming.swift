@@ -32,6 +32,7 @@ public enum StorageNaming {
         let section = lower.contains("/library/caches/") && !lower.contains("/library/caches/pip") ? "app caches"
             : (lower.contains("/library/") || lower.contains("/.cache/") || lower.contains("/.cargo/") || lower.contains("/.gradle/") || lower.contains("/.bun/")) ? "tool caches" : "build caches"
         let row = CacheReview.pathRow(path: path, bytes: 0, status: .dry, section: section, roots: roots, lastUsed: nil)
-        return StorageItemName(group: row.group ?? Names.StorageTab.appCaches, title: row.title)
+        let group = row.group?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return StorageItemName(group: group.isEmpty ? Names.StorageTab.appCaches : group, title: row.title)
     }
 }

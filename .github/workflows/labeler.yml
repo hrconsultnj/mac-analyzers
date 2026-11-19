@@ -1,0 +1,30 @@
+name: labeler
+
+# Labels a pull request by the area its files are in (.github/labeler.yml).
+#
+# SECURITY — read before editing. This is the one workflow that runs on
+# `pull_request_target`: it has a token that can write labels, and it runs
+# for fork pull requests too, which a plain `pull_request` run cannot do. That
+# is safe ONLY because it never checks out or runs anything from the pull
+# request: actions/labeler reads the list of changed file NAMES through the
+# API and the rules from the base branch. Do not add a checkout, a script or
+# any step that uses the pull request's content here.
+
+on:
+  pull_request_target:
+    branches: [development]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13  # v7.0.0
+        with:
+          sync-labels: true

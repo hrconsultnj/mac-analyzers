@@ -118,7 +118,7 @@ struct ActivityInspector: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let target = row.reviewTarget {
                     Button(row.needsReview ? "Review and Apply" : Names.Review.previewAgain) { navigator.open(target: target) }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.borderedProminent)
                 }
             }
         }
@@ -140,7 +140,7 @@ struct ActivityInspector: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let target = row.reviewTarget {
                     Button(Names.Review.previewAgain) { navigator.open(target: target) }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.borderedProminent)
                 }
             }
         }
@@ -289,6 +289,7 @@ struct RunLinesView: View {
                 .padding()
             }
             .defaultScrollAnchor(anchorBottom ? .bottom : .top)
+            .clipped()
         }
     }
 }

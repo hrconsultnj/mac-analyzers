@@ -1,0 +1,32 @@
+name: welcome
+
+# A short thank-you on a person's first issue or first pull request, pointing
+# at CONTRIBUTING.md. `pull_request_target` and `issues` run with a token that
+# can comment, which is what a fork's first pull request needs; this workflow
+# checks out nothing and runs nothing from the contribution, so that is safe.
+# Do not add a checkout or any step that uses the contribution's content.
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    branches: [development]
+    types: [opened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  welcome:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/first-interaction@1c4688942c71f71d4f5502a26ea67c331730fa4d  # v3.1.0
+        with:
+          issue_message: |
+            Thanks for opening your first issue on Mac Analyzers. A maintainer will take a look.
+            If you have not yet, the screen and version details the form asks for make it much quicker to act on.
+          pr_message: |
+            Thanks for your first pull request to Mac Analyzers. Checks run automatically on it, and a maintainer reviews it.
+            [CONTRIBUTING.md](https://github.com/hrconsultnj/mac-analyzers/blob/development/CONTRIBUTING.md) explains what the checks look for, including the safety rules and the release-notes line under `## Next`.

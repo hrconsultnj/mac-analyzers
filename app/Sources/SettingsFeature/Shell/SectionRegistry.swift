@@ -13,7 +13,7 @@ enum SectionRegistry {
             StorageGroup.group,
             SystemGroup.group,
             HistoryGroup.group,
-            PreferencesGroup.group,
+            SettingsGroup.group,
             AppGroup.group,
         ]
         assertNoDuplicates(in: groups)

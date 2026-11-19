@@ -62,7 +62,7 @@ enum WhatsNewGroups {
     static func section(of target: String) -> SectionID? {
         switch DeepLinkRouter.resolve(target) {
         case .main(let location), .mainWithIntent(let location, _): location.section
-        case .preferences(let tab): PreferencesGroup.interimLocation(forTab: tab).section
+        case .preferences(let tab): SettingsGroup.interimLocation(forTab: tab).section
         case .welcome, .unknown: nil   // the Welcome flow is a window of its own, no sidebar row
         }
     }

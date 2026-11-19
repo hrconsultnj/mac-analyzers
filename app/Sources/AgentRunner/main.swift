@@ -37,22 +37,23 @@ if args.first == "--probe-fda" {
 // the menu footer and What's New will say for THIS copy, read from its own
 // Info.plist and bundled changelog — so a development build can be told from a
 // release without opening a window.
-// `agent-runner --build-version <release> <commits after the tag | -> <local changes 0|1|?> <commit | -> [release tag counted from]`
+// `agent-runner --build-version <release> <commits after the tag | -> <local changes 0|1|?> <commit | -> [release tag counted from | -] [beta tag at HEAD | -]`
 // prints the version of that build: `app/build.sh` stamps it into the app (MABuildVersion), so the build
 // script and the app build the string in the one place, BuildInfo.
 if args.first == "--build-version", args.count >= 5 {
     // the third value: 0 clean, 1 uncommitted changes, ? git could not say (the version says .unknown)
     let build = BuildInfo(release: args[1], commitsAfter: Int(args[2]), localChanges: args[3] == "1",
                           commit: args[4] == "-" ? nil : args[4], treeHash: args[3] == "?" ? "unknown" : nil,
-                          releaseTag: args.count > 5 && args[5] != "-" ? args[5] : nil)
+                          releaseTag: args.count > 5 && args[5] != "-" ? args[5] : nil,
+                          betaTag: args.count > 6 && args[6] != "-" ? args[6] : nil)
     print(build.version)
     exit(0)
 }
 if args.first == "--probe-build" {
     let build = BuildInfo.current
-    print("stamp: release v\(build.release), commits after: \(build.commitsAfter.map(String.init) ?? "none (reads as a release)"), local changes: \(build.localChanges)")
+    print("stamp: release v\(build.release), commits after: \(build.commitsAfter.map(String.init) ?? "none (reads as a release)"), local changes: \(build.localChanges), beta tag: \(build.betaTag ?? "none")")
     print("build line:            \(UpdateChecker.installedBuild ?? "(none)")")
-    print("version:               \(build.version)   (short: \(build.shortVersion); stamped: \(Bundle.main.object(forInfoDictionaryKey: "MABuildVersion") as? String ?? "none"))")
+    print("version:               \(build.version)   (label: \(build.label); stamped: \(Bundle.main.object(forInfoDictionaryKey: "MABuildVersion") as? String ?? "none"))")
     print("Installed Version:     \(build.versionText)")
     if build.isDevelopment {
         print("status line:           \(build.developmentSentence(latest: "\(build.release)"))")
@@ -215,6 +216,10 @@ if args.first == "--probe-disk-runway" {
 // reads and what the app sends. See TimeMachineProbe.swift.
 if args.first == "--probe-tm" {
     await probeTimeMachine()
+}
+// `--probe-scan-plan` proves what Overview's Scan Everything queues and how its batch behaves. See ScanPlanProbe.swift.
+if args.first == "--probe-scan-plan" {
+    await probeScanPlan()
 }
 if args.first == "--probe-recording-sources" {
     await probeRecordingSources()

@@ -14,6 +14,7 @@ enum Route: Hashable, Codable {
     case system(SystemRoute)
     case history(HistoryRoute)
     case app(AppRoute)
+    case settings(SettingsRoute)
     /// One run inside an engine log. Shared: Activity and the System group
     /// both push it.
     case run(RunReference)

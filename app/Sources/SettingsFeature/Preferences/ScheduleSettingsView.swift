@@ -75,7 +75,7 @@ struct ScheduleSettingsView: View {
                     }
                     Spacer()
                     Button(applying ? "Applying…" : "Apply Schedule") { apply() }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.borderedProminent)
                         .controlSize(.large)
                         .disabled(applying)
                 }

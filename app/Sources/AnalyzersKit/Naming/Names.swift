@@ -25,6 +25,23 @@ public enum Names {
         public static let app = Names.app
     }
 
+    // MARK: - Settings hub
+
+    public enum SettingsHub {
+        public static let appearance = "Appearance"
+        public static let appearanceAuto = "Auto"
+        public static let appearanceLight = "Light"
+        public static let appearanceDark = "Dark"
+        public static let sidebarIcons = "Sidebar Icons"
+        public static let iconsColoured = "Coloured"
+        public static let iconsPlain = "Plain"
+        public static let general = "General"
+        public static let openAtLogin = "Open at Login"
+        public static let configuration = "Configuration"
+        public static let named = [appearance, appearanceAuto, appearanceLight, appearanceDark, sidebarIcons, iconsColoured, iconsPlain,
+                                   general, openAtLogin, configuration]
+    }
+
     // MARK: - How It Works
 
     /// The explainer's tabs, topics and section headings. The topic titles are what the help button of each screen names.
@@ -99,6 +116,7 @@ public enum Names {
         public static let undo = "Undo"
         public static let memorySettings = "Memory"
         public static let storageSettings = "Storage"
+        public static let settings = "Settings"
         public static let notifications = "Notifications"
         public static let schedule = "Schedule"
         public static let updates = "Updates"
@@ -128,31 +146,70 @@ public enum Names {
         public static let developmentBuild = "Dev Build"
     }
 
+    // MARK: - the Updates screen, its menu command and the update window
+
+    public enum Update {
+        // names (in the title-style table)
+        public static let updatesFrom = "Updates From"
+        public static let checkAutomatically = "Check Automatically"
+        public static let checkForUpdates = "Check for Updates"
+        public static let skipThisVersion = "Skip This Version"
+        public static let remindMeLater = "Remind Me Later"
+        public static let installUpdate = "Install Update"
+        public static let releaseNotes = "Release Notes"
+        public static let windowTitle = "Update Available"
+        public static let named = [updatesFrom, checkAutomatically, checkForUpdates, skipThisVersion, remindMeLater, installUpdate,
+                                   releaseNotes, windowTitle]
+
+        // sentences
+        public static let upToDate = "You're up to date!"
+        public static func newestVersion(_ label: String) -> String { "\(Names.app) \(label) is the newest version available." }
+        public static let available = "A new version of \(Names.app) is available!"
+        public static func wouldYouLikeToUpdate(new: String, installed: String) -> String {
+            "\(new) is available — you have \(installed). Would you like to update now?"
+        }
+        public static let cantReach = "Couldn't Check for Updates"
+        public static let cantReachDetail = "GitHub couldn't be reached. Check your connection and try again."
+        public static let automaticallyInfo = "Mac Analyzers looks for a newer version when it opens and every 6 hours, and says so once for each version. It never installs anything by itself: updating always asks first. Turn this off and it only looks when you press Check for Updates."
+        public static let neverByItself = "Updating always asks first."
+        public static let cloneNewer = "Your Clone Has Newer Changes"
+        public static let rebuildQuestion = "Rebuild this copy from your clone now? Uncommitted changes are built in too."
+        public static func checked(_ relative: String) -> String { "Checked \(relative)" }
+    }
+
     // MARK: - update channels
 
     public enum Channel {
         public static let heading = "Update Channel"
         public static let releases = "Releases"
         public static let beta = "Beta"
-        public static let thisCopy = "This Copy"
+        public static let thisCopy = "Development"
         public static let installBeta = "Update to Newest Beta"
-        public static let rebuild = "Rebuild from This Copy"
+        public static let newestBeta = "Newest Beta"
+        public static let rebuild = "Rebuild Development"
     }
 
     /// The sentences the two development channels say (not names: they are not in the title-style table).
     public enum ChannelText {
-        public static let notAClone = "This copy was downloaded, not built from a clone of the project, so it can only follow releases."
+        public static let notAClone = "This copy was downloaded, so it can only install releases. Installing a beta needs a copy built from a clone of the project; what the newest beta holds is listed below."
         public static func notOnDevelopment(_ branch: String?) -> String {
             "Beta follows the development branch. Your clone is on \(branch.map { "“\($0)”" } ?? "no branch")."
+        }
+        /// The line under the channel picker: what the channel is.
+        public static func describes(_ channel: UpdateChannel) -> String {
+            switch channel {
+            case .releases: "Published releases: finished versions, the way most people update."
+            case .beta: "The newest beta, a pre-release published ahead of the next release. A release newer than it is offered too."
+            case .thisCopy: "The development branch as it is now, including changes that are not committed."
+            }
         }
         public static let offline = "Couldn't reach GitHub to check."
         public static let rateLimited = "GitHub is limiting checks from this network right now. Try again in a while."
         public static let cannotRead = "Couldn't read your clone with git, so it can't be compared with this copy."
-        public static let builtWithLocalChanges = "This copy was built with changes that are not committed, so it is not the newest beta."
+        public static let noBetaYet = "No beta is out right now. A beta is a pre-release published ahead of the next release; when one is, it appears here. Until then, Beta offers each new release."
+        public static let aheadOfBeta = "This copy is newer than the newest beta."
+        public static let aheadOfRelease = "No beta is out right now, and this copy is newer than the newest release."
         public static let branchChanged = "Your clone is no longer on the development branch, so the newest beta can't be installed."
-        public static let aheadOfDevelopment = "This copy has changes that are newer than the development branch on GitHub."
-        public static let notOnGitHub = "This copy was built from changes that are not on GitHub."
-        public static let divergedFromDevelopment = "This copy and the development branch on GitHub have each moved on."
         public static let cloneIsBehindInstall = "This copy has changes your clone no longer has."
         public static let cloneLacksCommit = "This copy was built from changes your clone doesn't have."
         public static let installHadChangesCloneLost = "This copy was built with changes your clone no longer has."
@@ -278,6 +335,12 @@ public enum Names {
         public static let remove = "Remove"
         public static let save = "Save"
         public static let cancel = "Cancel"
+    }
+
+    /// Overview's Scan Everything button and the batch it starts.
+    public enum Overview {
+        public static let scanEverything = "Scan Everything"
+        public static let cancelTheRest = "Cancel the Rest"
     }
 
     /// The Welcome flow: its window, steps and buttons.
@@ -867,7 +930,7 @@ public enum Names {
                  Screen.memoryCleanup, Screen.disk, Screen.cachesAndBuilds, Screen.downloads,
                  Screen.tempAndAgents, Screen.timeMachine, Screen.spotlight, Screen.unusedApps, Screen.oldRecordings,
                  Screen.network, Screen.loginItems, Screen.reports, Screen.trends, Screen.undo,
-                 Screen.memorySettings, Screen.storageSettings, Screen.notifications, Screen.schedule,
+                 Screen.settings, Screen.memorySettings, Screen.storageSettings, Screen.notifications, Screen.schedule,
                  Screen.updates, Screen.howItWorks, Screen.support, Screen.turnOff, Screen.actions]
             .map { ("Screen", $0) }
         rows += [crisisReports, crisisReport, memoryReclaim, startupChanges].map { ("Shared", $0) }
@@ -899,6 +962,7 @@ public enum Names {
                  StorageTab.diskImages, StorageTab.packageManagers, StorageTab.xcodeSimulators,
                  StorageTab.docker, StorageTab.toolCaches].map { ("Storage tab", $0) }
         rows += [Prune.pnpm, Prune.npm, Prune.brew, Prune.simulators, Prune.docker].map { ("Prune", $0) }
+        rows += [Overview.scanEverything, Overview.cancelTheRest].map { ("Overview", $0) }
         rows += [Welcome.windowTitle, Welcome.newInThisVersion, Welcome.stepWelcome, Welcome.stepBackground, Welcome.stepGuard,
                  Welcome.stepNotifications, Welcome.stepFullDiskAccess, Welcome.stepTimeMachine, Welcome.stepDone, Welcome.next,
                  Welcome.back, Welcome.setUpLater, Welcome.notNow, Welcome.turnOn, Welcome.openMacAnalyzers,
@@ -941,7 +1005,9 @@ public enum Names {
                  MemoryKind.showInMonitor, MemoryKind.overTime, MemoryKind.whoHoldsTheMost, MemoryKind.whatItIs].map { ("Memory kind", $0) }
         rows += Kind.all.map { ("Kind", $0) }
         rows += Period.all.map { ("Period", $0) }
+        rows += SettingsHub.named.map { ("Settings", $0) }
         rows += WhatsNew.named.map { ("What's New", $0) }
+        rows += Update.named.map { ("Update", $0) }
         rows += [Stop.stop, Stop.quit, Stop.forceStop, Stop.leaveRunning, Stop.leftAlone, Stop.leftAloneOne].map { ("Stop", $0) }
         rows += [Guard.stopped, Guard.alerts, Guard.period, Guard.show, Guard.tabPlan, Guard.tabHistory, Guard.rule, Guard.matchingNow, Guard.thisWeek, Guard.steps, Guard.protectedNow, Guard.mayQuitList, Guard.neverCloseList, Guard.wouldHave, Guard.theRule, Guard.stateActing, Guard.stateWatching, Guard.stateOff, Guard.stateCantRun, Guard.nothingToReport,
                  Guard.nothingHere, Guard.eventGone, Guard.whatHappened, Guard.theProgram, Guard.whyTheGuardDoesThis,

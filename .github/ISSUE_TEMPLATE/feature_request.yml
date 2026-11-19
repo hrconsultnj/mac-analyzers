@@ -1,0 +1,27 @@
+name: Feature request
+description: An idea that fits what Mac Analyzers is for
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are welcome. Mac Analyzers reports first and acts only where it is safe, so a request that would delete or stop something automatically has a high bar: say why it is safe.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What state does your Mac get into that Mac Analyzers misses, or what takes you too many steps today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: What should happen instead? Describe what you would see, not how to build it.
+    validations:
+      required: true
+  - type: input
+    id: screen
+    attributes:
+      label: Which screen it belongs on
+      description: The screen it would live on (for example Monitor, Disk, Memory Guard), or "a new one".

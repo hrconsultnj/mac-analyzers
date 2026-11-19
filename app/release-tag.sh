@@ -9,7 +9,16 @@
 # Only when that tag is not known here (not fetched yet, or VERSION bumped before the release is tagged) does
 # it fall back to the nearest tag in history, and only a tag that is a version (vN.N.N) counts: a tag such
 # as `v9-junk` or `v2.70.0-rc1` is not a release and is never used.
+#
+# `release-tag.sh --beta <repo>` prints the beta tag (vX.Y.Z-beta.N) HEAD sits exactly on, the highest when there are
+# several, or nothing. A beta tag is never a release tag: the count above ignores every tag with a "-" in it.
 set -euo pipefail
+if [[ "${1:-}" == "--beta" ]]; then
+  beta_repo="${2:?usage: release-tag.sh --beta <repo>}"
+  git -C "$beta_repo" tag --points-at HEAD --list 'v[0-9]*-beta.[0-9]*' 2>/dev/null \
+    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$' | sort -V | tail -n 1 || true
+  exit 0
+fi
 repo="${1:?usage: release-tag.sh <repo> <version>}"
 tag="v${2:?usage: release-tag.sh <repo> <version>}"
 

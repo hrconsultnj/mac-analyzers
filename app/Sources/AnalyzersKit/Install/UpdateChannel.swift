@@ -5,7 +5,7 @@ import Foundation
 public enum UpdateChannel: String, CaseIterable, Sendable, Identifiable {
     /// The newest published release.
     case releases
-    /// The newest commit on the `development` branch on GitHub, committed or not yet released.
+    /// The newest beta: the newest GitHub pre-release (tag `vX.Y.Z-beta.N`), or a newer release when one is out.
     case beta
     /// The clone this copy was built from, including what is not committed yet.
     case thisCopy
@@ -34,6 +34,8 @@ public enum ChannelState: Equatable, Sendable {
     case unavailable(String)
     /// This copy has what the channel offers.
     case upToDate
+    /// Beta: a published version newer than this copy exists; the text is its short name ("2.72.1 Beta 2").
+    case offered(String)
     /// The channel has something this copy lacks. `changes` is how many commits, when known;
     /// `uncommitted` says the clone also has changes that are not committed.
     case behind(changes: Int?, uncommitted: Bool)
@@ -48,7 +50,7 @@ public enum ChannelState: Equatable, Sendable {
     /// Offers the install button.
     public var isUpdate: Bool {
         switch self {
-        case .behind, .differs: true
+        case .behind, .differs, .offered: true
         default: false
         }
     }
@@ -82,46 +84,76 @@ public struct CloneFacts: Equatable, Sendable {
     }
 }
 
-/// What GitHub's compare of the installed commit with `development` answered.
-public struct BetaCompare: Equatable, Sendable, Codable {
-    /// "ahead" (development has more), "identical", "behind" (this copy has more), "diverged",
-    /// or "missing" (GitHub does not know the commit).
+/// What GitHub's list of releases answered, for Beta: the newest pre-release that is a beta (`vX.Y.Z-beta.N`)
+/// and the newest release that is not a pre-release, each as a version without the "v".
+public struct BetaFeed: Equatable, Sendable, Codable {
+    /// "ok", or "rateLimited" when GitHub is limiting this network.
     public var status: String
-    public var aheadBy: Int
-    /// The newest commit on development: its short hash, date and first line.
-    public var newest: String?
+    /// "2.72.1-beta.2": the newest published beta, or nil when none has been published.
+    public var newestBeta: String?
+    /// "2.72.0": the newest published release.
+    public var newestRelease: String?
 
-    public init(status: String, aheadBy: Int, newest: String? = nil) {
+    public init(status: String = "ok", newestBeta: String? = nil, newestRelease: String? = nil) {
         self.status = status
-        self.aheadBy = aheadBy
-        self.newest = newest
+        self.newestBeta = newestBeta
+        self.newestRelease = newestRelease
     }
+
+    /// What Beta offers: the newer of the newest beta and the newest release. A beta is only ever the newest
+    /// when it is past the release (2.72.1-beta.1 sorts above 2.72.0 and below 2.72.1), so once a release catches up
+    /// with its beta, the release is what is offered.
+    public var target: String? {
+        switch (newestBeta, newestRelease) {
+        case let (beta?, release?): UpdateChecker.isNewer(release, than: beta) ? release : beta
+        case let (beta?, nil): beta
+        case let (nil, release?): release
+        default: nil
+        }
+    }
+}
+
+/// Whether a copy's commit already holds a published beta's commit (GitHub's compare of the beta's tag with the commit).
+public enum BetaContainment: Equatable, Sendable, Codable {
+    /// The copy's commit is the beta's or comes after it: it has everything the beta has.
+    case contains
+    /// The copy's commit is behind the beta or has gone another way: it lacks something the beta has.
+    case lacks
 }
 
 /// The words-free rules of the two development channels: facts in, one state out, so a probe can run every case.
 public enum ChannelLogic {
 
-    /// Beta: the newest commit on `development` against the commit this copy was built from.
-    /// Only a clone on `development` can follow it, because installing is `git pull` on that branch.
-    public static func beta(build: BuildInfo, cloneBranch: String?, isClone: Bool, compare: BetaCompare?) -> ChannelState {
+    /// Beta: the newest GitHub pre-release (or a newer release) against the version of this copy, by semantic-versioning
+    /// precedence: 2.72.0 < 2.72.1-beta.1 < 2.72.1-beta.2 < 2.72.1-dev.N < 2.72.1. A development copy is therefore
+    /// never offered a beta it is past, and every copy is offered the release once it is published. Only a clone on
+    /// `development` can follow it, because installing is a fast-forward of that branch to the tag.
+    ///
+    /// A development copy of the same version is above every beta of it by precedence alone, so for it the version cannot
+    /// say whether it has the newest beta: `containment` does (the copy's commit against the beta's). A Dev copy that lacks
+    /// the beta is offered it; one that holds it is ahead; when that could not be read (a commit GitHub does not know, or
+    /// offline) it is ahead, never offered something it may already hold.
+    public static func beta(build: BuildInfo, cloneBranch: String?, isClone: Bool, feed: BetaFeed?,
+                            containment: BetaContainment? = nil) -> ChannelState {
         guard isClone else { return .unavailable(Names.ChannelText.notAClone) }
         guard cloneBranch == "development" else {
             return .unavailable(Names.ChannelText.notOnDevelopment(cloneBranch))
         }
-        guard build.commit != nil else {
-            // an older build that never recorded its commit: one install from here starts the record
-            return .behind(changes: nil, uncommitted: false)
-        }
-        guard let compare else { return .unknown(Names.ChannelText.offline) }
-        switch compare.status {
-        case "rateLimited": return .unknown(Names.ChannelText.rateLimited)
-        case "identical":
-            // the commit is the newest, but a build with uncommitted changes in it is not "the newest beta"
-            return build.localChanges || build.localChangesUnknown ? .ahead(Names.ChannelText.builtWithLocalChanges) : .upToDate
-        case "ahead": return .behind(changes: compare.aheadBy, uncommitted: false)
-        case "behind": return .ahead(Names.ChannelText.aheadOfDevelopment)
-        case "missing": return .ahead(Names.ChannelText.notOnGitHub)
-        default: return .ahead(Names.ChannelText.divergedFromDevelopment)
+        guard let feed else { return .unknown(Names.ChannelText.offline) }
+        if feed.status == "rateLimited" { return .unknown(Names.ChannelText.rateLimited) }
+        guard let target = feed.target else { return .unavailable(Names.ChannelText.noBetaYet) }
+        let installed = build.version
+        switch UpdateChecker.compare(target, installed) {
+        case .orderedDescending:
+            return .offered(BuildInfo.label(forVersion: target))
+        case .orderedSame:
+            // the newest thing published is this copy: a beta is "the newest beta"; a release means no beta is out
+            return feed.newestBeta == target ? .upToDate : .unavailable(Names.ChannelText.noBetaYet)
+        case .orderedAscending:
+            if build.isDevelopment, let beta = feed.newestBeta, beta == target, containment == .lacks {
+                return .offered(BuildInfo.label(forVersion: target))
+            }
+            return .ahead(feed.newestBeta == nil ? Names.ChannelText.aheadOfRelease : Names.ChannelText.aheadOfBeta)
         }
     }
 

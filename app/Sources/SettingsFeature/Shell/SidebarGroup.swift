@@ -2,7 +2,7 @@ import AnalyzersKit
 import SwiftUI
 
 /// What a deep-link target means: a place in the main window, or a tab of the
-/// Settings window (which does not exist yet — see `PreferencesGroup`).
+/// Settings window (which does not exist yet — see `SettingsGroup`).
 enum Resolution: Equatable {
     case main(Location)
     /// A place in the main window plus a one-shot request for the section's own

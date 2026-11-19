@@ -402,60 +402,93 @@ log ""
 log "### 4. System Settings 'Open at Login' items"
 # Whether the login items could be READ is recorded in the inventory's header: an inventory without them says nothing
 # about the apps that open at login, and the Unused Apps screen must not treat those apps as checked.
+# Both an AppleScript timeout and a wall-clock shell guard bound each call so an unanswered macOS Automation prompt
+# can never hold the audit or the app's single job lane indefinitely.
+run_osascript() {
+  local secs="${ANALYZERS_OSASCRIPT_TIMEOUT:-15}" tmpf pid watcher rc
+  tmpf="$(mktemp "${TMPDIR:-/tmp}/ma-osa.XXXXXX")" || return 1
+  osascript "$@" >"$tmpf" 2>/dev/null &
+  pid=$!
+  (
+    spid=""
+    trap '[[ -n "$spid" ]] && kill -TERM "$spid" 2>/dev/null; exit 0' TERM
+    sleep "$secs" &
+    spid=$!
+    wait "$spid" 2>/dev/null
+    kill -TERM "$pid" 2>/dev/null
+  ) >/dev/null 2>&1 &
+  watcher=$!
+  wait "$pid" 2>/dev/null
+  rc=$?
+  kill -TERM "$watcher" 2>/dev/null
+  wait "$watcher" 2>/dev/null
+  cat "$tmpf"
+  rm -f "$tmpf"
+  return "$rc"
+}
+
 LOGINS_STATE="read"
-osascript -e 'tell application "System Events" to get {name, path} of every login item' >/dev/null 2>&1 || {
+run_osascript -e 'with timeout of 15 seconds' \
+  -e 'tell application "System Events" to get {name, path} of every login item' \
+  -e 'end timeout' >/dev/null 2>&1 || {
   LOGINS_STATE="unreadable"
   log "  (System Events not scriptable here — check manually)"
 }
-while IFS=$'\t' read -r nm pth; do
-  [[ -z "${nm:-}" ]] && continue
-  li_reason=""
-  [[ -n "$pth" && ! -e "$pth" ]] && li_reason="$(unavailable_reason "$pth")"
-  if [[ -n "$li_reason" ]]; then
-    log "  [SKIP]    login item '$nm'  (${li_reason//-/ }: $pth) — left alone"
-    inv loginitem user "$nm" "" "$pth" skip enabled "$li_reason"
-  elif [[ -n "$pth" && ! -e "$pth" ]]; then
-    if ! approved "$pth"; then
-      log "  [ORPHAN]  login item '$nm' → $pth (MISSING) — not in the approved list, left in place"
-      ORPHANS_USER=$((ORPHANS_USER+1))
-      inv loginitem user "$nm" "" "$pth" orphan enabled target-missing
-    elif [[ "$DRY_RUN" -eq 1 ]]; then
-      log "  [ORPHAN]  login item '$nm' → $pth (MISSING)"
-      ORPHANS_USER=$((ORPHANS_USER+1))
-      inv loginitem user "$nm" "" "$pth" orphan enabled target-missing
-    else
-      # System Events reports how many it deleted; none is "not removed" (deleting
-      # an empty selection is not an error, so the exit status says nothing)
-      removed_count="$(osascript -e 'on run argv' \
-        -e 'tell application "System Events"' \
-        -e 'set found to (every login item whose path is (item 1 of argv))' \
-        -e 'set n to count of found' \
-        -e 'if n > 0 then delete found' \
-        -e 'return n' \
-        -e 'end tell' \
-        -e 'end run' "$pth" 2>/dev/null)"
-      if [[ "$removed_count" =~ ^[1-9][0-9]*$ ]]; then
-        log "  [REMOVED] login item '$nm'"; REMOVED=$((REMOVED+1))
-        inv loginitem user "$nm" "" "$pth" removed enabled target-missing
-      else
-        log "  [NOT REMOVED] login item '$nm' → $pth: System Events found no login item with that path"
+if [[ "$LOGINS_STATE" == "read" ]]; then
+  while IFS=$'\t' read -r nm pth; do
+    [[ -z "${nm:-}" ]] && continue
+    li_reason=""
+    [[ -n "$pth" && ! -e "$pth" ]] && li_reason="$(unavailable_reason "$pth")"
+    if [[ -n "$li_reason" ]]; then
+      log "  [SKIP]    login item '$nm'  (${li_reason//-/ }: $pth) — left alone"
+      inv loginitem user "$nm" "" "$pth" skip enabled "$li_reason"
+    elif [[ -n "$pth" && ! -e "$pth" ]]; then
+      if ! approved "$pth"; then
+        log "  [ORPHAN]  login item '$nm' → $pth (MISSING) — not in the approved list, left in place"
+        ORPHANS_USER=$((ORPHANS_USER+1))
         inv loginitem user "$nm" "" "$pth" orphan enabled target-missing
+      elif [[ "$DRY_RUN" -eq 1 ]]; then
+        log "  [ORPHAN]  login item '$nm' → $pth (MISSING)"
+        ORPHANS_USER=$((ORPHANS_USER+1))
+        inv loginitem user "$nm" "" "$pth" orphan enabled target-missing
+      else
+        # System Events reports how many it deleted; none is "not removed" (deleting
+        # an empty selection is not an error, so the exit status says nothing)
+        removed_count="$(run_osascript -e 'on run argv' \
+          -e 'with timeout of 15 seconds' \
+          -e 'tell application "System Events"' \
+          -e 'set found to (every login item whose path is (item 1 of argv))' \
+          -e 'set n to count of found' \
+          -e 'if n > 0 then delete found' \
+          -e 'return n' \
+          -e 'end tell' \
+          -e 'end timeout' \
+          -e 'end run' "$pth" 2>/dev/null)"
+        if [[ "$removed_count" =~ ^[1-9][0-9]*$ ]]; then
+          log "  [REMOVED] login item '$nm'"; REMOVED=$((REMOVED+1))
+          inv loginitem user "$nm" "" "$pth" removed enabled target-missing
+        else
+          log "  [NOT REMOVED] login item '$nm' → $pth: System Events found no login item with that path"
+          inv loginitem user "$nm" "" "$pth" orphan enabled target-missing
+        fi
       fi
+    else
+      inv loginitem user "$nm" "" "$pth" ok enabled ""
     fi
-  else
-    inv loginitem user "$nm" "" "$pth" ok enabled ""
-  fi
-done < <(osascript -e '
-  tell application "System Events"
-    set out to ""
-    repeat with li in login items
-      try
-        set p to path of li
-        if p is not missing value then set out to out & (name of li) & tab & p & linefeed
-      end try
-    end repeat
-    return out
-  end tell' 2>/dev/null)
+  done < <(run_osascript -e '
+    with timeout of 15 seconds
+      tell application "System Events"
+        set out to ""
+        repeat with li in login items
+          try
+            set p to path of li
+            if p is not missing value then set out to out & (name of li) & tab & p & linefeed
+          end try
+        end repeat
+        return out
+      end tell
+    end timeout' 2>/dev/null)
+fi
 
 # Listed paths that are not a user-level leftover right now are ignored, and
 # said so: the list narrows what this script finds, it never adds to it.

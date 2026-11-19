@@ -1,0 +1,14 @@
+# Keeps the pinned GitHub Actions current. Every action is pinned to a commit
+# (a tag can be moved, a commit cannot); Dependabot proposes the new commit
+# with its version in the comment, as a pull request into development.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: development
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    labels:
+      - ci

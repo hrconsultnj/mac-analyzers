@@ -153,7 +153,7 @@ public struct OverviewModel: Sendable {
         if input.update.available, let latest = input.update.latest {
             items.append(Attention(id: "update", symbol: "arrow.down.circle.fill",
                                    title: "\(Names.State.updateAvailable): v\(latest)",
-                                   detail: "You have v\(input.update.installed).", tone: .good,
+                                   detail: "You have \(BuildInfo.isDevelopmentVersion(input.update.installed) ? "" : "v")\(BuildInfo.label(forVersion: input.update.installed)).", tone: .good,
                                    action: .open(target: "update")))
         }
         if input.reclaimableBytes > 1 << 30 {

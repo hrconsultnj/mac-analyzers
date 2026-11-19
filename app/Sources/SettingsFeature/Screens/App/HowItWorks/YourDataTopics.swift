@@ -48,7 +48,7 @@ extension HowItWorksTopic {
             switch f.channel {
             case .beta: following = "You follow Beta, so this happens on this Mac."
             case .releases: following = "You follow Releases, so this does not happen on this Mac unless you switch to Beta."
-            case .thisCopy: following = "You follow This Copy, so this does not happen unless you switch to Beta."
+            case .thisCopy: following = "You follow Development, so this does not happen unless you switch to Beta."
             }
             return TopicContent(
                 summary: "Everything is read and written on this Mac; three kinds of request go out.",

@@ -250,13 +250,15 @@ public enum GuardControl {
         try? p.run()
     }
 
-    /// Run the repo's upgrade.command in Terminal — visible progress: pull,
-    /// rebuild, refresh agents, relaunch. Settings are never touched.
+    /// Run `upgrade.command` in the background, not in Terminal. The Updates screen shows what it
+    /// prints. Settings are never touched. Returns the new process, or nil when it could not start.
     ///
-    /// `rebuildOnly` (the This Copy channel) runs `rebuild.command`: the same steps without the pull,
-    /// so a clone with uncommitted work is built as it is.
-    public static func runUpgrade(rebuildOnly: Bool = false) {
-        NSWorkspace.shared.open(AnalyzersPaths.suiteRoot.appending(path: rebuildOnly ? "rebuild.command" : "upgrade.command"))
+    /// `rebuildOnly` (This Copy) passes `--no-pull`: the clone is built as it is, uncommitted work included.
+    /// `beta` passes `--beta`: the clone moves to the newest published beta, then the same steps.
+    /// Releases passes neither: the clone pulls the branch it is on.
+    @discardableResult
+    public static func runUpgrade(rebuildOnly: Bool = false, beta: Bool = false) -> pid_t? {
+        DetachedUpgrade.launch(rebuildOnly: rebuildOnly, beta: beta)
     }
 
     /// Deep-link to this app's pane in System Settings → Notifications.

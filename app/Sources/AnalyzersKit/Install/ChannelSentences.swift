@@ -11,11 +11,12 @@ extension ChannelState {
             return reason
         case .upToDate:
             return channel == .beta ? "You have the newest beta." : "This copy matches your clone."
+        case .offered(let name):
+            return "\(name) is available."
         case .behind(let changes, let uncommitted):
             switch channel {
             case .beta:
-                guard let changes else { return "This copy doesn't record where it was built from, so the newest beta is offered once to start the record." }
-                return changes == 1 ? "There is 1 newer change on the development branch." : "There are \(changes) newer changes on the development branch."
+                return "A newer beta is available."
             default:
                 guard let changes else {
                     return "This copy doesn't record where it was built from. Rebuilding from your clone starts the record."

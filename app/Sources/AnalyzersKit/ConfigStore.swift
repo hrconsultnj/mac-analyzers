@@ -47,6 +47,14 @@ public struct StorageTunables: Equatable, Sendable {
     public var tempAgentScratchDays = 3        // TEMP_CLEAN_AGENT_SCRATCH_DAYS
     public var tempToolDownloadDays = 14       // TEMP_CLEAN_NPX_DAYS
     public init() {}
+
+    /// Whether Old Recordings has anywhere to look: a source switched on that the app can name or a folder of the
+    /// person's own, or, before any list was saved, the one folder `ANALYZERS_RECORDINGS_DIR` names. The Old Recordings
+    /// screen and Scan Everything both decide "no source is on" with this.
+    public var hasRecordingSources: Bool {
+        guard !recordingSources.isEmpty else { return !recordingSourcesConfigured && !recordingsDir.isEmpty }
+        return recordingSources.contains { $0.enabled && ($0.isCustom || RecordingSourceCatalog.definition($0.id) != nil) }
+    }
 }
 
 public struct NotifyPrefs: Equatable, Sendable {

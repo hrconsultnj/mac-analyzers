@@ -10,7 +10,7 @@ import UIComponents
 /// at 1400, two at 1100, one at 900, each row as tall as its tallest box.
 ///
 /// This file is the screen's state and its composition. One job per file:
-///   OverviewView+Alerts.swift      Needs Attention and Running Now, across the full width
+///   OverviewView+Alerts.swift      Needs Attention, Running Now and Scan Everything, across the full width
 ///   OverviewView+Memory.swift      pressure, memory in use and the three apps using the most
 ///   OverviewView+Storage.swift     free space, what can be reclaimed, what was freed
 ///   OverviewView+Guard.swift       the guard's state and its last event
@@ -23,12 +23,17 @@ struct OverviewView: View {
     @Environment(JobStore.self) var jobs
     @Environment(UpdateState.self) var updates
     @Environment(Navigator.self) var navigator
+    @Environment(ConfigStore.self) var config
     @State var week: TrendsSnapshot?
     @State var runway: ForecastModel.Runway?
     /// Why the last Resume did not work, in the store's own words.
     @State var resumeError: String?
     /// The census behind the memory box, read once off the main actor.
     @State var panel: MenuPanelModel?
+    /// Why Scan Everything did not start, in words.
+    @State var scanNotice: String?
+    /// Scan Everything left Login & Startup Items out because System Events is not allowed yet.
+    @State var loginItemsLeftOut = false
 
     /// Everything the screen says, rebuilt from the stores each time they change.
     var model: OverviewModel {
@@ -62,6 +67,7 @@ struct OverviewView: View {
                 HubHeader(symbol: "gauge.with.dots.needle.33percent", color: .blue, title: Names.Screen.overview,
                           caption: "Where your Mac stands right now, and the places that explain it.", areas: Self.areas)
                 alerts(model)
+                scanMessage
                 running
                 OverviewColumns {
                     memoryBox
@@ -76,6 +82,15 @@ struct OverviewView: View {
         }
         .navigationTitle(Names.Screen.overview)
         .navigationSubtitle("Your Mac at a glance")
+        .toolbar {
+            ToolbarItem {
+                Button { scanEverything() } label: { Label(Names.Overview.scanEverything, systemImage: "sparkle.magnifyingglass") }
+                    .labelStyle(.titleAndIcon)
+                    .help("Preview every cleanup and write every report, one after another; nothing is changed")
+                    .disabled(jobs.batchIsActive)
+            }
+            .toolbarRank(.primary)
+        }
         .task {
             store.reload()
             await awaitLoad({ TrendsModel.snapshot(period: .week) }, key: "overview.week") { week = $0 }

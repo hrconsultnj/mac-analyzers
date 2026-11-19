@@ -15,7 +15,7 @@ struct CleanupIdle: View {
                 Label(scope.title, systemImage: scope.symbol).font(.headline)
                 Text(explanation)
                 Button(Names.Cleanup.preview, systemImage: "eye", action: preview)
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.borderedProminent)
             } footer: {
                 Text("A preview only looks. Nothing is closed until you choose Close Programs.")
             }

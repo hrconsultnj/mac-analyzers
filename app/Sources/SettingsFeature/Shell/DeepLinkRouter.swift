@@ -61,7 +61,7 @@ public enum DeepLinkRouter {
     /// bring up the main window first. Every preference link still lands in
     /// the main window (the interim Settings rows) until a Settings window
     /// exists; that phase returns `.preferences` here and edits only
-    /// `PreferencesGroup`.
+    /// `SettingsGroup`.
     public enum LinkWindow: Equatable {
         case main
         case preferences(tab: String)
@@ -90,7 +90,7 @@ public enum DeepLinkRouter {
             navigator.setIntent(intent)
         case .preferences(let tab):
             // no Settings window yet: the interim row stands in for the tab
-            navigator.open(PreferencesGroup.interimLocation(forTab: tab))
+            navigator.open(SettingsGroup.interimLocation(forTab: tab))
         case .welcome:
             break      // the window is opened by whoever receives the open-window signal; nothing in the main window changes
         case .unknown:

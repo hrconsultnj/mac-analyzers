@@ -1,0 +1,71 @@
+name: Bug report
+description: Something behaved wrong or unsafely
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. The more of this you can fill in, the faster it can be fixed.
+        If this is a security problem, do not post it here: see [SECURITY.md](https://github.com/hrconsultnj/mac-analyzers/blob/main/SECURITY.md).
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: What did you see? If Mac Analyzers stopped or removed something it should not have, say what it was.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Mac Analyzers version
+      description: Shown at the bottom of the sidebar, on the Mac Analyzers screen. A Beta says so, for example 2.72.1 Beta.
+      placeholder: "2.73.0"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: Apple menu › About This Mac.
+      placeholder: "macOS 27.2"
+    validations:
+      required: true
+  - type: input
+    id: mac
+    attributes:
+      label: Mac model and chip
+      description: Apple menu › About This Mac.
+      placeholder: "MacBook Pro, Apple M4"
+    validations:
+      required: true
+  - type: input
+    id: screen
+    attributes:
+      label: Which screen
+      description: The screen in the app (for example Monitor, Memory Guard, Disk, Time Machine), or the menu-bar menu, or a script you ran.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or report excerpt (optional)
+      description: |
+        Reports are in `~/mac-analyzers/reports/`. Before you paste, remove anything personal: your user name in paths
+        (`/Users/you/...` becomes `/Users/<me>/...`), computer names, project and app names you would rather not share.
+      render: shell

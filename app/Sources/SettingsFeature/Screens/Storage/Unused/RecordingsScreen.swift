@@ -30,7 +30,7 @@ struct RecordingsScreen: View {
         return apps + (own > 0 ? ["\(own) \(own == 1 ? "folder" : "folders") of yours"] : [])
     }
 
-    private var noneOn: Bool { fixtureNoneOn || (fixture == nil && looksThrough.isEmpty) }
+    private var noneOn: Bool { fixtureNoneOn || (fixture == nil && !config.storage.hasRecordingSources) }
 
     private var emptyText: String {
         if noneOn { return "Choose where your recording apps save, and Mac Analyzers looks for recordings older than \(days) days." }

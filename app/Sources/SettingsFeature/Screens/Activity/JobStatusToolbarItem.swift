@@ -20,7 +20,8 @@ struct JobStatusToolbarItem: ToolbarContent {
     /// group into the overflow menu at 900 points when both were present). It is
     /// on every other screen.
     var body: some ToolbarContent {
-        if !(navigator.section == OverviewGroup.activity && navigator.path.isEmpty) {
+        if !(navigator.section == OverviewGroup.activity && navigator.path.isEmpty),
+           store.running != nil || JobStatusItemView.recentlyFinished(in: store) != nil {
             ToolbarItem(placement: .status) {
                 JobStatusItemView(store: store, navigator: navigator)
             }
@@ -36,7 +37,7 @@ private struct JobStatusItemView: View {
     /// How long a finished job's outcome stays up.
     private static let linger: TimeInterval = 30
 
-    private var recentlyFinished: Job? {
+    static func recentlyFinished(in store: JobStore) -> Job? {
         store.jobs
             .filter { job in
                 guard let end = job.finishedAt else { return false }
@@ -44,6 +45,10 @@ private struct JobStatusItemView: View {
                 return Date().timeIntervalSince(end) < Self.linger
             }
             .max { ($0.finishedAt ?? .distantPast) < ($1.finishedAt ?? .distantPast) }
+    }
+
+    private var recentlyFinished: Job? {
+        Self.recentlyFinished(in: store)
     }
 
     var body: some View {

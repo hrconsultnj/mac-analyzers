@@ -33,7 +33,7 @@ let strictC: [CSetting] = relaxed ? [] : [.treatAllWarnings(as: .error)]
 
 let package = Package(
     name: "MacAnalyzers",
-    platforms: [.macOS(.v27)],
+    platforms: [.macOS(.v26)],
     dependencies: proPackageDependencies,
     targets: [
         // app shell (thin @main: scenes + DI)

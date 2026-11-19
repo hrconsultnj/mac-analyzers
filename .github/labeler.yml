@@ -1,0 +1,23 @@
+# Labels by area, for actions/labeler (.github/workflows/labeler.yml).
+# Labels expected to exist: memory, storage, system, app-ui, engine, docs, ci
+memory:
+  - changed-files:
+      - any-glob-to-any-file: ['memory-analyzer/**']
+storage:
+  - changed-files:
+      - any-glob-to-any-file: ['storage-analyzer/**']
+system:
+  - changed-files:
+      - any-glob-to-any-file: ['network-analyzer/**', 'lib/**', 'extras/**', '*.command']
+app-ui:
+  - changed-files:
+      - any-glob-to-any-file: ['app/**']
+engine:
+  - changed-files:
+      - any-glob-to-any-file: ['memory-analyzer/**', 'storage-analyzer/**', 'network-analyzer/**', 'lib/**', 'tests/**']
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ['**/*.md', 'examples/**']
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**', 'scripts/**']

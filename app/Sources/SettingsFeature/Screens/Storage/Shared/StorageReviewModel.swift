@@ -29,6 +29,7 @@ final class StorageReviewModel {
     }
 
     private(set) var job: Job?
+    private(set) var appliedJob: Job?
     private(set) var block: WholeRun.Block?
     private(set) var rows: StorageRows?
     private(set) var session: ReviewSession?
@@ -36,10 +37,18 @@ final class StorageReviewModel {
     /// When the rows were looked up, for the line over a last-known list.
     private(set) var asOf: Date?
     @ObservationIgnored private var loadedFor: UUID?
+    @ObservationIgnored private var handledApplyFor: UUID?
 
     /// The preview this screen shows: one still running or recent enough to be reviewed.
     func adopt(_ store: JobStore, kind: JobKind) {
         guard job == nil, let found = store.adoptable(kind: kind, intents: [.preview]) else { return }
+        if let applied = store.latest(kind, intents: [.apply]),
+           case .succeeded = applied.state,
+           let previewEnd = found.finishedAt,
+           let applyEnd = applied.finishedAt,
+           applyEnd >= previewEnd {
+            return
+        }
         job = found
         loadedFor = nil
         refreshPhase()
@@ -50,6 +59,33 @@ final class StorageReviewModel {
         job = store.enqueue(JobRequest(kind: kind, intent: .preview, options: options), trigger: .user)
         loadedFor = nil
         refreshPhase()
+    }
+
+    /// Remembers the apply started from the current preview so the screen can prune applied rows
+    /// and clear their ticks once the apply finishes.
+    func trackApplied(_ applied: Job) {
+        appliedJob = applied
+    }
+
+    /// Once the apply job finishes with `.succeeded`, clears the applied rows from the active review
+    /// (and unticks any remaining selection) so finished items no longer stay listed and ticked.
+    func finishAppliedIfNeeded(_ store: JobStore) {
+        guard let applied = appliedJob, case .succeeded = applied.state, handledApplyFor != applied.id else { return }
+        handledApplyFor = applied.id
+        session?.dropTicks()
+        let appliedIDs = Set(applied.request.approved?.approved ?? session?.selection.tickedIDs ?? [])
+        session?.selectNone()
+        if let current = rows, !appliedIDs.isEmpty {
+            let remaining = current.rows.filter { !appliedIDs.contains($0.id) }
+            let updated = StorageRows(remaining, notes: current.notes, facts: current.facts,
+                                      tabNotes: current.tabNotes, tabs: current.dataTabs)
+            rows = updated
+            if let previewID = job?.id {
+                let live = ReviewSession(previewID: previewID, rows: remaining.map(\.reviewRow))
+                live.selectNone()
+                session = live
+            }
+        }
     }
 
     /// The setting (Daily/Deep, Trash/permanent) the screen shows, words and previews with. It comes
@@ -79,7 +115,8 @@ final class StorageReviewModel {
     /// Forgets the preview on screen (the options changed, or a new preview starts).
     func discard(_ store: JobStore) {
         store.dismiss(job)
-        job = nil; block = nil; rows = nil; session = nil; loadedFor = nil; asOf = nil
+        store.dismiss(appliedJob)
+        job = nil; appliedJob = nil; block = nil; rows = nil; session = nil; loadedFor = nil; handledApplyFor = nil; asOf = nil
         phase = .empty
     }
 

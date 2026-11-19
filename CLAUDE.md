@@ -2,7 +2,7 @@
 
 Shell-script toolkit (bash, macOS-only, no dependencies — every script MUST
 run under the bash macOS ships, `/bin/bash` 3.2; see the bash rule below) plus one compiled
-part: the SwiftUI menu-bar app in `app/` (SPM, Swift 6, macOS 27).
+part: the SwiftUI menu-bar app in `app/` (SPM, Swift 6, macOS 26 and later, built with the macOS 27 SDK; anything newer than 26.0 sits behind `#available`).
 Read `CONTRIBUTING.md` first — its **safety invariants are hard rules**:
 analyzers read-only, cleaners dry-run by default when run by hand (the scheduled
 launchd jobs pass `--apply` and act by themselves), guard kills dev-tooling only,
@@ -88,7 +88,7 @@ through `config.local.sh` (never hardcoded).
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
   output. The one automated suite is `memory-analyzer/tests/`; otherwise the
   dry-run IS the test. For the app:
-  `cd app && swift build` (bundle assembly is `./app/build.sh` — no Xcode; it
+  `cd app && swift build` (bundle assembly is `./app/build.sh` — Xcode 26.4 or later, no Xcode project; it
   signs with an Apple Development identity when present, ad-hoc fallback, and
   installs to `/Applications/MacAnalyzers.app` — the canonical run location;
   the repo `app/` bundle is the build artifact / script-only fallback).
@@ -113,6 +113,11 @@ through `config.local.sh` (never hardcoded).
   one line, then its nested areas as rows that open them through the `Navigator`) as the
   first item INSIDE its scroll content; a screen that is a table, a list or a review
   (Monitor, Activity, Guard, a run) never has one and starts with its data.
+  Settings is ONE sidebar row (`Groups/SettingsGroup.swift`, `Screens/Settings/SettingsHubView.swift`): the app's own
+  configuration (appearance, sidebar icon style, Open at Login, the Updates state) at the top, then a row for each
+  preference screen (Memory, Storage, Notifications, Schedule), pushed over the hub as `Route.settings`; their deep links
+  land there with the Settings row still selected. A new preference goes in the hub or in one of those screens, never in
+  a new sidebar row. Open at Login is the system's `SMAppService.mainApp` state, shared with Setup: one switch per thing.
   The app-level screens (Updates, What's New, How It Works, Support) have no sidebar rows
   (`SidebarRow(inSidebar: false)` keeps the row for names and icons): the item at the foot of
   the sidebar (`Shell/SidebarVersionItem.swift`) opens the Mac Analyzers screen
@@ -500,9 +505,16 @@ Both are protected (code-owner review required for PRs; owner pushes directly).
   pull requests check the text rules and say the rest was not run). The sidebar
   card that announces the newest unseen release is `whatsNew.seenVersion` in the
   defaults (never on a development build or a first launch); render it with
-  `snapshot-runner sidebar:whatsNewCard out.png`, and What's New with
-  `updates:whatsNew`, `updates:whatsNew:latest` and `updates:whatsNew:<version>`
-  (`MA_CHANGELOG=app/Fixtures/whats-new.md` for stand-in releases).
+  `snapshot-runner sidebar:whatsNewCard out.png`. What's New is the list on the
+  Updates screen itself, under the channel picker (`UpdateSettingsView`; no screen or row of its
+  own), and it follows the channel: `WhatsNewSource` / `ReleaseNote.channelNotes` give Releases the
+  published releases, Beta those plus the newest published beta past the newest release (a card named by
+  `BuildInfo.label`, its notes the `## Next` at that beta's tag), and This Copy those plus a "Not Released
+  Yet" card from the clone's own `## Next` (a Dev or beta build also keeps the notes it holds; on This Copy the beta's card is read only when the clone is on `development`); a card pushes its release (`WhatsNewReleaseScreen`), a feature
+  its detail. The links are `updates:whatsNew` (Updates, scrolled to the list), `updates:whatsNew:latest`
+  and `updates:whatsNew:<version>`; render them with
+  `snapshot-runner update out.png --update-state <uptodate|beta-behind|beta-none|copy-behind|…>` and
+  `MA_CHANGELOG=app/Fixtures/whats-new.md` for stand-in releases.
 - Installed clones update via `./upgrade.command` (Finder double-clickable):
   `git pull --ff-only` → `app/build.sh` (reinstalls to /Applications) → both
   `*-manage-agents.sh install` → relaunch the app (prefers the /Applications
@@ -510,13 +522,10 @@ Both are protected (code-owner review required for PRs; owner pushes directly).
 - The app self-checks for releases (launch + every 6 h, `UpdateChecker`) and
   notifies once per new version; the Update pane and menu footer show
   installed vs latest and run `upgrade.command` on Install.
-  A copy built from a git clone can also follow an update channel, picked on
+  The Updates screen is a hybrid of macOS Software Update and our channels (`UpdateStatusCard`: icon, `UpdateState.statusTitle`/`statusDetail`, Check for Updates; `UpdateChannelSection` "Updates From": Releases and Beta always, This Copy only from a clone; `AutomaticChecksRow`; What's New below). "Check for Updates…" is a command in the app menu and Help (`UpdateCoordinator`, attached to the app's one `UpdateState`): up to date → the system alert, newer → `UpdateAvailableView` (notes of every version between, `ReleaseNote.forUpdate`; Skip This Version / Remind Me Later / Install Update through `UpdateChoices`, which the 6-hourly watcher also reads, as does Check Automatically), unreachable → an alert. It never installs by itself. `snapshot-runner update out.png --update-window release|beta --size 520x560` and `--update-alert up-to-date|unreachable|clone --update-state uptodate` render the window and the alert.
+  A copy can also follow an update channel, picked on
   the Updates screen (`UpdateChannel`, saved in defaults): **Releases** (the
-  default, as above), **Beta** (the newest commit on `development`, read with
-  two public GitHub requests, a compare of the commit this copy was built from
-  and the changelog on `development`; Install is `upgrade.command`, a `git pull
-  --ff-only` on development plus a rebuild; only offered when the clone is on
-  `development`) and **This Copy** (the clone itself, uncommitted changes
+  default, as above), **Beta** (the newest GitHub pre-release, tag `vX.Y.Z-beta.N`, or a newer release; one public request for the releases list and the changelog at that tag; Install is `beta.command`, which moves a clone on `development` forward to the newest PUBLISHED version's tag (a tag counts only when GitHub has a release for it; a release newer than the beta wins; never the development tip; a clone already past it is refused) and rebuilds; cut with `scripts/cut-beta.sh`, which makes the tag and the pre-release in one step so one never exists without the other; a Dev copy is offered the newest beta when its commit does not hold that beta's, asked of GitHub's compare) and **This Copy** (the clone itself, uncommitted changes
   included, read with local `git`; "Rebuild from This Copy" runs
   `rebuild.command`, the same build without the pull). The build stamps
   `MABuildCommit`, `MABuildBranch`, `MABuildTreeHash` (`scripts/tree-hash.sh`:
@@ -534,11 +543,6 @@ Both are protected (code-owner review required for PRs; owner pushes directly).
   (`GIT_NO_LAZY_FETCH`), a non-empty `.git/info/attributes` is unknown, and
   git failing makes the state "unknown". A downloaded app, or a Mac without the developer tools,
   runs no git at all (`GitTools`, so Apple's install dialog never appears) and
-  shows Releases only. A development build is never named for the release:
-  `BuildInfo.version` is the next patch, `-dev.<commits since the tag>`,
-  `+<short commit>` and `.local` (or `.unknown`) for uncommitted changes, by
-  semantic-versioning precedence (`2.69.2 < 2.69.3-dev.42 < 2.69.3`); Beta and
-  This Copy decide "newer" by commit and fingerprint, never by that string.
-  Nothing fetches into the person's clone and nothing installs by itself;
+  shows Releases only. A person reads one short name (`BuildInfo.label`): a release "2.72.0", a published beta (clean tree at a beta tag, stamp `MABuildBetaTag`) "2.72.1 Beta" / "2.72.1 Beta 2", anything else built from a clone "Dev · 8e2c9b0" (`*` for uncommitted changes). Inside, `BuildInfo.version` is the semantic-versioning string (`2.72.1-beta.2`, `2.72.1-dev.42+8e2c9b0.local`; `2.72.0 < 2.72.1-beta.1 < 2.72.1-dev.N < 2.72.1`) used only for comparison; Beta decides by that version, This Copy by commit and fingerprint. Nothing fetches into the person's clone and nothing installs by itself;
   `agent-runner --probe-channels` (including a hostile clone that writes a
   marker if anything runs) and `--probe-versions` prove it.

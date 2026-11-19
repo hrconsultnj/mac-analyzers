@@ -12,7 +12,7 @@ name: mac
 # then runs only the checks those files call for (scripts/check.sh --changed).
 #
 # Runner: `xcode-27` (macOS 27, Xcode 27.2, macOS 27.2 SDK) because the app
-# requires macOS 27 and is developed against that SDK. The label is
+# runs on macOS 26 and later and is developed against the macOS 27 SDK. The label is
 # still a preview image: if runs queue for long, or the label changes, check
 # the runner-images README for the current Xcode 27 label.
 

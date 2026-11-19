@@ -2,28 +2,58 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// The channel part of the Updates screen: which channel this copy follows (a segmented picker, shown
-/// when there is more than one to choose from) and, for Beta and This Copy, what that channel found. Releases
-/// is the screen's own rows; this adds nothing to it but the picker.
+/// "Updates From": which channel this copy follows (Releases and Beta always, This Copy only for a copy built from a clone),
+/// the one line that says what the channel is, and, for Beta and This Copy, what that channel found. The install button
+/// on the status card installs this channel.
 struct UpdateChannelSection: View {
     @Bindable var updates: UpdateState
     let checking: Bool
 
     var body: some View {
         Section {
-            if updates.channels.count > 1 {
-                FullWidthSegments(options: updates.channels.map { ($0, $0.title) }, selection: $updates.channel,
-                                  help: "Releases: the newest published version. Beta: the newest commit on the development branch. This Copy: your own clone, uncommitted changes included.")
-            } else {
-                Text(Names.ChannelText.notAClone)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            FullWidthSegments(options: updates.channels.map { ($0, $0.title) }, selection: $updates.channel,
+                              help: "Releases: the newest published release. Beta: the newest pre-release. Development: your clone, uncommitted changes included.")
+            Text(Names.ChannelText.describes(updates.channel))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            UpdateChannelRows(updates: updates, checking: checking)
+        } header: {
+            Text(Names.Update.updatesFrom).font(.headline)
         }
     }
 }
 
-/// The rows a development channel adds under the installed version.
+/// "Check Automatically": the one switch about notices, with what it does behind an info button. It sits in the status
+/// section, under Check for Updates, the way Software Update puts Automatic Updates under the version. It is honest
+/// about what exists today: the app looks every 6 hours and says so once per version; there is no automatic install.
+struct AutomaticChecksRow: View {
+    @Bindable var updates: UpdateState
+    @State private var showingInfo = false
+
+    var body: some View {
+        // a switch on the right of the row, the system's own way; the info button sits beside the title
+        Toggle(isOn: $updates.automaticChecks) {
+            HStack(spacing: Tokens.Space.s) {
+                Text(Names.Update.checkAutomatically)
+                Button { showingInfo.toggle() } label: {
+                    Image(systemName: "info.circle")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(Names.Update.neverByItself)
+                .accessibilityLabel("About \(Names.Update.checkAutomatically)")
+                .popover(isPresented: $showingInfo, arrowEdge: .bottom) {
+                    Text(Names.Update.automaticallyInfo)
+                        .padding()
+                        .frame(width: 320)   // fixed: a popover has no width of its own to take from the list
+                }
+            }
+        }
+        .toggleStyle(.switch)
+    }
+}
+
+/// The rows a development channel adds under the picker.
 struct UpdateChannelRows: View {
     let updates: UpdateState
     let checking: Bool
@@ -33,15 +63,15 @@ struct UpdateChannelRows: View {
         case .releases:
             EmptyView()
         case .beta:
-            LabeledContent("Newest Beta") {
-                Text(updates.newestBeta ?? (checking ? "Checking…" : "—"))
+            LabeledContent(Names.Channel.newestBeta) {
+                Text(updates.newestBeta ?? (checking ? "Checking…" : "None Yet"))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
-            .help("The newest commit on the development branch on GitHub")
+            .help("The newest beta published on GitHub: a pre-release of the next version")
             stateLabel
             if updates.cloneDirty == true {
-                Label("Your clone has changes that are not committed yet. Updating pulls the newest commit and builds those changes in too.",
+                Label("Your clone has changes that are not committed yet. Updating moves your clone to the newest beta and builds those changes in too.",
                       systemImage: "info.circle")
                     .foregroundStyle(.secondary)
             }
@@ -69,7 +99,7 @@ struct UpdateChannelRows: View {
             switch state {
             case .upToDate:
                 Label(text, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-            case .behind, .differs:
+            case .behind, .differs, .offered:
                 Label(text, systemImage: "exclamationmark.circle.fill").foregroundStyle(.orange)
             case .ahead:
                 Label(text, systemImage: "hammer.fill").foregroundStyle(.blue)

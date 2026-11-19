@@ -61,6 +61,25 @@ welcome either way.
 - Match the existing style: `$HOME`-based paths, `section`/`group` helpers,
   markdown report output, launchd labels under `com.mac-analyzers.*`.
 
+## How a contribution flows
+
+1. **Fork** the repository and **branch from `development`**.
+2. Make the change, then run `scripts/check.sh` on your Mac. It is the same
+   script the pull request runs, so a green run here is a green run there.
+3. Open a **pull request to `development`**. A pull request aimed at `main`
+   fails its first check and needs its base branch changed.
+4. **Checks run on GitHub.** The shell, lint and secrets checks run on Linux;
+   the engine tests and the app build run on a Mac when you touch a script,
+   a test or the app. A pull request that changes what people see also needs
+   its line under `## Next` in `CHANGELOG.md`, and the PR template says how it
+   is written. If nobody using the app would notice the change, a maintainer
+   adds the `no-changelog` label.
+5. **Review.** A maintainer reviews it against the safety rules below.
+6. **It lands in the next release.** Merging into `development` does not
+   publish anything: releases and betas are cut by the maintainer, on their
+   own Mac, with `scripts/cut-release.sh`. No GitHub workflow publishes a
+   release.
+
 ## Workflow
 
 **Fork the repo, branch from `development`, and open your PR against
@@ -72,6 +91,16 @@ entry in `CHANGELOG.md`. If your change is something a user would notice, add
 a line under `## Next` at the top of that file — in plain sentences, for someone who has never
 seen the code. Both branches are protected;
 code-owner review is required before merge.
+
+**Two channels, two scripts.** People follow the public release or a beta, as
+in TestFlight. `scripts/cut-release.sh` publishes a release (`vN.N.N`, from
+`main`). `scripts/cut-beta.sh` publishes a beta: it tags the current commit of
+`development` `vX.Y.Z-beta.N` (X.Y.Z is the next version after the latest
+release; N counts up) and creates a GitHub pre-release with the `## Next`
+notes. It never touches `main` or `VERSION`, and GitHub never offers a
+pre-release as the latest release, so only the Beta channel sees it. Rehearse
+with `scripts/cut-beta.sh --dry-run`. A beta tag is never counted as a release
+(`app/release-tag.sh` ignores every tag with a `-`).
 
 - **App/UI PRs** (`app/`): describe what changed visually — a screenshot of
   the affected menu tab or settings pane beats a paragraph — and confirm

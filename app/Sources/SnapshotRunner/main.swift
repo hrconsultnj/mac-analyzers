@@ -64,10 +64,10 @@ if arguments.first == "--probe-links" {
     // every link Overview and the menu-bar panel send (Overview track): each must land on its screen
     let overview = ["disk:capacity": "disk", "caches:projects": "caches", "monitor": "monitor", "monitor:select:Opera": "monitor",
                     "trends": "trends", "trends:storage": "trends", "trends:memory": "trends", "undo": "undo",
-                    "undo:servers": "undo", "undo:opened": "undo", "logs": "activity", "schedule": "prefsSchedule",
+                    "undo:servers": "undo", "undo:opened": "undo", "logs": "activity", "schedule": "settings", "settings": "settings", "memory": "settings", "storage": "settings", "notifications": "settings",
                     "update": "updates", "log:guardLog": "memoryGuard", "setup": "setup",
                     "app": "app", "about": "howItWorks", "howItWorks": "howItWorks", "support": "support",
-                    "updates:whatsNew": "updates", "updates:whatsNew:latest": "updates"]
+                    "updates:whatsNew": "updates", "updates:whatsNew:latest": "updates", "updates:whatsNew:2.71.0": "updates"]
     for (target, section) in overview.sorted(by: { $0.key < $1.key }) {
         let landed = DeepLinkRouter.probeRouting(of: target)
         let ok = landed.contains("\"\(section)\"") && !landed.contains("unknown")
@@ -223,17 +223,22 @@ final class Snapshot: NSObject, NSApplicationDelegate {
             case "available": (0, "999.0.0")
             default: (0, version)
             }
-            let forced = UpdateState(build: BuildInfo(release: version, commitsAfter: preset.commits, localChanges: false))
+            // `beta-copy`: a copy built at a beta tag, on the Releases channel
+            let betaCopy = state == "beta-copy"
+            let forced = UpdateState(build: betaCopy
+                ? BuildInfo(release: version, commitsAfter: 6, commit: String(repeating: "a", count: 40), treeHash: "clean", releaseTag: "v\(version)", betaTag: "v\(BuildInfo.nextPatch(after: version))-beta.2")
+                : BuildInfo(release: version, commitsAfter: preset.commits, localChanges: false))
             forced.preset(latest: preset.latest)
-            // the development channels: `beta-behind|beta-current|beta-ahead|beta-offline|copy-behind|copy-dirty|copy-current|copy-differs`
+            // the development channels: `beta-behind|beta-current|beta-none|beta-release|beta-ahead|beta-offline|copy-behind|copy-dirty|copy-current|copy-differs`
             let commit = String(repeating: "a", count: 40)
             let fixtures: [String: (UpdateChannel, ChannelState, String?, CloneFacts)] = [
-                "beta-behind": (.beta, .behind(changes: 5, uncommitted: false), "9f3c2e1 · Show what each cleanup moved to the Trash",
-                                CloneFacts(branch: "development", isDirty: false, fingerprint: "clean", relation: .same)),
-                "beta-current": (.beta, .upToDate, nil, CloneFacts(branch: "development", isDirty: false, fingerprint: "clean", relation: .same)),
-                "beta-ahead": (.beta, .ahead(Names.ChannelText.notOnGitHub), nil, CloneFacts(branch: "development", isDirty: true, fingerprint: "x", relation: .same)),
+                "beta-behind": (.beta, .offered("2.72.1 Beta 2"), "2.72.1 Beta 2", CloneFacts(branch: "development", isDirty: false, fingerprint: "clean", relation: .same)),
+                "beta-current": (.beta, .upToDate, "2.72.1 Beta 2", CloneFacts(branch: "development", isDirty: false, fingerprint: "clean", relation: .same)),
+                "beta-none": (.beta, .unavailable(Names.ChannelText.noBetaYet), nil, CloneFacts(branch: "development", isDirty: false, fingerprint: "clean", relation: .same)),
+                "beta-release": (.beta, .offered("2.72.1"), "2.72.1 Beta 2", CloneFacts(branch: "development", isDirty: false, fingerprint: "clean", relation: .same)),
+                "beta-ahead": (.beta, .ahead(Names.ChannelText.aheadOfBeta), "2.72.1 Beta 2", CloneFacts(branch: "development", isDirty: true, fingerprint: "x", relation: .same)),
                 "beta-offline": (.beta, .unknown(Names.ChannelText.offline), nil, CloneFacts(branch: "development", isDirty: false, fingerprint: "clean", relation: .same)),
-                "copy-behind": (.thisCopy, .behind(changes: 3, uncommitted: true), nil, CloneFacts(branch: "feature/update-channels", isDirty: true, fingerprint: "x", relation: .cloneAhead(3))),
+                "copy-behind": (.thisCopy, .behind(changes: 3, uncommitted: true), nil, CloneFacts(branch: "development", isDirty: true, fingerprint: "x", relation: .cloneAhead(3))),
                 "copy-dirty": (.thisCopy, .behind(changes: 0, uncommitted: true), nil, CloneFacts(branch: "development", isDirty: true, fingerprint: "x", relation: .same)),
                 "copy-current": (.thisCopy, .upToDate, nil, CloneFacts(branch: "development", isDirty: false, fingerprint: "clean", relation: .same)),
                 "copy-differs": (.thisCopy, .differs(Names.ChannelText.installHadChangesCloneLost), nil, CloneFacts(branch: "development", isDirty: false, fingerprint: "clean", relation: .same)),
@@ -241,10 +246,32 @@ final class Snapshot: NSObject, NSApplicationDelegate {
             if let fixture = fixtures[state] {
                 // a "current" state is one a clean build can be in; the others come from a build with changes
                 let isCurrent = state == "beta-current" || state == "copy-current"
-                let channelBuild = BuildInfo(release: version, commitsAfter: 3, localChanges: !isCurrent, commit: commit, branch: "development", treeHash: isCurrent ? "clean" : "x")
+                let nextVersion = BuildInfo.nextPatch(after: version)
+                let channelBuild: BuildInfo = switch state {
+                // Beta fixtures are the copies a person on Beta really has: a release copy, a beta copy, a Dev copy
+                case "beta-behind", "beta-none", "beta-release", "beta-offline":
+                    BuildInfo(release: version, commitsAfter: 0, commit: commit, branch: "development", treeHash: "clean", releaseTag: "v\(version)")
+                case "beta-current":
+                    BuildInfo(release: version, commitsAfter: 6, commit: commit, branch: "development", treeHash: "clean", releaseTag: "v\(version)", betaTag: "v\(nextVersion)-beta.2")
+                default:
+                    BuildInfo(release: version, commitsAfter: 3, localChanges: !isCurrent, commit: commit, branch: "development", treeHash: isCurrent ? "clean" : "x")
+                }
                 let channelState = UpdateState(build: channelBuild)
                 channelState.preset(latest: version)
-                channelState.preset(channel: fixture.0, state: fixture.1, newest: fixture.2, cloneBranch: fixture.3.branch, facts: fixture.3)
+                // what the What's New list shows under the channel: the beta's notes (Beta and This Copy, when a beta is out)
+                // and the clone's own unreleased section (This Copy)
+                let betaOut = !["beta-none", "beta-offline", "beta-release"].contains(state)
+                let betaChangelog = "## Next\n\n- The Updates screen lists what each release brought. <!-- wn: open=update icon=sparkles title=\"Release Notes on Updates\" -->\n- Beta follows the newest pre-release. <!-- wn: open=update icon=testtube.2 title=\"Beta Channel\" -->\n"
+                let cloneChangelog = "## Next\n\n- The Updates screen lists what each release brought. <!-- wn: open=update icon=sparkles title=\"Release Notes on Updates\" -->\n- Beta follows the newest pre-release. <!-- wn: open=update icon=testtube.2 title=\"Beta Channel\" -->\n- A change only your clone has. <!-- wn: open=- icon=hammer title=\"Your Clone\" -->\n"
+                let betaTargetVersion: String? = switch state {
+                case "beta-release": "2.72.1"
+                case "beta-behind", "beta-current", "beta-ahead": "2.72.1-beta.2"
+                default: nil
+                }
+                channelState.preset(channel: fixture.0, state: fixture.1, newest: fixture.2, cloneBranch: fixture.3.branch, facts: fixture.3,
+                                    cloneChangelog: fixture.0 == .thisCopy ? cloneChangelog : nil,
+                                    betaNotes: betaOut ? UpdateState.BetaNotes(label: "2.72.1 Beta 2", changelog: betaChangelog) : nil,
+                                    betaTargetVersion: betaTargetVersion)
                 return channelState
             }
             return forced
@@ -275,6 +302,8 @@ final class Snapshot: NSObject, NSApplicationDelegate {
         let sources = checkout.appending(path: "lib/recording-sources.tsv")
         if FileManager.default.fileExists(atPath: sources.path) { RecordingSourceCatalog.useList(at: sources) }
         if fakeRunning || fakeFailed || fakeReview { startFakeJobs() }
+        // `--update-alert up-to-date|unreachable|clone|dev`: the alert "Check for Updates…" shows, drawn from its own views
+        if let kind = option("--update-alert") { UpdateRenders.render(kind: kind, updates: updates, to: output, appearance: appearanceOption) }
         if updateStateOption == nil { Task { await updates.check() } }
         // `--welcome <state:step>` (`fresh:3`) draws the Welcome window's own content at the size it has (use `--size 560x680`), not
         // the example inside the main window: the target is then only a placeholder
@@ -290,7 +319,8 @@ final class Snapshot: NSObject, NSApplicationDelegate {
                 StopTarget.fixture(name: "npm task", whereItRuns: "nutri-journey", megabytes: 168, processes: 3),
                 StopTarget.fixture(name: "npm task", whereItRuns: "billing-service", canStop: false, megabytes: 40),
             ], ticked: true))
-            : option("--welcome").map { example in
+            : option("--update-window").map { kind in AnyView(UpdateRenders.updateWindow(kind: kind)) }
+            ?? option("--welcome").map { example in
             AnyView(WelcomeFlowView(fixture: example)
                 .environment(store).environment(config).environment(jobs).environment(updates))
         } ?? AnyView(MainWindowView(restoresLocation: false, sidebar: sidebarState)

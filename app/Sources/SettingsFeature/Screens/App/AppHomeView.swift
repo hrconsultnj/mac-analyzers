@@ -4,16 +4,14 @@ import AnalyzersKit
 import UIComponents
 
 /// The Mac Analyzers screen, opened by the item at the foot of the sidebar: the app's logo, its name and version,
-/// one line about it, and the screens about the app itself (Updates, What's New, How It Works, Support) as rows that
+/// one line about it, and the screens about the app itself (Updates, How It Works, Support) as rows that
 /// open them. They have no sidebar rows of their own.
 struct AppHomeView: View {
     @Environment(UpdateState.self) private var updates
 
     private static let areas: [HubArea] = [
-        HubArea(title: Names.Screen.updates, caption: "Check for a newer version, and choose which releases to follow.",
+        HubArea(title: Names.Screen.updates, caption: "Check for a newer version, choose which releases to follow, and read what each one brought.",
                 symbol: "arrow.down.circle.fill", color: .blue, target: "update"),
-        HubArea(title: Names.WhatsNew.title, caption: "What each release brought, release by release.",
-                symbol: "sparkles", color: .orange, target: "updates:whatsNew"),
         HubArea(title: Names.Screen.howItWorks, caption: "How the app decides, measures and writes everything down.",
                 symbol: "questionmark.circle.fill", color: .teal, target: "howItWorks"),
         HubArea(title: Names.Screen.support, caption: "Ways to help, and where to tell us what broke.",

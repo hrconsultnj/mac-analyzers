@@ -142,31 +142,19 @@ func probeChannels() -> Never {
     check("not a clone (a download): This Copy is unavailable", ChannelLogic.thisCopy(build: build(commit: first), isClone: false, clone: nil),
           .unavailable(Names.ChannelText.notAClone), channel: .thisCopy)
 
-    print("\n— Beta: the newest commit on development on GitHub —")
-    check("equal: GitHub says identical", ChannelLogic.beta(build: build(commit: first), cloneBranch: "development", isClone: true,
-                                                          compare: BetaCompare(status: "identical", aheadBy: 0)),
-          .upToDate, channel: .beta)
-    check("behind: development has 5 more commits", ChannelLogic.beta(build: build(commit: first), cloneBranch: "development", isClone: true,
-                                                                    compare: BetaCompare(status: "ahead", aheadBy: 5, newest: "abc1234 · Fix the thing")),
-          .behind(changes: 5, uncommitted: false), channel: .beta)
-    check("ahead: this copy has commits development lacks", ChannelLogic.beta(build: build(commit: first), cloneBranch: "development", isClone: true,
-                                                                            compare: BetaCompare(status: "behind", aheadBy: 0)),
-          .ahead(Names.ChannelText.aheadOfDevelopment), channel: .beta)
-    check("built from commits GitHub does not have", ChannelLogic.beta(build: build(commit: first), cloneBranch: "development", isClone: true,
-                                                                      compare: BetaCompare(status: "missing", aheadBy: 0)),
-          .ahead(Names.ChannelText.notOnGitHub), channel: .beta)
-    check("diverged", ChannelLogic.beta(build: build(commit: first), cloneBranch: "development", isClone: true,
-                                       compare: BetaCompare(status: "diverged", aheadBy: 2)),
-          .ahead(Names.ChannelText.divergedFromDevelopment), channel: .beta)
-    check("offline: nothing answered", ChannelLogic.beta(build: build(commit: first), cloneBranch: "development", isClone: true, compare: nil),
+    print("\n— Beta: the newest pre-release on GitHub (every case is in --probe-versions) —")
+    let feed = BetaFeed(newestBeta: "2.72.1-beta.1", newestRelease: "2.72.0")
+    let releaseCopy = BuildInfo(release: "2.72.0", commitsAfter: 0, commit: first, releaseTag: "v2.72.0")
+    check("a release copy is offered the beta", ChannelLogic.beta(build: releaseCopy, cloneBranch: "development", isClone: true, feed: feed),
+          .offered("2.72.1 Beta"), channel: .beta)
+    check("offline: nothing answered", ChannelLogic.beta(build: releaseCopy, cloneBranch: "development", isClone: true, feed: nil),
           .unknown(Names.ChannelText.offline), channel: .beta)
-    check("a clone on another branch cannot follow development", ChannelLogic.beta(build: build(commit: first), cloneBranch: "main", isClone: true,
-                                                                                 compare: BetaCompare(status: "ahead", aheadBy: 5)),
+    check("a clone on another branch cannot follow", ChannelLogic.beta(build: releaseCopy, cloneBranch: "main", isClone: true, feed: feed),
           .unavailable(Names.ChannelText.notOnDevelopment("main")), channel: .beta)
-    check("a download cannot follow a branch", ChannelLogic.beta(build: build(commit: first), cloneBranch: nil, isClone: false, compare: nil),
+    check("a download cannot follow a branch", ChannelLogic.beta(build: releaseCopy, cloneBranch: nil, isClone: false, feed: nil),
           .unavailable(Names.ChannelText.notAClone), channel: .beta)
-    check("an older build that recorded no commit is offered the newest once", ChannelLogic.beta(build: build(commit: nil), cloneBranch: "development", isClone: true, compare: nil),
-          .behind(changes: nil, uncommitted: false), channel: .beta)
+    check("no beta out: Beta says so", ChannelLogic.beta(build: releaseCopy, cloneBranch: "development", isClone: true, feed: BetaFeed(newestRelease: "2.72.0")),
+          .unavailable(Names.ChannelText.noBetaYet), channel: .beta)
 
     // ── reading a clone must run nothing the clone names, and a failure is never "clean"
     print("\n— a hostile clone: nothing it names may run —")

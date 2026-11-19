@@ -4,7 +4,7 @@ import AnalyzersKit
 /// One release on its own screen: its features, grouped by the screen they belong to (the unreleased section on its own),
 /// each a row that pushes the feature's screen.
 struct WhatsNewReleaseScreen: View {
-    /// The release's version, "next" for the unreleased section, or "latest" for the newest one that shipped.
+    /// The release's version, "next" for the unreleased section, "beta" for the published beta's card, or "latest" for the newest one that shipped.
     let version: String
 
     @Environment(UpdateState.self) private var updates
@@ -12,7 +12,7 @@ struct WhatsNewReleaseScreen: View {
     @State private var loaded = false
 
     /// What names `note` in a route.
-    static func key(_ note: ReleaseNote) -> String { note.version ?? "next" }
+    static func key(_ note: ReleaseNote) -> String { note.idPrefix }
 
     private var note: ReleaseNote? {
         switch version {
