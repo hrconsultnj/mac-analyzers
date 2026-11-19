@@ -17,8 +17,9 @@ public enum ScanPlan {
                                       .tmReclaim, .loginItems, .memoryClean, .reclaim]
 
     /// The requests, oldest first. Old Recordings is left out when `storage` has no recording source switched on,
-    /// the same test its screen uses.
-    public static func requests(storage: StorageTunables) -> [JobRequest] {
+    /// the same test its screen uses; Login & Startup Items is left out when `includeLoginItems` is false so a batch
+    /// started from Overview never blocks on an unanswered System Events permission prompt.
+    public static func requests(storage: StorageTunables, includeLoginItems: Bool = true) -> [JobRequest] {
         reports.map { JobRequest(kind: $0, intent: .run) }
             + previews.compactMap { kind in
                 switch kind {
@@ -26,6 +27,8 @@ public enum ScanPlan {
                     storage.hasRecordingSources
                         ? JobRequest(kind: kind, intent: .preview, options: JobOptions(recordingsDays: storage.recordingsDays))
                         : nil
+                case .loginItems:
+                    includeLoginItems ? JobRequest(kind: kind, intent: .preview) : nil
                 default:
                     JobRequest(kind: kind, intent: .preview)
                 }

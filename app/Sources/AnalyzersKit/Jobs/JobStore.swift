@@ -193,18 +193,30 @@ public final class JobStore {
         return add(resolved, trigger: trigger)
     }
 
-    /// Queues `requests` as one batch, in order, each through `enqueue` and so under the same rules. Nothing is
-    /// queued, and nothing is returned, while an earlier batch still has work waiting or running.
+    /// Queues `requests` as one batch, in order, each through `enqueue` and so under the same rules. If an active
+    /// job of the same kind and intent is already running or queued, the batch adopts it instead of queuing a duplicate.
+    /// Nothing is queued, and nothing is returned, while an earlier batch still has work waiting or running.
     @discardableResult
     public func enqueueBatch(_ requests: [JobRequest], trigger: JobTrigger) -> [Job] {
         guard !batchIsActive else { return [] }
-        batch = requests.map { enqueue($0, trigger: trigger) }
+        batch = requests.map { request in
+            if let existing = jobs.last(where: { !$0.state.isFinished && $0.kind == request.kind && $0.intent == request.intent }) {
+                return existing
+            }
+            return enqueue(request, trigger: trigger)
+        }
         return batch
     }
 
     /// Cancels the batch's jobs that have not started. The one that is running is left to finish.
     public func cancelRestOfBatch() {
         for job in batch where job.state.isQueued { job.cancel() }
+    }
+
+    /// Forgets a batch once every job in it has finished, so Overview can dismiss the summary.
+    public func dismissFinishedBatch() {
+        guard !batchIsActive else { return }
+        batch = []
     }
 
     /// The only way to build a cleaner apply: from a finished preview, with the
@@ -369,9 +381,10 @@ public final class JobStore {
     }
 }
 
-extension Job.State {
+public extension Job.State {
     var isRunning: Bool { if case .running = self { true } else { false } }
     var isQueued: Bool { if case .queued = self { true } else { false } }
+    var isCancelled: Bool { if case .cancelled = self { true } else { false } }
 }
 
 private extension Job {

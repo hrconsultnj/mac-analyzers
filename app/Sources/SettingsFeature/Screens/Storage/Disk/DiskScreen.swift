@@ -17,6 +17,14 @@ struct DiskScreen: View {
     /// The worst case, for `SnapshotRunner`; nil in the app.
     var fixture: (usage: DiskUsage, runway: DiskRunway, reason: String, tasks: [StorageTask])?
 
+    private static let previewKinds: [JobKind] = [.storageClean, .janitor, .tempClean, .spotlight]
+
+    private var allPreviewsActive: Bool {
+        Self.previewKinds.allSatisfy { kind in
+            store.jobs.contains { !$0.state.isFinished && $0.kind == kind && $0.intent == .preview }
+        }
+    }
+
     private var reclaimable: Int64 { tasks.compactMap(\.reclaimableBytes).reduce(0, +) }
 
     var body: some View {
@@ -39,8 +47,9 @@ struct DiskScreen: View {
         .toolbar {
             ToolbarItem {
                 Button { checkAll() } label: { Label("Preview All", systemImage: "eye") }
-                .labelStyle(.titleAndIcon)
+                    .labelStyle(.titleAndIcon)
                     .help("Preview every cleanup on this screen, one after another; nothing is changed")
+                    .disabled(allPreviewsActive)
             }
             .toolbarRank(.primary)
         }
@@ -159,7 +168,7 @@ struct DiskScreen: View {
     }
 
     private func checkAll() {
-        for kind in [JobKind.storageClean, .janitor, .tempClean, .spotlight] {
+        for kind in Self.previewKinds where !store.jobs.contains(where: { !$0.state.isFinished && $0.kind == kind && $0.intent == .preview }) {
             store.enqueue(JobRequest(kind: kind, intent: .preview), trigger: .user)
         }
     }

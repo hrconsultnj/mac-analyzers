@@ -8,6 +8,7 @@ import Foundation
 // script runs, and nothing is applied.
 
 @MainActor func probeScanPlan() async -> Never {
+    ProbeSandbox.enter("--probe-scan-plan")
     var failures = 0
     func check(_ name: String, _ ok: Bool, _ detail: String = "") {
         print((ok ? "PASS  " : "FAIL  ") + name + (detail.isEmpty ? "" : ": " + detail))
@@ -38,6 +39,14 @@ import Foundation
     let others = plan.filter { $0.kind != .recordings }
     check("every preview but Old Recordings uses its screen's own default options", others.allSatisfy { $0.options == JobOptions() })
     check("Old Recordings uses the saved days", plan.first { $0.kind == .recordings }?.options == JobOptions(recordingsDays: 180))
+
+    var catalog = StorageTunables()
+    catalog.recordingSourcesConfigured = true
+    catalog.recordingSources = [RecordingSourceEntry(id: "zoom", enabled: true, path: "")]
+    check("a catalog recording source turns Old Recordings on", ScanPlan.requests(storage: catalog).contains { $0.kind == .recordings })
+
+    let withoutLogin = ScanPlan.requests(storage: storage, includeLoginItems: false)
+    check("loginItems skipped when includeLoginItems is false", !withoutLogin.contains { $0.kind == .loginItems } && withoutLogin.count == 12)
 
     // no source on: the three ways the Old Recordings screen says so
     var none = storage
@@ -70,6 +79,18 @@ import Foundation
     check("a new batch can then be queued", !store.enqueueBatch(Array(plan.prefix(1)), trigger: .user).isEmpty)
     store.cancelRestOfBatch()
     store.batch.first?.cancel()
+    _ = await store.stopEverything()
+
+    let alreadyQueued = store.enqueue(JobRequest(kind: .spotlight, intent: .preview), trigger: .user)
+    let dedupedBatch = store.enqueueBatch([
+        JobRequest(kind: .storageReport, intent: .run),
+        JobRequest(kind: .spotlight, intent: .preview),
+    ], trigger: .user)
+    check("enqueueBatch adopts an active preview instead of queuing a duplicate",
+          dedupedBatch.count == 2 && dedupedBatch[1].id == alreadyQueued.id
+              && store.jobs.filter { !$0.state.isFinished && $0.kind == .spotlight }.count == 1)
+    store.cancelRestOfBatch()
+    for job in store.batch { job.cancel() }
     _ = await store.stopEverything()
 
     print(failures == 0 ? "\nscan plan holds" : "\n\(failures) check(s) failed")
