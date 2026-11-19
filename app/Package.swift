@@ -65,8 +65,13 @@ let package = Package(
         // depended on by SnapshotRunner and MenuSnapshot alone, so the app does not contain it
         .target(name: "ToolWindows", swiftSettings: strictSwift),
         // features ("pages/components")
-        .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit", "UIComponents"], swiftSettings: strictSwift),
-        .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "NotifierKit", "UIComponents"] + proTargetDependencies,
+        // the agent layer: engines (on-device + ACP), the model catalog, and the
+        // Ask session state. The screens that drive it live in SettingsFeature —
+        // this target is deliberately not "AgentRunner", which is the existing
+        // UI-probe harness above.
+        .target(name: "AgentFeature", dependencies: ["AnalyzersKit"], swiftSettings: strictSwift),
+        .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit", "AgentFeature", "UIComponents"], swiftSettings: strictSwift),
+        .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "AgentFeature", "NotifierKit", "UIComponents"] + proTargetDependencies,
                 swiftSettings: strictSwift),
         // shared visual language (System-Settings-style tiles, pane headers,
         // process rows) — may use the kernel's models

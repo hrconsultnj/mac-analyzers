@@ -64,6 +64,19 @@ public struct NotifyPrefs: Equatable, Sendable {
     public init() {}
 }
 
+/// The agent layer's tunables. Every field maps 1:1 to an env var the agent
+/// runner reads, exactly like the memory and storage structs above. The
+/// capabilities set serializes as a comma list of `AgentCapability` ids; a
+/// value naming an id the app does not know is dropped on load (fail-closed).
+public struct AgentTunables: Equatable, Sendable {
+    public var engine = "on-device"   // AGENT_ENGINE: on-device | claude | codex | custom
+    public var modelID = ""           // AGENT_MODEL: the active downloaded model's catalog id
+    public var capabilities: Set<String> = AgentCapability.defaultEnabledIDs  // AGENT_CAPABILITIES
+    public var prelude = ""           // AGENT_PRELUDE: the user's own extra instructions
+    public var customCommand = ""     // AGENT_CUSTOM_COMMAND: the "bring your own" engine's command
+    public init() {}
+}
+
 /// Reads/writes a clearly-delimited managed block in ~/scripts/config.local.sh
 /// (gitignored, machine-local). Hand-written config outside the block is
 /// preserved verbatim — same pattern as nvm/conda shell-init blocks.
@@ -85,6 +98,7 @@ public final class ConfigStore {
     public var memory = MemoryTunables()
     public var storage = StorageTunables()
     public var notify = NotifyPrefs()
+    public var agent = AgentTunables()
 
     private static let blockStart = "# >>> managed by Sparehold.app — do not edit between markers >>>"
     private static let blockEnd = "# <<< managed by Sparehold.app <<<"
@@ -200,6 +214,11 @@ public final class ConfigStore {
         }
         if let v = value("ANALYZERS_NOTIFY_TIMEOUT").flatMap({ Int($0) }) { notify.timeoutSeconds = v }
         if let v = value("ANALYZERS_LOG_VIEWER") { notify.logViewer = v }
+        if let v = value("AGENT_ENGINE") { agent.engine = v }
+        if let v = value("AGENT_MODEL") { agent.modelID = v }
+        agent.capabilities = AgentCapability.enabledIDs(fromConfig: value("AGENT_CAPABILITIES"))
+        if let v = value("AGENT_PRELUDE") { agent.prelude = v }
+        if let v = value("AGENT_CUSTOM_COMMAND") { agent.customCommand = v }
     }
 
     // MARK: - save
@@ -280,6 +299,21 @@ public final class ConfigStore {
         block += "ANALYZERS_WORKTREE_IDLE_DAYS=\(storage.worktreeIdleDays)\n"
         block += "ANALYZERS_NOTIFY_TIMEOUT=\(notify.timeoutSeconds)\n"
         block += "ANALYZERS_LOG_VIEWER=\(shellQuote(notify.logViewer))\n"
+        // the agent layer: the engine is always written (a picker value); the
+        // rest only when set, so a default install's block stays short
+        block += "AGENT_ENGINE=\(shellQuote(agent.engine))\n"
+        if !agent.modelID.isEmpty {
+            block += "AGENT_MODEL=\(shellQuote(agent.modelID))\n"
+        }
+        if agent.capabilities != AgentCapability.defaultEnabledIDs {
+            block += "AGENT_CAPABILITIES=\(shellQuote(agent.capabilities.sorted().joined(separator: ",")))\n"
+        }
+        if !agent.prelude.isEmpty {
+            block += "AGENT_PRELUDE=\(shellQuote(agent.prelude))\n"
+        }
+        if !agent.customCommand.isEmpty {
+            block += "AGENT_CUSTOM_COMMAND=\(shellQuote(agent.customCommand))\n"
+        }
         block += Self.blockEnd + "\n"
 
         if let span = Self.managedSpan(in: existing) {

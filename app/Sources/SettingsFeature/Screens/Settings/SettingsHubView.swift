@@ -21,6 +21,7 @@ struct SettingsHubView: View {
         (.storage, "internaldrive.fill", .indigo, "What the scheduled cleans may touch: caches, projects, worktrees, Downloads."),
         (.notifications, "bell.badge.fill", .red, "How alerts behave, and the buttons that fix them when they don't."),
         (.schedule, "calendar.badge.clock", .teal, "When each clean runs, and what always runs."),
+        (.agents, "cpu", .mint, "Which engine answers Ask, what it may do, and the models on this Mac."),
     ]
 
     var body: some View {
