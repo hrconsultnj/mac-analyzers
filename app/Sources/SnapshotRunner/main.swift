@@ -263,14 +263,15 @@ final class Snapshot: NSObject, NSApplicationDelegate {
                 let betaOut = !["beta-none", "beta-offline", "beta-release"].contains(state)
                 let betaChangelog = "## Next\n\n- The Updates screen lists what each release brought. <!-- wn: open=update icon=sparkles title=\"Release Notes on Updates\" -->\n- Beta follows the newest pre-release. <!-- wn: open=update icon=testtube.2 title=\"Beta Channel\" -->\n"
                 let cloneChangelog = "## Next\n\n- The Updates screen lists what each release brought. <!-- wn: open=update icon=sparkles title=\"Release Notes on Updates\" -->\n- Beta follows the newest pre-release. <!-- wn: open=update icon=testtube.2 title=\"Beta Channel\" -->\n- A change only your clone has. <!-- wn: open=- icon=hammer title=\"Your Clone\" -->\n"
+                let betaTargetVersion: String? = switch state {
+                case "beta-release": "2.72.1"
+                case "beta-behind", "beta-current", "beta-ahead": "2.72.1-beta.2"
+                default: nil
+                }
                 channelState.preset(channel: fixture.0, state: fixture.1, newest: fixture.2, cloneBranch: fixture.3.branch, facts: fixture.3,
                                     cloneChangelog: fixture.0 == .thisCopy ? cloneChangelog : nil,
                                     betaNotes: betaOut ? UpdateState.BetaNotes(label: "2.72.1 Beta 2", changelog: betaChangelog) : nil,
-                                    betaTargetVersion: switch state {
-                                    case "beta-release": "2.72.1"
-                                    case "beta-behind", "beta-current", "beta-ahead": "2.72.1-beta.2"
-                                    default: nil
-                                    })
+                                    betaTargetVersion: betaTargetVersion)
                 return channelState
             }
             return forced
