@@ -68,7 +68,9 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
    `config.example.sh` and fill it in for your user as part of steps 3–5.
    The launchd labels are the neutral `com.mac-analyzers.*` namespace.
 10. **Build the menu-bar app** — `./app/build.sh && open
-    /Applications/MacAnalyzers.app` (Command Line Tools only, no Xcode; needs
+    /Applications/MacAnalyzers.app` (requires Xcode 26.4+ / 27+ to compile the
+    SwiftUI menu-bar app from source; running the bash analyzer scripts or a
+    pre-built release requires no Xcode; needs
     macOS 26 or later). The build signs with an Apple Development certificate when the
     keychain has one (free with any Apple ID; keeps the permission identity
     stable across rebuilds), falls back to ad-hoc, and **installs the app to

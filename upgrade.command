@@ -35,7 +35,7 @@ if [[ "$beta" -eq 1 ]]; then
   while IFS= read -r candidate; do
     [[ -n "$candidate" ]] || continue
     rc=0
-    code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "${api}/releases/tags/${candidate}" 2>/dev/null)" || rc=$?
+    code="$(curl -sSL --max-time 20 -o /dev/null -w '%{http_code}' "${api}/releases/tags/${candidate}" 2>/dev/null)" || rc=$?
     # 200 (or a file that was read) is a published release, 404 (or a file that is not there) is a bare tag; anything
     # else (no network, a proxy, GitHub limiting this network, a server error) says nothing about the tag
     if [[ "$rc" -eq 0 && ( "$code" == "200" || "$code" == "000" ) ]]; then

@@ -257,9 +257,12 @@ public enum GuardControl {
     /// so a clone with uncommitted work is built as it is.
     ///
     /// `beta` (the Beta channel) runs `beta.command`: it moves the clone to the newest beta's tag, then the same steps.
-    public static func runUpgrade(rebuildOnly: Bool = false, beta: Bool = false) {
+    @discardableResult
+    public static func runUpgrade(rebuildOnly: Bool = false, beta: Bool = false) -> Bool {
         let name = rebuildOnly ? "rebuild.command" : (beta ? "beta.command" : "upgrade.command")
-        NSWorkspace.shared.open(AnalyzersPaths.suiteRoot.appending(path: name))
+        let url = AnalyzersPaths.suiteRoot.appending(path: name)
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        return NSWorkspace.shared.open(url)
     }
 
     /// Deep-link to this app's pane in System Settings → Notifications.

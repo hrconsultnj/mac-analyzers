@@ -86,5 +86,11 @@ enum UpdateChoicesProbe {
         report("   and the offer is the beta, by its internal version and its name",
                beta.offered?.version == "2.73.1-beta.1" && beta.offered?.label == "2.73.1 Beta", "\(String(describing: beta.offered))")
         report("a downloaded copy lists Releases and Beta, never This Copy", state(release, latest: "2.72.0").channels == [.releases, .beta], "")
+        let downloaded = state(release, latest: "2.73.1")
+        var fallbackCalled = false
+        downloaded.installHandler = { _, _, _ in fallbackCalled = true; return false }
+        downloaded.requestInstall()
+        report("a downloaded copy (no clone) pressing Install on Releases does not wedge phase in .installing",
+               downloaded.phase == .idle && fallbackCalled, "phase: \(downloaded.phase), handler called: \(fallbackCalled)")
     }
 }
