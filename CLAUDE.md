@@ -88,7 +88,7 @@ through `config.local.sh` (never hardcoded).
 - Verify changes: `bash -n` every touched script + run its dry-run and read the
   output. The one automated suite is `memory-analyzer/tests/`; otherwise the
   dry-run IS the test. For the app:
-  `cd app && swift build` (bundle assembly is `./app/build.sh` — no Xcode; it
+  `cd app && swift build` (bundle assembly is `./app/build.sh` — Xcode 26.4 or later, no Xcode project; it
   signs with an Apple Development identity when present, ad-hoc fallback, and
   installs to `/Applications/MacAnalyzers.app` — the canonical run location;
   the repo `app/` bundle is the build artifact / script-only fallback).

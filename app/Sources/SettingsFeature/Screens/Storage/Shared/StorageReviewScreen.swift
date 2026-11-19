@@ -133,6 +133,9 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
                 await model.load(kind: kind, parse: parse, reviewRow: { $0.reviewRow })
                 await model.loadLastKnown(kind: kind, matches: lastKnownMatches, parse: parse, reviewRow: { $0.reviewRow })
             }
+            .task(id: JobStamp(model.appliedJob)) {
+                model.finishAppliedIfNeeded(store)
+            }
     }
 
     // MARK: - content
@@ -152,7 +155,7 @@ struct StorageReviewScreen<Category: StorageCategory>: View {
                 ReviewTable(session: session, preview: model.phase == .lastKnown ? nil : model.job,
                             applyTitle: applyTitle, confirmation: confirmation, readOnly: model.phase == .lastKnown,
                             note: model.phase == .lastKnown ? "Preview again to review these and apply." : nil,
-                            onPreviewAgain: { startPreview() }, onApplied: { _ in },
+                            onPreviewAgain: { startPreview() }, onApplied: { model.trackApplied($0) },
                             only: shownIDs(rows), tabs: filled.map { Set(rows.rows(inTab: $0.rawValue).map(\.id)) },
                             screen: screenKey, rowMenu: .files)
                     .safeAreaBar(edge: .top, alignment: .leading, spacing: 0) { notesStrip }

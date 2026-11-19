@@ -94,6 +94,13 @@ func probeRunMatcher() -> Never {
         let mixedURL = write("mixed-shapes.log", mixed)
         let a = LogParser.runs(at: mixedURL).map { "\($0.header)|\($0.lines.count)" }, b = LogParser.allRuns(at: mixedURL).map { "\($0.header)|\($0.lines.count)" }
         check("over a log of both shapes the list and the whole-log reader agree run for run", a == b && !a.isEmpty, "\(a.count) vs \(b.count)")
+        var staleFound = false
+        if case .block = WholeRun.newestPreview(in: mixedURL) { staleFound = true }
+        check("an APPLY block after the newest DRY RUN supersedes that preview", !staleFound, "stale preview returned: \(staleFound)")
+        let previewAfterApply = write("preview-after-apply.log", mixed + rule + block(banner: second, items: 3))
+        var freshFound = false
+        if case .block(let fresh) = WholeRun.newestPreview(in: previewAfterApply) { freshFound = fresh.banner == second }
+        check("a newer DRY RUN after an APPLY is returned by newestPreview", freshFound, "found: \(freshFound)")
     }
     // an event log (the guard's: no rule lines anywhere) is not read backwards in full to find that out
     do {

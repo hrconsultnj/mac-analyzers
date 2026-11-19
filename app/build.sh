@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # build.sh — compile the SPM package and assemble + ad-hoc-sign MacAnalyzers.app.
-# CLT-only (no Xcode). The bundle carries TWO executables: the menu-bar app and
-# the `notify` CLI shim the bash scripts call (lib/notify.sh).
+# Requires Xcode 26.4+ / 27+ (no .xcodeproj — builds directly with `swift build`). The bundle carries
+# the menu-bar app, the `notify` CLI shim (lib/notify.sh) and the `agent-runner` launchd entry point.
 # Icon: reuses notifier/AppIcon.icns (regenerate with ../notifier/make-icon.sh).
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -114,8 +114,13 @@ cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"
 # beta tag, else the next patch with -dev.<commits since the tag>+<commit>[.local]. People read the short
 # name BuildInfo makes of it (2.72.0, 2.72.1 Beta, Dev · 8e2c9b0), never this string.
 # CFBundleShortVersionString stays the plain release.
+case "${BUILD_TREE:-clean}" in
+  clean) BUILD_TREE_FLAG="0" ;;
+  unknown) BUILD_TREE_FLAG="?" ;;
+  *) BUILD_TREE_FLAG="1" ;;
+esac
 BUILD_VERSION="$("$BIN/AgentRunner" --build-version "$(tr -d ' \n' < ../VERSION)" "${BUILD_AHEAD:--}" \
-  "$(case "${BUILD_TREE:-clean}" in clean) echo 0 ;; unknown) echo '?' ;; *) echo 1 ;; esac)" "${BUILD_COMMIT:--}" "${BUILD_TAG:--}" "${BUILD_BETA:--}" 2>/dev/null || true)"
+  "$BUILD_TREE_FLAG" "${BUILD_COMMIT:--}" "${BUILD_TAG:--}" "${BUILD_BETA:--}" 2>/dev/null || true)"
 [[ -n "$BUILD_VERSION" ]] && /usr/libexec/PlistBuddy -c "Add :MABuildVersion string $BUILD_VERSION" "$APP/Contents/Info.plist" 2>/dev/null || true
 
 [[ -f AppIcon.icns ]] || ./make-icon.sh
@@ -175,7 +180,7 @@ cp MenuBarIcon.png "$APP/Contents/Resources/MenuBarIcon.png"
 IDENTITY=""
 if [[ "${MA_SIGN_ADHOC:-0}" != "1" ]]; then
   IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
-    | grep -o '"Apple Development: [^"]*"' | head -1 | tr -d '"')"
+    | grep -o '"Apple Development: [^"]*"' | head -1 | tr -d '"' || true)"
 fi
 if [[ -n "$IDENTITY" ]]; then
   ./sign-app.sh "$APP" "$IDENTITY"

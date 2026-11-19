@@ -89,11 +89,14 @@ The scripts are the **engine**; the app is the **face**. Mac Analyzers needs
 **macOS 26 or later** and is built on your Mac from source, which takes three
 steps:
 
-1. Install Apple's **free Command Line Tools** (no Xcode needed). In
-   Terminal:
+1. Make sure **Xcode** (26.4 / 27 or later) is installed from the Mac App
+   Store — building the SwiftUI menu-bar app from source uses Xcode's Swift 6
+   toolchain and SwiftUI macros, while running the bash analyzer scripts
+   standalone or running a pre-built release requires no Xcode. In Terminal,
+   confirm the developer directory points to Xcode:
 
    ```bash
-   xcode-select --install
+   sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
    ```
 
 2. Download the project into your home folder:
@@ -440,7 +443,9 @@ show what is in it.
   so System Settings → Login Items & Extensions shows the background agents
   under the app's identity instead of anonymous script rows. The app
   registers itself as a login item (`SMAppService`) on first launch.
-- **Built without Xcode** — `./app/build.sh` (Command Line Tools only) runs
+- **Built with `swift build` (no Xcode project)** — `./app/build.sh` (requires
+  Xcode 26.4+ / 27+ for the SwiftUI app build; running the bash scripts or a
+  pre-built release requires no Xcode) runs
   `swift build`, hand-assembles the bundle (including the `notify` CLI shim
   the scripts call and the `agent-runner` launchd entry point), signs it with
   your Apple Development certificate when one exists (ad-hoc fallback) with

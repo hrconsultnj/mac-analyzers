@@ -366,11 +366,42 @@ public final class UpdateState {
         alert.runModal()
     }
 
+    /// Test support: overrides what `startInstall()` runs, so a probe can prove a non-clone or bundled-engine copy
+    /// does not wedge `phase = .installing` without opening a browser or Terminal on the test machine.
+    @_spi(TestSupport) @ObservationIgnored public var installHandler: (@MainActor (_ scriptURL: URL, _ rebuildOnly: Bool, _ beta: Bool) -> Bool)?
+
     private func startInstall() {
         guard phase != .installing else { return }
+        let rebuildOnly = channel == .thisCopy
+        let beta = channel == .beta
+        let scriptName = rebuildOnly ? "rebuild.command" : (beta ? "beta.command" : "upgrade.command")
+        let clone = cloneProvider()
+        let scriptURL = (clone?.root ?? AnalyzersPaths.suiteRoot).appending(path: scriptName)
+        let hasScript = !AnalyzersPaths.usingBundledEngine
+            && (clone?.isWorkingTree == true)
+            && FileManager.default.fileExists(atPath: scriptURL.path)
+        if let installHandler {
+            guard hasScript else {
+                _ = installHandler(scriptURL, rebuildOnly, beta)
+                return
+            }
+            phase = .installing
+            if !installHandler(scriptURL, rebuildOnly, beta) {
+                phase = .idle
+            }
+            return
+        }
+        guard hasScript else {
+            if let releaseURL = URL(string: "https://github.com/hrconsultnj/mac-analyzers/releases/latest") {
+                NSWorkspace.shared.open(releaseURL)
+            }
+            return
+        }
         phase = .installing
         // This Copy rebuilds the clone as it is (nothing is pulled); Beta moves the clone to the newest beta's tag;
         // Releases pulls; each then rebuilds
-        GuardControl.runUpgrade(rebuildOnly: channel == .thisCopy, beta: channel == .beta)
+        if !GuardControl.runUpgrade(rebuildOnly: rebuildOnly, beta: beta) {
+            phase = .idle
+        }
     }
 }
