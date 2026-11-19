@@ -266,7 +266,11 @@ final class Snapshot: NSObject, NSApplicationDelegate {
                 channelState.preset(channel: fixture.0, state: fixture.1, newest: fixture.2, cloneBranch: fixture.3.branch, facts: fixture.3,
                                     cloneChangelog: fixture.0 == .thisCopy ? cloneChangelog : nil,
                                     betaNotes: betaOut ? UpdateState.BetaNotes(label: "2.72.1 Beta 2", changelog: betaChangelog) : nil,
-                                    betaTargetVersion: state == "beta-release" ? "2.72.1" : "2.72.1-beta.2")
+                                    betaTargetVersion: switch state {
+                                    case "beta-release": "2.72.1"
+                                    case "beta-behind", "beta-current", "beta-ahead": "2.72.1-beta.2"
+                                    default: nil
+                                    })
                 return channelState
             }
             return forced

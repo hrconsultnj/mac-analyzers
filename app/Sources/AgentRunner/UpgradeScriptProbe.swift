@@ -33,7 +33,29 @@ enum UpgradeScriptProbe {
             report("\(name): a clone already past the newest version is refused and left where it was",
                    result.status == 1 && world.head() == world.c5 && result.output.contains("already past") && world.built() == nil,
                    "exit \(result.status), clone at \(world.label(world.head())): \(result.tail)")
+            world.reset(to: world.c5)
+            result = world.run(shell, "upgrade.command", args: ["--release"])
+            report("\(name): choosing the release checks it out even when the clone is past it, and development stays put",
+                   result.status == 0 && world.head() == world.c4 && world.tip("development") == world.c5,
+                   "exit \(result.status), clone at \(world.label(world.head())), development at \(world.label(world.tip("development"))): \(result.tail)")
             world.unpublishRelease()
+            // Still detached on the release. Double-click beta.command must refuse; choosing Beta must check it out.
+            result = world.run(shell, "beta.command")
+            report("\(name): beta.command still refuses a clone that is not on the development branch",
+                   result.status == 1 && world.head() == world.c4 && result.output.contains("another branch"),
+                   "exit \(result.status), clone at \(world.label(world.head())): \(result.tail)")
+            // The stub build records .built inside the clone. That file is untracked here
+            // (the real build's products are gitignored) and must not count as the person's work.
+            world.clearBuilt()
+            result = world.run(shell, "upgrade.command", args: ["--beta", "--switch"])
+            report("\(name): choosing the beta checks it out even when the clone is past it and detached",
+                   result.status == 0 && world.head() == world.c2 && world.tip("development") == world.c5,
+                   "exit \(result.status), clone at \(world.label(world.head())), development at \(world.label(world.tip("development"))): \(result.tail)")
+            world.reset(to: world.c5)
+            result = world.run(shell, "upgrade.command", args: ["--beta", "--switch"])
+            report("\(name): choosing the beta checks it out from the development branch when the clone is past it",
+                   result.status == 0 && world.head() == world.c2 && world.tip("development") == world.c5,
+                   "exit \(result.status), clone at \(world.label(world.head())), development at \(world.label(world.tip("development"))): \(result.tail)")
 
             // GitHub cannot be asked (nothing listens there): that is "couldn't reach", never "nothing is published"
             world.reset(to: world.c1)
@@ -100,7 +122,14 @@ enum UpgradeScriptProbe {
         func publishRelease() { try? "{}".write(to: api.appending(path: "releases/tags/v2.72.1"), atomically: true, encoding: .utf8) }
         func unpublishRelease() { try? FileManager.default.removeItem(at: api.appending(path: "releases/tags/v2.72.1")) }
 
+        func clearBuilt() { try? FileManager.default.removeItem(at: clone.appending(path: ".built")) }
+
         func reset(to commit: String) {
+            // --release and --beta --switch detach HEAD. The next beta.command still
+            // requires the development branch. reset --hard while detached stays detached.
+            if git(clone, ["rev-parse", "--abbrev-ref", "HEAD"]) != "development" {
+                _ = git(clone, ["checkout", "-q", "development"])
+            }
             _ = git(clone, ["reset", "-q", "--hard", commit])
             try? FileManager.default.removeItem(at: clone.appending(path: ".built"))
         }
@@ -113,10 +142,12 @@ enum UpgradeScriptProbe {
         }
 
         /// Runs `script` from the clone under `shell`, in a UTF-8 locale, with the stubs first on PATH.
-        func run(_ shell: String, _ script: String, api override: String? = nil) -> (status: Int32, output: String, tail: String) {
+        func tip(_ ref: String) -> String { git(clone, ["rev-parse", ref]) }
+
+        func run(_ shell: String, _ script: String, args: [String] = [], api override: String? = nil) -> (status: Int32, output: String, tail: String) {
             let process = Process(); let out = Pipe()
             process.executableURL = URL(fileURLWithPath: shell)
-            process.arguments = [clone.appending(path: script).path]
+            process.arguments = [clone.appending(path: script).path] + args
             process.currentDirectoryURL = clone
             process.environment = ["PATH": "\(stubs.path):/usr/bin:/bin:/usr/sbin:/sbin", "HOME": root.path,
                                    "LANG": "en_US.UTF-8", "LC_ALL": "en_US.UTF-8", "MA_GITHUB_API": override ?? "file://\(api.path)",

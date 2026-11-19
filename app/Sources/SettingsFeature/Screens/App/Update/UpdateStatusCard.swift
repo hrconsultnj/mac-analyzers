@@ -4,8 +4,8 @@ import AnalyzersKit
 import UIComponents
 
 /// The top of Updates. The app's own icon stays in every state. While a check runs, one line and a spinner.
-/// When nothing newer is available, Check for Updates is the button. When a version is available, that button
-/// is not shown: the button installs the channel in use.
+/// When the channel has nothing to install, Check for Updates is the button. When it does, including a
+/// release or beta this copy is already newer than, that button is not shown and the other one installs it.
 struct UpdateStatusCard: View {
     let updates: UpdateState
     let installTitle: String
@@ -26,7 +26,7 @@ struct UpdateStatusCard: View {
                     .frame(width: Tokens.Icon.hero + 20, height: Tokens.Icon.hero + 20)
                     .accessibilityHidden(true)
             } trailing: {
-                if updates.isAvailable || updates.phase == .installing {
+                if updates.offersInstall || updates.phase == .installing {
                     Button(installTitle) { updates.requestInstall() }
                         .buttonStyle(.borderedProminent)
                         .disabled(updates.phase == .installing)

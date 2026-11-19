@@ -37,9 +37,12 @@ public enum DetachedUpgrade {
 
         var arguments = [script.path]
         if beta {
-            arguments.append("--beta")
+            // The person chose Beta, including when this clone is already past that beta.
+            arguments.append(contentsOf: ["--beta", "--switch"])
         } else if rebuildOnly {
-            arguments.append("--no-pull")
+            arguments.append("--development")
+        } else {
+            arguments.append("--release")
         }
         let environment = EngineProcess.engineEnvironment().map { "\($0.key)=\($0.value)" }.sorted()
         return spawn(path: script.path, arguments: arguments, environment: environment, actions: &actions, attr: &attr)

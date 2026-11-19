@@ -183,10 +183,10 @@ public enum Names {
         public static let heading = "Update Channel"
         public static let releases = "Releases"
         public static let beta = "Beta"
-        public static let thisCopy = "This Copy"
+        public static let thisCopy = "Development"
         public static let installBeta = "Update to Newest Beta"
         public static let newestBeta = "Newest Beta"
-        public static let rebuild = "Rebuild from This Copy"
+        public static let rebuild = "Rebuild Development"
     }
 
     /// The sentences the two development channels say (not names: they are not in the title-style table).
@@ -200,7 +200,7 @@ public enum Names {
             switch channel {
             case .releases: "Published releases: finished versions, the way most people update."
             case .beta: "The newest beta, a pre-release published ahead of the next release. A release newer than it is offered too."
-            case .thisCopy: "Your own clone, uncommitted changes included. Only for a copy built from a clone."
+            case .thisCopy: "The development branch as it is now, including changes that are not committed."
             }
         }
         public static let offline = "Couldn't reach GitHub to check."

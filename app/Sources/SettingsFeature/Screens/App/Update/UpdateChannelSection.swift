@@ -12,7 +12,7 @@ struct UpdateChannelSection: View {
     var body: some View {
         Section {
             FullWidthSegments(options: updates.channels.map { ($0, $0.title) }, selection: $updates.channel,
-                              help: "Releases: the newest published release. Beta: the newest pre-release. This Copy: your own clone, uncommitted changes included.")
+                              help: "Releases: the newest published release. Beta: the newest pre-release. Development: your clone, uncommitted changes included.")
             Text(Names.ChannelText.describes(updates.channel))
                 .font(.caption)
                 .foregroundStyle(.secondary)

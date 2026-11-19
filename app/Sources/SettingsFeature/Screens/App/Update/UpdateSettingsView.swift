@@ -4,7 +4,8 @@ import UIComponents
 
 /// The Updates screen, in the order of System Settings → Software Update: the status and Check for Updates, then
 /// Check Automatically on that same card, then where updates come from (Releases, Beta, This Copy — the beta choice),
-/// then What's New. The channel that is selected is the one Install updates from. A clone runs that update in the
+/// then What's New. The channel that is selected is the one Install updates from (Releases, Beta, or Development),
+/// including a release or beta this copy is already newer than. A clone runs that update in the
 /// background and the lines appear on this card; the app closes and opens again when it finishes. A downloaded copy
 /// opens the latest release on GitHub. Sparkle is not in this build.
 struct UpdateSettingsView: View {
@@ -29,9 +30,12 @@ struct UpdateSettingsView: View {
 
     private var installTitle: String {
         switch updates.channel {
-        case .releases: Names.Update.installUpdate
-        case .beta: Names.Channel.installBeta
-        case .thisCopy: Names.Channel.rebuild
+        case .releases:
+            updates.latest.map { "Install \(BuildInfo.label(forVersion: $0))" } ?? Names.Update.installUpdate
+        case .beta:
+            updates.betaTarget.map { "Install \(BuildInfo.label(forVersion: $0))" } ?? Names.Channel.installBeta
+        case .thisCopy:
+            Names.Channel.rebuild
         }
     }
 

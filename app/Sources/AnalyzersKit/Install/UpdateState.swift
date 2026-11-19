@@ -131,7 +131,8 @@ public final class UpdateState {
                                           betaTargetVersion: String? = nil) {
         channelChangelog = cloneChangelog
         self.betaNotes = betaNotes
-        if case .offered = state { betaTarget = betaTargetVersion } else { betaTarget = nil }
+        // Kept for an ahead copy too: the screen offers that beta even when this copy is newer.
+        betaTarget = betaTargetVersion
         storedChannel = channel
         channelState = state
         newestBeta = newest
@@ -142,11 +143,29 @@ public final class UpdateState {
         isFixture = true
     }
 
-    /// Something newer than this copy exists on the channel it follows.
+    /// Something newer than this copy exists on the channel it follows. Notifications and the menu use this.
+    /// The Updates screen uses `offersInstall`, which also offers the channel's own version when this copy is past it.
     public var isAvailable: Bool {
         switch channel {
         case .releases: latest.map { UpdateChecker.isNewer($0, than: installed) } ?? false
         case .beta, .thisCopy: channelState?.isUpdate ?? false
+        }
+    }
+
+    /// The selected channel has a version this copy is not. Newer, or the stable or beta version a development
+    /// copy can still install because the person chose that channel.
+    public var offersInstall: Bool {
+        switch channel {
+        case .releases:
+            guard latest != nil else { return false }
+            if build.isDevelopment || build.isBeta { return true }
+            return isAvailable
+        case .beta:
+            guard hasClone, let betaTarget else { return isAvailable }
+            if build.isBeta, build.version == betaTarget { return false }
+            return true
+        case .thisCopy:
+            return isAvailable
         }
     }
 
@@ -173,6 +192,12 @@ public final class UpdateState {
     public var statusTitle: String {
         if let offered { return "\(Names.app) \(offered.label) is available" }
         if channel == .thisCopy, isAvailable { return "Your clone has newer changes" }
+        if offersInstall, channel == .releases, let latest {
+            return "\(Names.app) \(BuildInfo.label(forVersion: latest))"
+        }
+        if offersInstall, channel == .beta, let betaTarget {
+            return "\(Names.app) \(BuildInfo.label(forVersion: betaTarget))"
+        }
         if phase == .checking, checkedAt == nil { return "Checking for Updates…" }
         if reachedGitHub == false, latest == nil { return "Couldn't check for updates" }
         if build.isDevelopment { return build.label }
@@ -182,7 +207,10 @@ public final class UpdateState {
     /// The line under the headline: the installed version, or why a Dev copy has nothing to install, or that GitHub was not reached.
     public var statusDetail: String {
         if reachedGitHub == false, latest == nil { return Names.ChannelText.offline }
-        // Beta and This Copy say what THAT channel found. Releases keeps the release sentence.
+        if offersInstall, offered == nil, channel != .thisCopy {
+            return "You have \(build.versionText)."
+        }
+        // Beta and Development say what THAT channel found. Releases keeps the release sentence.
         if channel != .releases, let state = channelState, offered == nil, !isAvailable {
             return state.sentence(for: channel, facts: cloneFacts)
         }
@@ -348,32 +376,9 @@ public final class UpdateState {
             }
             return
         }
-        // Beta pulls whatever branch the clone is on NOW, and the state is up to six hours old: look again,
-        // off the main thread (each look is a few git processes)
-        if channel == .beta {
-            guard !installPending else { return }
-            installPending = true
-            let provider = cloneProvider
-            Task {
-                let branch = await Task.detached { provider()?.branch }.value
-                installPending = false
-                if branch == "development" { startInstall() } else { refuseBranchChanged() }
-            }
-            return
-        }
+        // Beta checks out the published version (--switch) and leaves the branch pointer
+        // where it is, including from a detached release. A dirty tree is refused by the script.
         startInstall()
-    }
-
-    @ObservationIgnored private var installPending = false
-
-    private func refuseBranchChanged() {
-        channelState = .unavailable(Names.ChannelText.branchChanged)
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = Names.ChannelText.branchChanged
-        alert.addButton(withTitle: "OK")
-        NSApp.activate(ignoringOtherApps: true)
-        alert.runModal()
     }
 
     /// Test support: overrides what `startInstall()` runs, so a probe can prove a non-clone or bundled-engine copy
@@ -410,8 +415,9 @@ public final class UpdateState {
         phase = .installing
         installFailed = false
         installLines = []
-        // This Copy rebuilds the clone as it is (nothing is pulled); Beta moves the clone to the newest beta's tag;
-        // Releases pulls; each then rebuilds. The script is not a Terminal window.
+        // Development rebuilds that branch as it is. Beta checks the published version out (--switch),
+        // even when this clone is past it. Releases checks the published release out the same way.
+        // The script is not a Terminal window.
         guard let pid = GuardControl.runUpgrade(rebuildOnly: rebuildOnly, beta: beta) else {
             phase = .idle
             installFailed = true
