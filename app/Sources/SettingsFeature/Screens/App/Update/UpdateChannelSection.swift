@@ -37,22 +37,25 @@ struct AutomaticChecksRow: View {
 
     var body: some View {
         Section {
-            HStack {
-                Toggle(Names.Update.checkAutomatically, isOn: $updates.automaticChecks)
-                Button { showingInfo.toggle() } label: {
-                    Image(systemName: "info.circle")
+            // a switch on the right of the row, the system's own way; the info button sits beside the title
+            Toggle(isOn: $updates.automaticChecks) {
+                HStack(spacing: Tokens.Space.s) {
+                    Text(Names.Update.checkAutomatically)
+                    Button { showingInfo.toggle() } label: {
+                        Image(systemName: "info.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(Names.Update.neverByItself)
+                    .accessibilityLabel("About \(Names.Update.checkAutomatically)")
+                    .popover(isPresented: $showingInfo, arrowEdge: .bottom) {
+                        Text(Names.Update.automaticallyInfo)
+                            .padding()
+                            .frame(width: 320)   // fixed: a popover has no width of its own to take from the list
+                    }
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help(Names.Update.neverByItself)
-                .accessibilityLabel("About \(Names.Update.checkAutomatically)")
-                .popover(isPresented: $showingInfo, arrowEdge: .bottom) {
-                    Text(Names.Update.automaticallyInfo)
-                        .padding()
-                        .frame(width: 320)   // fixed: a popover has no width of its own to take from the list
-                }
-                Spacer()
             }
+            .toggleStyle(.switch)
         }
     }
 }

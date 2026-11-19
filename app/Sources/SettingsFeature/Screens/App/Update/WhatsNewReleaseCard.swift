@@ -2,7 +2,7 @@ import SwiftUI
 import AnalyzersKit
 import UIComponents
 
-/// One release as a card on the Updates screen: its title, its version and how many features it brought, its date on
+/// One release as a row of the What's New group on the Updates screen: its title, its version and how many features it brought, its date on
 /// the right. The card of a published beta is named by the beta ("2.72.1 Beta 2") and says Beta where a release has its
 /// date; the clone's unreleased section says "Not yet released". A card pushes that release's own screen, which lists its
 /// features grouped by the screen they belong to.
@@ -32,11 +32,7 @@ struct WhatsNewReleaseCard: View {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)
             }
-            .padding(.horizontal, Tokens.Space.xl)
-            .padding(.vertical, Tokens.Space.s)
-            // the card is drawn inside the row's own content area, so its edges line up with the form above it
-            // (a row background would run to the window's edge)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
+            .padding(.vertical, Tokens.Space.xs)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

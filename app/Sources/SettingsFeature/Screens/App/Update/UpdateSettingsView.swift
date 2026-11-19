@@ -53,7 +53,7 @@ struct UpdateSettingsView: View {
     var body: some View {
         DataScreen(title: Names.Screen.updates, subtitle: updates.build.versionText) {
         ScrollViewReader { proxy in
-        List {
+        Form {
             Section { UpdateStatusCard(updates: updates, installTitle: installTitle) }
             UpdateChannelSection(updates: updates, checking: checking, installExplanation: installExplanation)
             AutomaticChecksRow(updates: updates)
@@ -65,7 +65,6 @@ struct UpdateSettingsView: View {
                 } else {
                     ForEach(notes) { note in
                         WhatsNewReleaseCard(note: note, seen: seenBefore)
-                            .listRowSeparator(.hidden)
                     }
                 }
             } header: {
@@ -73,7 +72,7 @@ struct UpdateSettingsView: View {
             }
             .id(WhatsNewSections.anchor)
         }
-        .listStyle(.inset)
+        .formStyle(.grouped)
         // a link to the list (`updates:whatsNew`) scrolls to it once the screen is showing and the list is loaded
         .onChange(of: navigator.pendingIntent) { scrollIfAsked(proxy) }
         .onAppear { scrollIfAsked(proxy) }

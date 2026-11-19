@@ -88,12 +88,14 @@ struct SettingsHubView: View {
         }
     }
 
-    /// "Up to Date", "Update Available (2.73.1)", "Dev Build": the shared update state, the same words the sidebar's item uses.
+    /// "Up to Date", "Update Available (2.73.1 Beta)", "Dev · 8e2c9b0": the shared update state, the same words the sidebar's item uses.
     private var updateState: String {
         switch updates.summary {
-        case .updateAvailable?: updates.latest.map { "\(Names.State.updateAvailable) (\($0))" } ?? Names.State.updateAvailable
-        case .developmentBuild?: Names.State.developmentBuild
-        case .upToDate?: Names.State.upToDate
+        // the version the channel in use offers (a beta by its name), the copy's own name for a Dev copy or a current beta: the
+        // same words the sidebar's item and the Updates status card use
+        case .updateAvailable?: updates.offered.map { "\(Names.State.updateAvailable) (\($0.label))" } ?? Names.State.updateAvailable
+        case .developmentBuild?: updates.build.label
+        case .upToDate?: updates.build.isBeta ? updates.build.label : Names.State.upToDate
         case nil: updates.build.versionText
         }
     }

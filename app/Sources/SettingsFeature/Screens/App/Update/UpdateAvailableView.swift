@@ -44,7 +44,16 @@ public struct UpdateAvailableView: View {
                                     Text(heading(note)).font(.subheadline.weight(.semibold))
                                     ForEach(note.listedItems, id: \.id) { item in
                                         Label {
-                                            Text(item.summary).fixedSize(horizontal: false, vertical: true)
+                                            VStack(alignment: .leading, spacing: Tokens.Space.hair) {
+                                                Text(item.summary).fixedSize(horizontal: false, vertical: true)
+                                                // the feature's own one-line description, as the release screen shows it
+                                                if let line = WhatsNewText.description(item) {
+                                                    Text(WhatsNewText.styled(line))
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                        .lineLimit(1)
+                                                }
+                                            }
                                         } icon: {
                                             Image(systemName: item.symbol ?? "sparkles").foregroundStyle(.secondary)
                                         }
@@ -67,7 +76,7 @@ public struct UpdateAvailableView: View {
                 Spacer()
                 Button(Names.Update.remindMeLater, action: remindLater)
                 Button(Names.Update.installUpdate, action: install)
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
         }
