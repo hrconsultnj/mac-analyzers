@@ -46,20 +46,20 @@ struct TrendsEventTable: View {
                 OutlineColumn("when", Names.Column.when, text: { $0.row.map { time($0.when) } ?? "" },
                               sortUsing: KeyPathComparator(\TrendsEventNode.when))
                     .monospacedDigits()
-                    .width(min: 80, ideal: 100, max: 140)
+                    .width(min: 72, ideal: 88, max: 115)
                 OutlineColumn("name", Names.Column.name,
                               sortUsing: KeyPathComparator(\TrendsEventNode.title, comparator: .localizedStandard)) { node in
                     if let event = node.row {
                         Label(event.title, systemImage: event.event.symbol).foregroundStyle(event.event.tint)
                     }
                 }
-                .width(min: 150, ideal: 220)
+                .width(min: 140, ideal: 175, max: 210)
                 OutlineColumn("outcome", Names.Column.whatHappened, text: { $0.row?.outcome ?? "" })
-                    .width(min: 200, ideal: 320)
+                    .width(min: 280, ideal: 460)
                 OutlineColumn("memory", Names.Column.memory, text: { $0.row.map { $0.event.residentText ?? "—" } ?? "" })
                     .textStyle { _ in .secondary }
                     .alignment(.trailing).monospacedDigits()
-                    .width(min: 70, ideal: 80, max: 120)
+                    .width(min: 68, ideal: 76, max: 100)
             }
             .sectionHeader { node in
                 node.row == nil ? OutlineSectionHeader(title: node.title, summary: count(node)) : nil

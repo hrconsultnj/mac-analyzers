@@ -28,9 +28,9 @@ struct GuardCategoryTab: View {
             OutlineTable(Self.rows(model, category), children: \.children, selection: $model.selection, expanded: open.binding, autosave: "guard.kinds") {
                 OutlineColumn("name", Names.Guard.rule, text: { $0.name })
                     .width(min: 240, ideal: 340)
-                OutlineColumn("state", Names.Column.state, text: { $0.state }).width(min: 70, ideal: 90, max: 120)
-                OutlineColumn("now", Names.Guard.matchingNow, text: { $0.now }).textStyle { _ in .secondary }.width(min: 90, ideal: 130)
-                OutlineColumn("week", Names.Guard.thisWeek, text: { $0.week }).textStyle { _ in .secondary }.width(min: 150, ideal: 190)
+                OutlineColumn("state", Names.Column.state, text: { $0.state }).width(min: 70, ideal: 80, max: 100)
+                OutlineColumn("now", Names.Guard.matchingNow, text: { $0.now }).textStyle { _ in .secondary }.width(min: 80, ideal: 95, max: 120)
+                OutlineColumn("week", Names.Guard.thisWeek, text: { $0.week }).textStyle { _ in .secondary }.width(min: 110, ideal: 135, max: 170)
             }
             .emptyContent(isLoading: model.look == nil) { EmptyView() }
         }

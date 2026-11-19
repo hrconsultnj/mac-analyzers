@@ -2,6 +2,7 @@ import AppKit
 import AnalyzersKit
 import SwiftUI
 import UIComponents
+import UniformTypeIdentifiers
 
 /// The drawing of the review table, and only that: this one file is what changes when grouped
 /// tables move onto the app's shared outline table, so nothing else in the review knows how rows
@@ -172,7 +173,16 @@ enum ReviewIcons {
     private static var cache: [String: NSImage] = [:]
     static func image(_ path: String) -> NSImage {
         if let hit = cache[path] { return hit }
-        let image = NSWorkspace.shared.icon(forFile: path)
+        let image: NSImage
+        if FileManager.default.fileExists(atPath: path) {
+            image = NSWorkspace.shared.icon(forFile: path)
+        } else {
+            // A missing path has no file icon. The type's own icon stays visible in light mode;
+            // icon(forFile:) on a path that is not there is a blank document.
+            let ext = (path as NSString).pathExtension
+            let type = ext.isEmpty ? UTType.data : (UTType(filenameExtension: ext) ?? .data)
+            image = NSWorkspace.shared.icon(for: type)
+        }
         cache[path] = image
         return image
     }

@@ -34,7 +34,7 @@ public struct SaveBar: View {
                     errorText = "Could not save: \(error.localizedDescription)"
                 }
             }
-            .buttonStyle(.glassProminent)      // the one standout action per pane
+            .buttonStyle(.borderedProminent)   // the one standout action per pane
             .controlSize(.large)
             .keyboardShortcut("s", modifiers: .command)
         }

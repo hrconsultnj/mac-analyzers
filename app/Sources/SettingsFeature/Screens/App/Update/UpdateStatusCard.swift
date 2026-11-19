@@ -35,7 +35,7 @@ struct UpdateStatusCard: View {
             VStack(alignment: .trailing, spacing: Tokens.Space.m) {
                 if updates.isAvailable {
                     Button(installTitle) { updates.requestInstall() }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.borderedProminent)
                 }
                 HStack(spacing: Tokens.Space.m) {
                     if checking { ProgressView().controlSize(.small) }
