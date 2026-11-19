@@ -1,8 +1,10 @@
 import Foundation
 import Synchronization
 
-/// Canonical file locations shared by every module. Mirrors the bash suite's
-/// layout (~/mac-analyzers/reports/{memory,storage}, ~/scripts/config.local.sh).
+/// Canonical file locations shared by every module. The same chain as
+/// `lib/paths.sh`: an explicit data directory, then `~/sparehold` when it
+/// already holds data, then an existing `~/mac-analyzers`, then Application
+/// Support. Nothing here moves or deletes `~/mac-analyzers`.
 ///
 /// This file is the paths only. Next to it:
 ///   Navigation/NotifyChannel.swift   the notification names the app and CLI share
@@ -21,13 +23,24 @@ public enum AnalyzersPaths {
 
     public static let home: URL = homeChoice.withLock { $0 } ?? FileManager.default.homeDirectoryForCurrentUser
 
-    public static let memoryReports = home.appending(path: "mac-analyzers/reports/memory")
-    public static let storageReports = home.appending(path: "mac-analyzers/reports/storage")
+    public static let memoryReports = userRoot.appending(path: "reports/memory")
+    public static let storageReports = userRoot.appending(path: "reports/storage")
 
-    /// Where the APP WRITES its own records — never the bundle. Always the
-    /// user's folder, whichever copy of the engine is being read from.
-    public static let userRoot = home.appending(path: "mac-analyzers")
+    /// Where the APP WRITES its own records — never the bundle. Whichever copy
+    /// of the engine is being read from, records stay in this folder.
+    public static let userRoot: URL = resolveUserRoot()
     public static let userReports = userRoot.appending(path: "reports")
+
+    /// A path under the home folder, shown with a leading `~`.
+    public static func displayPath(_ url: URL) -> String {
+        let homePath = home.standardizedFileURL.resolvingSymlinksInPath().path
+        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+        if path == homePath { return "~" }
+        if path.hasPrefix(homePath + "/") {
+            return "~" + String(path.dropFirst(homePath.count))
+        }
+        return path
+    }
 
     /// Where the engine scripts are read from (the clone, or the bundle).
     /// Earlier builds wrote some records under here.
@@ -72,19 +85,9 @@ public enum AnalyzersPaths {
     /// Where the engine scripts actually live. The app bundles its own copy,
     /// so a downloaded app works with nothing else installed; a source clone
     /// still wins when present, because that is the copy the developer edits.
-    public static let suiteRoot: URL = {
-        let clone = home.appending(path: "mac-analyzers")
-        if FileManager.default.isExecutableFile(
-            atPath: clone.appending(path: "memory-analyzer/memory-guard.sh").path) {
-            return clone
-        }
-        if let bundled = Bundle.main.resourceURL?.appending(path: "engine"),
-           FileManager.default.isExecutableFile(
-            atPath: bundled.appending(path: "memory-analyzer/memory-guard.sh").path) {
-            return bundled
-        }
-        return clone
-    }()
+    /// An existing `~/mac-analyzers` checkout wins over the bundle until the
+    /// person moves the engine.
+    public static let suiteRoot: URL = resolveSuiteRoot()
 
     /// True when the engine we found is the one inside the app bundle — the
     /// Setup checklist says so rather than implying a clone exists.
@@ -94,8 +97,56 @@ public enum AnalyzersPaths {
 
     /// Settings always live in the user's own folder, never inside the app
     /// bundle (which is replaced wholesale on every update).
-    public static let configLocal = home
-        .appending(path: "mac-analyzers/config.local.sh")
+    public static let configLocal = userRoot.appending(path: "config.local.sh")
+
+    /// A probe home (`useHome`) stands in for the account, so the data-root
+    /// environment variables are not read then: a probe must not follow them
+    /// out of its sandbox into the person's files.
+    private static func resolveUserRoot() -> URL {
+        let probing = homeChoice.withLock { $0 != nil }
+        if !probing {
+            let env = ProcessInfo.processInfo.environment
+            for key in ["SPAREHOLD_DATA_DIR", "SPAREHOLD_DIR", "MAC_ANALYZERS_DIR"] {
+                if let value = env[key], !value.isEmpty {
+                    return URL(fileURLWithPath: value, isDirectory: true)
+                }
+            }
+        }
+        let sparehold = home.appending(path: "sparehold")
+        if containsData(sparehold) { return sparehold }
+        let legacy = home.appending(path: "mac-analyzers")
+        if containsData(legacy) { return legacy }
+        return home.appending(path: "Library/Application Support/Sparehold")
+    }
+
+    private static func resolveSuiteRoot() -> URL {
+        let probing = homeChoice.withLock { $0 != nil }
+        if !probing, let value = ProcessInfo.processInfo.environment["SPAREHOLD_SUITE_DIR"], !value.isEmpty {
+            return URL(fileURLWithPath: value, isDirectory: true)
+        }
+        let sparehold = home.appending(path: "sparehold")
+        if hasEngine(sparehold) { return sparehold }
+        let legacy = home.appending(path: "mac-analyzers")
+        if hasEngine(legacy) { return legacy }
+        if let bundled = Bundle.main.resourceURL?.appending(path: "engine"), hasEngine(bundled) {
+            return bundled
+        }
+        return legacy
+    }
+
+    private static func containsData(_ directory: URL) -> Bool {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: directory.appending(path: "config.local.sh").path) { return true }
+        var isDirectory: ObjCBool = false
+        if fm.fileExists(atPath: directory.appending(path: "reports").path, isDirectory: &isDirectory),
+           isDirectory.boolValue { return true }
+        return fm.fileExists(atPath: directory.appending(path: ".git").path)
+    }
+
+    private static func hasEngine(_ directory: URL) -> Bool {
+        FileManager.default.isExecutableFile(
+            atPath: directory.appending(path: "memory-analyzer/memory-guard.sh").path)
+    }
 
     /// Newest guard-critical forensics dump, if any (they live in dated subdirs).
     public static func latestForensics() -> URL? {

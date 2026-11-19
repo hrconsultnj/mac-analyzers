@@ -26,7 +26,7 @@ final class ReviewSession {
         let unique = rows.filter { seen.insert($0.id).inserted }
         if unique.count != rows.count {
             // keep the first of each key and say so; a debug build must not stop for it
-            Logger(subsystem: "com.mac-analyzers.app", category: "review")
+            Logger(subsystem: AppIdentity.bundleID, category: "review")
                 .error("a review was given \(rows.count - unique.count) repeated key(s); the first of each is kept")
         }
         let shown = unique.map(Self.withUnlistableKept)

@@ -49,7 +49,7 @@ extension AppDelegate {
             : "\(waiting) job\(waiting == 1 ? " is" : "s are") waiting to run."
         var detail = running != nil
             ? "Quitting does not stop it by itself: it keeps running in the background until it finishes. You can stop it now, or let it finish."
-            : "They will not start once Mac Analyzers has quit."
+            : "They will not start once Sparehold has quit."
         if running != nil, waiting > 0 {
             detail += " The \(waiting) waiting job\(waiting == 1 ? "" : "s") will not start."
         }

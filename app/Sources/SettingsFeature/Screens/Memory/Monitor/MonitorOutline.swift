@@ -112,7 +112,7 @@ struct MonitorOutline<Menu: View>: View {
 
     private func helpText(for row: MonitorRow) -> String {
         let what = actionText(for: row)
-        // a protected row says why first: Mac Analyzers never does this by itself
+        // a protected row says why first: Sparehold never does this by itself
         return row.protection.map { "\($0) \(what)" } ?? what
     }
 

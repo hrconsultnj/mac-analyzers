@@ -70,7 +70,7 @@ private func script(_ dir: URL, _ name: String, _ body: String) -> URL {
     // a scheduled replay reads the installed plist itself; what the caller passes is ignored
     let echo = script(dir, "echo.sh", "echo \"memory auto-clean  |  APPLY  |  $(date '+%Y-%m-%d %H:%M:%S')\"; echo \"args: $*\"")
     store.scriptOverride = echo
-    let label = "com.mac-analyzers.storage-autoclean.daily"
+    let label = LaunchdAgentID.storageAutoCleanDaily.rawValue
     store.scheduleReader = { _ in (script: JobKind.storageClean.script.path, arguments: ["--mode", "daily", "--dry-run"]) }
     let replay = store.enqueue(
         JobRequest(kind: .storageClean, intent: .run,

@@ -25,7 +25,7 @@ extension NotificationPoster: UNUserNotificationCenterDelegate {
             case Self.stopProcessAction:
                 if let pid { poster.stopProcess(pid: pid, start: start, startMicro: startMicro) }
             default:
-                // body click or "Open Mac Analyzers" → the app; a pane
+                // body click or "Open Sparehold" → the app; a pane
                 // target (e.g. update notifications) deep-links to its screen
                 if let paneTarget {
                     SettingsOpener.open(target: paneTarget)

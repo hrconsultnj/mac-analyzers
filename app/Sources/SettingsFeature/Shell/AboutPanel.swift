@@ -1,11 +1,11 @@
 import AppKit
 import AnalyzersKit
 
-/// The standard "About Mac Analyzers" window: the system's panel shows the name, icon and version on its own; the credits
+/// The standard "About Sparehold" window: the system's panel shows the name, icon and version on its own; the credits
 /// line carries the link to the README that used to sit at the foot of How It Works.
 @MainActor
 enum AboutPanel {
-    static let readme = URL(string: "https://github.com/hrconsultnj/mac-analyzers")!
+    static let readme = URL(string: "https://github.com/hrconsultnj/sparehold")!
 
     static func show() {
         let credits = NSMutableAttributedString(

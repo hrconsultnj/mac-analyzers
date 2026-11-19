@@ -19,6 +19,16 @@
 #   ./downloads-janitor.sh              # dry run
 #   ./downloads-janitor.sh --apply      # move to Trash
 set -euo pipefail
+_sparehold_paths="$(cd "$(dirname "$0")/.." && pwd)/lib/paths.sh"
+[[ -f "$(dirname "$0")/paths.sh" ]] && _sparehold_paths="$(cd "$(dirname "$0")" && pwd)/paths.sh"
+# The helper path is chosen at runtime. shellcheck follows the suite copy.
+# shellcheck source=../lib/paths.sh
+if [[ -f "$_sparehold_paths" ]]; then
+  source "$_sparehold_paths"
+  SPAREHOLD_USER_ROOT="$(sparehold_user_root)"
+else
+  SPAREHOLD_USER_ROOT="${HOME}/mac-analyzers"
+fi
 
 SUITE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck disable=SC1091
@@ -26,8 +36,12 @@ SUITE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # app bundle, that bundle is replaced wholesale on every update, so the
 # user copy is the one that must win.
 [[ -f "${SUITE_DIR}/config.local.sh" ]] && source "${SUITE_DIR}/config.local.sh"
-[[ -f "$HOME/mac-analyzers/config.local.sh" && "${SUITE_DIR}" != "$HOME/mac-analyzers" ]] \
-  && source "$HOME/mac-analyzers/config.local.sh"
+ANALYZERS_ROOT="${SUITE_DIR}"
+if [[ -f "${ANALYZERS_ROOT}/lib/paths.sh" ]]; then
+  # shellcheck source=../lib/paths.sh
+  source "${ANALYZERS_ROOT}/lib/paths.sh"
+  sparehold_apply_paths
+fi
 
 DRY_RUN=1
 ONLY_PATHS=""
@@ -71,7 +85,7 @@ fi
 DL_AGE="${JANITOR_DOWNLOADS_AGE_DAYS:-30}"
 SS_AGE="${JANITOR_SCREENSHOTS_AGE_DAYS:-14}"
 KEEP="${JANITOR_KEEP_PATTERNS:-}"
-OUT_DIR="${HOME}/mac-analyzers/reports/storage"
+OUT_DIR="${SPAREHOLD_USER_ROOT}/reports/storage"
 mkdir -p "${OUT_DIR}"
 LOG_FILE="${OUT_DIR}/janitor.log"
 LOCK_FILE="${OUT_DIR}/.janitor.lock"

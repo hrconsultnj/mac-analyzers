@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for wanting to improve mac-analyzers. Ground rules keep it small:
+Thanks for wanting to improve Sparehold. Ground rules keep it small:
 
 ## Licensing of contributions
 
@@ -59,7 +59,9 @@ welcome either way.
 - No usernames, hostnames, project names, or personal app lists in tracked
   files — `git grep -i` yourself before pushing.
 - Match the existing style: `$HOME`-based paths, `section`/`group` helpers,
-  markdown report output, launchd labels under `com.mac-analyzers.*`.
+  markdown report output, launchd labels under `com.sparehold.*`.
+  An existing `~/mac-analyzers` checkout remains the data and the engine
+  until the person moves it. Do not move or delete that folder.
 
 ## How a contribution flows
 

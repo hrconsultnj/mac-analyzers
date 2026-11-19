@@ -64,7 +64,7 @@ enum CommandLineTrust {
     static func refusal(pids: [Int32], name: String, action: String = "stopped") -> String? {
         for pid in pids {
             if let why = doubt(pid: pid) {
-                return "Mac Analyzers could not tell what \(name) is running (\(why)), so nothing was \(action). Try again in a moment."
+                return "Sparehold could not tell what \(name) is running (\(why)), so nothing was \(action). Try again in a moment."
             }
         }
         return nil

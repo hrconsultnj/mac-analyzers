@@ -9,9 +9,16 @@
 #   default output_dir: ~/memory-reports
 
 set -u
+_sparehold_paths="$(cd "$(dirname "$0")/.." && pwd)/lib/paths.sh"
+[[ -f "$(dirname "$0")/paths.sh" ]] && _sparehold_paths="$(cd "$(dirname "$0")" && pwd)/paths.sh"
+# The helper path is chosen at runtime. shellcheck follows the suite copy.
+# shellcheck source=../lib/paths.sh
+if [[ -f "$_sparehold_paths" ]]; then
+  source "$_sparehold_paths"
+fi
+SPAREHOLD_USER_ROOT="$(sparehold_user_root)"
 
-HOME_DIR="${HOME}"
-OUT_DIR="${1:-${HOME_DIR}/mac-analyzers/reports/memory}"
+OUT_DIR="${1:-${SPAREHOLD_USER_ROOT}/reports/memory}"
 DATE_DIR="${OUT_DIR}/$(date +%Y-%m-%d)"
 REPORT="${DATE_DIR}/report-$(date +%H%M).md"
 LATEST="${OUT_DIR}/latest.md"

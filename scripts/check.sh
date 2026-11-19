@@ -333,9 +333,10 @@ check_spi() {
 # the runner, asks it to print every name and exits 1 on one that
 # `TitleStyle` rejects. MA_NAMES_APP points the check at another copy of app/
 # (used to prove it fails on a lowercased name).
-# The app reads no environment variable. A variable is a switch nobody can see:
-# a test hook left in shipping code changes what the installed app does for
-# whoever happens to have it set. The two tools that never ship (AgentRunner's
+# The app reads no environment variable except the data-root and engine-root
+# overrides in Paths.swift (SPAREHOLD_DATA_DIR, SPAREHOLD_DIR, MAC_ANALYZERS_DIR,
+# SPAREHOLD_SUITE_DIR), the same ones lib/paths.sh documents. Any other variable
+# is a switch nobody can see. The two tools that never ship (AgentRunner's
 # probes, SnapshotRunner) may read them and hand the value in; EngineProcess
 # passes the environment on to the engine scripts, which is its job.
 check_env() {
@@ -343,13 +344,14 @@ check_env() {
   grep -rnE 'processInfo\.environment|(^|[^A-Za-z_])(getenv|setenv|unsetenv|putenv)\(' --include='*.swift' app/Sources 2>/dev/null \
     | grep -v -E '^app/Sources/(AgentRunner|SnapshotRunner)/' \
     | grep -v -E '^app/Sources/AnalyzersKit/Jobs/EngineProcess\.swift:' \
+    | grep -v -E '^app/Sources/AnalyzersKit/Paths\.swift:' \
     | grep -v -E '^[^:]+:[0-9]+:[[:space:]]*//' \
     | cut -c1-300 >"$OUT"
   if [ -s "$OUT" ]; then
     DETAIL="shipping code reads the environment — pass the value in from AgentRunner or SnapshotRunner instead"
     return 1
   fi
-  DETAIL="no environment read outside AgentRunner, SnapshotRunner and EngineProcess"
+  DETAIL="no environment read outside AgentRunner, SnapshotRunner, EngineProcess and Paths.swift"
   return 0
 }
 

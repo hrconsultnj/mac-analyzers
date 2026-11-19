@@ -200,7 +200,7 @@ public final class UpdateState {
     }
 
     /// The headline of the status card at the top of Updates, in the shape of the system's Software Update:
-    /// "Mac Analyzers is up to date", "Mac Analyzers 2.73.1 Beta is available", the copy's own name for a Dev copy.
+    /// "Sparehold is up to date", "Sparehold 2.73.1 Beta is available", the copy's own name for a Dev copy.
     public var statusTitle: String {
         if let offered { return "\(Names.app) \(offered.label) is available" }
         if channel == .thisCopy, isAvailable { return "Your clone has newer changes" }
@@ -379,7 +379,7 @@ public final class UpdateState {
             let alert = NSAlert()
             alert.alertStyle = .informational
             alert.messageText = "A cleanup or check is running."
-            alert.informativeText = "Updating restarts Mac Analyzers, which would interrupt it. Wait for it to finish, or stop it first, then install the update."
+            alert.informativeText = "Updating restarts Sparehold, which would interrupt it. Wait for it to finish, or stop it first, then install the update."
             alert.addButton(withTitle: "Show It")
             alert.addButton(withTitle: "OK")
             NSApp.activate(ignoringOtherApps: true)
@@ -419,7 +419,7 @@ public final class UpdateState {
             return
         }
         guard hasScript else {
-            if let releaseURL = URL(string: "https://github.com/hrconsultnj/mac-analyzers/releases/latest") {
+            if let releaseURL = URL(string: "https://github.com/hrconsultnj/sparehold/releases/latest") {
                 NSWorkspace.shared.open(releaseURL)
             }
             return

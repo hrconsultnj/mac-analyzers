@@ -3,14 +3,14 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.mac-analyzers.memory-guard</string>
+    <string>com.sparehold.memory-guard</string>
 
-    <!-- Attribute this background item to the Mac Analyzers menu-bar app in
+    <!-- Attribute this background item to the Sparehold menu-bar app in
          System Settings → Login Items & Extensions, instead of showing an
          "item from an unidentified developer" script row. -->
     <key>AssociatedBundleIdentifiers</key>
     <array>
-        <string>com.mac-analyzers.app</string>
+        <string>com.sparehold.app</string>
     </array>
 
     <!-- RAM spike listener: alerts on pressure WARNING, kills the biggest

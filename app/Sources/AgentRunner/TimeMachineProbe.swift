@@ -53,7 +53,7 @@ import Foundation
         return (text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }, process.terminationStatus)
     }
     func calledLines() -> [String] { ((try? String(contentsOf: calls, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init) }
-    let log = home.appending(path: "mac-analyzers/reports/storage/tm-reclaim.log")
+    let log = home.appending(path: "Library/Application Support/Sparehold/reports/storage/tm-reclaim.log")
 
     // the preview
     let preview = run(["--dry-run"])

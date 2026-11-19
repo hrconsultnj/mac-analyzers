@@ -1,11 +1,12 @@
 # memory-analyzer
 
 RAM suite for macOS — the sibling of `../storage-analyzer`, but for memory.
-Scripts and launchd labels are prefixed `memory-` (`com.mac-analyzers.*`) so
+Scripts and launchd labels are prefixed `memory-` (`com.sparehold.*`) so
 Login Items / background tasks in System Settings are identifiable at a
 glance; the plists also set `AssociatedBundleIdentifiers` =
-`com.mac-analyzers.app`, so with the Mac Analyzers menu-bar app installed the
-agents group under the app's identity there.
+`com.sparehold.app`, so with the Sparehold menu-bar app installed the
+agents group under the app's identity there. An existing `~/mac-analyzers`
+checkout remains the data and the engine until you move it.
 
 | Tool | Role | Mutates? |
 |------|------|----------|
@@ -20,7 +21,7 @@ Reports live in `~/mac-analyzers/reports/memory/<YYYY-MM-DD>/report-<HHMM>.md`, 
 mirrors this at `~/mac-analyzers/reports/storage/`.)
 
 Notifications (spikes, warnings, kills, clean summaries) go through
-`../lib/notify.sh` — the Mac Analyzers menu-bar app's native path by default
+`../lib/notify.sh` — the Sparehold menu-bar app's native path by default
 (the `/Applications` install, repo copy as fallback), falling back to
 `alerter` and then a plain banner on script-only setups; clicking one opens
 the matching log. With the app installed, each log opens as a structured

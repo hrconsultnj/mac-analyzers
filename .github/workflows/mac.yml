@@ -11,6 +11,11 @@ name: mac
 # It starts only when a pull request touches a script, a test or the app, and
 # then runs only the checks those files call for (scripts/check.sh --changed).
 #
+# The product is Sparehold (`/Applications/Sparehold.app`, labels
+# `com.sparehold.*`). An existing `~/mac-analyzers` checkout remains the data
+# and the engine until the person moves it. This workflow does not install
+# the app and does not move that folder.
+#
 # Runner: `xcode-27` (macOS 27, Xcode 27.2, macOS 27.2 SDK) because the app
 # runs on macOS 26 and later and is developed against the macOS 27 SDK. The label is
 # still a preview image: if runs queue for long, or the label changes, check

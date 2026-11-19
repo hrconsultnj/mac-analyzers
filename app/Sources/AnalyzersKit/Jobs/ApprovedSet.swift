@@ -103,7 +103,7 @@ public struct ApprovedSet: Sendable, Hashable {
     /// per line, no trailing newline; a process is `<pid><TAB><start>` when its start is known.
     public func writeFile(for kind: JobKind, in directory: URL = FileManager.default.temporaryDirectory) throws -> URL? {
         guard kind.takesReviewedList else { return nil }
-        let file = directory.appending(path: "mac-analyzers-approved-\(UUID().uuidString).txt")
+        let file = directory.appending(path: "sparehold-approved-\(UUID().uuidString).txt")
         let lines = approved.map { key in starts?[key].map { "\(key)\t\($0)" } ?? key }
         try lines.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
         return file

@@ -11,6 +11,7 @@ tasks-plans/
 
 # built app + icon artifacts (rebuild with app/build.sh / app/make-icon.sh)
 app/MacAnalyzers.app/
+app/Sparehold.app/
 app/.build/
 app/.build-pro/
 # …and the same folders wherever a build is started from by mistake

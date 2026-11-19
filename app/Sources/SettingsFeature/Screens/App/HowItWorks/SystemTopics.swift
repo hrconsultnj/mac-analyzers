@@ -11,7 +11,7 @@ extension HowItWorksTopic {
                 summary: "Everything on this Mac that starts by itself, and what is new.",
                 does: [
                     "The audit lists what starts by itself on this Mac: login items, launch agents, launch daemons and helper tools, and the leftovers of apps you removed. Each one says which app it belongs to and how it is doing.",
-                    "Mac Analyzers also checks at launch and every 6 hours for something new that installed itself to run at login or boot, and tells you once.",
+                    "Sparehold also checks at launch and every 6 hours for something new that installed itself to run at login or boot, and tells you once.",
                 ],
                 never: ["The audit only reads. Nothing is blocked, and nothing is removed unless you choose it and confirm."],
                 written: ["Changes to what starts by itself are written down as they are noticed (see \(Names.HowItWorks.whereWritten))."],

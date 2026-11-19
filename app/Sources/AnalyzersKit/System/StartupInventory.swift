@@ -20,7 +20,7 @@ public struct StartupInventory: Sendable {
     public var loginItemsUnreadable = false
 
     /// What the screen says over the Apps tab in that case.
-    public static let loginItemsUnreadableSentence = "Your Login Items could not be read, so apps that open at login are not listed. Run the audit from Mac Analyzers (Audit), where macOS can ask for permission. If it was refused, turn it on in System Settings, under Privacy & Security, Automation."
+    public static let loginItemsUnreadableSentence = "Your Login Items could not be read, so apps that open at login are not listed. Run the audit from Sparehold (Audit), where macOS can ask for permission. If it was refused, turn it on in System Settings, under Privacy & Security, Automation."
 
     public var leftovers: [StartupItem] { items.filter { $0.finding == .leftover || $0.finding == .possibleLeftover } }
     /// What the app can offer to remove: user-level leftovers (the script

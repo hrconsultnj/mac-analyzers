@@ -39,7 +39,7 @@ public struct StopTarget: Identifiable, Sendable {
     /// "TypeScript compiler in nutri-journey".
     public var label: String { whereItRuns.map { "\(name) in \($0)" } ?? name }
 
-    /// Whether a PERSON may stop it from Monitor. A lock only guards what Mac Analyzers does by itself (the guard, the
+    /// Whether a PERSON may stop it from Monitor. A lock only guards what Sparehold does by itself (the guard, the
     /// cleanups, the menu-bar panel); the person may stop anything that runs as their own account, after the
     /// confirmation says why it is normally left alone (`protection`). What stays out of reach: another account's
     /// programs, one that has already gone, and a terminal session (a shell ignores a polite stop: close its window).
@@ -52,12 +52,12 @@ public struct StopTarget: Identifiable, Sendable {
         if isInteractiveShell { return "A shell is a terminal session — close its window to end it." }
         let own = ProgramReach.selfChain()
         if members.contains(where: { own.contains(Int32($0.pid)) }) {
-            return "Stopping \(label) would end Mac Analyzers itself, or the program that started it."
+            return "Stopping \(label) would end Sparehold itself, or the program that started it."
         }
         return nil
     }
 
-    /// Why Mac Analyzers never stops it by itself, and what stopping it would cost, as one sentence for the
+    /// Why Sparehold never stops it by itself, and what stopping it would cost, as one sentence for the
     /// confirmation and the row's tooltip; nil when nothing protects it.
     public var protection: String? {
         MemoryStop.protectionSentence(label: label, agent: lockedBy, hosted: hostedSessions,

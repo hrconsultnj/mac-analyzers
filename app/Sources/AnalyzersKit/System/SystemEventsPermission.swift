@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 import Foundation
 
-/// Whether Mac Analyzers may ask System Events about login items, found out
+/// Whether Sparehold may ask System Events about login items, found out
 /// WITHOUT letting macOS ask: opening a screen must never raise a permission
 /// prompt. The prompt appears only when a person presses Audit.
 public enum SystemEventsPermission: Sendable {
@@ -60,7 +60,7 @@ public enum SystemEventsPermission: Sendable {
         switch self {
         case .granted: nil
         case .undetermined: "Checking login items needs permission to ask System Events. macOS will ask when you press Audit."
-        case .denied: "macOS has turned off permission for Mac Analyzers to ask System Events, so login items can't be checked. Turn it on in System Settings, under Privacy & Security, Automation, then audit again."
+        case .denied: "macOS has turned off permission for Sparehold to ask System Events, so login items can't be checked. Turn it on in System Settings, under Privacy & Security, Automation, then audit again."
         }
     }
 }

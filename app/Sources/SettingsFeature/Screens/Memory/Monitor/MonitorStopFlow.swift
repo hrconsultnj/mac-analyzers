@@ -30,7 +30,7 @@ final class MonitorStopFlow {
     private(set) var planned: MemoryStop.Pending?
     /// Said in the Quit dialog when what runs inside the app could not be told yet.
     private(set) var quitCaution: String?
-    /// Said first in the Quit dialog when Mac Analyzers never quits the app by itself (Never Close, a Connection Tool, in front).
+    /// Said first in the Quit dialog when Sparehold never quits the app by itself (Never Close, a Connection Tool, in front).
     private(set) var quitProtection: String?
     /// Said first in a single process's Stop dialog when a live coding session is part of it or runs below it.
     private(set) var processProtection: String?
@@ -176,7 +176,7 @@ struct MonitorStopDialogs: ViewModifier {
         content
             .confirmationDialog(title, isPresented: dialogShown, titleVisibility: .visible) {
                 if let pending = flow.pending, !isChoice(pending) {
-                    // always destructive-styled; a protected one says "Anyway", because Mac Analyzers would never do this by itself
+                    // always destructive-styled; a protected one says "Anyway", because Sparehold would never do this by itself
                     Button(confirmLabel(pending), role: .destructive) { go(pending) }
                     Button("Cancel", role: .cancel) {}
                 }

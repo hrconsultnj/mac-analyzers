@@ -51,7 +51,7 @@ public final class KindCatalog: Sendable {
         let nameOnlyBecause: String?
     }
 
-    private static let log = Logger(subsystem: "com.mac-analyzers.app", category: "kinds")
+    private static let log = Logger(subsystem: AppIdentity.bundleID, category: "kinds")
 
     let entries: [Entry]
     /// What is wrong with the file; empty when it can be used.

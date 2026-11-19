@@ -13,7 +13,7 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
   auto-clean, Time Machine local-snapshot reclaim. See its README.
 - `lib/notify.sh` — the notifier every script sources: menu-bar app's CLI →
   `alerter` → plain `osascript` banner, whichever is present.
-- `app/` — the "Mac Analyzers" SwiftUI menu-bar app, the suite's face (built
+- `app/` — the "Sparehold" SwiftUI menu-bar app, the suite's face (built
   in step 10). `extras/swiftbar-plugin/` is the fallback surface for
   script-only / headless setups.
 - Reports and logs land inside the repo at `reports/{memory,storage}/`
@@ -32,9 +32,11 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
    install` hydrates for the current user+location at install time, and
    `sudoers-install` substitutes the current username. Install FROM wherever
    the folder lands (path-independent), but keep the folder somewhere
-   permanent first — launchd will point at it. The author keeps it at
-   `~/mac-analyzers`; reports/logs write into `reports/{memory,storage}/`
-   inside the folder.
+   permanent first — launchd will point at it. A new checkout belongs at
+   `~/sparehold`. An existing `~/mac-analyzers` checkout is the data and the
+   engine until the person moves it. Do not move or delete that folder.
+   Reports and logs write into `reports/{memory,storage}/` inside whichever
+   of those folders is in use.
 3. **Calibrate the guard** to this machine's RAM (defaults assume 32 GB):
    set `GUARD_HARD_CAP_MB` (default 6144 ≈ RAM/5) and the spike thresholds
    (`GUARD_SPIKE_MB`, `GUARD_SPIKE_MIN_MB`) in `config.local.sh` — the
@@ -66,9 +68,11 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
    command.
 9. All personal values live in `config.local.sh` (gitignored) — copy
    `config.example.sh` and fill it in for your user as part of steps 3–5.
-   The launchd labels are the neutral `com.mac-analyzers.*` namespace.
+   The launchd labels are the neutral `com.sparehold.*` namespace. An
+   installed `com.mac-analyzers.*` job keeps its schedule and is replaced
+   by the matching `com.sparehold.*` job on install.
 10. **Build the menu-bar app** — `./app/build.sh && open
-    /Applications/MacAnalyzers.app` (requires Xcode 26.4+ / 27+ to compile the
+    /Applications/Sparehold.app` (requires Xcode 26.4+ / 27+ to compile the
     SwiftUI menu-bar app from source; running the bash analyzer scripts or a
     pre-built release requires no Xcode; needs
     macOS 26 or later). The build signs with an Apple Development certificate when the
@@ -77,9 +81,10 @@ Two sibling suites (the engine) + shared plumbing + the native app (the face):
     `/Applications`** — the repo `app/` copy is just the build artifact.
     The build also copies `memory-analyzer/`, `storage-analyzer/`,
     `network-analyzer/` and `lib/` into `Contents/Resources/engine/`, so the
-    installed app carries its own engine. A checkout at `~/mac-analyzers`
-    still wins when present — that is the copy you edit — and settings and
-    reports always live in `~/mac-analyzers/`, never inside the bundle,
+    installed app carries its own engine. An existing checkout at
+    `~/mac-analyzers` still wins when the engine scripts are there — that is
+    the copy you edit — until the person moves it. Settings and reports
+    follow the same rule and never live inside the bundle,
     because the bundle is replaced wholesale on every update.
     This is the suite's face for your user: actionable native notifications
     (Open Log / Stop Process), a glance menu with Memory/Monitor/Storage

@@ -1,17 +1,32 @@
 #!/usr/bin/env bash
-# SwiftBar plugin — mac-analyzers at a glance.
+# SwiftBar plugin — Sparehold at a glance.
 # Menu bar: memory-chip icon (+ red kill count when the guard killed today).
 # Menu: human-readable recent events (newest first, last 24h, one line per
 # process), then compact per-suite sections; logs open in the default text
 # editor (open -t), not Console. Refreshes every 5 min; ⌘R to force.
 #
-# <xbar.title>Mac Analyzers</xbar.title>
+# <xbar.title>Sparehold</xbar.title>
 # <xbar.desc>Memory-guard kills/spikes + auto-clean runs, click-to-open logs.</xbar.desc>
 # <swiftbar.hideAbout>true</swiftbar.hideAbout>
 # <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
 
-MEM="$HOME/mac-analyzers/reports/memory"
-STO="$HOME/mac-analyzers/reports/storage"
+# Same data root as lib/paths.sh. An existing ~/mac-analyzers checkout stays
+# the data until you move it. Nothing here moves or deletes that folder.
+if [[ -n "${SPAREHOLD_DATA_DIR:-}" ]]; then
+  ROOT="$SPAREHOLD_DATA_DIR"
+elif [[ -n "${SPAREHOLD_DIR:-}" ]]; then
+  ROOT="$SPAREHOLD_DIR"
+elif [[ -n "${MAC_ANALYZERS_DIR:-}" ]]; then
+  ROOT="$MAC_ANALYZERS_DIR"
+elif [[ -f "$HOME/sparehold/config.local.sh" || -d "$HOME/sparehold/reports" || -e "$HOME/sparehold/.git" ]]; then
+  ROOT="$HOME/sparehold"
+elif [[ -f "$HOME/mac-analyzers/config.local.sh" || -d "$HOME/mac-analyzers/reports" || -e "$HOME/mac-analyzers/.git" ]]; then
+  ROOT="$HOME/mac-analyzers"
+else
+  ROOT="$HOME/Library/Application Support/Sparehold"
+fi
+MEM="$ROOT/reports/memory"
+STO="$ROOT/reports/storage"
 PAUSE_FLAG="$MEM/.guard-paused"
 
 log_row() {  # label, path, [extra params] — click opens in default text editor

@@ -11,8 +11,16 @@
 #
 # Log: ~/mac-analyzers/reports/network/top-talkers.log (run blocks, ====-separated)
 set -euo pipefail
+_sparehold_paths="$(cd "$(dirname "$0")/.." && pwd)/lib/paths.sh"
+[[ -f "$(dirname "$0")/paths.sh" ]] && _sparehold_paths="$(cd "$(dirname "$0")" && pwd)/paths.sh"
+# The helper path is chosen at runtime. shellcheck follows the suite copy.
+# shellcheck source=../lib/paths.sh
+if [[ -f "$_sparehold_paths" ]]; then
+  source "$_sparehold_paths"
+fi
+SPAREHOLD_USER_ROOT="$(sparehold_user_root)"
 
-OUT_DIR="${HOME}/mac-analyzers/reports/network"
+OUT_DIR="${SPAREHOLD_USER_ROOT}/reports/network"
 mkdir -p "${OUT_DIR}"
 LOG_FILE="${OUT_DIR}/top-talkers.log"
 LIMIT="${1:-25}"

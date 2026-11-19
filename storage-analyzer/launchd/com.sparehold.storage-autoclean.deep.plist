@@ -3,33 +3,36 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.mac-analyzers.memory-autoclean.daily</string>
+    <string>com.sparehold.storage-autoclean.deep</string>
 
-    <!-- Attribute this background item to the Mac Analyzers menu-bar app in
+    <!-- Attribute this background item to the Sparehold menu-bar app in
          System Settings → Login Items & Extensions, instead of showing an
          "item from an unidentified developer" script row. -->
     <key>AssociatedBundleIdentifiers</key>
     <array>
-        <string>com.mac-analyzers.app</string>
+        <string>com.sparehold.app</string>
     </array>
 
-    <!-- Daily RAM reaper: orphaned MCP servers, dev servers >24h old,
-         stale playwright/headless browsers. Report-only categories stay
-         report-only even under --apply. -->
+    <!-- DEEP pass every 3 days: build caches + node_modules of idle/clean repos
+         + package-manager prune + Time Machine snapshot ALERT.
+         To auto-thin TM snapshots instead of just alerting, add:
+             <string>- -prune-snapshots</string>   (without the space)
+         as another array entry below. -->
     <key>ProgramArguments</key>
     <array>
         <string>__RUNNER__</string>
-        <string>__SUITE_DIR__/memory-auto-clean.sh</string>
+        <string>__SUITE_DIR__/storage-auto-clean.sh</string>
+        <string>--mode</string>
+        <string>deep</string>
         <string>--apply</string>
+        <string>--docker-images</string>
+        <string>--prune-snapshots</string>
     </array>
 
-    <!-- 08:30 local — offset from the 08:00 storage auto-clean so the two
-         never contend. Missed runs (machine asleep) fire on next wake. -->
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key><integer>8</integer>
-        <key>Minute</key><integer>30</integer>
-    </dict>
+    <!-- Every 3 days (259200s), measured from load / last run. Fires on wake if
+         the interval elapsed while asleep. -->
+    <key>StartInterval</key>
+    <integer>259200</integer>
 
     <key>RunAtLoad</key>
     <false/>
@@ -46,6 +49,8 @@
     <string>Background</string>
     <key>Nice</key>
     <integer>10</integer>
+    <key>LowPriorityIO</key>
+    <true/>
 
     <!-- notify() detaches an alerter click-handler that outlives the run; by
          default launchd kills the job's process group on exit, which would
@@ -54,8 +59,8 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>__HOME__/mac-analyzers/reports/memory/auto-clean.daily.out.log</string>
+    <string>__HOME__/mac-analyzers/reports/storage/auto-clean.deep.out.log</string>
     <key>StandardErrorPath</key>
-    <string>__HOME__/mac-analyzers/reports/memory/auto-clean.daily.err.log</string>
+    <string>__HOME__/mac-analyzers/reports/storage/auto-clean.deep.err.log</string>
 </dict>
 </plist>

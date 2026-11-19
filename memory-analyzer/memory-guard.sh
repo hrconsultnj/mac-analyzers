@@ -37,9 +37,16 @@
 # ---------------------------------------------------------------------------
 
 set -u
+_sparehold_paths="$(cd "$(dirname "$0")/.." && pwd)/lib/paths.sh"
+[[ -f "$(dirname "$0")/paths.sh" ]] && _sparehold_paths="$(cd "$(dirname "$0")" && pwd)/paths.sh"
+# The helper path is chosen at runtime. shellcheck follows the suite copy.
+# shellcheck source=../lib/paths.sh
+if [[ -f "$_sparehold_paths" ]]; then
+  source "$_sparehold_paths"
+fi
+SPAREHOLD_USER_ROOT="$(sparehold_user_root)"
 
-HOME_DIR="${HOME}"
-LOG_DIR="${HOME_DIR}/mac-analyzers/reports/memory"
+LOG_DIR="${SPAREHOLD_USER_ROOT}/reports/memory"
 LOG_FILE="${LOG_DIR}/guard.log"
 STATE_FILE="${LOG_DIR}/.guard-prev-snapshot"
 CPU_STATE_FILE="${LOG_DIR}/.guard-cpu-hits"
@@ -51,8 +58,9 @@ ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # app bundle, that bundle is replaced wholesale on every update, so the
 # user copy is the one that must win.
 [[ -f "${ANALYZERS_ROOT}/config.local.sh" ]] && source "${ANALYZERS_ROOT}/config.local.sh"
-[[ -f "$HOME/mac-analyzers/config.local.sh" && "${ANALYZERS_ROOT}" != "$HOME/mac-analyzers" ]] \
-  && source "$HOME/mac-analyzers/config.local.sh"
+# shellcheck source=../lib/paths.sh
+source "${ANALYZERS_ROOT}/lib/paths.sh"
+sparehold_apply_paths
 
 # ---------- tunables (env or flags) ----------
 INTERVAL="${GUARD_INTERVAL:-15}"              # seconds between ticks

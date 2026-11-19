@@ -4,7 +4,7 @@ import AnalyzersKit
 import NotifierKit
 import UIComponents
 
-/// Setup: the current configuration of Mac Analyzers on this Mac, as three tabs: **Permissions** (what macOS or you
+/// Setup: the current configuration of Sparehold on this Mac, as three tabs: **Permissions** (what macOS or you
 /// control), **Background** (what runs on its own) and **Protection** (the choices that decide what it may touch). One row
 /// per thing, each with its state, the evidence for it and one action; rows that need you come first. Every row is READ
 /// (`SetupInputs.read`), never assumed, and a row that only System Settings can change hands you there, says exactly what to
@@ -47,6 +47,13 @@ struct SetupView: View {
                                 Button("Stop") { installJob.cancel() }
                             }
                         }
+                        if DefaultsMigrator.wasMigratedFromLegacyBundle,
+                           let access = items.first(where: { $0.id == "fullDiskAccess" }),
+                           access.state == .off || access.state == .needsYou || access.state == .notAskedYet {
+                            Text("Sparehold moved to a new app identity — approve Full Disk Access once using the icon drag or + button.")
+                                .font(.callout)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         if let message = actions.message {
                             Label(message, systemImage: actions.messageIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
                                 .foregroundStyle(actions.messageIsError ? Tokens.Status.destructive.tint : Tokens.Status.safe.tint)
@@ -85,7 +92,7 @@ struct SetupView: View {
             ToolbarItem {
                 Button { navigator.push(.overview(.turnOff)) } label: { Label(Names.Setup.turnOffOrRemove, systemImage: "power") }
                     .labelStyle(.titleAndIcon)
-                    .help("Pause, turn off or remove Mac Analyzers' background protection")
+                    .help("Pause, turn off or remove Sparehold' background protection")
             }
             .toolbarRank(.secondary)
         }

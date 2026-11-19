@@ -56,7 +56,7 @@ final class SetupActions {
 
         case .sendTest:
             NotificationPoster.shared.post(
-                title: "Mac Analyzers", subtitle: "Test",
+                title: "Sparehold", subtitle: "Test",
                 message: "Notifications are working. This is what you will see when something happens.",
                 sound: nil, logPath: nil, pid: nil)
             messageIsError = false
@@ -66,7 +66,7 @@ final class SetupActions {
             do {
                 try SMAppService.mainApp.register()
                 messageIsError = false
-                message = "Turned on. Mac Analyzers will open when you log in."
+                message = "Turned on. Sparehold will open when you log in."
             } catch {
                 messageIsError = true
                 message = "Couldn't turn it on: \(error.localizedDescription)"
@@ -74,7 +74,7 @@ final class SetupActions {
 
         case .timeMachineAllow:
             let outcome = await TimeMachinePermission.allow()
-            apply(outcome, done: "Allowed. Mac Analyzers can now delete Time Machine's local snapshots without asking each time.")
+            apply(outcome, done: "Allowed. Sparehold can now delete Time Machine's local snapshots without asking each time.")
 
         case .timeMachineRemove:
             let outcome = await TimeMachinePermission.revoke()

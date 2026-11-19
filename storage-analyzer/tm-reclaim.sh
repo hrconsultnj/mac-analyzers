@@ -26,6 +26,14 @@
 # ---------------------------------------------------------------------------
 
 set -u
+_sparehold_paths="$(cd "$(dirname "$0")/.." && pwd)/lib/paths.sh"
+[[ -f "$(dirname "$0")/paths.sh" ]] && _sparehold_paths="$(cd "$(dirname "$0")" && pwd)/paths.sh"
+# The helper path is chosen at runtime. shellcheck follows the suite copy.
+# shellcheck source=../lib/paths.sh
+if [[ -f "$_sparehold_paths" ]]; then
+  source "$_sparehold_paths"
+fi
+SPAREHOLD_USER_ROOT="$(sparehold_user_root)"
 
 DRY_RUN=1
 DO_BACKUP=1
@@ -42,7 +50,7 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-OUT_DIR="${HOME}/mac-analyzers/reports/storage"
+OUT_DIR="${SPAREHOLD_USER_ROOT}/reports/storage"
 mkdir -p "${OUT_DIR}"
 LOG_FILE="${OUT_DIR}/tm-reclaim.log"
 log() { echo "$*" | tee -a "${LOG_FILE}"; }

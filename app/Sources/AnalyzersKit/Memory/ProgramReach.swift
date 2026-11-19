@@ -109,7 +109,7 @@ enum ProgramReach {
 
     /// `overridingProtection`: the person chose this stop themselves, so a live coding session in the reach is
     /// not a reason to refuse (the confirmation they gave named it). Everything else still refuses: a terminal
-    /// session, Mac Analyzers itself, a command line that cannot be believed yet.
+    /// session, Sparehold itself, a command line that cannot be believed yet.
     static func compute(listed: [ProcessIdentity], name: String, overridingProtection: Bool = false) -> Outcome {
         let verified = listed.filter(\.isStillRunning)
         guard !verified.isEmpty else { return .reach([]) }
@@ -144,7 +144,7 @@ enum ProgramReach {
 
         let own = selfChain()
         if depth.keys.contains(where: own.contains) {
-            return .refused("Stopping \(name) would end Mac Analyzers itself, or the program that started it, so nothing was stopped.")
+            return .refused("Stopping \(name) would end Sparehold itself, or the program that started it, so nothing was stopped.")
         }
         // Sessions BELOW the program count too, including below the terminals the
         // reach does not enter: ending a program that hosts terminals closes them

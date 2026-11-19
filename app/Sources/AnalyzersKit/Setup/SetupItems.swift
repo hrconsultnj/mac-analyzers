@@ -40,7 +40,7 @@ public enum SetupItems {
         case .unavailable: return item(.cantTell, "Can't be read here: this is running without an app bundle.")
         case .notAsked: return item(.notAskedYet, "macOS hasn't been asked yet.", .allowNotifications, Names.Setup.allowNotifications)
         case .denied:
-            return item(.off, "Turned off in System Settings. Mac Analyzers still works, but it acts silently.",
+            return item(.off, "Turned off in System Settings. Sparehold still works, but it acts silently.",
                         .openSettings(.notifications), Names.Setup.openSystemSettings)
         case .allowedAlertsOff:
             return item(.off, "Allowed, but alerts are switched off in System Settings, so you only see them in Notification Center.",
@@ -61,7 +61,7 @@ public enum SetupItems {
 
     static func timeMachine(_ inputs: SetupInputs) -> SetupItem {
         SetupItem(id: "timeMachine", tab: .permissions, title: Names.Setup.timeMachineThinning,
-                  why: "Lets Mac Analyzers delete Time Machine's local snapshots without asking for your password each time, including in the scheduled deep clean.",
+                  why: "Lets Sparehold delete Time Machine's local snapshots without asking for your password each time, including in the scheduled deep clean.",
                   state: inputs.timeMachineAllowed ? .on : .off,
                   evidence: inputs.timeMachineAllowed
                       ? "One command is allowed without a password: deleting Time Machine's local snapshots. Nothing else is."
@@ -79,7 +79,7 @@ public enum SetupItems {
                       action: action, actionTitle: title, source: .system, weight: state == .off ? .choice : .problem)
         }
         switch inputs.login {
-        case .enabled: return item(.on, "Mac Analyzers opens when you log in.")
+        case .enabled: return item(.on, "Sparehold opens when you log in.")
         case .requiresApproval:
             return item(.needsYou, "Waiting for your approval in System Settings › General › Login Items & Extensions.",
                         .openSettings(.loginItems), Names.Setup.openSystemSettings)
@@ -109,9 +109,9 @@ public enum SetupItems {
         var rows = [SetupItem(id: "engine", tab: .background, title: Names.Setup.analyzerScripts,
                               why: "The part that does the actual watching and cleaning.",
                               state: inputs.engineFound ? .on : .needsYou,
-                              evidence: !inputs.engineFound ? "Not found. Reinstall Mac Analyzers to restore them."
+                              evidence: !inputs.engineFound ? "Not found. Reinstall Sparehold to restore them."
                                   : inputs.usingBundledEngine ? "Included with the app: nothing else to install."
-                                  : "Running from your copy at ~/mac-analyzers.",
+                                  : "Running from your copy at \(AnalyzersPaths.displayPath(AnalyzersPaths.suiteRoot)).",
                               source: .file)]
         for job in inputs.jobs {
             let isGuard = job.label == EngineStatus.guardLabel
@@ -176,7 +176,7 @@ public enum SetupItems {
             id: "config", tab: .protection, title: Names.Setup.settingsFile,
             why: "Holds your memory limit, your protected apps and your schedule. An update never overwrites it.",
             state: inputs.settingsFileExists ? .on : .off,
-            evidence: inputs.settingsFileExists ? "Saved at ~/mac-analyzers/config.local.sh."
+            evidence: inputs.settingsFileExists ? "Saved at \(AnalyzersPaths.displayPath(AnalyzersPaths.configLocal))."
                                                 : "Not created yet. It is written the first time you save a setting.",
             action: inputs.settingsFileExists ? nil : .writeConfig, actionTitle: inputs.settingsFileExists ? nil : Names.Setup.createIt,
             source: .file, weight: .choice))

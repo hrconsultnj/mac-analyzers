@@ -9,11 +9,11 @@ import UIComponents
 /// not because anything here is withheld.
 struct SupportSettingsView: View {
 
-    private let repo = "https://github.com/hrconsultnj/mac-analyzers"
+    private let repo = "https://github.com/hrconsultnj/sparehold"
 
     var body: some View {
         PaneScaffold(symbol: "heart.fill", color: .pink, title: Names.Screen.support,
-                     caption: "Mac Analyzers is free, and the parts that tell you what your Mac is doing always will be.") {
+                     caption: "Sparehold is free, and the parts that tell you what your Mac is doing always will be.") {
             Section {
                 VStack(alignment: .leading, spacing: Tokens.Space.m) {
                     Text("What You Already Have")
@@ -52,7 +52,7 @@ struct SupportSettingsView: View {
                 }
             }
             Section {
-                Text("Some builds of Mac Analyzers include extra conveniences on top of everything above. If you have one, the licence screen appears here instead.")
+                Text("Some builds of Sparehold include extra conveniences on top of everything above. If you have one, the licence screen appears here instead.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

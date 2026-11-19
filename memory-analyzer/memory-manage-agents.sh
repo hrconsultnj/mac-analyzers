@@ -16,9 +16,13 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SRC="${HERE}/launchd"
 DEST="${HOME}/Library/LaunchAgents"
-AGENTS=( com.mac-analyzers.memory-guard com.mac-analyzers.memory-autoclean.daily )
+AGENTS=( com.sparehold.memory-guard com.sparehold.memory-autoclean.daily )
 DOMAIN="gui/$(id -u)"
-PAUSE_FLAG="${HOME}/mac-analyzers/reports/memory/.guard-paused"
+# shellcheck source=../lib/paths.sh
+source "${HERE}/../lib/paths.sh"
+# shellcheck source=../lib/launchd-migrate.sh
+source "${HERE}/../lib/launchd-migrate.sh"
+PAUSE_FLAG="$(sparehold_user_root)/reports/memory/.guard-paused"
 
 # reload_agent: unload, wait until launchd has really let go, load, retry.
 # The inline version is only for a copy of this script without lib/ beside it.
@@ -42,39 +46,11 @@ case "$cmd" in
     for a in "${AGENTS[@]}"; do
       echo "==> ${a}"
       plutil -lint "${SRC}/${a}.plist" || { echo "   invalid plist, aborting"; exit 1; }
-      # preserve a user-customized schedule (set via the app's Schedule pane)
-      # across reinstalls/upgrades — the template's time is only the default
-      old_h="" old_m="" old_i=""
-      if [[ -f "${DEST}/${a}.plist" ]]; then
-        old_h=$(/usr/libexec/PlistBuddy -c "Print :StartCalendarInterval:Hour" "${DEST}/${a}.plist" 2>/dev/null || true)
-        old_m=$(/usr/libexec/PlistBuddy -c "Print :StartCalendarInterval:Minute" "${DEST}/${a}.plist" 2>/dev/null || true)
-        old_i=$(/usr/libexec/PlistBuddy -c "Print :StartInterval" "${DEST}/${a}.plist" 2>/dev/null || true)
-      fi
-      # hydrate the template for this machine (portable across users/locations).
-      # Entry point: the app's compiled agent-runner when the app is built
-      # (BTM attributes the item to Mac Analyzers); plain script otherwise.
-      RUNNER="/Applications/MacAnalyzers.app/Contents/MacOS/agent-runner"
-      [[ -x "$RUNNER" ]] || RUNNER="$(dirname "$HERE")/app/MacAnalyzers.app/Contents/MacOS/agent-runner"
-      if [[ -x "$RUNNER" ]]; then
-        sed -e "s|__RUNNER__|${RUNNER}|g" \
-            -e "s|__SUITE_DIR__|${HERE}|g" -e "s|__HOME__|${HOME}|g" \
-            "${SRC}/${a}.plist" > "${DEST}/${a}.plist"
-      else
-        sed -e "/__RUNNER__/d" \
-            -e "s|__SUITE_DIR__|${HERE}|g" -e "s|__HOME__|${HOME}|g" \
-            "${SRC}/${a}.plist" > "${DEST}/${a}.plist"
-      fi
-      if [[ -n "$old_h" && -n "$old_m" ]]; then
-        /usr/libexec/PlistBuddy -c "Set :StartCalendarInterval:Hour ${old_h}" \
-                                -c "Set :StartCalendarInterval:Minute ${old_m}" \
-                                "${DEST}/${a}.plist" 2>/dev/null \
-          && echo "   kept custom schedule (${old_h}:$(printf '%02d' "$old_m"))"
-      fi
-      if [[ -n "$old_i" ]]; then
-        /usr/libexec/PlistBuddy -c "Set :StartInterval ${old_i}" \
-                                "${DEST}/${a}.plist" 2>/dev/null \
-          && echo "   kept custom interval (${old_i}s)"
-      fi
+      # New plist keeps its own schedule. Otherwise the com.mac-analyzers
+      # plist is read, then booted out and deleted. The new label is not booted
+      # out here; reload_agent loads it.
+      sparehold_hydrate_agent "${SRC}" "${a}" "${DEST}" "${HERE}"
+      sparehold_bootout_legacy "${DOMAIN}" "$(sparehold_legacy_label "${a}")" "${DEST}"
       reload_agent "${DOMAIN}" "${a}" "${DEST}/${a}.plist" || not_loaded=$((not_loaded + 1))
     done
     if [[ "$not_loaded" -gt 0 ]]; then
@@ -88,6 +64,7 @@ case "$cmd" in
       echo "==> ${a}"
       launchctl bootout "${DOMAIN}/${a}" 2>/dev/null && echo "   unloaded" || echo "   (was not loaded)"
       rm -f "${DEST}/${a}.plist" && echo "   removed plist"
+      sparehold_bootout_legacy "${DOMAIN}" "$(sparehold_legacy_label "${a}")" "${DEST}"
     done
     ;;
   status)

@@ -182,7 +182,7 @@ struct ActivityInspector: View {
                 Spacer()
                 Button("Stop", role: .destructive) { job.cancel() }
             }
-            Text("If you quit Mac Analyzers while this runs, you will be asked whether to stop it or let it finish in the background.")
+            Text("If you quit Sparehold while this runs, you will be asked whether to stop it or let it finish in the background.")
                 .font(Tokens.Typography.caption)
                 .foregroundStyle(.secondary)
             LiveOutputView(job: job)

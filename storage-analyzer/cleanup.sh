@@ -57,6 +57,14 @@
 # ---------------------------------------------------------------------------
 
 set -u
+_sparehold_paths="$(cd "$(dirname "$0")/.." && pwd)/lib/paths.sh"
+[[ -f "$(dirname "$0")/paths.sh" ]] && _sparehold_paths="$(cd "$(dirname "$0")" && pwd)/paths.sh"
+# The helper path is chosen at runtime. shellcheck follows the suite copy.
+# shellcheck source=../lib/paths.sh
+if [[ -f "$_sparehold_paths" ]]; then
+  source "$_sparehold_paths"
+fi
+SPAREHOLD_USER_ROOT="$(sparehold_user_root)"
 shopt -s nullglob
 
 DRY_RUN=1
@@ -74,8 +82,9 @@ ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # app bundle, that bundle is replaced wholesale on every update, so the
 # user copy is the one that must win.
 [[ -f "${ANALYZERS_ROOT}/config.local.sh" ]] && source "${ANALYZERS_ROOT}/config.local.sh"
-[[ -f "$HOME/mac-analyzers/config.local.sh" && "${ANALYZERS_ROOT}" != "$HOME/mac-analyzers" ]] \
-  && source "$HOME/mac-analyzers/config.local.sh"
+# shellcheck source=../lib/paths.sh
+source "${ANALYZERS_ROOT}/lib/paths.sh"
+sparehold_apply_paths
 
 # the launch inventory shared with the login items audit (only discovery needs it)
 LAUNCH_LIB="${ANALYZERS_ROOT}/lib/launch-items.sh"
@@ -131,7 +140,7 @@ RUN_KIND=""
 if [[ -n "$LIST_APP" || ${#APP_TARGETS[@]} -gt 0 || "$DO_STALE_APPS" -eq 1 ]]; then RUN_KIND="apps"
 elif [[ -n "$REC_DAYS" ]]; then RUN_KIND="recordings"; fi
 if [[ -n "$RUN_KIND" && -z "${CLEANUP_SCRIPT_TEED:-}" ]]; then
-  CLEANUP_LOG_DIR="${HOME}/mac-analyzers/reports/storage"
+  CLEANUP_LOG_DIR="${SPAREHOLD_USER_ROOT}/reports/storage"
   mkdir -p "$CLEANUP_LOG_DIR"
   CLEANUP_SCRIPT_TEED=1 "${BASH:-bash}" "$0" "${ORIG_ARR[@]}" 2>&1 | tee -a "${CLEANUP_LOG_DIR}/cleanup-${RUN_KIND}.log"
   exit "${PIPESTATUS[0]}"
@@ -599,7 +608,7 @@ move_failure_reason() {
 #   missing     none, empty, not an inventory, an unknown version, a date that cannot be read, in the future, or
 #               older than a day
 inventory_state() {
-  local inv="${ANALYZERS_LOGIN_INVENTORY:-${HOME_DIR}/mac-analyzers/reports/storage/login-items.tsv}" head tag ver date logins ts now
+  local inv="${ANALYZERS_LOGIN_INVENTORY:-${SPAREHOLD_USER_ROOT}/reports/storage/login-items.tsv}" head tag ver date logins ts now
   [[ -s "$inv" ]] || { echo missing; return; }
   head="$(head -n 1 "$inv" 2>/dev/null)"
   IFS=$'\t' read -r tag ver date _ _ logins <<< "$head"
@@ -630,7 +639,7 @@ app_keep_reason() {
   fi
   case "$(inventory_state)" in
     ok) : ;;
-    unreadable) echo "Which apps open at login can't be checked yet: the last Login & Startup Items check could not read your Login Items. Run it from the Mac Analyzers app, where macOS can ask for permission, then preview again"; return ;;
+    unreadable) echo "Which apps open at login can't be checked yet: the last Login & Startup Items check could not read your Login Items. Run it from Sparehold, where macOS can ask for permission, then preview again"; return ;;
     *) echo "Which apps open at login can't be checked yet: run Login & Startup Items first, then preview again"; return ;;
   esac
   [[ "$PURGE_DISCOVERED" -eq 1 ]] || return 0      # an app the person named is theirs to remove once these checks pass
@@ -708,7 +717,7 @@ run_app_mode() {
     [[ ${#STALE_APPS[@]} -eq 0 ]] && discover_stale_apps
     if [[ "$STALE_DISCOVERED" -eq 1 && "$DRY_RUN" -eq 0 && -z "$ONLY_PATHS" ]]; then
       echo "FATAL: these apps were found by a date, not chosen by you, so they are only removed after a review." >&2
-      echo "       Review them in the Mac Analyzers app (Storage, Unused Apps), name the ones you want with --app \"Name\"," >&2
+      echo "       Review them in Sparehold (Storage, Unused Apps), name the ones you want with --app \"Name\"," >&2
       echo "       or list them in ANALYZERS_STALE_APPS in config.local.sh. Nothing was removed." >&2
       exit 78
     fi

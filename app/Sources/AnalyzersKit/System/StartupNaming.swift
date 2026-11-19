@@ -13,7 +13,7 @@ enum StartupNaming {
     /// Trailing words that say how a helper is wired, not what it is.
     private static let plumbing: Set<String> = ["xpc", "service", "xpcservice", "plist"]
 
-    /// "GoogleUpdater" -> "Google Updater"; "mac-analyzers" -> "Mac Analyzers".
+    /// "GoogleUpdater" -> "Google Updater"; "mac-analyzers" -> "Sparehold".
     /// `splitCamel: false` keeps a brand written as one word ("OrbStack").
     static func humanize(_ word: String, splitCamel: Bool = true) -> String {
         // A name already written with capitals ("iTerm", "macOS", "GoogleUpdater") or

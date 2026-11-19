@@ -61,6 +61,14 @@
 # ---------------------------------------------------------------------------
 
 set -u
+_sparehold_paths="$(cd "$(dirname "$0")/.." && pwd)/lib/paths.sh"
+[[ -f "$(dirname "$0")/paths.sh" ]] && _sparehold_paths="$(cd "$(dirname "$0")" && pwd)/paths.sh"
+# The helper path is chosen at runtime. shellcheck follows the suite copy.
+# shellcheck source=../lib/paths.sh
+if [[ -f "$_sparehold_paths" ]]; then
+  source "$_sparehold_paths"
+fi
+SPAREHOLD_USER_ROOT="$(sparehold_user_root)"
 
 # ---------- which bash is running this ----------
 # The developer-tools pass (sections 2 and 7–11) keeps its bookkeeping in
@@ -81,7 +89,6 @@ if (( BASH_VERSINFO[0] < 4 )); then
 fi
 DEV_PASS_SKIPPED="skipped — the developer-tools checks need bash 4 or newer and this Mac has ${BASH_VERSION%%(*}. Install one with: brew install bash"
 
-HOME_DIR="${HOME}"
 DRY_RUN=1
 ONLY_PIDS=""
 ORPHANS_ALL=0
@@ -90,7 +97,7 @@ DEV_NOW=0
 QUIET=0
 DEV_AGE_HOURS=24
 PW_AGE_HOURS=2
-LOG_DIR="${HOME_DIR}/mac-analyzers/reports/memory"
+LOG_DIR="${SPAREHOLD_USER_ROOT}/reports/memory"
 LOG_FILE="${LOG_DIR}/auto-clean.log"
 LOCK_FILE="${LOG_DIR}/.auto-clean.lock"
 
@@ -100,8 +107,9 @@ ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # app bundle, that bundle is replaced wholesale on every update, so the
 # user copy is the one that must win.
 [[ -f "${ANALYZERS_ROOT}/config.local.sh" ]] && source "${ANALYZERS_ROOT}/config.local.sh"
-[[ -f "$HOME/mac-analyzers/config.local.sh" && "${ANALYZERS_ROOT}" != "$HOME/mac-analyzers" ]] \
-  && source "$HOME/mac-analyzers/config.local.sh"
+# shellcheck source=../lib/paths.sh
+source "${ANALYZERS_ROOT}/lib/paths.sh"
+sparehold_apply_paths
 
 MCP_RE='[Mm]cp'
 [[ -n "${ANALYZERS_MCP_EXTRA_RE:-}" ]] && MCP_RE="${MCP_RE}|${ANALYZERS_MCP_EXTRA_RE}"
@@ -210,8 +218,8 @@ NEVER_FILE=""
 # The path is built from ANALYZERS_ROOT when the script runs, so shellcheck cannot follow it (lib/guard-select.sh is linted on its own).
 # shellcheck disable=SC1091
 if [[ -r "${ANALYZERS_ROOT}/lib/guard-select.sh" ]] && source "${ANALYZERS_ROOT}/lib/guard-select.sh" 2>/dev/null \
-   && [[ -r "${HOME_DIR}/mac-analyzers/reports/memory/.guard-fallback.tsv" ]]; then
-  NEVER_FILE="${HOME_DIR}/mac-analyzers/reports/memory/.guard-fallback.tsv"
+   && [[ -r "${SPAREHOLD_USER_ROOT}/reports/memory/.guard-fallback.tsv" ]]; then
+  NEVER_FILE="${SPAREHOLD_USER_ROOT}/reports/memory/.guard-fallback.tsv"
 fi
 NEVER_PIDS=""
 

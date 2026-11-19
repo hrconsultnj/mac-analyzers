@@ -8,7 +8,7 @@ import os
 /// again once the window is up, for the screen to navigate.
 @MainActor
 public enum SettingsOpener {
-    private static let log = Logger(subsystem: "com.mac-analyzers.app",
+    private static let log = Logger(subsystem: AppIdentity.bundleID,
                                     category: "settings-opener")
 
     /// Receivers of the open-window signal report in here — the log tells

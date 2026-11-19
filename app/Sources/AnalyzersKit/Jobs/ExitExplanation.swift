@@ -13,7 +13,7 @@ public enum ExitExplanation {
         case 78: "Couldn't \(verb): it refused to start because one of its settings isn't valid. The run's output says which one."
         // 79: a part of the engine the script needs in order to run safely is
         // missing from the installation — not something a setting can fix.
-        case 79: "Couldn't \(verb): a part of Mac Analyzers is missing, so it refused to run rather than run without its safety checks. Update or reinstall Mac Analyzers to repair it."
+        case 79: "Couldn't \(verb): a part of Sparehold is missing, so it refused to run rather than run without its safety checks. Update or reinstall Sparehold to repair it."
         case 2: "Couldn't \(verb): the script rejected the options the app passed."
         default: "Couldn't \(verb) — the script stopped with code \(exitCode)."
         }

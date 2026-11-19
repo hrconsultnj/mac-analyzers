@@ -131,7 +131,7 @@ public struct GuardRules: Sendable {
 
     /// Where the person's changes are kept.
     public static var localFile: URL {
-        localOverride.withLock { $0 } ?? AnalyzersPaths.home.appending(path: "mac-analyzers/rules.local.json")
+        localOverride.withLock { $0 } ?? AnalyzersPaths.userRoot.appending(path: "rules.local.json")
     }
 
     private struct Cached { var stamp: [Date?] = []; var rules: GuardRules? }

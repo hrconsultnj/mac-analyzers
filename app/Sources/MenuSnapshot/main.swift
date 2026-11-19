@@ -38,7 +38,7 @@ func word(_ name: String) -> String? {
 // domain, never the app's. Then, for the Monitor tab: `--scope all|apps|tools|macos` picks its category tab and
 // `--open N` opens the first N groups that have something inside, the way the person's own clicks would have
 // (the open groups are remembered per tab; this writes that memory before the panel is built).
-if let domain = Bundle.main.bundleIdentifier ?? Optional(ProcessInfo.processInfo.processName), domain != "com.mac-analyzers.app" {
+if let domain = Bundle.main.bundleIdentifier ?? Optional(ProcessInfo.processInfo.processName), domain != AppIdentity.bundleID && domain != AppIdentity.legacyBundleID {
     UserDefaults.standard.removePersistentDomain(forName: domain)
 }
 if tab == "monitor" {

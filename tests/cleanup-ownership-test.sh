@@ -465,7 +465,7 @@ for n in 1 2 3 4 5 6 7 8 9 10 11 12; do ( run --list-app "$W/apps/Idle.app" > "$
   inventory "$W/inventory.tsv" 2 "$(date '+%Y-%m-%d %H:%M:%S')" "logins=unreadable"
   out="$(run --stale-apps)"
   check "[$sh] T2 an inventory from a run that could not read the login items: kept, and the reason says why and what to do" \
-        "$([[ "$(block Plain "$out")" == *"[KEEP]"*"could not read your Login Items"*"from the Mac Analyzers app"* ]] && echo ok || echo "$(block Plain "$out")")"
+        "$([[ "$(block Plain "$out")" == *"[KEEP]"*"could not read your Login Items"*"from Sparehold"* ]] && echo ok || echo "$(block Plain "$out")")"
   printf '#login-items-inventory\t2\t%s\tdry-run\tid\n' "$(date '+%Y-%m-%d %H:%M:%S')" > "$W/inventory.tsv"
   out="$(run --stale-apps)"; check "[$sh] T2 a header with no statement about the login items is not trusted either" "$([[ "$(block Plain "$out")" == *"[KEEP]"* ]] && echo ok || echo offered)"
 

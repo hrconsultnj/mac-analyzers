@@ -437,7 +437,7 @@ func relaunchDetached(_ args: [String]) -> Never {
     // never an ancestor: this process (asserted from the reach, nothing is called that signals), and a child's stop leaving its parent
     if let own = ProcessIdentity.of(pid: Int(getpid())) {
         let refusal = GuardControl.reachRefusal(listed: [own], name: "This probe")
-        f.check("a Stop that would reach Mac Analyzers itself is refused by the reach alone", refusal?.contains("itself") == true,
+        f.check("a Stop that would reach Sparehold itself is refused by the reach alone", refusal?.contains("itself") == true,
                 refusal ?? "NOT refused")
     }
     if let parent = await f.detachNamed(nil, script: ": \(f.marker)-k; ( exec -a \(f.marker)-child /bin/sleep 71 ) & while :; do sleep 1; done", tag: "\(f.marker)-k"),

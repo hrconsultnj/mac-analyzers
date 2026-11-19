@@ -25,7 +25,7 @@ struct SettingsHubView: View {
 
     var body: some View {
         PaneScaffold(symbol: "gearshape.fill", color: .gray, title: Names.Screen.settings,
-                     caption: "How Mac Analyzers looks and starts, and what each part of it may do.") {
+                     caption: "How Sparehold looks and starts, and what each part of it may do.") {
             Section(Names.SettingsHub.appearance) {
                 AppearancePicker(selection: $appearance)
                     .onChange(of: appearance) { _, choice in

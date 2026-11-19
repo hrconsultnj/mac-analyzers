@@ -35,7 +35,7 @@ my (%kind, %deps, @tools);
 for my $p (@parts) {
   next unless $p =~ /^\.(executableTarget|target|testTarget)\s*\(\s*name:\s*"(\w+)"/s;
   my ($k, $n) = ($1, $2); $kind{$n} = $k; $deps{$n} = $p;
-  push @tools, $n if $k eq "executableTarget" && $n ne "MacAnalyzersApp";
+  push @tools, $n if $k eq "executableTarget" && $n ne "SpareholdApp";
 }
 my %tool = map { $_ => 1 } @tools;
 # the executables that may use the window type: tools that are never bundled

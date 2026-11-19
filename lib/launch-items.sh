@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+_sparehold_paths="$(cd "$(dirname "$0")/.." && pwd)/lib/paths.sh"
+[[ -f "$(dirname "$0")/paths.sh" ]] && _sparehold_paths="$(cd "$(dirname "$0")" && pwd)/paths.sh"
+# The helper path is chosen at runtime. shellcheck follows the suite copy.
+# shellcheck source=../lib/paths.sh
+if [[ -f "$_sparehold_paths" ]]; then
+  source "$_sparehold_paths"
+fi
+SPAREHOLD_USER_ROOT="$(sparehold_user_root)"
 # launch-items.sh — what is registered to run on its own, shared by the login items audit and by
 # cleanup.sh's discovery of unused apps. One inventory, read one way: an app that registers anything
 # here is in use whether or not a person ever opens it.
@@ -199,7 +207,7 @@ _registered_to_run() {  # app bid
       echo "Runs in the background: a launch entry belongs to it"; return 0
     fi
   done <<< "$plists"
-  local inventory="${ANALYZERS_LOGIN_INVENTORY:-${HOME}/mac-analyzers/reports/storage/login-items.tsv}"
+  local inventory="${ANALYZERS_LOGIN_INVENTORY:-${SPAREHOLD_USER_ROOT}/reports/storage/login-items.tsv}"
   if [[ -f "$inventory" ]] && awk -F'\t' -v app="$app" '
         /^#/ { next }
         $5 == app || index($5, app "/") == 1 { found = 1; exit }

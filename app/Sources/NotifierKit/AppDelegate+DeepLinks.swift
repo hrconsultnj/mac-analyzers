@@ -10,7 +10,7 @@ extension AppDelegate {
     /// process, so the launch flag above silently did nothing whenever the
     /// app was open, which is nearly always for a menu-bar app.
     public func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls where url.scheme == "macanalyzers" {
+        for url in urls where url.scheme == "sparehold" || url.scheme == "macanalyzers" {
             let target = url.host == "pane"
                 ? url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                 : (url.host ?? "")

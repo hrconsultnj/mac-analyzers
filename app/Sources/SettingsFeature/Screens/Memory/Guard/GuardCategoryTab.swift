@@ -41,7 +41,7 @@ struct GuardCategoryTab: View {
 
     private var subtitle: String {
         category == .system
-            ? "macOS processes can't be stopped by any app; Mac Analyzers tells you when one is using a lot."
+            ? "macOS processes can't be stopped by any app; Sparehold tells you when one is using a lot."
             : "What Memory Guard does about each kind of thing here"
     }
 

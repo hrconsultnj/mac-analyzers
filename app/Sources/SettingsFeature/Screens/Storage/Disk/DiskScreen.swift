@@ -135,7 +135,7 @@ struct DiskScreen: View {
             } header: {
                 Text("iPhone and iPad Backups")
             } footer: {
-                Text("Report only. Mac Analyzers never deletes a backup; remove one yourself in Finder if you no longer need it.")
+                Text("Report only. Sparehold never deletes a backup; remove one yourself in Finder if you no longer need it.")
             }
         }
     }

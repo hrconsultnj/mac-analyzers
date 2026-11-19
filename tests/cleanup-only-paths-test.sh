@@ -48,7 +48,7 @@ for sh in bash /bin/bash; do
 
   # (a) a preview is a block with the standard banner, in the log of its own, and removes nothing
   out="$(cleanup --stale-apps)"
-  log="$home/mac-analyzers/reports/storage/cleanup-apps.log"
+  log="$home/Library/Application Support/Sparehold/reports/storage/cleanup-apps.log"
   check "[$sh] an apps preview prints the standard banner" "$(grep -q '^cleanup | apps | DRY RUN | [0-9-]* [0-9:]*$' <<<"$out" && echo ok || echo "no banner")"
   check "[$sh] the same block is in cleanup-apps.log" "$(grep -q '^cleanup | apps | DRY RUN |' "$log" 2>/dev/null && echo ok || echo "no log")"
   check "[$sh] a preview lists each app's bundle as [APP] and removes nothing" \
@@ -153,7 +153,7 @@ STUB
   # recordings: the same rules, the folder's path is the key
   out="$(cleanup --recordings-older-than 1)"
   check "[$sh] a recordings preview has its own banner and log" \
-        "$(grep -q '^cleanup | recordings | DRY RUN |' <<<"$out" && [[ -f "$home/mac-analyzers/reports/storage/cleanup-recordings.log" ]] && echo ok || echo "wrong")"
+        "$(grep -q '^cleanup | recordings | DRY RUN |' <<<"$out" && [[ -f "$home/Library/Application Support/Sparehold/reports/storage/cleanup-recordings.log" ]] && echo ok || echo "wrong")"
   printf '%s\n' "$home/Recordings/OldFixtureOne" > "$TMP/rec-$k"
   rout="$(cleanup --recordings-older-than 1 --execute --yes --only-paths "$TMP/rec-$k")"
   check "[$sh] a removed recording is in the Trash, with a receipt Undo reads" \

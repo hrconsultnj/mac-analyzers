@@ -50,12 +50,20 @@
 # ---------------------------------------------------------------------------
 
 set -u
+_sparehold_paths="$(cd "$(dirname "$0")/.." && pwd)/lib/paths.sh"
+[[ -f "$(dirname "$0")/paths.sh" ]] && _sparehold_paths="$(cd "$(dirname "$0")" && pwd)/paths.sh"
+# The helper path is chosen at runtime. shellcheck follows the suite copy.
+# shellcheck source=../lib/paths.sh
+if [[ -f "$_sparehold_paths" ]]; then
+  source "$_sparehold_paths"
+fi
+SPAREHOLD_USER_ROOT="$(sparehold_user_root)"
 shopt -s nullglob
 
 HOME_DIR="${HOME}"
 DRY_RUN=1
 ONLY_FILE=""
-LOG_DIR="${HOME_DIR}/mac-analyzers/reports/storage"
+LOG_DIR="${SPAREHOLD_USER_ROOT}/reports/storage"
 LOG_FILE="${LOG_DIR}/login-items-audit.log"
 
 ORIG_ARGS="$*"

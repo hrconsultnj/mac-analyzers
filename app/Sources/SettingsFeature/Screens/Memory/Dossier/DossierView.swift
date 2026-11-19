@@ -8,7 +8,7 @@ struct DossierRoute: Hashable, Codable, Sendable {
     let pid: Int?
 }
 
-/// The per-app dossier — everything Mac Analyzers knows about one process:
+/// The per-app dossier — everything Sparehold knows about one process:
 /// live footprint, guard history, network traffic, and the protection verdict,
 /// composed from data every other screen already parses. A plain form: the
 /// title is in the toolbar and the facts fill the window.
@@ -32,7 +32,7 @@ struct DossierView: View {
         }
         .formStyle(.grouped)
         .navigationTitle(route.name)
-        .navigationSubtitle("Everything Mac Analyzers knows about this process")
+        .navigationSubtitle("Everything Sparehold knows about this process")
         .task { await load() }
     }
 

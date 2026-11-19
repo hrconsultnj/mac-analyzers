@@ -1,5 +1,5 @@
 // swift-tools-version: 6.4
-// MacAnalyzers.app — menu-bar UI + notifier for the mac-analyzers suite.
+// Sparehold.app — menu-bar UI + notifier for the Sparehold suite.
 // Decomposed catalog-style: features import kits, the app target stays thin.
 // Built WITHOUT Xcode: `./build.sh` (swift build + hand-assembled bundle).
 import Foundation
@@ -9,7 +9,8 @@ import PackageDescription
 // package at that path joins the graph and SettingsFeature gains its module.
 // Unset (the default, and the only mode CI/public builds use), the graph is
 // exactly the public one below.
-let proPath = ProcessInfo.processInfo.environment["MA_PRO_PATH"]
+let proPath = ProcessInfo.processInfo.environment["SPAREHOLD_PRO_PATH"]
+    ?? ProcessInfo.processInfo.environment["MA_PRO_PATH"]
 let proPackageDependencies: [Package.Dependency] =
     proPath.map { [.package(path: $0)] } ?? []
 let proTargetDependencies: [Target.Dependency] =
@@ -27,19 +28,21 @@ let proTargetDependencies: [Target.Dependency] =
 // or update. That build still prints its warnings, and upgrade.command says
 // how many, as a defect to report. (A command-line `-no-warnings-as-errors`
 // does not override the manifest setting — tried; hence the variable.)
-let relaxed = ProcessInfo.processInfo.environment["MA_RELAX_WARNINGS"] == "1"
+let relaxed = ProcessInfo.processInfo.environment["SPAREHOLD_RELAX_WARNINGS"] == "1"
+    || ProcessInfo.processInfo.environment["MA_RELAX_WARNINGS"] == "1"
 let strictSwift: [SwiftSetting] = relaxed ? [] : [.treatAllWarnings(as: .error)]
 let strictC: [CSetting] = relaxed ? [] : [.treatAllWarnings(as: .error)]
 
 let package = Package(
-    name: "MacAnalyzers",
+    name: "Sparehold",
     platforms: [.macOS(.v26)],
     dependencies: proPackageDependencies,
     targets: [
         // app shell (thin @main: scenes + DI)
         .executableTarget(
-            name: "MacAnalyzersApp",
+            name: "SpareholdApp",
             dependencies: ["AnalyzersKit", "NotifierKit", "MenuBarFeature", "SettingsFeature"],
+            path: "Sources/SpareholdApp",
             swiftSettings: strictSwift
         ),
         // CLI shim the bash scripts call (posts to the running app)

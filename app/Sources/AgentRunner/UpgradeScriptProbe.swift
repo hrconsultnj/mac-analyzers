@@ -90,7 +90,18 @@ enum UpgradeScriptProbe {
                 try? fm.copyItem(at: repoRoot.appending(path: file), to: seed.appending(path: file))
             }
             write(seed, "VERSION", "2.72.0\n", executable: false)
-            write(seed, "app/build.sh", "#!/bin/sh\necho \"installed: stub\"\ngit -C \"$(dirname \"$0\")/..\" rev-parse HEAD > \"$(dirname \"$0\")/../.built\"\n")
+            // The real repository ignores the built app. This scratch clone must too,
+            // or the stub agent-runner looks like the person's uncommitted work.
+            write(seed, ".gitignore", ".built\napp/Sparehold.app/\n", executable: false)
+            write(seed, "app/build.sh", """
+#!/bin/sh
+echo "installed: stub"
+root="$(cd "$(dirname "$0")/.." && pwd)"
+git -C "$root" rev-parse HEAD > "$root/.built"
+mkdir -p "$root/app/Sparehold.app/Contents/MacOS"
+printf '%s\\n' '#!/bin/sh' 'echo "Installed Version: vstub"' > "$root/app/Sparehold.app/Contents/MacOS/agent-runner"
+chmod +x "$root/app/Sparehold.app/Contents/MacOS/agent-runner"
+""")
             write(seed, "memory-analyzer/memory-manage-agents.sh", "#!/bin/sh\nexit 0\n")
             write(seed, "storage-analyzer/storage-manage-agents.sh", "#!/bin/sh\nexit 0\n")
             func commit(_ n: String) -> String {
@@ -122,7 +133,14 @@ enum UpgradeScriptProbe {
         func publishRelease() { try? "{}".write(to: api.appending(path: "releases/tags/v2.72.1"), atomically: true, encoding: .utf8) }
         func unpublishRelease() { try? FileManager.default.removeItem(at: api.appending(path: "releases/tags/v2.72.1")) }
 
-        func clearBuilt() { try? FileManager.default.removeItem(at: clone.appending(path: ".built")) }
+        func clearBuilt() {
+            let fm = FileManager.default
+            try? fm.removeItem(at: clone.appending(path: ".built"))
+            // The stub build leaves an agent-runner here so upgrade.command can
+            // ask it the version. It is not the person's work, and it is not
+            // gitignored in this scratch clone.
+            try? fm.removeItem(at: clone.appending(path: "app/Sparehold.app"))
+        }
 
         func reset(to commit: String) {
             // --release and --beta --switch detach HEAD. The next beta.command still
@@ -131,7 +149,7 @@ enum UpgradeScriptProbe {
                 _ = git(clone, ["checkout", "-q", "development"])
             }
             _ = git(clone, ["reset", "-q", "--hard", commit])
-            try? FileManager.default.removeItem(at: clone.appending(path: ".built"))
+            clearBuilt()
         }
         func head() -> String { git(clone, ["rev-parse", "HEAD"]) }
         func built() -> String? {

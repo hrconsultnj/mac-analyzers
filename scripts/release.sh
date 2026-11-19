@@ -11,7 +11,7 @@
 #
 # What it does, in order (main only):
 #   1. push origin main (no-op if synced)
-#   2. build the artifact: `git archive` of main → mac-analyzers-v<V>.tar.gz
+#   2. build the artifact: `git archive` of main → sparehold-v<V>.tar.gz
 #      (tracked files only — reports/, config.local.sh, app builds never ship)
 #   3. tag v<V> on main here and push the tag, then `gh release create v<V>`
 #      on that tag with the tarball, and the What's New entry for this
@@ -84,15 +84,15 @@ fi
 title="$("$root/scripts/changelog-check.sh" --title "$version")"
 
 if [[ "${MA_RELEASE_DRYRUN:-0}" == "1" ]]; then
-  echo "release [dry-run]: would push main, tag $tag, attach mac-analyzers-$tag.tar.gz"
+  echo "release [dry-run]: would push main, tag $tag, attach sparehold-$tag.tar.gz"
   exit 0
 fi
 
 echo "release: shipping $tag"
 git push origin main
 
-artifact="$(mktemp -d)/mac-analyzers-$tag.tar.gz"
-git archive --format=tar.gz --prefix="mac-analyzers/" -o "$artifact" main
+artifact="$(mktemp -d)/sparehold-$tag.tar.gz"
+git archive --format=tar.gz --prefix="sparehold/" -o "$artifact" main
 
 notes="$(mktemp)"
 "$root/scripts/changelog-check.sh" --print "$version" > "$notes"
@@ -117,8 +117,8 @@ git push origin "refs/tags/$tag"
 
 gh release create "$tag" "$artifact" \
   --verify-tag \
-  --title "Mac Analyzers $tag — $title" \
+  --title "Sparehold $tag — $title" \
   --notes-file "$notes"
 
 rm -f "$artifact" "$notes"
-echo "release: $tag published — https://github.com/hrconsultnj/mac-analyzers/releases/tag/$tag"
+echo "release: $tag published — https://github.com/hrconsultnj/sparehold/releases/tag/$tag"

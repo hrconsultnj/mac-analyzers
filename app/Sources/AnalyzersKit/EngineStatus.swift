@@ -20,11 +20,11 @@ public struct EngineStatus: Sendable {
     public let guardProcessRunning: Bool
     public let guardPaused: Bool
 
-    public static let guardLabel = "com.mac-analyzers.memory-guard"
+    public static let guardLabel = LaunchdAgentID.memoryGuard.rawValue
     public static let cleanerLabels = [
-        "com.mac-analyzers.memory-autoclean.daily",
-        "com.mac-analyzers.storage-autoclean.daily",
-        "com.mac-analyzers.storage-autoclean.deep",
+        LaunchdAgentID.memoryAutoCleanDaily.rawValue,
+        LaunchdAgentID.storageAutoCleanDaily.rawValue,
+        LaunchdAgentID.storageAutoCleanDeep.rawValue,
     ]
 
     /// Everything installed and the guard loaded — the only state that earns

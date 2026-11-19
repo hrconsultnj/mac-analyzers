@@ -226,7 +226,7 @@ public struct StartupItem: Identifiable, Hashable, Sendable {
         case .leftover:
             let base = "The program it starts is gone, so it can never run. Nothing depends on it."
             return needsAdministrator
-                ? base + " Removing it needs an administrator, so Mac Analyzers shows the command instead of running it."
+                ? base + " Removing it needs an administrator, so Sparehold shows the command instead of running it."
                 : base
         case .possibleLeftover:
             return "The program is still there, but no app from the same developer is installed any more, so it is probably left over from an app you removed. Look before you remove it."

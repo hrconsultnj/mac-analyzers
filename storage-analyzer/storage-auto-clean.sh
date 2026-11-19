@@ -56,6 +56,14 @@
 # ---------------------------------------------------------------------------
 
 set -u
+_sparehold_paths="$(cd "$(dirname "$0")/.." && pwd)/lib/paths.sh"
+[[ -f "$(dirname "$0")/paths.sh" ]] && _sparehold_paths="$(cd "$(dirname "$0")" && pwd)/paths.sh"
+# The helper path is chosen at runtime. shellcheck follows the suite copy.
+# shellcheck source=../lib/paths.sh
+if [[ -f "$_sparehold_paths" ]]; then
+  source "$_sparehold_paths"
+fi
+SPAREHOLD_USER_ROOT="$(sparehold_user_root)"
 shopt -s nullglob
 
 # ---------- defaults ----------
@@ -72,7 +80,7 @@ CACHE_AGE_DAYS=3             # build cache untouched for >N days -> removable
 NM_AGE_DAYS=14              # repo idle for >N days -> node_modules removable
 SNAPSHOT_KEEP_DAYS=5        # keep TM local snapshots newer than N days
 ROOTS="${HOME_DIR}/Projects"
-LOG_DIR="${HOME_DIR}/mac-analyzers/reports/storage"
+LOG_DIR="${SPAREHOLD_USER_ROOT}/reports/storage"
 
 # optional per-machine config (gitignored) — see config.example.sh at repo root
 ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -80,8 +88,9 @@ ANALYZERS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # app bundle, that bundle is replaced wholesale on every update, so the
 # user copy is the one that must win.
 [[ -f "${ANALYZERS_ROOT}/config.local.sh" ]] && source "${ANALYZERS_ROOT}/config.local.sh"
-[[ -f "$HOME/mac-analyzers/config.local.sh" && "${ANALYZERS_ROOT}" != "$HOME/mac-analyzers" ]] \
-  && source "$HOME/mac-analyzers/config.local.sh"
+# shellcheck source=../lib/paths.sh
+source "${ANALYZERS_ROOT}/lib/paths.sh"
+sparehold_apply_paths
 LOG_FILE="${LOG_DIR}/auto-clean.log"
 LOCK_FILE="${LOG_DIR}/.auto-clean.lock"
 

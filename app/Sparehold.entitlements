@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Applied to every copy of the app (app/sign-app.sh signs all of them with the
+  Applied to every copy of Sparehold (app/sign-app.sh signs all of them with the
   hardened runtime: the local install, the ad-hoc download, the Developer ID
   download), on the app and on both helpers. The one protection the app needs
-  lifted: it asks other apps to quit by running osascript (and the scheduled jobs
-  the agent-runner starts do the same), which under the hardened runtime is denied
-  without this — silently, with no prompt.
+  lifted: the app itself runs osascript for the Time Machine administrator
+  prompt, and the scheduled jobs agent-runner starts do the same, which under
+  the hardened runtime is denied without this — silently, with no prompt.
+  The memory reclaim script keeps its own quit path. This entitlement stays
+  because the app still calls osascript.
   Deliberately NOT here: allow-dyld-environment-variables and
   disable-library-validation. Without them macOS ignores DYLD_* variables and
   refuses a library the app was not signed with, which is the point (a program

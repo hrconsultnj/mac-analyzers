@@ -38,6 +38,6 @@ public enum WelcomeGuardFixture {
         protected: [
             GuardPlanPreview.Protected(name: "Claude", why: "a live coding session", symbol: "lock.fill"),
             GuardPlanPreview.Protected(name: "Tailscale", why: "Connection Tools", symbol: "lock.fill"),
-            GuardPlanPreview.Protected(name: "Mac Analyzers", why: "the app in front", symbol: "macwindow"),
+            GuardPlanPreview.Protected(name: "Sparehold", why: "the app in front", symbol: "macwindow"),
             GuardPlanPreview.Protected(name: "superwhisper", why: "on your Never Close list", symbol: "hand.raised.fill")])
 }

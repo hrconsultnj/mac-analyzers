@@ -16,6 +16,10 @@ name: checks
 # These workflows VERIFY; they never publish, and need no secret and no write
 # access. Every check lives in scripts/check.sh — this file only provides the
 # machine and calls it.
+#
+# The product is Sparehold (`/Applications/Sparehold.app`, labels
+# `com.sparehold.*`). An existing `~/mac-analyzers` checkout remains the data
+# and the engine until the person moves it. Nothing in CI moves that folder.
 
 on:
   pull_request:

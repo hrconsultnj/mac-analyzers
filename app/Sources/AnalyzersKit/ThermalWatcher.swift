@@ -93,7 +93,7 @@ public final class ThermalWatcher {
         } else {
             try? Data((line + "\n").utf8).write(to: url)
         }
-        Logger(subsystem: "com.mac-analyzers.app", category: "thermal")
+        Logger(subsystem: AppIdentity.bundleID, category: "thermal")
             .notice("\(line, privacy: .public)")
     }
 

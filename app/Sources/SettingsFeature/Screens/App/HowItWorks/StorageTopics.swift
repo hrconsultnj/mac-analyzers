@@ -58,14 +58,14 @@ extension HowItWorksTopic {
             }
             let permission = f.timeMachinePermission
                 ? "You have given that permission on this Mac."
-                : "You have not given that permission on this Mac yet, so Mac Analyzers will ask the first time you delete snapshots yourself."
+                : "You have not given that permission on this Mac yet, so Sparehold will ask the first time you delete snapshots yourself."
             return TopicContent(
                 summary: f.timeMachinePermission ? "Permission given on this Mac." : "Needs a one-time permission.",
                 does: [
                     "While Time Machine backs up, macOS keeps hourly snapshots on this Mac, and they use disk space. The \(Names.Screen.timeMachine) screen lists them so you can delete the ones you do not need.",
                     "Deleting snapshots needs a one-time permission, with your administrator password, for exactly one command. After that, any program running on your account can delete local snapshots without asking, and nothing else is allowed. \(permission)",
                 ] + (byItself.isEmpty ? [] : [byItself]),
-                never: ["Mac Analyzers never touches your backups on the backup disk. It only deletes local snapshots on this Mac, and when you delete them yourself, only after you confirm."],
+                never: ["Sparehold never touches your backups on the backup disk. It only deletes local snapshots on this Mac, and when you delete them yourself, only after you confirm."],
                 written: ["The permission is one small file. You can remove it from the \(Names.Screen.timeMachine) screen or from Setup."],
                 buttons: [.init(title: "Open \(Names.Screen.timeMachine)", target: "timemachine")])
 

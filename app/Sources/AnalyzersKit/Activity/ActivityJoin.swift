@@ -403,8 +403,8 @@ public enum ActivityJoin {
     /// The agents' labels per log: the logs a launchd job writes.
     static func agentLabels(for log: EngineLog) -> [String] {
         switch log {
-        case .memoryClean: ["com.mac-analyzers.memory-autoclean.daily"]
-        case .storageClean: ["com.mac-analyzers.storage-autoclean.daily", "com.mac-analyzers.storage-autoclean.deep"]
+        case .memoryClean: [LaunchdAgentID.memoryAutoCleanDaily.rawValue]
+        case .storageClean: [LaunchdAgentID.storageAutoCleanDaily.rawValue, LaunchdAgentID.storageAutoCleanDeep.rawValue]
         default: []
         }
     }

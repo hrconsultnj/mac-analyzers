@@ -39,7 +39,7 @@ public enum UnusedReview {
 
     /// The sentence over the table when the script could not check which apps open at login.
     /// The last audit ran but could not list the System Settings login items.
-    public static let loginUnreadableNote = "The last Login & Startup Items check could not read your Login Items, so which apps open at login can't be checked yet. Run that check from Mac Analyzers, where macOS can ask for permission, then preview again."
+    public static let loginUnreadableNote = "The last Login & Startup Items check could not read your Login Items, so which apps open at login can't be checked yet. Run that check from Sparehold, where macOS can ask for permission, then preview again."
     /// What the "does it start on its own" check reads, and what it cannot see: said once, so a person can weigh a row.
     public static let checkLimitsNote = "Whether an app starts on its own is read from your launch entries, the commands and scripts in them, your Login Items and what is inside the app. Not seen: Shortcuts, Automator, cron, a script that builds an app's name, or another program that opens it on demand. Shared containers are checked against your Applications folders only."
     /// Why no shared container was taken, when something could not be read: the engine's `[CONTAINERS-KEPT]` line.

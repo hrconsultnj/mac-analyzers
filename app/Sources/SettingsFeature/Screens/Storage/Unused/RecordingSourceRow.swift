@@ -94,7 +94,7 @@ struct RecordingSourceRow: View {
     /// The question, said in the person's words, with the one button that lets macOS ask it.
     private func access(_ area: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Label("\(Self.where(source, area)). Mac Analyzers needs your permission to look \(Self.phrase(area)).",
+            Label("\(Self.where(source, area)). Sparehold needs your permission to look \(Self.phrase(area)).",
                   systemImage: "lock")
                 .font(.caption)
                 .foregroundStyle(.secondary)

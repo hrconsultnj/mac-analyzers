@@ -228,7 +228,7 @@ line="$(grep -F "launchctl bootout" <<<"$out" | grep -F "com.zzvendor.x" | head 
 [[ "$line" == *"launchctl bootout gui/$uid/com.zzvendor.x; rm "* && "$line" != *sudo* ]] && r=0 || r=1
 check "a possible leftover in your own folder: the user's own domain, plain rm, no sudo" 0 $r
 grep -q 'no administrator needed' <<<"$out"; check "and the line says no administrator is needed" 0 $?
-grep -F "com.zzvendor.x" "$TMP/h2/mac-analyzers/reports/storage/login-items.tsv" | awk -F'\t' '{print $9}' | grep -q '^launchctl bootout gui/'; check "the inventory carries the same command" 0 $?
+grep -F "com.zzvendor.x" "$TMP/h2/Library/Application Support/Sparehold/reports/storage/login-items.tsv" | awk -F'\t' '{print $9}' | grep -q '^launchctl bootout gui/'; check "the inventory carries the same command" 0 $?
 
 # ---- a tab in a name cannot be stored, so the item is never acted on ----------------
 fresh
@@ -239,7 +239,7 @@ grep -q 'a tab or line break' <<<"$out"; check "and is listed as skipped with th
 
 # ---- the inventory's header says whether the login items could be read ----------------
 fresh
-inv="$TMP/h2/mac-analyzers/reports/storage/login-items.tsv"
+inv="$TMP/h2/Library/Application Support/Sparehold/reports/storage/login-items.tsv"
 out="$(run --dry-run)"
 head="$(head -n 1 "$inv")"
 IFS=$'\t' read -r h_tag h_ver h_date h_mode h_id h_logins <<< "$head"

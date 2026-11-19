@@ -32,6 +32,11 @@ struct SettingsAnchorView: View {
                 SettingsOpener.markHandled(by: "anchor-window")
                 openLinkWindow(for: note, using: openWindow)
             }
+            .onReceive(NotificationCenter.default.publisher(
+                for: NotifyChannel.legacyOpenSettings)) { note in
+                SettingsOpener.markHandled(by: "anchor-window")
+                openLinkWindow(for: note, using: openWindow)
+            }
     }
 }
 
@@ -54,8 +59,8 @@ struct MenuBarLabelView: View {
                 // chip + last 30 min of memory-in-use, composed as one
                 // template image (labels render a single image reliably)
                 Image(nsImage: SparklineRenderer.labelImage(
-                    chip: MacAnalyzersApp.menuBarIcon, values: history.samples))
-            } else if let icon = MacAnalyzersApp.menuBarIcon {
+                    chip: SpareholdApp.menuBarIcon, values: history.samples))
+            } else if let icon = SpareholdApp.menuBarIcon {
                 Image(nsImage: icon)
             } else {
                 Image(systemName: "memorychip")
@@ -68,6 +73,10 @@ struct MenuBarLabelView: View {
         // release checks that every reader of `UpdateState` shares.
         .task {
             AppearancePreference.applyStored()      // the look the person chose, before any window shows it
+            let installing = jobs.jobs.contains { $0.kind == .installAgents && !$0.state.isFinished }
+            if LaunchdAgentID.legacyAgentsPresent(), !installing {
+                _ = jobs.enqueue(JobRequest(kind: .installAgents, intent: .run), trigger: .user)
+            }
             updates.startChecking()
             QuitGuard.jobs = jobs      // so quitting while a job runs can ask first
             updates.jobs = jobs        // and installing an update cannot start under one
@@ -79,19 +88,35 @@ struct MenuBarLabelView: View {
             SettingsOpener.markHandled(by: "menu-bar-label")
             openLinkWindow(for: note, using: openWindow)
         }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NotifyChannel.legacyOpenSettings)) { note in
+            SettingsOpener.markHandled(by: "menu-bar-label")
+            openLinkWindow(for: note, using: openWindow)
+        }
     }
 }
 
 @main
-struct MacAnalyzersApp: App {
+struct SpareholdApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var store = GuardLogStore()
-    @State private var config = ConfigStore()
-    @State private var pressureHistory = PressureHistory()
+    @State private var store: GuardLogStore
+    @State private var config: ConfigStore
+    @State private var pressureHistory: PressureHistory
     /// The ONE job store and the ONE update state, owned here so a job outlives
     /// every window and both scenes read the same ones. Screens never create their own.
-    @State private var jobs = JobStore()
-    @State private var updates = UpdateState()
+    @State private var jobs: JobStore
+    @State private var updates: UpdateState
+
+    /// Preferences are copied before UpdateState, WhatsNewSeen or the delegate read them.
+    /// The delegate also migrates in its own init, in case SwiftUI creates it first.
+    init() {
+        DefaultsMigrator.migrateIfNeeded()
+        _store = State(initialValue: GuardLogStore())
+        _config = State(initialValue: ConfigStore())
+        _pressureHistory = State(initialValue: PressureHistory())
+        _jobs = State(initialValue: JobStore())
+        _updates = State(initialValue: UpdateState())
+    }
 
     /// Brand chip glyph from Contents/Resources (hand-copied by build.sh —
     /// deliberately Bundle.main, not Bundle.module; see research on SPM
@@ -136,7 +161,7 @@ struct MacAnalyzersApp: App {
         // Window scene (not Settings), so it takes the unified toolbar with
         // [back][forward] leading and the title. Never opens at launch — the
         // app is a menu-bar app until something asks for the window.
-        Window("Mac Analyzers", id: "main") {
+        Window("Sparehold", id: "main") {
             MainWindowView()
                 .environment(store)
                 .environment(config)

@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# mac-analyzers — local configuration
+# Sparehold — local configuration
 # ---------------------------------------------------------------------------
 # Copy to config.local.sh (same directory, gitignored) and edit. Every value
 # is optional — the suite runs with safe neutral defaults without it.
@@ -30,7 +30,7 @@
 # these in its main pass (App Support dirs, caches, prefs of uninstalled apps).
 #ANALYZERS_DEPRECATED_PATHS=( "$HOME/Library/Application Support/DeadApp" )
 
-# Where Old Recordings looks. The Mac Analyzers app writes this for you (Storage,
+# Where Old Recordings looks. Sparehold writes this for you (Storage,
 # Old Recordings, Sources…); each element is "id|on|path" or "id|off|path", with the
 # path last. ids come from lib/recording-sources.tsv (zoom, screenRecordings,
 # superwhisper, loomTemporary) or `custom` for a folder of yours, where every

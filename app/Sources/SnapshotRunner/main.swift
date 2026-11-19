@@ -31,6 +31,7 @@
 // need to LOOK at them, and looking must not mean taking over the owner's
 // Mac. This process never activates, never appears in the Dock, and its
 // window is never on a display.
+import AnalyzersKit
 import AppKit
 import ToolWindows
 import UIComponents
@@ -88,7 +89,7 @@ if arguments.first == "--probe-links" {
 // never the app's. Only for a render: the probes above keep their own state per process, and
 // wiping the whole domain under probes that run side by side broke them.
 if let domain = Bundle.main.bundleIdentifier ?? Optional(ProcessInfo.processInfo.processName),
-   domain != "com.mac-analyzers.app" {
+   domain != AppIdentity.bundleID && domain != AppIdentity.legacyBundleID {
     UserDefaults.standard.removePersistentDomain(forName: domain)
 }
 // `--default <key>=true|false`: a remembered setting (a panel shown, a tab chosen) as it would be on a launch that

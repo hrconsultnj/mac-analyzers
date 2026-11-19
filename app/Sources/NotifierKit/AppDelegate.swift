@@ -15,7 +15,13 @@ import os
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
 
-    static let log = Logger(subsystem: "com.mac-analyzers.app",
+    /// Before any preference this delegate reads. Idempotent after the first call.
+    public override init() {
+        DefaultsMigrator.migrateIfNeeded()
+        super.init()
+    }
+
+    static let log = Logger(subsystem: AppIdentity.bundleID,
                                     category: "app-delegate")
 
     /// Dock-tile click while running (LSUIElement apps still get reopen
@@ -48,7 +54,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         registerLoginItem()
 
-        // `open -a "Mac Analyzers" --args --pane <target>` jumps straight to
+        // `open -a "Sparehold" --args --pane <target>` jumps straight to
         // a settings screen — scripting/testing hook and a power-user door.
         if let flag = CommandLine.arguments.firstIndex(of: "--pane"),
            CommandLine.arguments.indices.contains(flag + 1) {

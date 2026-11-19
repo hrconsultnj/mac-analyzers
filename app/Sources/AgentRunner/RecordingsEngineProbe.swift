@@ -259,7 +259,7 @@ import Foundation
           "an unconverted Zoom folder stays even when it is on the list")
     let results = UnusedReview.recordings(lines: applied, results: true)
     check(Set(results.rows.map(\.id)) == [meeting.path, shots.appending(path: "old.mov").path, audio1.path], "the apply is read as one Removed row per moved path: \(results.rows.map(\.id))")
-    let log = home.appending(path: "mac-analyzers/reports/storage/cleanup-recordings.log")
+    let log = home.appending(path: "Library/Application Support/Sparehold/reports/storage/cleanup-recordings.log")
     let undoable = UndoLedger.trashedItems(in: log, source: "Old Recordings", trash: trash)
     check(undoable.count == 3 && undoable.allSatisfy { $0.restorability == .restorable && $0.identity != nil }, "Undo reads each receipt as restorable: \(undoable.map { $0.restorability })")
     if let item = undoable.first(where: { $0.originalPath == meeting.path }) {

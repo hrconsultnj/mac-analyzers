@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import os
+import AnalyzersKit
 
 /// The one owner of navigation: which section is selected, what is pushed on
 /// each section, and a single back/forward history across all of it.
@@ -38,7 +39,7 @@ final class Navigator {
     /// The newest deep-link request not yet taken by its screen.
     private(set) var pendingIntent: SectionIntent?
 
-    private static let log = Logger(subsystem: "com.mac-analyzers.app", category: "nav")
+    private static let log = Logger(subsystem: AppIdentity.bundleID, category: "nav")
 
     init(initial: Location) {
         section = initial.section

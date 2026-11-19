@@ -65,11 +65,11 @@ public enum StopWhy: Hashable, Sendable, Codable {
     public var sentence: String {
         switch self {
         case .changed: "That process has changed since the notification: it is not the one that was reported, so it was not stopped."
-        case .unverifiable: "Mac Analyzers cannot be sure this is still the process the notification was about, so it did not stop it."
+        case .unverifiable: "Sparehold cannot be sure this is still the process the notification was about, so it did not stop it."
         case .unavailable: CodingAgentHosts.unavailableSentence
         case .session(let agent): "This process is part of a live \(agent) session. Close the session there instead."
         case .hosts(let agent): "This process hosts live \(agent) sessions. Close them there instead."
-        case .refused: "Mac Analyzers did not stop this process. Look at it here first."
+        case .refused: "Sparehold did not stop this process. Look at it here first."
         }
     }
 

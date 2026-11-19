@@ -111,7 +111,7 @@ is not read at all.
 
 ## Scheduled auto-clean
 
-Two LaunchAgents (installed & loaded; times are defaults — the Mac Analyzers
+Two LaunchAgents (installed & loaded; times are defaults — the Sparehold
 app's Settings → Schedule pane edits them, and the edits survive reinstalls
 and upgrades):
 - **daily 08:00** → `--mode daily --apply --docker-running-only` — build caches idle >3 days (incl. any ANALYZERS_EXTRA_CACHE_GLOBS from config.local.sh), + a quick Docker prune **only if Docker is already running** (never boots it)
@@ -123,11 +123,11 @@ and upgrades):
 ./storage-manage-agents.sh uninstall       # stop + remove
 ```
 
-Labels are `com.mac-analyzers.storage-autoclean.{daily,deep}`; the plists set
+Labels are `com.sparehold.storage-autoclean.{daily,deep}`; the plists set
 `AbandonProcessGroup` (notification click-handlers survive the run) and
-`AssociatedBundleIdentifiers` = `com.mac-analyzers.app`, and with the app
+`AssociatedBundleIdentifiers` = `com.sparehold.app`, and with the app
 installed they launch the engine through its compiled `agent-runner`, so
-Login Items & Extensions attributes the agents to the Mac Analyzers app.
+Login Items & Extensions attributes the agents to the Sparehold app.
 
 ### Make freed space land immediately (one-time setup)
 The deep agent's `--prune-snapshots` needs a **scoped, passwordless** sudo rule for
@@ -137,7 +137,7 @@ macOS auto-frees it. Install once (asks for your password, validates via `visudo
 ./storage-manage-agents.sh sudoers-install      # installs /etc/sudoers.d/tmutil-thin-<your user ID>
 ./storage-manage-agents.sh sudoers-uninstall    # remove it
 ```
-Run these as yourself in a terminal. The Mac Analyzers app does not run this script: its
+Run these as yourself in a terminal. The Sparehold app does not run this script: its
 "Allow…" button (Time Machine screen) installs the same one-line rule through the macOS
 administrator prompt with a fixed command built into the app, for your numeric user ID, in a file of
 your own account (`/etc/sudoers.d/tmutil-thin-<user ID>`), and "Remove Permission…" on that screen removes it.

@@ -1,11 +1,17 @@
 # What's New
 
-Every release of Mac Analyzers, newest first, written for the people who use
+Every release of Sparehold, newest first, written for the people who use
 it. This file is the single source for release notes: the app's Update screen
 shows it, and each GitHub release publishes its entry. A release cannot ship
 without an entry here — see `scripts/cut-release.sh`. The app lists each
 bullet as a feature of its own, so every bullet ends with a short tag that
 GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
+Older entries below keep the name the app had when they shipped.
+
+## Next
+
+- Mac Analyzers is now Sparehold. Your settings, reports, and the times your cleanups run stay where they are. A folder named mac-analyzers in your home folder remains the copy Sparehold uses until you move it. Nothing in this update moves or deletes that folder. The first time you open Sparehold, macOS may ask you to allow Full Disk Access again, because the app has a new identity. Drag Sparehold into the list, or use the add button, on the Setup screen. <!-- wn: open=setup icon=arrow.triangle.2.circlepath title="Mac Analyzers Is Now Sparehold" -->
+- Check for Updates looks for Sparehold. It still tells you when you are up to date, when a newer version is listed, and when the update list cannot be reached. <!-- wn: open=update icon=arrow.down.circle title="Updates Follow Sparehold" -->
 
 ## v2.73.1 — Install the release, the beta, or this clone
 <!-- wn: released=2026-11-18 -->
