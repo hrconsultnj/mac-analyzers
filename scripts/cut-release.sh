@@ -212,3 +212,26 @@ if git merge --ff-only main >/dev/null 2>&1; then
 else
   echo "cut-release: note — development could not be fast-forwarded to main. Merge main into development by hand." >&2
 fi
+
+# ── 8. development's own version ────────────────────────────────────────────
+# development always carries the NEXT version, so its builds say which work
+# they hold ("3.2.0 Dev · 83dc530") and a Releases install checks out the
+# shipped tag instead of sitting at a dev build of the same number. Bump it by
+# the channel this release used and push; the next What's New goes under ## Next.
+IFS=. read -r next_major next_minor next_patch <<<"$version"
+case "$target" in
+  major) next_version="$((next_major + 1)).0.0" ;;
+  minor) next_version="$next_major.$((next_minor + 1)).0" ;;
+  *)     next_version="$next_major.$next_minor.$((next_patch + 1))" ;;
+esac
+echo "$next_version" > VERSION
+git add VERSION
+if git commit --quiet -m "Start $next_version"; then
+  if git push --quiet origin development; then
+    say "development starts $next_version"
+  else
+    echo "cut-release: note — VERSION bumped to $next_version but not pushed. Run: git push origin development" >&2
+  fi
+else
+  echo "cut-release: note — VERSION was left at $next_version (the bump commit found nothing to change)." >&2
+fi
