@@ -1,0 +1,707 @@
+{
+  "version": 1,
+  "checker": "1.0.0",
+  "source": {
+    "composureVersion": "1.192.1",
+    "stackHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "languages": [
+    "typescript"
+  ],
+  "overrides": {
+    "disabled": [],
+    "skip": [],
+    "groups": {
+      "sparehold-bash-32": {
+        "appliesTo": [
+          "**/*.sh",
+          "*.sh"
+        ],
+        "rules": [
+          {
+            "name": "assoc-array-bash4",
+            "pattern": "\\bdeclare\\s+-A\\b",
+            "severity": "error",
+            "message": "Associative arrays need bash 4+; this suite must run under the system /bin/bash 3.2 (AGENTS.md). Gate the script behind a version check that re-execs or skips, as memory-auto-clean.sh does.",
+            "kind": "regex",
+            "scope": "line"
+          },
+          {
+            "name": "mapfile-bash4",
+            "pattern": "\\bmapfile\\b|\\breadarray\\b",
+            "severity": "error",
+            "message": "mapfile/readarray need bash 4+; the suite must run under /bin/bash 3.2 (AGENTS.md). Use a while-read loop instead.",
+            "kind": "regex",
+            "scope": "line"
+          }
+        ]
+      },
+      "sparehold-ui-traps": {
+        "appliesTo": [
+          "**/*.swift",
+          "*.swift"
+        ],
+        "rules": [
+          {
+            "name": "hard-edge-trap",
+            "pattern": "\\.scrollEdgeEffectStyle\\(\\.hard\\)",
+            "severity": "error",
+            "message": "UI trap (v2.7.1): the hard edge paints an opaque backdrop that fights the Settings window. Do not use it in this app.",
+            "kind": "regex",
+            "scope": "line"
+          },
+          {
+            "name": "list-section-spacing",
+            "pattern": "\\.listSectionSpacing",
+            "severity": "error",
+            "message": "iOS-only modifier (AGENTS.md UI traps); it does not apply on macOS.",
+            "kind": "regex",
+            "scope": "line"
+          },
+          {
+            "name": "swift-warning-marker",
+            "pattern": "#warning\\(",
+            "severity": "error",
+            "message": "Warnings are defects in this repo (AGENTS.md): fix the cause, never defer one with #warning.",
+            "kind": "regex",
+            "scope": "line"
+          }
+        ]
+      }
+    },
+    "payload": [
+      "sparehold-bash-32",
+      "sparehold-ui-traps"
+    ]
+  },
+  "skip": [
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/dist/**",
+    "**/*.d.ts",
+    "**/*.generated.*",
+    "**/*.gen.*"
+  ],
+  "groups": [
+    {
+      "name": "monorepo-js-ext",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "packages/**/*.ts"
+      ],
+      "rules": [
+        {
+          "name": "monorepo-js-ext",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "from\\s+['\"]\\.[^'\"]*\\.js['\"]",
+          "severity": "error",
+          "message": "Remove .js extension from imports. bundler moduleResolution resolves .ts directly."
+        }
+      ]
+    },
+    {
+      "name": "security-eval",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/*.go",
+        "**/*.js",
+        "**/*.py",
+        "**/*.rs",
+        "**/*.ts",
+        "**/*.tsx",
+        "*.go",
+        "*.js",
+        "*.py",
+        "*.rs",
+        "*.ts",
+        "*.tsx"
+      ],
+      "rules": [
+        {
+          "name": "security-eval",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "\\beval\\s*\\(",
+          "severity": "error",
+          "message": "Never use eval(). It enables code injection attacks. Use JSON.parse(), Function constructor with validation, or structured alternatives."
+        }
+      ]
+    },
+    {
+      "name": "security-innerhtml",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/*.jsx",
+        "**/*.tsx",
+        "*.jsx",
+        "*.tsx"
+      ],
+      "rules": [
+        {
+          "name": "security-innerhtml",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "dangerouslySetInnerHTML",
+          "severity": "warn",
+          "message": "dangerouslySetInnerHTML risks XSS. Sanitize with DOMPurify or use a markdown renderer. Never pass user input directly.",
+          "skipIf": "DOMPurify|sanitize"
+        }
+      ]
+    },
+    {
+      "name": "security-hardcoded-secrets",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/*.go",
+        "**/*.js",
+        "**/*.py",
+        "**/*.rs",
+        "**/*.ts",
+        "**/*.tsx",
+        "*.go",
+        "*.js",
+        "*.py",
+        "*.rs",
+        "*.ts",
+        "*.tsx"
+      ],
+      "rules": [
+        {
+          "name": "security-hardcoded-secrets",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "(sk_live_|sk_test_|ghp_|gho_|github_pat_|xoxb-|xoxp-|AKIA[A-Z0-9])",
+          "severity": "error",
+          "message": "Possible hardcoded API key/secret detected. Use environment variables instead."
+        }
+      ]
+    },
+    {
+      "name": "security-public-env-secrets",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/.env*",
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.svelte",
+        "*.js",
+        "*.ts",
+        "*.tsx",
+        "*.svelte"
+      ],
+      "rules": [
+        {
+          "name": "public-env-secrets",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "(?:VITE_|EXPO_PUBLIC_|PUBLIC_|NUXT_PUBLIC_)[A-Z0-9_]*(?:SECRET|PRIVATE|SERVICE_ROLE|PASSWORD|(?<!PUBLISHABLE)_KEY)\\b",
+          "severity": "error",
+          "message": "Secret value in a public/bundled env var (VITE_ / EXPO_PUBLIC_ / PUBLIC_ / NUXT_PUBLIC_). Those prefixes are inlined into the client bundle at build time — Vite 8: VITE_* must not contain API keys; Expo: do not store private keys in EXPO_PUBLIC_. Secrets stay on a server. Next.js NEXT_PUBLIC_ is the same class (nextjs-public-env-secrets)."
+        }
+      ]
+    },
+    {
+      "name": "security-client-secret-handoff",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.svelte",
+        "*.js",
+        "*.ts",
+        "*.tsx",
+        "*.svelte"
+      ],
+      "rules": [
+        {
+          "name": "client-secret-handoff",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "json\\([^,]{0,80},\\s*200,\\s*\\{[^}]{0,160}\\bkey\\b|setKey\\(\\s*(?:body|data|res(?:ponse)?)\\.key",
+          "severity": "error",
+          "message": "HTTP 200 JSON `{ key }` or setKey of a fetched body hands stored credential material to the browser. Next.js data-security: don't include secret tokens as public fields; OWASP: never transmit secrets in plaintext. Keep the secret on the server and proxy, or mint a short-lived token. Dev-only is still a handoff. Mark a genuine exception with secret-handoff-allow.",
+          "skipIf": "secret-handoff-allow",
+          "skipIfPath": "(\\.(test|spec)\\.[^.]+$)|(\\/(tests|test|__tests__)\\/)"
+        },
+        {
+          "name": "client-secret-json-field",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "(?:NextResponse\\.json|res(?:ponse)?\\.json|c\\.json|reply\\.send)\\(\\s*\\{[^}]{0,400}\\b(?:apiKey|api_key|privateKey|private_key|accessToken|access_token|service_role|secretToken|secret_token|llmKey|llm_key)\\b",
+          "severity": "error",
+          "message": "JSON response includes a secret-shaped field (apiKey / accessToken / service_role / privateKey / llmKey). Next.js data-security: Server Action and Route Handler return values are sent to the client — only return what the UI needs. Proxy with the secret on the server. Mark a genuine exception with secret-handoff-allow.",
+          "skipIf": "secret-handoff-allow|publishable|Publishable|pk_live|pk_test",
+          "skipIfPath": "(\\.(test|spec)\\.[^.]+$)|(\\/(tests|test|__tests__)\\/)"
+        },
+        {
+          "name": "client-secret-web-storage",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "(?:local|session)Storage\\.setItem\\([^)]{0,120}(?:body|data|res(?:ponse)?)\\.[A-Za-z_]*(?:[Kk]ey|[Tt]oken|[Ss]ecret)",
+          "severity": "error",
+          "message": "Writing a fetched key/token/secret into localStorage or sessionStorage. The browser is not a secret store — keep credentials on the server and proxy, or use a short-lived httpOnly cookie issued by the origin. Mark a genuine exception with secret-handoff-allow.",
+          "skipIf": "secret-handoff-allow",
+          "skipIfPath": "(\\.(test|spec)\\.[^.]+$)|(\\/(tests|test|__tests__)\\/)"
+        }
+      ]
+    },
+    {
+      "name": "security-prototype-pollution",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "*.js",
+        "*.ts",
+        "*.tsx"
+      ],
+      "rules": [
+        {
+          "name": "security-prototype-pollution",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "__proto__|constructor\\s*\\.\\s*prototype",
+          "severity": "error",
+          "message": "Prototype pollution vector detected. __proto__ and constructor.prototype manipulation enables RCE (CVE-2025-55182 class). Use Object.create(null) or Map for user-controlled data."
+        }
+      ]
+    },
+    {
+      "name": "security-sql-injection",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "*.js",
+        "*.ts",
+        "*.tsx"
+      ],
+      "rules": [
+        {
+          "name": "security-sql-injection",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "`\\s*(SELECT|INSERT|UPDATE|DELETE|DROP|ALTER)\\b[^`]*\\$\\{",
+          "severity": "error",
+          "message": "SQL template literal with interpolation detected — SQL injection risk. Use parameterized queries (supabase.from().select(), pg prepared statements) instead.",
+          "skipIf": "sql\\.raw|sql`|tagged template"
+        }
+      ]
+    },
+    {
+      "name": "security-dom-innerhtml",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "*.js",
+        "*.ts",
+        "*.tsx"
+      ],
+      "rules": [
+        {
+          "name": "security-dom-innerhtml",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "\\.innerHTML\\s*=",
+          "severity": "error",
+          "message": "Direct innerHTML assignment enables XSS (2.74x more common in AI code — CodeRabbit 2025). Use textContent, React JSX, or DOMPurify.sanitize().",
+          "skipIf": "DOMPurify|sanitize|textContent"
+        }
+      ]
+    },
+    {
+      "name": "security-url-credentials",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/.env*",
+        "*.js",
+        "*.ts",
+        "*.tsx",
+        ".env*"
+      ],
+      "rules": [
+        {
+          "name": "security-url-credentials",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "https?://[^@\\s]+:[^@\\s]+@",
+          "severity": "error",
+          "message": "URL with embedded credentials detected. Use environment variables for auth, never hardcode user:pass in URLs."
+        }
+      ]
+    },
+    {
+      "name": "security-console-secrets",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "*.js",
+        "*.ts",
+        "*.tsx"
+      ],
+      "rules": [
+        {
+          "name": "security-console-secrets",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "console\\.(log|debug|info)\\(.*\\b(password|token|secret|apiKey|credential|sessionId)\\b",
+          "severity": "warn",
+          "message": "Logging potentially sensitive data (password/token/secret). Remove before production or use structured logging with redaction."
+        }
+      ]
+    },
+    {
+      "name": "security-empty-catch",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "*.js",
+        "*.ts",
+        "*.tsx"
+      ],
+      "rules": [
+        {
+          "name": "security-empty-catch",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "catch\\s*\\([^)]*\\)\\s*\\{\\s*\\}",
+          "severity": "warn",
+          "message": "Empty catch block silently swallows errors (1.88x more common in AI code). At minimum, log the error or re-throw."
+        }
+      ]
+    },
+    {
+      "name": "lint-suppression-blanket",
+      "origin": "defaults/shared.json",
+      "appliesTo": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.ts",
+        "**/*.tsx",
+        "*.js",
+        "*.jsx",
+        "*.ts",
+        "*.tsx"
+      ],
+      "rules": [
+        {
+          "name": "lint-suppression-blanket",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "/\\*\\s*eslint-disable\\s*\\*/",
+          "severity": "error",
+          "message": "Blanket eslint-disable disables ALL rules for the entire file. Fix the lint errors instead. If one rule must be disabled, use /* eslint-disable specific-rule */."
+        },
+        {
+          "name": "lint-suppression-blanket",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "//\\s*eslint-disable-next-line\\s*$",
+          "severity": "error",
+          "message": "eslint-disable-next-line without a rule name disables ALL rules for the next line. Specify the rule: // eslint-disable-next-line rule-name"
+        },
+        {
+          "name": "lint-suppression-blanket",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "//\\s*@ts-nocheck",
+          "severity": "error",
+          "message": "@ts-nocheck disables TypeScript checking for the entire file. Fix the type errors instead."
+        },
+        {
+          "name": "lint-suppression-blanket",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "//\\s*biome-ignore\\s*$",
+          "severity": "error",
+          "message": "Blanket biome-ignore without a rule name. Specify: // biome-ignore lint/specific-rule: reason"
+        }
+      ]
+    },
+    {
+      "name": "no-bandaids-typescript",
+      "origin": "defaults/languages/typescript.json",
+      "appliesTo": [
+        "**/*.js",
+        "**/*.jsx",
+        "**/*.ts",
+        "**/*.tsx",
+        "*.js",
+        "*.jsx",
+        "*.ts",
+        "*.tsx"
+      ],
+      "rules": [
+        {
+          "name": "as-any",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "\\bas\\s+any\\b",
+          "severity": "error",
+          "message": "'as any' detected. Use a type guard, satisfies, or fix the type at its source.",
+          "skipIfPath": "(\\.(test|spec)\\.[^.]+$)|(\\/(tests|test|__tests__)\\/)"
+        },
+        {
+          "name": "double-cast",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "\\bas\\s+unknown\\s+as\\b",
+          "severity": "error",
+          "message": "'as unknown as T' detected. Use a type guard to narrow unknown to T."
+        },
+        {
+          "name": "eslint-ts-disable",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "(?://|/\\*)\\s*eslint-disable($|[\\s-])",
+          "severity": "error",
+          "message": "eslint-disable directive detected. Fix the lint error or scope the disable to the narrowest line and rule — a file-level disable hides every future violation too.",
+          "skipIf": "@typescript-eslint"
+        },
+        {
+          "name": "biome-ignore-detect",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "//\\s*biome-ignore",
+          "severity": "error",
+          "message": "biome-ignore directive detected. Fix the lint error, or scope the ignore to the exact rule and line (anti-patterns research §2.1 — Biome requires the reason inline; keep it next to the fix, not the file top)."
+        },
+        {
+          "name": "oxlint-disable-detect",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "//\\s*oxlint-disable",
+          "severity": "error",
+          "message": "oxlint-disable directive detected. Name the specific rule and narrowest span, or fix the error (oxlint requires no reason — the bare form hides everything)."
+        },
+        {
+          "name": "non-null-assertion",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "\\w+!\\.\\w+|\\w+!\\[",
+          "severity": "error",
+          "message": "Non-null assertion (!) detected. Use optional chaining (?.) with a null guard.",
+          "skipIfPath": "(\\.(test|spec)\\.[^.]+$)|(\\/(tests|test|__tests__)\\/)"
+        },
+        {
+          "name": "underscore-unused",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "catch\\s*\\(\\s*_\\w+\\)|const\\s+_\\w+\\s*=\\s*await|,\\s*_\\w+\\s*[:\\)]",
+          "severity": "error",
+          "message": "Underscore-prefixed unused variable detected. Remove it. For catch blocks, use catch {} (TS 5.x optional catch binding).",
+          "skipIfPath": "(\\.(test|spec)\\.[^.]+$)|(\\/(tests|test|__tests__)\\/)"
+        },
+        {
+          "name": "any-param",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "\\(\\s*\\w+\\s*:\\s*any\\s*[,\\)]",
+          "severity": "error",
+          "message": "Parameter typed as 'any' detected. Define an interface. Use React.ChangeEvent<T>, useLocalSearchParams<T>, etc."
+        },
+        {
+          "name": "return-assertion",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "return\\s+.*\\bas\\s+[A-Z]\\w+",
+          "severity": "error",
+          "message": "Return type assertion detected. Use satisfies, a type guard, or annotate the function return type.",
+          "skipIfPath": "(\\.(test|spec)\\.[^.]+$)|(\\/(tests|test|__tests__)\\/)"
+        },
+        {
+          "name": "hidden-any-generic",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "Record<[^,]+,\\s*any\\s*>|Array<\\s*any\\s*>|Promise<\\s*any\\s*>|Map<[^,]+,\\s*any\\s*>|Set<\\s*any\\s*>",
+          "severity": "error",
+          "message": "Hidden 'any' in generic type parameter (Record<string, any>, Array<any>, etc.). Use 'unknown' or a specific type."
+        },
+        {
+          "name": "lazy-type",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": ":\\s*Function\\b|:\\s*Object\\b",
+          "severity": "error",
+          "message": "Lazy type (Function or Object). Use specific signature (() => void) or Record<string, unknown>."
+        },
+        {
+          "name": "any-return",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "\\)\\s*:\\s*any\\s*[{;]|\\)\\s*:\\s*any\\s*=>",
+          "severity": "error",
+          "message": "Function with explicit ': any' return type. Define the actual return type."
+        }
+      ]
+    },
+    {
+      "name": "typescript-builtins",
+      "origin": "builtin",
+      "appliesTo": [
+        "**/*",
+        "*"
+      ],
+      "rules": [
+        {
+          "name": "ts-suppress",
+          "kind": "builtin",
+          "id": "ts-suppress",
+          "severity": "error"
+        },
+        {
+          "name": "supabase-client-query",
+          "kind": "builtin",
+          "id": "supabase-client-query",
+          "severity": "error"
+        },
+        {
+          "name": "component-query-keys",
+          "kind": "builtin",
+          "id": "component-query-keys",
+          "severity": "error"
+        }
+      ]
+    },
+    {
+      "name": "dependency-declarations",
+      "origin": "builtin",
+      "appliesTo": [
+        "**/*.ts",
+        "*.ts",
+        "**/*.tsx",
+        "*.tsx",
+        "**/*.js",
+        "*.js",
+        "**/*.jsx",
+        "*.jsx",
+        "**/*.mts",
+        "*.mts",
+        "**/*.cts",
+        "*.cts"
+      ],
+      "rules": [
+        {
+          "name": "imports-declared",
+          "kind": "builtin",
+          "id": "imports-declared",
+          "severity": "error"
+        }
+      ]
+    },
+    {
+      "name": "typescript-eslint-disable",
+      "origin": "builtin",
+      "appliesTo": [
+        "**/*.ts",
+        "*.ts",
+        "**/*.tsx",
+        "*.tsx",
+        "**/*.js",
+        "*.js",
+        "**/*.jsx",
+        "*.jsx"
+      ],
+      "rules": [
+        {
+          "name": "eslint-ts-disable",
+          "kind": "regex",
+          "scope": "line",
+          "pattern": "//\\s*eslint-disable.*@typescript-eslint",
+          "severity": "error",
+          "message": "eslint-disable for @typescript-eslint rule detected. Fix the type."
+        }
+      ]
+    },
+    {
+      "name": "sql-builtins",
+      "origin": "builtin",
+      "appliesTo": [
+        "**/*",
+        "*"
+      ],
+      "rules": [
+        {
+          "name": "sql-rls",
+          "kind": "builtin",
+          "id": "sql-rls",
+          "severity": "error"
+        }
+      ]
+    },
+    {
+      "name": "sparehold-bash-32",
+      "origin": "overrides",
+      "appliesTo": [
+        "**/*.sh",
+        "*.sh"
+      ],
+      "rules": [
+        {
+          "name": "assoc-array-bash4",
+          "pattern": "\\bdeclare\\s+-A\\b",
+          "severity": "error",
+          "message": "Associative arrays need bash 4+; this suite must run under the system /bin/bash 3.2 (AGENTS.md). Gate the script behind a version check that re-execs or skips, as memory-auto-clean.sh does.",
+          "kind": "regex",
+          "scope": "line"
+        },
+        {
+          "name": "mapfile-bash4",
+          "pattern": "\\bmapfile\\b|\\breadarray\\b",
+          "severity": "error",
+          "message": "mapfile/readarray need bash 4+; the suite must run under /bin/bash 3.2 (AGENTS.md). Use a while-read loop instead.",
+          "kind": "regex",
+          "scope": "line"
+        }
+      ]
+    },
+    {
+      "name": "sparehold-ui-traps",
+      "origin": "overrides",
+      "appliesTo": [
+        "**/*.swift",
+        "*.swift"
+      ],
+      "rules": [
+        {
+          "name": "hard-edge-trap",
+          "pattern": "\\.scrollEdgeEffectStyle\\(\\.hard\\)",
+          "severity": "error",
+          "message": "UI trap (v2.7.1): the hard edge paints an opaque backdrop that fights the Settings window. Do not use it in this app.",
+          "kind": "regex",
+          "scope": "line"
+        },
+        {
+          "name": "list-section-spacing",
+          "pattern": "\\.listSectionSpacing",
+          "severity": "error",
+          "message": "iOS-only modifier (AGENTS.md UI traps); it does not apply on macOS.",
+          "kind": "regex",
+          "scope": "line"
+        },
+        {
+          "name": "swift-warning-marker",
+          "pattern": "#warning\\(",
+          "severity": "error",
+          "message": "Warnings are defects in this repo (AGENTS.md): fix the cause, never defer one with #warning.",
+          "kind": "regex",
+          "scope": "line"
+        }
+      ]
+    }
+  ]
+}
