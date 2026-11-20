@@ -14,7 +14,7 @@ let proPath = ProcessInfo.processInfo.environment["SPAREHOLD_PRO_PATH"]
 let proPackageDependencies: [Package.Dependency] =
     proPath.map { [.package(path: $0)] } ?? []
 let proTargetDependencies: [Target.Dependency] =
-    proPath != nil ? [.product(name: "ProKit", package: "mac-analyzers-pro")] : []
+    proPath != nil ? [.product(name: "ProKit", package: "sparehold-pro")] : []
 
 // The on-device engine's runtime: mlx-swift plus the LLM loading/decoding layer
 // (MLXLMCommon, MLXLLM) from the examples package, which carries the model
