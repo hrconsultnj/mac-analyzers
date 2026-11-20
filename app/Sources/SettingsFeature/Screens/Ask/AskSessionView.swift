@@ -3,15 +3,19 @@ import AgentFeature
 import AnalyzersKit
 import UIComponents
 
-/// The live conversation (S2): the user's message, then the steps streaming in
-/// as they run — each naming the real script it ran — then the reply. While the
-/// turn works, a standing line says nothing has been changed. A permission
-/// request renders here as the tick list that can only shrink (the reviewed
-/// preview screen takes it over when Phase 5 wires the population), and a
-/// finished turn that ends in an approval hands the screen to the receipt (S4).
+/// The live conversation (S2): the turns so far, the live turn's steps as
+/// tool cards — each naming the real script it ran, with its own icon and
+/// state — the agent's reasoning kept apart from its answer, and the reply
+/// rendered as Markdown. The input is always here: a chat you can scroll back
+/// through is a chat you keep talking to, including one reopened from
+/// history. A permission request renders as the tick list that can only
+/// shrink, and a finished turn that ends in an approval shows the receipt.
 struct AskSessionView: View {
     @Environment(Navigator.self) private var navigator
     @Environment(AskSessionBox.self) private var conversation
+    @Environment(JobStore.self) private var jobs
+    @Environment(ConfigStore.self) private var config
+    @State private var draft = ""
     @State private var scrollToBottom = 0
 
     var body: some View {
@@ -31,7 +35,12 @@ struct AskSessionView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: Tokens.Space.xl) {
-                        transcript(for: session)
+                        ForEach(session.turns) { turn in
+                            archivedTurn(turn)
+                        }
+                        if session.phase != .idle || !session.prompt.isEmpty {
+                            transcript(for: session)
+                        }
                         Color.clear.frame(height: 1).id("ask-session-bottom")
                     }
                     .padding()
@@ -40,6 +49,7 @@ struct AskSessionView: View {
                     proxy.scrollTo("ask-session-bottom", anchor: .bottom)
                 }
             }
+            inputRow(for: session)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -48,45 +58,98 @@ struct AskSessionView: View {
                 } label: {
                     Label("Stop", systemImage: "stop.circle")
                 }
-                .disabled(session.phase == .done)
+                .disabled(session.phase != .working && session.phase != .awaitingApproval)
                 .help("Stop this turn. Nothing has been changed.")
             }
         }
         .onChange(of: session.steps.count) { scrollToBottom += 1 }
         .onChange(of: session.reply) { scrollToBottom += 1 }
+        .onChange(of: session.thinking) { scrollToBottom += 1 }
+        .onChange(of: session.turns.count) { scrollToBottom += 1 }
         .onChange(of: session.phase) { scrollToBottom += 1 }
+    }
+
+    // MARK: - the input (always live, on every chat, ended or reopened)
+
+    @ViewBuilder private func inputRow(for session: AskSession) -> some View {
+        let busy = session.phase == .working || session.phase == .awaitingApproval
+        HStack(spacing: Tokens.Space.m) {
+            TextField(session.phase == .idle ? "Ask about this Mac…" : "Ask a follow-up…", text: $draft)
+                .disabled(busy)
+                .onSubmit { sendDraft(session) }
+            if busy {
+                ProgressView().controlSize(.small)
+                    .help("The agent is on it — Stop is in the toolbar")
+            } else {
+                Button {
+                    sendDraft(session)
+                } label: {
+                    Label("Send", systemImage: "arrow.up.circle.fill")
+                }
+                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help("Send the question to the agent")
+            }
+        }
+        .padding(.vertical, Tokens.Space.s)
+    }
+
+    private func sendDraft(_ session: AskSession) {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        draft = ""
+        session.send(text, scan: (kind: JobKind.storageReport, intent: JobIntent.run),
+                     config: sessionConfig, jobs: jobs)
+    }
+
+    private var sessionConfig: AgentSessionConfig {
+        AgentSessionConfig(
+            workingDirectory: AnalyzersPaths.suiteRoot,
+            enabledCapabilities: config.agent.capabilities,
+            prelude: config.agent.prelude)
     }
 
     // MARK: - the transcript
 
+    /// One archived turn, read-only: the question, its tool cards, its answer.
+    private func archivedTurn(_ turn: AskTurn) -> some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.m) {
+            userLine(turn.prompt)
+            ForEach(turn.steps) { step in
+                toolCard(name: step.name, detail: step.detail, finished: step.finished)
+            }
+            if !turn.thinking.isEmpty {
+                thinkingBlock(turn.thinking)
+            }
+            if !turn.reply.isEmpty {
+                replyBlock(turn.reply)
+            }
+            if let failure = turn.failure {
+                Label(failure, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.secondary)
+            } else if turn.stopped {
+                Label("Stopped — nothing has been changed.", systemImage: "stop.circle")
+                    .foregroundStyle(.secondary)
+            } else if let headline = turn.receiptHeadline {
+                Label(headline, systemImage: "checkmark.seal")
+                    .foregroundStyle(.secondary)
+            }
+            Divider()
+        }
+    }
+
+    /// The live turn: everything as it streams.
     @ViewBuilder private func transcript(for session: AskSession) -> some View {
-        // the user's message
-        VStack(alignment: .leading, spacing: Tokens.Space.xs) {
-            Text("You Asked").font(.caption).foregroundStyle(.secondary)
-            Text(session.prompt)
+        VStack(alignment: .leading, spacing: Tokens.Space.m) {
+            userLine(session.prompt)
         }
-        // the steps, in order, each naming the real script
         ForEach(session.steps) { step in
-            HStack(alignment: .firstTextBaseline, spacing: Tokens.Space.m) {
-                if step.finished {
-                    Image(systemName: "checkmark.circle")
-                        .foregroundStyle(.mint)
-                        .accessibilityHidden(true)  // decorative — the text says the step ran
-                } else {
-                    ProgressView().controlSize(.small)
-                }
-                VStack(alignment: .leading, spacing: Tokens.Space.hair) {
-                    Text(step.name)
-                    Text(step.detail).font(.caption).foregroundStyle(.secondary)
-                }
-            }
+            toolCard(name: step.name, detail: step.detail, finished: step.finished)
         }
-        // the reply, as it grows
+        if !session.thinking.isEmpty {
+            thinkingBlock(session.thinking)
+        }
         if !session.reply.isEmpty {
-            VStack(alignment: .leading, spacing: Tokens.Space.xs) {
-                Text("Sparehold").font(.caption).foregroundStyle(.secondary)
-                Text(session.reply)
-            }
+            replyBlock(session.reply)
         }
         // the standing line, true until an approval exists
         if session.phase == .working {
@@ -102,6 +165,101 @@ struct AskSessionView: View {
         if session.phase == .done {
             ending(for: session)
         }
+    }
+
+    private func userLine(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.xs) {
+            Text("You Asked").font(.caption).foregroundStyle(.secondary)
+            Text(text)
+        }
+    }
+
+    // MARK: - the tool cards
+
+    /// One step as a card: the tool's own icon, its name, the real script in
+    /// monospace, and its state — a spinner while it runs, a checkmark when
+    /// done. The detail is the point: the person sees exactly what ran.
+    private func toolCard(name: String, detail: String, finished: Bool) -> some View {
+        HStack(alignment: .top, spacing: Tokens.Space.m) {
+            IconTile(symbol: Self.toolSymbol(for: name), color: .mint, side: 24)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tokens.Space.hair) {
+                HStack(spacing: Tokens.Space.s) {
+                    Text(name).font(.callout.weight(.medium))
+                    if finished {
+                        Image(systemName: "checkmark.circle")
+                            .foregroundStyle(.mint)
+                            .accessibilityLabel("\(name) finished")
+                    } else {
+                        ProgressView().controlSize(.mini)
+                            .accessibilityLabel("\(name) running")
+                    }
+                }
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(Tokens.Space.s)
+        .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.tile))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The icon a step's name maps to — the shape of the work, not decoration.
+    static func toolSymbol(for name: String) -> String {
+        let lowered = name.lowercased()
+        if lowered.contains("scan") || lowered.contains("storage scan")
+            || lowered.contains("memory scan") || lowered.contains("network") { return "magnifyingglass" }
+        if lowered.contains("report") || lowered.contains("read") { return "doc.text.magnifyingglass" }
+        if lowered.contains("preview") || lowered.contains("propose") || lowered.contains("clean") { return "trash" }
+        if lowered.contains("approv") || lowered.contains("appl") { return "checkmark.seal" }
+        if lowered.contains("sugges") || lowered.contains("rule") { return "lightbulb" }
+        if lowered.contains("protect") { return "shield.lefthalf.filled" }
+        return "gearshape"
+    }
+
+    // MARK: - thinking and the reply
+
+    /// The agent's reasoning, in its own collapsible — present, never mixed
+    /// into the answer.
+    private func thinkingBlock(_ text: String) -> some View {
+        // one disclosed block, not rows
+        DisclosureGroup {
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            Label("Thinking", systemImage: "brain")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// The answer, as Markdown — headings, lists, and code in the model's
+    /// own structure instead of a wall of characters.
+    private func replyBlock(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.xs) {
+            Text("Sparehold").font(.caption).foregroundStyle(.secondary)
+            markdown(text)
+                .textSelection(.enabled)
+        }
+    }
+
+    /// Markdown → attributed text; a body that does not parse shows as-is
+    /// rather than vanishing.
+    private func markdown(_ text: String) -> Text {
+        if let attributed = try? AttributedString(
+            markdown: text,
+            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+            return Text(attributed)
+        }
+        return Text(text)
     }
 
     // MARK: - the approval list (S3's v1 rendering)
@@ -168,9 +326,9 @@ struct AskSessionView: View {
                           systemImage: session.stopped ? "stop.circle" : "checkmark.circle")
                         .foregroundStyle(.secondary)
                 }
-                Button("Ask Something Else") {
-                    navigator.setPath([])
-                }
+                Text("Ask a follow-up below, or start something new from the Ask screen.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -179,6 +337,7 @@ struct AskSessionView: View {
 
     private func subtitle(for session: AskSession) -> String {
         switch session.phase {
+        case .idle: session.turns.isEmpty ? "New" : "\(session.turns.count) turn\(session.turns.count == 1 ? "" : "s")"
         case .working: "Working…"
         case .awaitingApproval: "Waiting for your answer"
         case .done: session.receipt == nil ? "Ended" : "Done"
@@ -186,8 +345,8 @@ struct AskSessionView: View {
     }
 
     /// The engine proposes stable identifiers ("cleaner:downloads-janitor");
-    /// until the tool registry names its actions (the engines lane), the
-    /// identifier reads as words: "Downloads Janitor".
+    /// until the tool registry names its actions, the identifier reads as
+    /// words: "Downloads Janitor".
     private func displayName(for action: String) -> String {
         let parts = action.split(separator: ":", maxSplits: 1)
         guard parts.count == 2 else { return action }

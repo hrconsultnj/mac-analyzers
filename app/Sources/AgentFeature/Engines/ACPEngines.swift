@@ -288,9 +288,13 @@ public actor ACPSession: AgentSession {
         guard method == "session/update", case .object(let object) = params,
               case .object(let update) = object["update"] ?? .null else { return }
         switch update["sessionUpdate"]?.stringValue ?? "" {
-        case "agent_message_chunk", "agent_thought_chunk":
+        case "agent_message_chunk":
             if let text = text(of: update["contentBlock"] ?? update["content"] ?? .null) {
                 yield(.messageChunk(text))
+            }
+        case "agent_thought_chunk":
+            if let text = text(of: update["contentBlock"] ?? update["content"] ?? .null) {
+                yield(.thoughtChunk(text))
             }
         case "plan":
             handlePlan(update["entries"] ?? .array([]))

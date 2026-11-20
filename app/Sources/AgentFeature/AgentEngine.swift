@@ -60,6 +60,9 @@ public enum AgentEvent: Sendable, Equatable {
     case stepFinished(name: String)
     /// A piece of the agent's reply. Chunks concatenate in order.
     case messageChunk(String)
+    /// A piece of the agent's reasoning, kept apart from the answer — the
+    /// session shows it in its own place, never mixed into the reply.
+    case thoughtChunk(String)
     /// The engine proposes consequential actions; the user answers through
     /// the preview screen. See `AgentPermissionRequest`.
     case permissionRequest(AgentPermissionRequest)

@@ -12,6 +12,7 @@ struct AskHomeView: View {
     @Environment(JobStore.self) private var jobs
     @Environment(ConfigStore.self) private var config
     @Environment(AskSessionBox.self) private var conversation
+    @State private var history = AskHistoryStore.shared
     @State private var draft = ""
     /// The summary line, read once when the screen appears (the reports walk
     /// the data root, so the read stays out of the body).
@@ -32,6 +33,17 @@ struct AskHomeView: View {
             } header: {
                 Text("Start With a Question")
             }
+            if !history.conversations.isEmpty {
+                Section {
+                    ForEach(history.conversations) { conversation in
+                        historyRow(conversation)
+                    }
+                } header: {
+                    Text("Recent Conversations")
+                } footer: {
+                    Text("Pick up where a chat left off — everything it did is in the transcript, and you can keep talking.")
+                }
+            }
             Section {
                 chatInput
                 // The feature's one promise, true at every phase.
@@ -42,7 +54,10 @@ struct AskHomeView: View {
                 Text("Ask Anything")
             }
         }
-        .task { healthSummary = Self.summarizeHealth() }
+        .task {
+            healthSummary = Self.summarizeHealth()
+            history.loadIfNeeded()
+        }
     }
 
     // MARK: - the grid (b: 2×2 of template cards)
@@ -115,6 +130,39 @@ struct AskHomeView: View {
                                                 config: sessionConfig, jobs: jobs)
         draft = ""
         navigator.push(.ask(.session))
+    }
+
+    // MARK: - the history list
+
+    /// One past conversation: its title, its age, and the way back in. A
+    /// context menu deletes it — to the Trash, like everything else here.
+    private func historyRow(_ conversation: AskConversation) -> some View {
+        Button {
+            self.conversation.current = AskSession.reopened(from: conversation)
+            navigator.push(.ask(.session))
+        } label: {
+            HStack(spacing: Tokens.Space.l) {
+                IconTile(symbol: "sparkles", color: .mint, side: 24).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Tokens.Space.hair) {
+                    Text(conversation.title)
+                        .lineLimit(1)
+                    Text("\(conversation.turns.count) turn\(conversation.turns.count == 1 ? "" : "s") · "
+                         + conversation.started.formatted(.relative(presentation: .named)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: Tokens.Space.m)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Delete Conversation", role: .destructive) {
+                AskHistoryStore.shared.delete(conversation)
+            }
+        }
     }
 
     // MARK: - the health summary (a)
