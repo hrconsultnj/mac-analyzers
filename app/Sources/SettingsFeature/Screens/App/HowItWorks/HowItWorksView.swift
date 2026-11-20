@@ -1,6 +1,9 @@
 import SwiftUI
 import AnalyzersKit
 import UIComponents
+#if canImport(ProKit)
+import ProKit
+#endif
 
 /// How It Works: an explainer in four tabs (Memory, Storage, System, Your Data). Each tab is a list of topics, a row with
 /// one sentence that has this Mac's number in it; a row opens the topic's own screen. The topics also open from the help
