@@ -16,6 +16,22 @@ let proPackageDependencies: [Package.Dependency] =
 let proTargetDependencies: [Target.Dependency] =
     proPath != nil ? [.product(name: "ProKit", package: "mac-analyzers-pro")] : []
 
+// The on-device engine's runtime: mlx-swift plus the LLM loading/decoding layer
+// (MLXLMCommon, MLXLLM) from the examples package, which carries the model
+// factories and the chat-template/iterator machinery. Pinned to a tag: the
+// `main` branch dropped the LLM libraries (they moved on after 2.29.1), so a
+// floating pin would break resolution. Verified strict-concurrency clean in
+// our own targets (the dependency compiles in Swift 5 mode, so its own
+// warnings are its business; ours stay errors). Building Cmlx's shaders needs
+// the Xcode Metal Toolchain component (`xcodebuild -downloadComponent
+// MetalToolchain`); a Mac without it fails the dependency build, not ours.
+//
+// Hoisted out of the literal below: the `Package(...)` expression stopped
+// type-checking once this concatenation sat inside it.
+let mlxPackage = Package.Dependency.package(
+    url: "https://github.com/ml-explore/mlx-swift-examples", exact: "2.29.1")
+let packageDependencies: [Package.Dependency] = proPackageDependencies + [mlxPackage]
+
 // This package's own targets refuse warnings (SE-0480). Set here in the
 // manifest, not as `-Xswiftc -warnings-as-errors`: a command-line flag also
 // reaches the Pro overlay's path dependency, while a manifest setting does not.
@@ -36,7 +52,7 @@ let strictC: [CSetting] = relaxed ? [] : [.treatAllWarnings(as: .error)]
 let package = Package(
     name: "Sparehold",
     platforms: [.macOS(.v26)],
-    dependencies: proPackageDependencies,
+    dependencies: packageDependencies,
     targets: [
         // app shell (thin @main: scenes + DI)
         .executableTarget(
@@ -69,7 +85,12 @@ let package = Package(
         // Ask session state. The screens that drive it live in SettingsFeature —
         // this target is deliberately not "AgentRunner", which is the existing
         // UI-probe harness above.
-        .target(name: "AgentFeature", dependencies: ["AnalyzersKit"], swiftSettings: strictSwift),
+        .target(name: "AgentFeature",
+                dependencies: ["AnalyzersKit",
+                               .product(name: "MLXLMCommon", package: "mlx-swift-examples"),
+                               .product(name: "MLXLLM", package: "mlx-swift-examples")],
+                resources: [.process("Resources/model-manifest.json")],
+                swiftSettings: strictSwift),
         .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit", "AgentFeature", "UIComponents"], swiftSettings: strictSwift),
         .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "AgentFeature", "NotifierKit", "UIComponents"] + proTargetDependencies,
                 swiftSettings: strictSwift),
