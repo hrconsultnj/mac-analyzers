@@ -15,6 +15,9 @@ enum Route: Hashable, Codable {
     case history(HistoryRoute)
     case app(AppRoute)
     case settings(SettingsRoute)
+    /// The Ask surface's screens (the live conversation). Its payload is
+    /// declared in `AskGroup.swift`, the group that owns them.
+    case ask(AskRoute)
     /// One run inside an engine log. Shared: Activity and the System group
     /// both push it.
     case run(RunReference)
