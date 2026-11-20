@@ -132,6 +132,13 @@ BUILD_BETA="$(./release-tag.sh --beta .. 2>/dev/null || true)"
 cp "$BIN/SpareholdApp" "$APP/Contents/MacOS/SpareholdApp"
 cp "$BIN/NotifierCLI" "$APP/Contents/MacOS/notify"
 cp "$BIN/AgentRunner" "$APP/Contents/MacOS/agent-runner"
+# SPM resource bundles (AgentFeature's model manifest, …). The generated
+# accessor looks in the app's Resources and ASSERTS — a crash, not a graceful
+# error — at the first use when the bundle is missing, so an app assembled
+# without these dies on its agent screens.
+for resource_bundle in "$BIN"/*.bundle; do
+  [[ -e "$resource_bundle" ]] && cp -R "$resource_bundle" "$APP/Contents/Resources/"
+done
 # The version this build IS, asked of BuildInfo (the app builds the same string from the same stamps):
 # the release's number for a build exactly at its tag with a clean tree, X.Y.Z-beta.N for a clean build at a
 # beta tag, else the next patch with -dev.<commits since the tag>+<commit>[.local]. People read the short

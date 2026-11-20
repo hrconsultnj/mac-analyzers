@@ -9,6 +9,7 @@ import AnalyzersKit
 enum SettingsRoute: String, Hashable, Codable, Sendable, CaseIterable {
     case memory, storage, notifications, schedule
     case agents, onDeviceModels, capabilities
+    case engineClaude, engineCodex
 
     var title: String {
         switch self {
@@ -19,6 +20,8 @@ enum SettingsRoute: String, Hashable, Codable, Sendable, CaseIterable {
         case .agents: Names.Screen.agents
         case .onDeviceModels: Names.Screen.onDeviceModels
         case .capabilities: Names.Screen.capabilities
+        case .engineClaude: "Claude Code"
+        case .engineCodex: "Codex"
         }
     }
 }
@@ -69,6 +72,8 @@ enum SettingsGroup {
         case .agents: AgentsScreen()
         case .onDeviceModels: OnDeviceModelsScreen()
         case .capabilities: CapabilitiesScreen()
+        case .engineClaude: EngineDetailScreen(engine: .claude)
+        case .engineCodex: EngineDetailScreen(engine: .codex)
         }
     }
 

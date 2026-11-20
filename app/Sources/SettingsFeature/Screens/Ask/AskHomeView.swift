@@ -18,7 +18,7 @@ struct AskHomeView: View {
     @State private var healthSummary: String?
 
     var body: some View {
-        PaneScaffold(symbol: "text.bubble", color: .mint, title: Names.Screen.ask,
+        PaneScaffold(symbol: "sparkles", color: .mint, title: Names.Screen.ask,
                      caption: "Ask about this Mac in your own words.") {
             if let healthSummary {
                 Section {

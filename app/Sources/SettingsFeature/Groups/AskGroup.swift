@@ -21,10 +21,12 @@ final class AskSessionBox {
     var current: AskSession?
 }
 
-/// Ask: the agent's home, the one feature row at the top of the sidebar. Pro
-/// only — a free build has no row and no section (`#if canImport(ProKit)`, the
-/// same seam as Support). The row's screens (the live session, and the receipt
-/// it ends in) push as `Route.ask` payloads.
+/// Ask: the agent's home, the one feature row at the top of the sidebar. The
+/// sparkles mark says AI. EVERY build gets the row while the product is in
+/// this phase — the free/paid line will come back when licensing lands (the
+/// ProKit seam stays available for it; the row simply no longer reads it).
+/// The row's screens (the live session, and the receipt it ends in) push as
+/// `Route.ask` payloads.
 @MainActor
 enum AskGroup {
 
@@ -35,20 +37,13 @@ enum AskGroup {
 
     static let group = SidebarGroup(
         title: nil,
-        rows: rows,
+        rows: [
+            SidebarRow(ask, Names.Screen.ask, symbol: "sparkles", tint: .mint),
+        ],
         root: screen,
         aliases: [
             "ask": .main(Location(ask)),
         ])
-
-    /// Pro builds get the row; free builds get nothing — not a greyed row.
-    private static var rows: [SidebarRow] {
-        var rows: [SidebarRow] = []
-        #if canImport(ProKit)
-        rows.append(SidebarRow(ask, Names.Screen.ask, symbol: "text.bubble", tint: .mint))
-        #endif
-        return rows
-    }
 
     @ViewBuilder private static func screen(_ section: SectionID) -> some View {
         switch section {

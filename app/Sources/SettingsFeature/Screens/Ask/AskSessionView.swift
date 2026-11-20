@@ -20,7 +20,7 @@ struct AskSessionView: View {
         } else {
             // A restored stack (or a link) landing here with nothing running.
             DataScreen(title: Names.Screen.ask, subtitle: nil) {
-                EmptyState("No Conversation Running", systemImage: "text.bubble",
+                EmptyState("No Conversation Running", systemImage: "sparkles",
                            description: Text("Ask something on the Ask screen and the conversation shows up here."))
             }
         }
