@@ -8,6 +8,7 @@ enum SectionRegistry {
 
     static let groups: [SidebarGroup] = {
         let groups = [
+            AskGroup.group,
             OverviewGroup.group,
             MemoryGroup.group,
             StorageGroup.group,

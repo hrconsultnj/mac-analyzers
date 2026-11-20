@@ -1,4 +1,5 @@
 import SwiftUI
+import AgentFeature
 import AnalyzersKit
 import UIComponents
 
@@ -16,6 +17,7 @@ import UIComponents
 ///   MenuFooter.swift       the footer every tab shares, and shared helpers
 ///   MenuComponents.swift   the full-width row button and the event row
 ///   MenuJobsStrip.swift    the running job, only while there is one
+///   MenuAskCard.swift      the Ask suggestion, only while one is pending
 public struct MenuContentView: View {
     @Environment(GuardLogStore.self) var store
     @Environment(JobStore.self) var jobs
@@ -72,6 +74,8 @@ public struct MenuContentView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             MenuJobsStrip()
+            MenuAskCard()
+                .onAppear { AskSuggestionFeed.considerDiskPressure() }
             tabs
 
             switch tab {

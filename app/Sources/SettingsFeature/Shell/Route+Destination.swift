@@ -19,6 +19,7 @@ extension Route {
             case .history(let route): HistoryGroup.destination(for: route)
             case .app(let route): AppGroup.destination(for: route)
             case .settings(let route): SettingsGroup.destination(for: route)
+            case .ask(let route): AskGroup.destination(for: route)
             case .run(let run): RunScreen(reference: run)
             case .job(let id): JobScreen(id: id)
             }

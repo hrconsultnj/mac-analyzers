@@ -56,6 +56,13 @@ public struct SetupInputs: Sendable {
     /// The recording sources switched on, by name, and how many of them are waiting for access to a guarded folder.
     public var recordingSourcesOn: [String] = []
     public var recordingSourcesNeedAccess = 0
+    /// The agent layer (Setup › Background): this Mac's assessment and what the
+    /// person configured, so the row can say what fits without reading the
+    /// model catalog (which lives above this kit).
+    public var agentRAMGB = 0
+    public var agentFreeDiskGB = 0
+    public var agentModelActive = false
+    public var agentEngine = ""
     public var now = Date()
 
     public init() {}
@@ -110,6 +117,14 @@ public struct SetupInputs: Sendable {
         if own > 0 { apps.append("\(own) \(own == 1 ? "folder" : "folders") of yours") }
         inputs.recordingSourcesOn = apps
         inputs.recordingSourcesNeedAccess = found.filter { if case .needsAccess = $0.access { true } else { false } }.count
+
+        // the agent row: the assessment and the config, nothing more — which
+        // model fits is the catalog's answer, on the Agents screen itself
+        let assessment = MachineAssessment.assess()
+        inputs.agentRAMGB = assessment.physicalMemoryGB
+        inputs.agentFreeDiskGB = assessment.freeDiskGB
+        inputs.agentModelActive = !config.agent.modelID.isEmpty
+        inputs.agentEngine = config.agent.engine
         return inputs
     }
 

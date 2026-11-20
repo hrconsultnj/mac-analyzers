@@ -14,7 +14,23 @@ let proPath = ProcessInfo.processInfo.environment["SPAREHOLD_PRO_PATH"]
 let proPackageDependencies: [Package.Dependency] =
     proPath.map { [.package(path: $0)] } ?? []
 let proTargetDependencies: [Target.Dependency] =
-    proPath != nil ? [.product(name: "ProKit", package: "mac-analyzers-pro")] : []
+    proPath != nil ? [.product(name: "ProKit", package: "sparehold-pro")] : []
+
+// The on-device engine's runtime: mlx-swift plus the LLM loading/decoding layer
+// (MLXLMCommon, MLXLLM) from the examples package, which carries the model
+// factories and the chat-template/iterator machinery. Pinned to a tag: the
+// `main` branch dropped the LLM libraries (they moved on after 2.29.1), so a
+// floating pin would break resolution. Verified strict-concurrency clean in
+// our own targets (the dependency compiles in Swift 5 mode, so its own
+// warnings are its business; ours stay errors). Building Cmlx's shaders needs
+// the Xcode Metal Toolchain component (`xcodebuild -downloadComponent
+// MetalToolchain`); a Mac without it fails the dependency build, not ours.
+//
+// Hoisted out of the literal below: the `Package(...)` expression stopped
+// type-checking once this concatenation sat inside it.
+let mlxPackage = Package.Dependency.package(
+    url: "https://github.com/ml-explore/mlx-swift-examples", exact: "2.29.1")
+let packageDependencies: [Package.Dependency] = proPackageDependencies + [mlxPackage]
 
 // This package's own targets refuse warnings (SE-0480). Set here in the
 // manifest, not as `-Xswiftc -warnings-as-errors`: a command-line flag also
@@ -36,7 +52,7 @@ let strictC: [CSetting] = relaxed ? [] : [.treatAllWarnings(as: .error)]
 let package = Package(
     name: "Sparehold",
     platforms: [.macOS(.v26)],
-    dependencies: proPackageDependencies,
+    dependencies: packageDependencies,
     targets: [
         // app shell (thin @main: scenes + DI)
         .executableTarget(
@@ -65,8 +81,18 @@ let package = Package(
         // depended on by SnapshotRunner and MenuSnapshot alone, so the app does not contain it
         .target(name: "ToolWindows", swiftSettings: strictSwift),
         // features ("pages/components")
-        .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit", "UIComponents"], swiftSettings: strictSwift),
-        .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "NotifierKit", "UIComponents"] + proTargetDependencies,
+        // the agent layer: engines (on-device + ACP), the model catalog, and the
+        // Ask session state. The screens that drive it live in SettingsFeature —
+        // this target is deliberately not "AgentRunner", which is the existing
+        // UI-probe harness above.
+        .target(name: "AgentFeature",
+                dependencies: ["AnalyzersKit",
+                               .product(name: "MLXLMCommon", package: "mlx-swift-examples"),
+                               .product(name: "MLXLLM", package: "mlx-swift-examples")],
+                resources: [.process("Resources/model-manifest.json")],
+                swiftSettings: strictSwift),
+        .target(name: "MenuBarFeature", dependencies: ["AnalyzersKit", "AgentFeature", "UIComponents"], swiftSettings: strictSwift),
+        .target(name: "SettingsFeature", dependencies: ["AnalyzersKit", "AgentFeature", "NotifierKit", "UIComponents"] + proTargetDependencies,
                 swiftSettings: strictSwift),
         // shared visual language (System-Settings-style tiles, pane headers,
         // process rows) — may use the kernel's models

@@ -113,6 +113,7 @@ public enum SetupItems {
                                   : inputs.usingBundledEngine ? "Included with the app: nothing else to install."
                                   : "Running from your copy at \(AnalyzersPaths.displayPath(AnalyzersPaths.suiteRoot)).",
                               source: .file)]
+        rows.append(agents(inputs))
         for job in inputs.jobs {
             let isGuard = job.label == EngineStatus.guardLabel
             let target = isGuard ? "log:guardLog" : job.label.contains("memory") ? "log:memoryClean" : "log:storageClean"
@@ -130,6 +131,33 @@ public enum SetupItems {
                 actionTitle: job.loaded ? Names.Setup.showInActivity : Names.Setup.install, source: .launchd))
         }
         return rows
+    }
+
+    /// The agent row: what answers Ask. A choice, never a problem — the app
+    /// works fully without it. The assessment leads the sentence, so the
+    /// recommendation is this Mac's own, and the Agents screen carries the
+    /// catalog and the engine cards (a local model is the pre-selected
+    /// default there when one fits; nothing downloads without a press).
+    static func agents(_ inputs: SetupInputs) -> SetupItem {
+        let memory = inputs.agentRAMGB > 0 ? "\(inputs.agentRAMGB) GB of memory" : "this Mac"
+        let disk = inputs.agentFreeDiskGB > 0 ? " and \(inputs.agentFreeDiskGB) GB free" : ""
+        let evidence: String
+        switch inputs.agentEngine {
+        case "claude": evidence = "Claude Code answers, signed in on its own binary — sign-in never happens here."
+        case "codex": evidence = "Codex answers, signed in on its own binary (ChatGPT account or API key)."
+        case "custom": evidence = "A custom engine answers; Sparehold supervises it the same way."
+        default:
+            evidence = inputs.agentModelActive
+                ? "A downloaded model runs entirely on this Mac — nothing leaves."
+                : "This Mac has \(memory)\(disk) — a local model that fits runs entirely on it, or Claude Code and Codex can answer instead."
+        }
+        return SetupItem(
+            id: "agents", tab: .background, title: Names.Screen.agents,
+            why: "The agent that answers Ask: a model on this Mac, or your own Claude or ChatGPT.",
+            state: inputs.agentModelActive || inputs.agentEngine != "on-device" ? .on : .off,
+            evidence: evidence,
+            action: .change("agents"), actionTitle: Names.Setup.change,
+            source: .file, weight: .choice)
     }
 
     // MARK: - Protection

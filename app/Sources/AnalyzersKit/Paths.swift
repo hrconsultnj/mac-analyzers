@@ -101,6 +101,11 @@ public enum AnalyzersPaths {
     /// bundle (which is replaced wholesale on every update).
     public static let configLocal = userRoot.appending(path: "config.local.sh")
 
+    /// Where downloaded agent models live (one folder per model id), under the
+    /// same data root as every other app-written record — never the bundle,
+    /// never the repo checkout.
+    public static let modelsDirectory = userRoot.appending(path: "models")
+
     /// A probe home (`useHome`) stands in for the account, so the data-root
     /// environment variables are not read then: a probe must not follow them
     /// out of its sandbox into the person's files.

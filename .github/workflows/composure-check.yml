@@ -1,0 +1,105 @@
+# composure-check — judges the lines a change ADDS against the project's committed rules.
+# Written to .github/workflows/composure-check.yml by scripts/render-check-workflow.mjs (/composure:initialize), which fills the
+# push `branches` placeholder from .composure/ci.json (the declared model's protected branches; the repository default branch when undeclared).
+# The job name below is the status context `repo-protect.mjs apply --protect --require-check composure-check` makes required.
+#
+# Runs on every event that proposes or makes a change to a protected branch: a pull request, and a push to one.
+# The checker and the rules come from the BASE, never from the change itself: a change that edits .composure/rules.json or
+# the committed checker is judged by the old ones, and /.composure/ is CODEOWNERS-owned so changing them takes the owner's
+# review. The one exception is the adoption change (the base has no rules or no checker yet): it is judged by its own, and
+# the run says so in an annotation.
+#   pull_request  base = origin/<base branch>, range base...HEAD
+#   push          base = the before-commit (fetched first). A force push whose before-commit is no longer an ancestor is
+#                 judged from the merge-base of the two; a new branch (before all zeros) from the merge-base with the default
+#                 branch. A push whose before-commit cannot be fetched, or whose base comes out equal to the pushed commit
+#                 (an empty range after a force push to the default branch itself), FAILS (exit 2): never an empty green.
+#
+# KNOWN LIMIT: GitHub runs a pull_request workflow from the pull request's own merge ref, so a pull request can edit THIS
+# file (for example make the step exit 0) and the required `composure-check` context reports green for that very pull
+# request. The checker and rules are taken from the base, but the step that takes them is the pull request's. This is why
+# `repo-protect.mjs apply --codeowners --require-check` also puts `/.github/workflows/composure-check.yml` under CODEOWNERS
+# (code-owner review is required on the same protection): the owner reviews any change to it.
+name: composure-check
+on:
+  pull_request:
+  push:
+    branches: [__PROTECTED_BRANCHES__]
+permissions:
+  contents: read
+jobs:
+  composure-check:
+    name: composure-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Judge the added lines
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -eu
+          check="${RUNNER_TEMP:-/tmp}/composure-check.mjs"
+          if [ "$EVENT" = "pull_request" ]; then
+            base="origin/$BASE_REF"
+            head=HEAD
+          else
+            head="$AFTER"
+            base=""
+            case "$BEFORE" in
+              *[!0]*) # not all zeros: an existing branch was updated
+                git fetch --no-tags --quiet origin "$BEFORE" 2>/dev/null || true
+                if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+                  echo "::error title=composure-check::cannot work out what this push adds: the before-commit $BEFORE cannot be fetched (a force push?)"
+                  exit 2
+                fi
+                if git merge-base --is-ancestor "$BEFORE" "$AFTER" 2>/dev/null; then
+                  base="$BEFORE"
+                else
+                  base="$(git merge-base "$BEFORE" "$AFTER" 2>/dev/null || true)"
+                  [ -z "$base" ] || echo "base: merge-base with the before-commit (force push)"
+                fi ;;
+            esac
+            if [ -z "$base" ]; then
+              base="$(git merge-base "origin/$DEFAULT_BRANCH" "$AFTER" 2>/dev/null || true)"
+              [ -n "$base" ] || { echo "::error title=composure-check::cannot work out what this push adds: no before-commit and no merge-base with origin/$DEFAULT_BRANCH"; exit 2; }
+              echo "base: merge-base with origin/$DEFAULT_BRANCH (new branch)"
+            fi
+            case "$BEFORE" in
+              *[!0]*) if [ "$base" = "$AFTER" ]; then
+                echo "::error title=composure-check::cannot work out what this force push adds: the base equals the pushed commit, so the range would be empty"
+                exit 2
+              fi ;;
+            esac
+          fi
+          # Rules and checker come from the REPLACED tip (BEFORE) when it carries them, else the base, else the change itself
+          # (an adoption): a force push that rewrites history from before the rules were adopted must not be judged by the
+          # rewrite's own rules.
+          src="$base"
+          if [ "$EVENT" != "pull_request" ]; then
+            case "$BEFORE" in *[!0]*) git cat-file -e "$BEFORE:.composure/rules.json" 2>/dev/null && src="$BEFORE" ;; esac
+          fi
+          if git cat-file -e "$src:.composure/rules.json" 2>/dev/null; then
+            echo "rules: from $src"
+          else
+            echo "::notice title=composure-check::rulesFrom: head (adoption: rules from the change itself, $src has no .composure/rules.json)"
+          fi
+          if git show "$src:.composure/bin/composure-check.mjs" > "$check" 2>/dev/null; then
+            echo "checker: from $src"
+          elif git show "$base:.composure/bin/composure-check.mjs" > "$check" 2>/dev/null; then
+            echo "checker: from $base"
+          elif [ -f .composure/bin/composure-check.mjs ]; then
+            echo "::notice title=composure-check::checker: from the change itself ($src has no .composure/bin/composure-check.mjs)"
+            cp .composure/bin/composure-check.mjs "$check"
+          else
+            echo "::error title=composure-check::no .composure/bin/composure-check.mjs on $src or in this change"
+            exit 2
+          fi
+          node "$check" --range "$base...$head" --rules-ref "$src"
