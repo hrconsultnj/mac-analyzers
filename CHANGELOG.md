@@ -9,6 +9,7 @@ GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 Older entries below keep the name the app had when they shipped.
 
 ## v3.1.0 — Ask an Agent to Help With Your Mac
+<!-- wn: released=2026-11-20 -->
 
 Ask is a new way to work with Sparehold: you say what you want in your own words, and the agent does the reading, proposes what is safe, and only acts on the list you approve. Everything it does goes through the same preview, Trash, and Undo as a clean you run yourself — the agent never touches anything without showing the list first.
 
