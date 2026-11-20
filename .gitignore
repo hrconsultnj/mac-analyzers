@@ -53,3 +53,7 @@ dist/
 
 # a build started from the repository root by mistake
 /.build/
+
+# local tool artifacts from agent sessions
+.video_agent/
+.v2c/
