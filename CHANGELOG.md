@@ -8,6 +8,17 @@ bullet as a feature of its own, so every bullet ends with a short tag that
 GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 Older entries below keep the name the app had when they shipped.
 
+## v3.1.0 — Ask an Agent to Help With Your Mac
+
+Ask is a new way to work with Sparehold: you say what you want in your own words, and the agent does the reading, proposes what is safe, and only acts on the list you approve. Everything it does goes through the same preview, Trash, and Undo as a clean you run yourself — the agent never touches anything without showing the list first.
+
+- Ask sits at the top of the sidebar, marked with the sparkles that say AI. Start from one of the four buttons — free up space, my Mac feels slow, tidy my Downloads, what is eating my memory — or type your own question. While it works you see each step name the real script it ran, a line that nothing has been changed yet, and a Stop button that always works. <!-- wn: open=ask icon=sparkles title="Ask, in Your Own Words" -->
+- On-Device Models is where the agent's brain comes from: download a model that runs entirely on your Mac and your questions never leave it, even offline. The screen says how much memory and disk this Mac has, marks each model Fits well, Tight, or Won't fit before you download, and the Hugging Face search only runs when you go looking. <!-- wn: open=agentsModels icon=internaldrive title="A Model That Stays on Your Mac" -->
+- Agents, in Settings, is where you pick who answers: the model on this Mac, your own Claude Code, Codex, or a command of yours. Each engine opens its own screen with what it found on this Mac, what it needs, and the switch that makes it the one Ask uses. Sign-in always happens in the vendor's own tool — Sparehold never sees a password or a token. <!-- wn: open=agents icon=cpu title="Choose Who Answers" -->
+- Capabilities, in Settings, is the list of what the agent may do, one switch each: read your reports, run scans, propose cleanups, clean what you approved, suggest better rules. Switch something off and the agent is told no in words it can pass on to you, not a silent failure. The agent can never delete without showing the list first, never touches protected places, and never removes the protection around live AI sessions. <!-- wn: open=agentsCapabilities icon=checkmark.shield title="You Decide What It May Do" -->
+- Setup's background list now introduces the agent with this Mac's own numbers, so you can see what would fit before you go looking. The menu-bar panel's footer buttons now go somewhere: Open App, Ask, and Settings. <!-- wn: open=setup icon=arrow.triangle.2.circlepath title="The Agent Shows Up in Setup" -->
+- Fixed: opening the new agent screens could quit the app outright on some installs, and the download looked like nothing was happening because the app was gone. Fixed: builds with a licence could not compile after the Sparehold rename, which only those builds could see. <!-- wn: open=- icon=wrench title="The Agent Screens Stay Open" -->
+
 ## v3.0.0 — Mac Analyzers Is Now Sparehold
 <!-- wn: released=2026-11-19 -->
 
