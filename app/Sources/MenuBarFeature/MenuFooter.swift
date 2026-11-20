@@ -12,8 +12,20 @@ extension MenuContentView {
                 ActivationPolicy.windowOpening()
                 openWindow(id: "main")
             } label: {
-                Label("Open \(Names.app)", systemImage: "macwindow")
+                Label("Open App", systemImage: "macwindow")
             }
+            Button {
+                SettingsOpener.open(target: "ask")
+            } label: {
+                Label("Ask", systemImage: "text.bubble")
+            }
+            .help("Open the agent's Ask screen")
+            Button {
+                SettingsOpener.open(target: "settings")
+            } label: {
+                Label("Settings", systemImage: "gearshape")
+            }
+            .help("Open Settings")
             if updates.offersInstall {
                 Button(updates.installTitle) { updates.requestInstall() }
                     .buttonStyle(.borderedProminent)
