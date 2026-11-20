@@ -109,6 +109,20 @@ public final class ConfigStore {
 
     public init() { load() }
 
+    /// AGENT_ENGINE read straight from config.local.sh, for call sites that
+    /// need the value without owning a store (the same pattern as
+    /// `currentLogViewer`). The last assignment wins, mirroring bash.
+    /// Nonisolated on purpose: a file read, not store state.
+    public static func currentAgentEngine() -> String {
+        guard let text = try? String(contentsOf: AnalyzersPaths.configLocal, encoding: .utf8),
+              let line = text.split(separator: "\n").last(where: { $0.contains("AGENT_ENGINE=") })
+        else { return "on-device" }
+        let raw = line.split(separator: "=", maxSplits: 1).last.map(String.init) ?? ""
+        let cleaned = raw.trimmingCharacters(in: .whitespaces)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+        return cleaned.isEmpty ? "on-device" : cleaned
+    }
+
     // MARK: - load
 
     public func load() {

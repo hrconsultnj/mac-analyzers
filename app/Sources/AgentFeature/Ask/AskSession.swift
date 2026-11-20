@@ -96,7 +96,7 @@ public final class AskSession {
             // the analyzers — never an apply.
             ask.job = jobs.enqueue(JobRequest(kind: scan.kind, intent: scan.intent), trigger: .user)
         }
-        let engine = makeEngine()
+        let engine = makeEngine(jobStore: jobs)
         let session = engine.makeSession(configuration: config)
         ask.agentSession = session
         ask.consumeTask = Task { [weak ask] in
@@ -109,13 +109,16 @@ public final class AskSession {
         return ask
     }
 
-    /// THE ENGINE SEAM. v1 answers with `MockEngine` — the scripted five-beat
-    /// session that performs no tool and changes nothing — so the Ask screens
-    /// are built before the real engines land. The engines lane replaces this
-    /// one line with the configured engine (`AgentTunables.engine`); nothing
-    /// else in the Ask surface knows which engine answers.
-    private static func makeEngine() -> any AgentEngine {
-        MockEngine()
+    /// THE ENGINE SEAM: the configured engine (`AGENT_ENGINE`), read the same
+    /// way the static config reads work elsewhere. Nothing else in the Ask
+    /// surface knows which engine answers.
+    private static func makeEngine(jobStore: JobStore) -> any AgentEngine {
+        switch ConfigStore.currentAgentEngine() {
+        case "claude": ClaudeACPEngine()
+        case "codex": CodexACPEngine()
+        case "custom": UnwiredEngine()
+        default: LocalEngine(jobStore: jobStore)
+        }
     }
 
     /// Stops the turn at the engine's next boundary. Nothing has been changed

@@ -110,12 +110,12 @@ public struct MockEngine: AgentEngine {
 }
 
 /// The scripted session behind `MockEngine`.
-struct MockSession: AgentSession {
+public struct MockSession: AgentSession {
     let configuration: AgentSessionConfig
     let stream: AsyncStream<AgentEvent>
     let continuation: AsyncStream<AgentEvent>.Continuation
 
-    var events: AsyncStream<AgentEvent> { stream }
+    public var events: AsyncStream<AgentEvent> { stream }
 
     init(configuration: AgentSessionConfig) {
         self.configuration = configuration
@@ -124,7 +124,7 @@ struct MockSession: AgentSession {
         self.continuation = continuation
     }
 
-    func send(_ text: String) async {
+    public func send(_ text: String) async {
         let steps: [(String, String)] = [
             ("Checking what asked for", text),
             ("Running the storage scan", "analyze.sh --brief"),
@@ -145,13 +145,52 @@ struct MockSession: AgentSession {
         continuation.finish()
     }
 
-    func respond(to requestID: UUID, approved: Bool, approvedActions: [String]) async {
+    public func respond(to requestID: UUID, approved: Bool, approvedActions: [String]) async {
         continuation.yield(.messageChunk(approved ? "Approved \(approvedActions.count) of the proposed actions." : "Nothing will be changed."))
         continuation.yield(.done(approved ? .completed : .cancelled))
         continuation.finish()
     }
 
-    func cancel() async {
+    public func cancel() async {
+        continuation.yield(.done(.cancelled))
+        continuation.finish()
+    }
+}
+
+/// The "bring your own" engine before its wiring exists: every turn answers
+/// with the sentence a person can act on, and changes nothing. Custom ACP
+/// spawning arrives with the registry fast-follow (DEC-08).
+public struct UnwiredEngine: AgentEngine {
+    public var displayName: String { "Custom engine" }
+    public init() {}
+
+    public func makeSession(configuration: AgentSessionConfig) -> AgentSession {
+        UnwiredSession()
+    }
+}
+
+/// The sentence-bearing session behind `UnwiredEngine`.
+struct UnwiredSession: AgentSession {
+    let stream: AsyncStream<AgentEvent>
+    let continuation: AsyncStream<AgentEvent>.Continuation
+
+    init() {
+        var continuation: AsyncStream<AgentEvent>.Continuation!
+        self.stream = AsyncStream { continuation = $0 }
+        self.continuation = continuation
+    }
+
+    public var events: AsyncStream<AgentEvent> { stream }
+
+    public func send(_ text: String) async {
+        continuation.yield(.messageChunk("The custom engine isn't wired in this build yet. Choose On-Device, Claude Code or Codex in Settings › Agents and ask again."))
+        continuation.yield(.done(.completed))
+        continuation.finish()
+    }
+
+    public func respond(to requestID: UUID, approved: Bool, approvedActions: [String]) async {}
+
+    public func cancel() async {
         continuation.yield(.done(.cancelled))
         continuation.finish()
     }

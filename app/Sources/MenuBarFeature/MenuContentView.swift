@@ -1,4 +1,5 @@
 import SwiftUI
+import AgentFeature
 import AnalyzersKit
 import UIComponents
 
@@ -74,6 +75,7 @@ public struct MenuContentView: View {
         VStack(alignment: .leading, spacing: 10) {
             MenuJobsStrip()
             MenuAskCard()
+                .onAppear { AskSuggestionFeed.considerDiskPressure() }
             tabs
 
             switch tab {
