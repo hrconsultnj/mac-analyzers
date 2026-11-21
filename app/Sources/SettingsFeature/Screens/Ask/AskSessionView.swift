@@ -17,6 +17,7 @@ struct AskSessionView: View {
     @Environment(ConfigStore.self) private var config
     @State private var draft = ""
     @State private var scrollToBottom = 0
+    @FocusState private var inputFocused: Bool
 
     var body: some View {
         if let session = conversation.current {
@@ -31,7 +32,10 @@ struct AskSessionView: View {
     }
 
     private func screen(for session: AskSession) -> some View {
-        DataScreen(title: Names.Screen.ask, subtitle: subtitle(for: session)) {
+        // one column: the transcript is what scrolls, the input is pinned at
+        // the bottom edge — DataScreen renders builder siblings side by side,
+        // which is how the input ended up "hovering" mid-window
+        VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: Tokens.Space.xl) {
@@ -49,8 +53,13 @@ struct AskSessionView: View {
                     proxy.scrollTo("ask-session-bottom", anchor: .bottom)
                 }
             }
+            Divider()
             inputRow(for: session)
+                .padding(.horizontal, Tokens.Space.l)
+                .padding(.vertical, Tokens.Space.s)
         }
+        .navigationTitle(Names.Screen.ask)
+        .navigationSubtitle(subtitle(for: session))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -74,7 +83,11 @@ struct AskSessionView: View {
     @ViewBuilder private func inputRow(for session: AskSession) -> some View {
         let busy = session.phase == .working || session.phase == .awaitingApproval
         HStack(spacing: Tokens.Space.m) {
-            TextField(session.phase == .idle ? "Ask about this Mac…" : "Ask a follow-up…", text: $draft)
+            TextField(session.phase == .idle ? "Ask about this Mac…" : "Ask a follow-up…",
+                      text: $draft, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...4)
+                .focused($inputFocused)
                 .disabled(busy)
                 .onSubmit { sendDraft(session) }
             if busy {
@@ -84,12 +97,17 @@ struct AskSessionView: View {
                 Button {
                     sendDraft(session)
                 } label: {
-                    Label("Send", systemImage: "arrow.up.circle.fill")
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.title3)
                 }
                 .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .help("Send the question to the agent")
+                .keyboardShortcut(.return, modifiers: [])
             }
         }
+        .padding(.horizontal, Tokens.Space.m)
+        .padding(.vertical, Tokens.Space.s)
+        .background(Tokens.Surface.tile, in: RoundedRectangle(cornerRadius: Tokens.Radius.tile))
         .padding(.vertical, Tokens.Space.s)
     }
 
@@ -97,6 +115,7 @@ struct AskSessionView: View {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         draft = ""
+        inputFocused = true
         session.send(text, scan: (kind: JobKind.storageReport, intent: JobIntent.run),
                      config: sessionConfig, jobs: jobs)
     }
@@ -121,7 +140,7 @@ struct AskSessionView: View {
                 thinkingBlock(turn.thinking)
             }
             if !turn.reply.isEmpty {
-                replyBlock(turn.reply)
+                replyBlock(turn.reply, answeredBy: turn.engine)
             }
             if let failure = turn.failure {
                 Label(failure, systemImage: "exclamationmark.triangle")
@@ -149,7 +168,7 @@ struct AskSessionView: View {
             thinkingBlock(session.thinking)
         }
         if !session.reply.isEmpty {
-            replyBlock(session.reply)
+            replyBlock(session.reply, answeredBy: session.engineTitle.isEmpty ? nil : session.engineTitle)
         }
         // the standing line, true until an approval exists
         if session.phase == .working {
@@ -168,9 +187,13 @@ struct AskSessionView: View {
     }
 
     private func userLine(_ text: String) -> some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.xs) {
-            Text("You Asked").font(.caption).foregroundStyle(.secondary)
-            Text(text)
+        HStack(alignment: .top, spacing: Tokens.Space.m) {
+            IconTile(symbol: "person.crop.circle", color: .indigo, side: 24).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tokens.Space.xs) {
+                Text("You").font(.caption).foregroundStyle(.secondary)
+                Text(text).textSelection(.enabled)
+            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -241,11 +264,14 @@ struct AskSessionView: View {
         }
     }
 
-    /// The answer, as Markdown — headings, lists, and code in the model's
-    /// own structure instead of a wall of characters.
-    private func replyBlock(_ text: String) -> some View {
+    /// The answer, labelled with the engine — and model, when one is loaded —
+    /// that produced it, and rendered as Markdown: headings, lists and code in
+    /// the model's own structure instead of a wall of characters.
+    private func replyBlock(_ text: String, answeredBy: String?) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.xs) {
-            Text("Sparehold").font(.caption).foregroundStyle(.secondary)
+            Label(answeredBy ?? "Sparehold", systemImage: "sparkles")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             markdown(text)
                 .textSelection(.enabled)
         }

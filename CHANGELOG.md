@@ -8,8 +8,17 @@ bullet as a feature of its own, so every bullet ends with a short tag that
 GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 Older entries below keep the name the app had when they shipped.
 
-## Next
+## v3.3.0 — Ask That Shows Its Work
+<!-- wn: released=2026-11-21 -->
 
+The conversation becomes a proper chat: you always see which intelligence answered, what the tools actually did, and the input stays where a chat's input belongs.
+
+- The chat is one column now: the transcript scrolls, and the input — the system's growing text field, return-to-send — is pinned at the bottom edge of the window instead of hovering over the answers. <!-- wn: open=ask icon=sparkles title="A Chat That Reads Like One" -->
+- Every reply names the engine and model that produced it: "Sparehold On-Device · Qwen3.5-9B", "Claude Code", or "Codex" — and the label travels with the turn into your saved history. <!-- wn: open=ask icon=cpu title="Who Answered, On Every Reply" -->
+- Tool cards show the real work: the command, path, or file the tool actually carried, selectable in monospace, not the bare word "execute". <!-- wn: open=ask icon=curlybraces.square title="Tools Show What They Ran" -->
+- A conversation keeps running when you navigate away to another chat, and the Beta screen no longer advertises a beta that is older than the current release. <!-- wn: open=update icon=arrow.down.circle title="Channels Tell the Truth" -->
+
+## v3.2.1 — The Panel Keeps Its Buttons
 ## v3.2.1 — The Panel Keeps Its Buttons
 <!-- wn: released=2026-11-20 -->
 

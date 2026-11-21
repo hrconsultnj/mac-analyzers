@@ -10,15 +10,22 @@ enum AskRoute: Hashable, Codable, Sendable {
     case session
 }
 
-/// The conversation the Ask screens share: the home starts one, the session
-/// screen shows it. The group owns the box, the way a group owns its badge's
-/// state — screens read it through the environment this file injects at both
-/// places the Ask screens appear (the section root and the pushed route). A
-/// restored stack that lands on `.session` after a restart finds `current`
-/// nil, and the session screen says so with its own empty state.
+/// The conversations the Ask screens share. The box holds every LIVE session
+/// by its conversation id — one slot made navigating to another chat drop the
+/// first one's streaming turn, which is component state, not app state. The
+/// home reopens a conversation through `session(for:)`: a live one continues
+/// where it is, a saved one rehydrates from the history store. A restored
+/// stack that lands on `.session` after a restart finds `current` nil, and
+/// the session screen says so with its own empty state.
 @MainActor @Observable
 final class AskSessionBox {
-    var current: AskSession?
+    private var live: [UUID: AskSession] = [:]
+    var current: AskSession? {
+        didSet { if let session = current { live[session.id] = session } }
+    }
+
+    /// The live session for a conversation, when one is still running here.
+    func session(for id: UUID) -> AskSession? { live[id] }
 }
 
 /// Ask: the agent's home, the one feature row at the top of the sidebar. The

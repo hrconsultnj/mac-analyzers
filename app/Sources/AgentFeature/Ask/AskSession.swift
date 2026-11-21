@@ -87,6 +87,8 @@ public final class AskSession {
     /// The tracked job behind the turn's scan beat. Held, not adopted: the
     /// toolbar strip and Activity read the store.
     public private(set) var job: Job?
+    /// The engine — and model, when one is loaded — answering the live turn.
+    public private(set) var engineTitle: String = ""
 
     @ObservationIgnored private var agentSession: (any AgentSession)?
     @ObservationIgnored private var consumeTask: Task<Void, Never>?
@@ -168,6 +170,7 @@ public final class AskSession {
         let engine = Self.makeEngine(jobStore: jobs)
         let session = engine.makeSession(configuration: config)
         agentSession = session
+        engineTitle = Self.engineLabel()
         consumeTask?.cancel()
         consumeTask = Task { [weak self] in
             for await event in session.events {
@@ -188,6 +191,21 @@ public final class AskSession {
         case "codex": CodexACPEngine()
         case "custom": UnwiredEngine()
         default: LocalEngine(jobStore: jobStore)
+        }
+    }
+
+    /// The name the reply is labelled with: the engine, and the model when
+    /// one is loaded — a person reads which intelligence answered, never a
+    /// bare product name.
+    private static func engineLabel() -> String {
+        switch ConfigStore.currentAgentEngine() {
+        case "claude": return "Claude Code"
+        case "codex": return "Codex"
+        case "custom": return "Custom engine"
+        default:
+            let model = ConfigStore.currentAgentModelID()
+            let name = model.split(separator: "/").last.map(String.init) ?? model
+            return name.isEmpty ? "Sparehold On-Device" : "Sparehold On-Device · \(name)"
         }
     }
 
