@@ -9,6 +9,7 @@ GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 Older entries below keep the name the app had when they shipped.
 
 ## v3.4.0 — The Machinery Speaks in Its Own Voice
+<!-- wn: released=2026-11-21 -->
 
 A chat has three voices — yours, the agent's, and the app's — and Ask shows all three distinctly now.
 
