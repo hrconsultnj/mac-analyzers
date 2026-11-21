@@ -80,11 +80,11 @@ fi
 
 # ── the new version ────────────────────────────────────────────────────────
 current="$(tr -d ' \n' < VERSION)"
-IFS=. read -r major minor patch <<<"$current"
+# A channel word releases the version development is ON (its own VERSION — the
+# release train's next number), and the word then decides what development
+# starts after it. An explicit version is still released verbatim.
 case "$target" in
-  major) version="$((major + 1)).0.0" ;;
-  minor) version="$major.$((minor + 1)).0" ;;
-  patch) version="$major.$minor.$((patch + 1))" ;;
+  major|minor|patch) version="$current" ;;
   *) version="${target#v}" ;;
 esac
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

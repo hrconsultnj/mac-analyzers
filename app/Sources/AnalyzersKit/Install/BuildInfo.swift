@@ -129,8 +129,9 @@ public struct BuildInfo: Sendable, Equatable {
 
     /// The short name of a version string, the one place the full string becomes words:
     /// "2.72.0" → "2.72.0"; "2.72.1-beta.1" → "2.72.1 Beta"; "2.72.1-beta.2" → "2.72.1 Beta 2";
-    /// "2.72.1-dev.12+8e2c9b0" → "Dev · 8e2c9b0"; with uncommitted changes (".local") "Dev · 8e2c9b0*"; when git
-    /// could not say (".unknown") "Dev · 8e2c9b0?". A development version with no commit reads "Dev".
+    /// "2.72.1-dev.12+8e2c9b0" → "2.72.1 Dev · 8e2c9b0"; with uncommitted changes (".local") "2.72.1 Dev · 8e2c9b0*";
+    /// when git could not say (".unknown") "2.72.1 Dev · 8e2c9b0?". A development version with no commit reads
+    /// "2.72.1 Dev" — the number alone, so a copy always says which work it holds.
     public static func label(forVersion version: String) -> String {
         let halves = version.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
         let core = halves[0]

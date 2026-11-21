@@ -47,13 +47,18 @@ set -euo pipefail
 WN_FIRST="2.71.0"
 
 mode="check"
-case "${1:-}" in
-  --print) mode="print"; shift ;;
-  --title) mode="title"; shift ;;
-  --tags) mode="tags"; shift ;;
-  --stamp) mode="stamp"; shift ;;
-  --on-mac) mode="onmac"; shift ;;
-esac
+in_development=0
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --print) mode="print" ;;
+    --title) mode="title" ;;
+    --tags) mode="tags" ;;
+    --stamp) mode="stamp" ;;
+    --on-mac) mode="onmac" ;;
+    --in-development) in_development=1 ;;
+  esac
+  shift
+done
 stamp_date="${2:-}"
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -175,6 +180,16 @@ fi
 problems=()
 fail() { problems+=("$1"); }
 
+# Development between releases: the entry for the RUNNING version does not
+# exist yet — its What's New accumulates under "## Next" until the release
+# renames it. check.sh passes --in-development; the release gate does not, so
+# a release still cannot ship without its own entry.
+if [[ -z "$heading" ]] && (( in_development )); then
+  if grep -q '^## Next' "$changelog"; then
+    echo "changelog: in development — What's New accumulates under ## Next."
+    exit 0
+  fi
+fi
 if [[ -z "$heading" ]]; then
   cat >&2 <<EOF
 changelog: no entry for v$version in CHANGELOG.md.
