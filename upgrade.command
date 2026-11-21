@@ -177,7 +177,13 @@ elif [[ "$development" -eq 1 ]]; then
       exit 1
     fi
     echo "→ returning to the development branch…"
-    git checkout development
+    if ! git checkout development 2>/dev/null; then
+      # development can be held by another worktree (the release worktree):
+      # its tip is the same commits, so detach onto it and build that —
+      # the build reads as the dev version it is.
+      echo "  (development is checked out by another worktree — building from its tip)"
+      git checkout --detach development
+    fi
   fi
   echo "→ building this clone as it is (nothing is pulled)…"
 elif [[ "$pull" -eq 1 ]]; then
