@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import AgentFeature
 import AnalyzersKit
 import UIComponents
@@ -170,11 +171,13 @@ struct AskSessionView: View {
         if !session.reply.isEmpty {
             replyBlock(session.reply, answeredBy: session.engineTitle.isEmpty ? nil : session.engineTitle)
         }
-        // the standing line, true until an approval exists
+        // the standing line, true until an approval exists — system voice
         if session.phase == .working {
-            Text("Nothing has been changed yet.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            systemRow("Nothing has been changed yet.")
+        }
+        // the turn's own machinery, when it has something to say
+        if let notice = session.notice {
+            systemRow(notice)
         }
         // the permission round-trip
         if let request = session.request, session.phase == .awaitingApproval {
@@ -184,6 +187,33 @@ struct AskSessionView: View {
         if session.phase == .done {
             ending(for: session)
         }
+    }
+
+    /// A system message: the app's own voice, with the app's own icon —
+    /// never rendered as if the agent or the person said it.
+    private func systemRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: Tokens.Space.m) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 24, height: 24)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// The tile icon for the engine that answered: the vendor's own name in
+    /// the label — the CLIs ship no icon file, so nothing is fabricated; the
+    /// on-device engine gets the model chip.
+    private func engineTile(for label: String) -> some View {
+        let symbol = label.lowercased().contains("on-device") ? "memorychip"
+            : label.lowercased().contains("custom") ? "slider.horizontal.3"
+            : "terminal"
+        return IconTile(symbol: symbol, color: .mint, side: 24).accessibilityHidden(true)
     }
 
     private func userLine(_ text: String) -> some View {
@@ -268,12 +298,16 @@ struct AskSessionView: View {
     /// that produced it, and rendered as Markdown: headings, lists and code in
     /// the model's own structure instead of a wall of characters.
     private func replyBlock(_ text: String, answeredBy: String?) -> some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.xs) {
-            Label(answeredBy ?? "Sparehold", systemImage: "sparkles")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            markdown(text)
-                .textSelection(.enabled)
+        HStack(alignment: .top, spacing: Tokens.Space.m) {
+            engineTile(for: answeredBy ?? "")
+            VStack(alignment: .leading, spacing: Tokens.Space.xs) {
+                Text(answeredBy ?? "Sparehold")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                markdown(text)
+                    .textSelection(.enabled)
+            }
+            Spacer(minLength: 0)
         }
     }
 
