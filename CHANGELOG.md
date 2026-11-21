@@ -8,6 +8,8 @@ bullet as a feature of its own, so every bullet ends with a short tag that
 GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 Older entries below keep the name the app had when they shipped.
 
+## Next
+
 ## v3.2.1 — The Panel Keeps Its Buttons
 <!-- wn: released=2026-11-20 -->
 
