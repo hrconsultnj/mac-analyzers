@@ -9,6 +9,7 @@ GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 Older entries below keep the name the app had when they shipped.
 
 ## v3.3.0 — Ask That Shows Its Work
+<!-- wn: released=2026-11-21 -->
 
 The conversation becomes a proper chat: you always see which intelligence answered, what the tools actually did, and the input stays where a chat's input belongs.
 
