@@ -8,8 +8,14 @@ bullet as a feature of its own, so every bullet ends with a short tag that
 GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 Older entries below keep the name the app had when they shipped.
 
-## Next
+## v3.4.0 — The Machinery Speaks in Its Own Voice
 
+A chat has three voices — yours, the agent's, and the app's — and Ask shows all three distinctly now.
+
+- System messages get their own rows with Sparehold's icon: when the scan finishes and the report is ready, the app says so in its own voice, never as if the agent or you had said it. The standing "nothing has been changed yet" line is one of these. <!-- wn: open=ask icon=sparkles title="The App Speaks for Itself" -->
+- Every agent reply carries its engine's tile beside the engine and model's name — the on-device model, Claude Code, or Codex — with no invented logos for anyone. <!-- wn: open=ask icon=cpu title="Named Engines, No Pretenders" -->
+
+## v3.3.0 — Ask That Shows Its Work
 ## v3.3.0 — Ask That Shows Its Work
 <!-- wn: released=2026-11-21 -->
 

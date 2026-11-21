@@ -89,6 +89,9 @@ public final class AskSession {
     public private(set) var job: Job?
     /// The engine — and model, when one is loaded — answering the live turn.
     public private(set) var engineTitle: String = ""
+    /// A system message about the turn's own machinery — "the report is
+    /// ready" when the scan beat finishes. The app's voice, not the agent's.
+    public private(set) var notice: String?
 
     @ObservationIgnored private var agentSession: (any AgentSession)?
     @ObservationIgnored private var consumeTask: Task<Void, Never>?
@@ -157,6 +160,7 @@ public final class AskSession {
         beganAt = Date()
         streamFinished = false
         phase = .working
+        notice = nil
         if let scan {
             // The loop's scan beat: the read-only analyzer the turn names, in
             // the one engine lane. Previews for cleaners (dry run), `.run` for
@@ -171,6 +175,7 @@ public final class AskSession {
         let session = engine.makeSession(configuration: config)
         agentSession = session
         engineTitle = Self.engineLabel()
+        watchScanJob(kind: scan?.kind)
         consumeTask?.cancel()
         consumeTask = Task { [weak self] in
             for await event in session.events {
@@ -180,6 +185,23 @@ public final class AskSession {
         }
         Task { await session.send(prompt) }
         persist()
+    }
+
+    /// Watches the turn's scan beat and raises a system message when its
+    /// report is ready — the machinery speaking in the app's own voice, in
+    /// its own row, never as if the agent or the person said it.
+    private func watchScanJob(kind: JobKind?) {
+        guard let job, !job.state.isFinished else { return }
+        let what = kind == .memoryReport ? "memory report" : "storage report"
+        Task { [weak self] in
+            while !Task.isCancelled, let job = self?.job, !job.state.isFinished {
+                try? await Task.sleep(for: .milliseconds(400))
+            }
+            guard let self, let job = self.job, job.state.isFinished, !Task.isCancelled else { return }
+            if case .succeeded = job.state {
+                self.notice = "The \(what) is ready — reading it now."
+            }
+        }
     }
 
     /// THE ENGINE SEAM: the configured engine (`AGENT_ENGINE`), read the same
