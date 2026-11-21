@@ -225,7 +225,15 @@ case "$target" in
   *)     next_version="$next_major.$next_minor.$((next_patch + 1))" ;;
 esac
 echo "$next_version" > VERSION
-git add VERSION
+# development's What's New accumulates under a bare ## Next until the next
+# release renames it — without the heading, the very next push fails the
+# changelog gate (v3.2.1 and v3.3.0 both tripped on this).
+if ! grep -q '^## Next' CHANGELOG.md; then
+  printf '## Next
+
+' | cat - CHANGELOG.md > CHANGELOG.md.next && mv CHANGELOG.md.next CHANGELOG.md
+fi
+git add VERSION CHANGELOG.md
 if git commit --quiet -m "Start $next_version"; then
   if git push --quiet origin development; then
     say "development starts $next_version"
