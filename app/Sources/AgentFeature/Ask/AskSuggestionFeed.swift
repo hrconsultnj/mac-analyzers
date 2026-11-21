@@ -12,19 +12,19 @@ public enum AskSuggestionFeed {
     /// Free space below either line is worth saying: an absolute floor (an
     /// almost-full disk) or a share of the disk.
     public static let absoluteFloorGB = 10.0
-    public static let shareFloor = 0.1
 
-    /// Called when the menu-bar panel opens (main actor — the Center is one).
-    /// Reads the volumes once, records at most one suggestion, and stays
-    /// quiet when the Center's cap or a mute says so. Cheap on purpose: two
-    /// stat calls at most.
+    /// Called when a SCHEDULED scan finishes — never from the panel's
+    /// opening, where a suggestion squeezed the panel's own controls every
+    /// time it appeared (the 3.2.0 regression Helder hit). Reads the volumes
+    /// once, records at most one suggestion, and stays quiet when the
+    /// Center's cap or a mute says so.
     @MainActor
     public static func considerDiskPressure() {
         let assessment = MachineAssessment.assess()
         guard assessment.freeDiskGB > 0 else { return }
-        let total = totalDiskGB() ?? 0
-        let share = total > 0 ? Double(assessment.freeDiskGB) / total : 1
-        guard Double(assessment.freeDiskGB) < absoluteFloorGB || share < shareFloor else { return }
+        // the absolute floor only: a share of a large disk made every normal
+        // Mac look critical (34 GB free of 494 is 7%, but it is not an emergency)
+        guard Double(assessment.freeDiskGB) < absoluteFloorGB else { return }
         AskSuggestionCenter.shared.record(AskSuggestion(
             category: .downloads,
             line: "Only \(assessment.freeDiskGB) GB free — a cleanup could make room.",
