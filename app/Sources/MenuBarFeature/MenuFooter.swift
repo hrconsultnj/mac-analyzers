@@ -8,22 +8,28 @@ extension MenuContentView {
 
     var footer: some View {
         HStack {
+            // icon-only with tooltips: the panel's width cannot hold words
+            // for three destinations plus the version and Quit
             Button {
                 ActivationPolicy.windowOpening()
                 openWindow(id: "main")
             } label: {
                 Label("Open App", systemImage: "macwindow")
+                    .labelStyle(.iconOnly)
             }
+            .help("Open the main window")
             Button {
                 SettingsOpener.open(target: "ask")
             } label: {
-                Label("Ask", systemImage: "text.bubble")
+                Label("Ask", systemImage: "sparkles")
+                    .labelStyle(.iconOnly)
             }
             .help("Open the agent's Ask screen")
             Button {
                 SettingsOpener.open(target: "settings")
             } label: {
                 Label("Settings", systemImage: "gearshape")
+                    .labelStyle(.iconOnly)
             }
             .help("Open Settings")
             if updates.offersInstall {

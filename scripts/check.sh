@@ -162,7 +162,7 @@ check_changelog() {
     return 1
   fi
   if [ "$entry" -gt 0 ]; then
-    if ! scripts/changelog-check.sh "$version" >"$OUT" 2>&1; then
+    if ! scripts/changelog-check.sh --in-development "$version" >"$OUT" 2>&1; then
       DETAIL="entry for v$version does not pass scripts/changelog-check.sh"
       return 1
     fi

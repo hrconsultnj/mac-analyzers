@@ -6,8 +6,8 @@ import Foundation
 /// - a release, built at its tag: "2.72.0";
 /// - a published beta, built at its `vX.Y.Z-beta.N` tag with a clean tree: "2.72.1 Beta" ("2.72.1 Beta 2" from
 ///   the second one on);
-/// - anything else built from a clone, "This Copy": "Dev · 8e2c9b0" (commits after the last tag, or changes
-///   that are not committed; a trailing * marks uncommitted changes).
+/// - anything else built from a clone, "This Copy": the version development is on, "3.2.0 Dev · 83dc530"
+///   (commits after the last tag, or changes that are not committed; a trailing * marks uncommitted changes).
 ///
 /// The full semantic-versioning string (`version`: "2.72.1-beta.2", "2.72.1-dev.12+8e2c9b0") stays inside, for
 /// comparisons; `label` and the texts built on it are the only thing a person reads. `build.sh` stamps the
@@ -129,8 +129,9 @@ public struct BuildInfo: Sendable, Equatable {
 
     /// The short name of a version string, the one place the full string becomes words:
     /// "2.72.0" → "2.72.0"; "2.72.1-beta.1" → "2.72.1 Beta"; "2.72.1-beta.2" → "2.72.1 Beta 2";
-    /// "2.72.1-dev.12+8e2c9b0" → "Dev · 8e2c9b0"; with uncommitted changes (".local") "Dev · 8e2c9b0*"; when git
-    /// could not say (".unknown") "Dev · 8e2c9b0?". A development version with no commit reads "Dev".
+    /// "2.72.1-dev.12+8e2c9b0" → "2.72.1 Dev · 8e2c9b0"; with uncommitted changes (".local") "2.72.1 Dev · 8e2c9b0*";
+    /// when git could not say (".unknown") "2.72.1 Dev · 8e2c9b0?". A development version with no commit reads
+    /// "2.72.1 Dev" — the number alone, so a copy always says which work it holds.
     public static func label(forVersion version: String) -> String {
         let halves = version.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
         let core = halves[0]
@@ -142,9 +143,11 @@ public struct BuildInfo: Sendable, Equatable {
             let n = pre.split(separator: ".").dropFirst().first.flatMap { Int($0) } ?? 1
             return n > 1 ? "\(number) Beta \(n)" : "\(number) Beta"
         }
-        // a development version (or any other pre-release): "Dev", then the commit and a mark for what is uncommitted
+        // a development version carries the number development is on (owner, 2026-11-20):
+        // "3.2.0 Dev · 83dc530", then a mark for what is uncommitted — "Dev" alone said nothing
+        // about which work this copy holds.
         let pieces = metadata.split(separator: ".").map(String.init)
-        var text = "Dev"
+        var text = "\(number) Dev"
         if let commit = pieces.first, !commit.isEmpty, commit != "local", commit != "unknown" {
             text += " · \(commit)"
             if pieces.contains("local") { text += "*" } else if pieces.contains("unknown") { text += "?" }
@@ -152,8 +155,12 @@ public struct BuildInfo: Sendable, Equatable {
         return text
     }
 
-    /// Whether a version string is a development one (its label starts "Dev"): no number to put a "v" in front of.
-    public static func isDevelopmentVersion(_ version: String) -> Bool { label(forVersion: version).hasPrefix("Dev") }
+    /// Whether a version string is a development one: a pre-release that is not a beta ("3.2.0-dev.1").
+    public static func isDevelopmentVersion(_ version: String) -> Bool {
+        let core = version.split(separator: "+", maxSplits: 1).first.map(String.init) ?? version
+        guard let dash = core.firstIndex(of: "-") else { return false }
+        return !core[core.index(after: dash)...].hasPrefix("beta")
+    }
 
     /// What this copy is called: "2.72.0", "2.72.1 Beta", "Dev · 8e2c9b0".
     public var label: String { Self.label(forVersion: version) }
@@ -161,8 +168,9 @@ public struct BuildInfo: Sendable, Equatable {
     /// The same as `label`; the narrow places (the About panel, the menu footer, the sidebar) read it too.
     public var shortVersion: String { label }
 
-    /// "v2.72.0", "v2.72.1 Beta" or "Dev · 8e2c9b0". A development copy never shows the release's number as
-    /// its own (owner, 2026-11-13); what it holds is in What's New under "In This Build — Not Yet Released".
+    /// "v3.1.0", "v2.72.1 Beta" or "3.2.0 Dev · 83dc530" — a development copy shows the number development
+    /// is on (owner, 2026-11-20, superseding the 2026-11-13 ruling); what it holds is still in What's New
+    /// under "In This Build — Not Yet Released".
     public var versionText: String { Self.isDevelopmentVersion(version) ? label : "v\(label)" }
 
     /// The menu-bar footer says the same.

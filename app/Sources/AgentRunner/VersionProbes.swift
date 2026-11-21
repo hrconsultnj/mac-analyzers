@@ -3,7 +3,8 @@ import Foundation
 
 /// `agent-runner --probe-versions`: what version a build IS, what a person reads for it, and how versions
 /// compare. A build exactly at its release tag with a clean tree is that release ("2.72.0"); a clean build at a
-/// `vX.Y.Z-beta.N` tag is that beta ("2.72.1 Beta"); any other build from a clone is "Dev · <short commit>".
+/// `vX.Y.Z-beta.N` tag is that beta ("2.72.1 Beta"); any other build from a clone carries the number
+/// development is on: "2.72.1 Dev · <short commit>".
 /// Inside, the full semantic-versioning string orders them (2.72.0 < 2.72.1-beta.1 < 2.72.1-dev.N < 2.72.1), so a
 /// copy is never offered what it is already past. Also proves which versions the Beta channel offers (a beta is
 /// never offered on Releases, a newer release is offered on Beta) and runs the owner's flow on a throwaway
@@ -64,24 +65,24 @@ func probeVersions() async -> Never {
     expect("   in the sidebar", beta2.sidebarText, "Version 2.72.1 Beta 2")
     expect("the tenth beta", BuildInfo(release: "2.72.0", commitsAfter: 9, commit: commit, treeHash: "clean", releaseTag: "v2.72.0", betaTag: "v2.72.1-beta.10").label, "2.72.1 Beta 10")
     let dirtyBeta = BuildInfo(release: "2.72.0", commitsAfter: 6, localChanges: true, commit: commit, treeHash: String(repeating: "a", count: 64), releaseTag: "v2.72.0", betaTag: "v2.72.1-beta.1")
-    expect("a beta built with uncommitted changes is a Dev copy, not the beta", dirtyBeta.label, "Dev · 8e2c9b0*")
+    expect("a beta built with uncommitted changes is a Dev copy, not the beta", dirtyBeta.label, "2.72.1 Dev · 8e2c9b0*")
     flag("   and a development build", dirtyBeta.isDevelopment && !dirtyBeta.isBeta, true)
-    expect("   unknown tree: not provably the beta either", BuildInfo(release: "2.72.0", commitsAfter: 6, commit: commit, treeHash: "unknown", releaseTag: "v2.72.0", betaTag: "v2.72.1-beta.1").label, "Dev · 8e2c9b0?")
+    expect("   unknown tree: not provably the beta either", BuildInfo(release: "2.72.0", commitsAfter: 6, commit: commit, treeHash: "unknown", releaseTag: "v2.72.0", betaTag: "v2.72.1-beta.1").label, "2.72.1 Dev · 8e2c9b0?")
     expect("a tag that is not a beta is not stamped as one", String(describing: BuildInfo(release: "2.72.0", commitsAfter: 1, commit: commit, releaseTag: "v2.72.0", betaTag: "v2.72.1-rc1").betaTag), "nil")
     let dev = BuildInfo(release: "2.72.0", commitsAfter: 12, commit: commit, releaseTag: "v2.72.0")
-    expect("a copy built from a clone with commits after the tag", dev.label, "Dev · 8e2c9b0")
-    expect("   the Updates screen", dev.versionText, "Dev · 8e2c9b0")
-    expect("   the sidebar", dev.sidebarText, "Dev · 8e2c9b0")
-    expect("   the menu footer", dev.shortVersionText, "Dev · 8e2c9b0")
-    expect("uncommitted changes add one short mark", BuildInfo(release: "2.72.0", commitsAfter: 0, localChanges: true, commit: commit, releaseTag: "v2.72.0").label, "Dev · 8e2c9b0*")
-    expect("a build that never recorded its commit says only Dev", BuildInfo(release: "2.72.0", commitsAfter: 5).label, "Dev")
+    expect("a copy built from a clone with commits after the tag", dev.label, "2.72.1 Dev · 8e2c9b0")
+    expect("   the Updates screen", dev.versionText, "2.72.1 Dev · 8e2c9b0")
+    expect("   the sidebar", dev.sidebarText, "2.72.1 Dev · 8e2c9b0")
+    expect("   the menu footer", dev.shortVersionText, "2.72.1 Dev · 8e2c9b0")
+    expect("uncommitted changes add one short mark", BuildInfo(release: "2.72.0", commitsAfter: 0, localChanges: true, commit: commit, releaseTag: "v2.72.0").label, "2.72.1 Dev · 8e2c9b0*")
+    expect("a build that never recorded its commit says the number alone", BuildInfo(release: "2.72.0", commitsAfter: 5).label, "2.72.1 Dev")
     expect("a download is a release", BuildInfo(release: "2.72.0", commitsAfter: nil).label, "2.72.0")
     let everything = [release, beta1, beta2, dirtyBeta, dev,
                       BuildInfo(release: "2.72.0", commitsAfter: 12, localChanges: true, commit: commit, releaseTag: "v2.72.0")]
         .flatMap { [$0.label, $0.versionText, $0.shortVersionText, $0.sidebarText, $0.shortVersion] }
     flag("no \"-dev\", \"-beta\" or \"+hash\" string appears in anything a person reads (\(everything.count) strings)",
          !everything.contains { $0.contains("-dev") || $0.contains("-beta") || $0.contains("+") }, true)
-    expect("a version string becomes its name in one place", BuildInfo.label(forVersion: "2.73.0-dev.3+abc1234.local"), "Dev · abc1234*")
+    expect("a version string becomes its name in one place", BuildInfo.label(forVersion: "2.73.0-dev.3+abc1234.local"), "2.73.0 Dev · abc1234*")
 
     print("\n— semantic-versioning precedence —")
     flag("2.69.3-dev.42 is newer than 2.69.2", UpdateChecker.isNewer("2.69.3-dev.42", than: "2.69.2"), true)

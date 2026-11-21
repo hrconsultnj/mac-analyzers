@@ -2,9 +2,15 @@ import Foundation
 import Observation
 import AnalyzersKit
 
-/// One Ask conversation's state (S2's view model): the user's message, the
-/// steps streaming in from the engine, the reply as it grows, the permission
-/// round-trip, and the receipt a finished cleanup leaves.
+/// One Ask conversation's state (S2's view model): the turns so far — each
+/// with the question, the steps streaming in from the engine, the reply as it
+/// grows, and how the turn ended — plus the turn in flight. A finished turn is
+/// archived into the conversation and the input stays live: a chat you can
+/// scroll back through is a chat you can keep talking to.
+///
+/// Every conversation persists to `AskHistoryStore` on each turn's end, so the
+/// history list on the Ask home can reopen it, and a reopened conversation can
+/// continue where it left off.
 ///
 /// The session consumes an `AgentSession`'s `AsyncStream<AgentEvent>` from one
 /// task and translates events into view state; it never calls a cleaner
@@ -12,7 +18,7 @@ import AnalyzersKit
 /// AGENTS.md rule), so Activity lists every run and the toolbar strip shows it
 /// while it goes.
 ///
-/// The permission round-trip: on `.permissionRequest` the session holds the
+/// The permission round-trip: on `.permissionRequest` the turn holds the
 /// proposed actions and enters `.awaitingApproval`; the screen renders them as
 /// a tick list that can only shrink, and the verdict returns through
 /// `AgentSession.respond` — the engine is never handed more than it proposed.
@@ -21,15 +27,17 @@ import AnalyzersKit
 @MainActor @Observable
 public final class AskSession {
 
-    /// What the conversation is doing.
+    /// What the conversation is doing. `.idle` means every turn is archived
+    /// and the next message starts a fresh one.
     public enum Phase: Equatable {
+        case idle
         case working
         case awaitingApproval
         case done
     }
 
     /// One named step of the loop, naming the real script it ran.
-    public struct Step: Identifiable, Equatable {
+    public struct Step: Identifiable, Equatable, Sendable {
         public let id: UUID
         public let name: String
         /// The script or tool the step named, shown verbatim ("analyze.sh --brief").
@@ -40,7 +48,7 @@ public final class AskSession {
     /// What a finished cleanup leaves (S4). `freedLine` is the byte sentence
     /// ("41 GB → 44.9 GB free") once an engine can measure it; the v1 preview
     /// engine runs nothing, so the outcome is the verdict itself.
-    public struct Receipt: Equatable {
+    public struct Receipt: Equatable, Sendable {
         /// Outcome first, in the person's terms.
         public let headline: String
         public let freedLine: String?
@@ -52,10 +60,18 @@ public final class AskSession {
         public let duration: TimeInterval
     }
 
+    /// The conversation's identity and its turns, oldest first. `turns` holds
+    /// every FINISHED turn; the live one is the flat fields below.
+    public let id: UUID
+    public let started: Date
+    public private(set) var turns: [AskTurn] = []
+
     public private(set) var phase: Phase = .working
-    /// The user's message that started the turn.
+    /// The user's message that started the live turn.
     public private(set) var prompt: String = ""
     public private(set) var steps: [Step] = []
+    /// The agent's reasoning, kept apart from the answer.
+    public private(set) var thinking: String = ""
     /// The agent's reply, concatenated from the stream's chunks in order.
     public private(set) var reply: String = ""
     /// The open permission request, while the person has not answered.
@@ -72,8 +88,6 @@ public final class AskSession {
     /// toolbar strip and Activity read the store.
     public private(set) var job: Job?
 
-    public init() {}
-
     @ObservationIgnored private var agentSession: (any AgentSession)?
     @ObservationIgnored private var consumeTask: Task<Void, Never>?
     /// A `.done` held back because a permission request was still open.
@@ -81,32 +95,88 @@ public final class AskSession {
     @ObservationIgnored private var streamFinished = false
     @ObservationIgnored private var approvedActions: [String]?
     @ObservationIgnored private var proposedCount = 0
-    @ObservationIgnored private let beganAt = Date()
+    @ObservationIgnored private var beganAt = Date()
+    @ObservationIgnored private var scanIsPending = false
 
-    /// Starts a turn: one user message, its scan as a tracked job, and the
-    /// engine's stream consumed into this state.
+    private init(id: UUID, started: Date) {
+        self.id = id
+        self.started = started
+    }
+
+    /// Starts a conversation with one turn: one user message, its scan as a
+    /// tracked job, and the engine's stream consumed into this state.
     @discardableResult
     public static func begin(prompt: String, scan: (kind: JobKind, intent: JobIntent)?,
                              config: AgentSessionConfig, jobs: JobStore) -> AskSession {
-        let ask = AskSession()
-        ask.prompt = prompt
+        let ask = AskSession(id: UUID(), started: Date())
+        ask.appendTurnEngine(prompt: prompt, scan: scan, config: config, jobs: jobs)
+        AskHistoryStore.shared.loadIfNeeded()
+        return ask
+    }
+
+    /// Reopens a saved conversation. Nothing runs: every turn is archived, the
+    /// phase is idle, and the next message continues THIS conversation (same
+    /// id, same history file).
+    @discardableResult
+    public static func reopened(from conversation: AskConversation) -> AskSession {
+        let ask = AskSession(id: conversation.id, started: conversation.started)
+        ask.turns = conversation.turns
+        ask.phase = .idle
+        AskHistoryStore.shared.loadIfNeeded()
+        return ask
+    }
+
+    /// Starts a turn in THIS conversation — the input's one door, live while a
+    /// turn is not already running. The scan beat applies only to the very
+    /// first turn (a follow-up question answers from what is already known).
+    public func send(_ text: String, scan: (kind: JobKind, intent: JobIntent)?,
+                     config: AgentSessionConfig, jobs: JobStore) {
+        guard phase == .idle || phase == .done else { return }
+        appendTurnEngine(prompt: text, scan: turns.isEmpty ? scan : nil, config: config, jobs: jobs)
+    }
+
+    /// The shared turn machinery: archive anything live, reset the flat
+    /// fields, wire a fresh engine, enqueue the scan, and consume the stream.
+    private func appendTurnEngine(prompt: String, scan: (kind: JobKind, intent: JobIntent)?,
+                                  config: AgentSessionConfig, jobs: JobStore) {
+        archiveLiveTurn()
+        self.prompt = prompt
+        steps = []
+        thinking = ""
+        reply = ""
+        request = nil
+        ticked = []
+        receipt = nil
+        stopped = false
+        failure = nil
+        heldStop = nil
+        approvedActions = nil
+        proposedCount = 0
+        beganAt = Date()
+        streamFinished = false
+        phase = .working
         if let scan {
             // The loop's scan beat: the read-only analyzer the turn names, in
             // the one engine lane. Previews for cleaners (dry run), `.run` for
             // the analyzers — never an apply.
-            ask.job = jobs.enqueue(JobRequest(kind: scan.kind, intent: scan.intent), trigger: .user)
+            job = jobs.enqueue(JobRequest(kind: scan.kind, intent: scan.intent), trigger: .user)
+            scanIsPending = true
+        } else {
+            job = nil
+            scanIsPending = false
         }
-        let engine = makeEngine(jobStore: jobs)
+        let engine = Self.makeEngine(jobStore: jobs)
         let session = engine.makeSession(configuration: config)
-        ask.agentSession = session
-        ask.consumeTask = Task { [weak ask] in
+        agentSession = session
+        consumeTask?.cancel()
+        consumeTask = Task { [weak self] in
             for await event in session.events {
-                ask?.apply(event)
+                self?.apply(event)
             }
-            ask?.streamDidFinish()
+            self?.streamDidFinish()
         }
         Task { await session.send(prompt) }
-        return ask
+        persist()
     }
 
     /// THE ENGINE SEAM: the configured engine (`AGENT_ENGINE`), read the same
@@ -125,7 +195,7 @@ public final class AskSession {
     /// by a stopped turn — the standing line stays true. A Stop also answers
     /// an open permission request: nothing was approved, so nothing runs.
     public func stop() {
-        guard phase != .done else { return }
+        guard phase != .done, phase != .idle else { return }
         stopped = true
         request = nil
         ticked = []
@@ -199,6 +269,8 @@ public final class AskSession {
             }
         case .messageChunk(let chunk):
             reply += chunk
+        case .thoughtChunk(let chunk):
+            thinking += chunk
         case .permissionRequest(let request):
             self.request = request
             // Everything is proposed: the person unticks to shrink.
@@ -224,7 +296,7 @@ public final class AskSession {
     }
 
     private func finishTurn(_ reason: AgentStopReason) {
-        guard phase != .done else { return }
+        guard phase != .done, phase != .idle else { return }
         phase = .done
         heldStop = nil
         let endedAt = Date()
@@ -236,8 +308,8 @@ public final class AskSession {
                         ? "Nothing was approved, so nothing runs."
                         : "Approved \(approved.count) of \(max(proposedCount, approved.count)) proposed actions.",
                     // The byte sentence arrives with the real engines' apply
-                    // (Phase 5 wires the reviewed preview); the v1 preview
-                    // engine runs nothing and says so.
+                    // (the reviewed preview wires it); the preview engine runs
+                    // nothing and says so.
                     freedLine: nil,
                     approvedCount: approved.count,
                     proposedCount: proposedCount,
@@ -249,5 +321,42 @@ public final class AskSession {
         case .failed(let message):
             failure = message
         }
+        persist()
+    }
+
+    // MARK: - persistence
+
+    /// Archives the live turn into `turns` and saves the conversation. Called
+    /// at a turn's start (so an in-flight quit still leaves the question) and
+    /// at its end.
+    private func archiveLiveTurn() {
+        guard !prompt.isEmpty else { return }
+        let turn = AskTurn(
+            prompt: prompt,
+            steps: steps.map { AskStepRecord(id: $0.id, name: $0.name, detail: $0.detail, finished: $0.finished) },
+            reply: reply,
+            thinking: thinking,
+            failure: failure,
+            stopped: stopped,
+            receiptHeadline: receipt?.headline)
+        turns.append(turn)
+        prompt = ""
+    }
+
+    private func persist() {
+        var saved = turns
+        // The live turn saves too, so a quit mid-turn keeps the question and
+        // whatever had streamed; its live state re-archives on the next turn.
+        if !prompt.isEmpty {
+            saved.append(AskTurn(
+                prompt: prompt,
+                steps: steps.map { AskStepRecord(id: $0.id, name: $0.name, detail: $0.detail, finished: $0.finished) },
+                reply: reply,
+                thinking: thinking,
+                failure: failure,
+                stopped: stopped,
+                receiptHeadline: receipt?.headline))
+        }
+        AskHistoryStore.shared.save(AskConversation(id: id, started: started, turns: saved))
     }
 }
