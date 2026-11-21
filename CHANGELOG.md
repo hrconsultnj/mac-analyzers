@@ -8,8 +8,17 @@ bullet as a feature of its own, so every bullet ends with a short tag that
 GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 Older entries below keep the name the app had when they shipped.
 
-## Next
+## v3.2.0 — Ask That Keeps the Conversation Going
 
+Ask becomes a chat you can come back to: conversations are saved on your Mac, the Ask screen lists the ones you have had, and any of them — ended or from days ago — takes follow-ups in the same thread. Inside a chat you see what the agent is actually doing, and the update channel stops contradicting itself.
+
+- Conversations persist under your data root, the Ask home lists them with their age, and reopening one shows every turn it made and keeps talking in the same thread — the input never goes dead on an ended or old chat. <!-- wn: open=ask icon=sparkles title="Chats You Can Return To" -->
+- While the agent works, each step is a card with its own icon, the real script it ran in monospace, and a spinner that becomes a checkmark. The agent's reasoning sits in its own Thinking block, apart from the answer, and the answer renders as Markdown instead of a wall of characters. <!-- wn: open=ask icon=brain title="See What the Agent Is Doing" -->
+- The version you run says which work it holds: a development build reads "3.2.0 Dev · commit" instead of a bare "Dev", and after a release the app on the Releases channel is the release itself — a rebuild button names its version too ("Rebuild 3.2.0"), so the buttons say what they produce. <!-- wn: open=update icon=arrow.down.circle title="Versions That Say What They Are" -->
+- The menu-bar panel's footer buttons are icons with tooltips now — Open App, Ask, Settings — so the row stops truncating next to the version and Quit. <!-- wn: open=- icon=macwindow title="A Panel Row That Fits" -->
+- Fixed: the update's return to the development branch no longer fails when another worktree holds it, a Releases install moves a clean clone onto the published release even from a newer checkout, and channel updates keep the licence build instead of quietly stripping it. <!-- wn: open=update icon=wrench title="Updates That Behave" -->
+
+## v3.1.0 — Ask an Agent to Help With Your Mac
 ## v3.1.0 — Ask an Agent to Help With Your Mac
 <!-- wn: released=2026-11-20 -->
 

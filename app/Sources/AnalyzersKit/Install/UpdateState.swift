@@ -169,15 +169,21 @@ public final class UpdateState {
         }
     }
 
-    /// The Install button for the channel in use: the release, the beta, or a rebuild of Development.
+    /// The Install button for the channel in use: the release, the beta, or a rebuild that names the
+    /// version development is on ("Rebuild 3.2.0") — a static "Rebuild Development" said nothing about
+    /// what the rebuild would produce.
     public var installTitle: String {
         switch channel {
         case .releases:
-            latest.map { "Install \(BuildInfo.label(forVersion: $0))" } ?? Names.Update.installUpdate
+            return latest.map { "Install \(BuildInfo.label(forVersion: $0))" } ?? Names.Update.installUpdate
         case .beta:
-            betaTarget.map { "Install \(BuildInfo.label(forVersion: $0))" } ?? Names.Channel.installBeta
+            return betaTarget.map { "Install \(BuildInfo.label(forVersion: $0))" } ?? Names.Channel.installBeta
         case .thisCopy:
-            Names.Channel.rebuild
+            if let development = build.developmentVersion {
+                let number = development.split(separator: "-", maxSplits: 1).first.map(String.init) ?? development
+                return "Rebuild \(number)"
+            }
+            return Names.Channel.rebuild
         }
     }
 
