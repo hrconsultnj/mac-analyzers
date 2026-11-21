@@ -9,6 +9,7 @@ GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 Older entries below keep the name the app had when they shipped.
 
 ## v3.2.0 — Ask That Keeps the Conversation Going
+<!-- wn: released=2026-11-20 -->
 
 Ask becomes a chat you can come back to: conversations are saved on your Mac, the Ask screen lists the ones you have had, and any of them — ended or from days ago — takes follow-ups in the same thread. Inside a chat you see what the agent is actually doing, and the update channel stops contradicting itself.
 
