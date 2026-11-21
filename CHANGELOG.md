@@ -1,3 +1,5 @@
+## Next
+
 # What's New
 
 Every release of Sparehold, newest first, written for the people who use
