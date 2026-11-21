@@ -302,7 +302,7 @@ public actor ACPSession: AgentSession {
             let id = update["toolCallId"]?.stringValue ?? ""
             let title = update["title"]?.stringValue ?? "Working"
             stepTitles[id] = title
-            yield(.stepStarted(name: title, detail: update["kind"]?.stringValue ?? title))
+            yield(.stepStarted(name: title, detail: Self.toolDetail(of: .object(update))))
         case "tool_call_update":
             let id = update["toolCallId"]?.stringValue ?? ""
             let status = update["status"]?.stringValue ?? ""
@@ -312,6 +312,21 @@ public actor ACPSession: AgentSession {
         default:
             break
         }
+    }
+
+    /// What a tool card shows under the tool's name: the command, path or
+    /// address the tool call actually carried (its `rawInput`), not the bare
+    /// kind ("execute") — the card is the person's window into the work.
+    static func toolDetail(of update: JSON) -> String {
+        guard case .object(let outer) = update, case .object(let raw) = outer["rawInput"] ?? .null else { return "" }
+        for key in ["command", "path", "file_path", "url", "query", "pattern"] {
+            if let text = raw[key]?.stringValue, !text.isEmpty { return text }
+        }
+        // no known key: the first string field, kept short
+        for (_, value) in raw.sorted(by: { $0.key < $1.key }) {
+            if let text = value.stringValue, !text.isEmpty, text.count <= 120 { return text }
+        }
+        return ""
     }
 
     /// A plan update carries the WHOLE plan each time: an entry that has

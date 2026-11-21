@@ -15,10 +15,14 @@ public struct AskTurn: Codable, Equatable, Sendable, Identifiable {
     public var stopped: Bool
     /// Set when the turn ended in an approval (the receipt's own words).
     public var receiptHeadline: String?
+    /// The engine (and model, when loaded) that answered this turn — the reply
+    /// is labelled with it, never a bare product name.
+    public var engine: String?
 
     public init(id: UUID = UUID(), prompt: String, steps: [AskStepRecord] = [],
                 reply: String = "", thinking: String = "",
-                failure: String? = nil, stopped: Bool = false, receiptHeadline: String? = nil) {
+                failure: String? = nil, stopped: Bool = false, receiptHeadline: String? = nil,
+                engine: String? = nil) {
         self.id = id
         self.prompt = prompt
         self.steps = steps
@@ -27,6 +31,7 @@ public struct AskTurn: Codable, Equatable, Sendable, Identifiable {
         self.failure = failure
         self.stopped = stopped
         self.receiptHeadline = receiptHeadline
+        self.engine = engine
     }
 }
 

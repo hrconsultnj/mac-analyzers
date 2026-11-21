@@ -138,7 +138,8 @@ struct AskHomeView: View {
     /// context menu deletes it — to the Trash, like everything else here.
     private func historyRow(_ conversation: AskConversation) -> some View {
         Button {
-            self.conversation.current = AskSession.reopened(from: conversation)
+            self.conversation.current = self.conversation.session(for: conversation.id)
+                ?? AskSession.reopened(from: conversation)
             navigator.push(.ask(.session))
         } label: {
             HStack(spacing: Tokens.Space.l) {

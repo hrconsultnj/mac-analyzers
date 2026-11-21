@@ -319,7 +319,13 @@ public final class UpdateState {
             }
             channelState = ChannelLogic.beta(build: build, cloneBranch: basics.branch, isClone: basics.hasClone, feed: feed,
                                              containment: containment)
-            newestBeta = feed?.newestBeta.map { BuildInfo.label(forVersion: $0) }
+            // the displayed beta follows the same rule the target does: a beta
+            // behind the newest release is history, not "the newest beta" —
+            // otherwise Beta advertises 2.73.1 Beta while 3.2.0 is out
+            newestBeta = feed?.newestBeta.flatMap { beta in
+                let pastRelease = feed?.newestRelease.map { UpdateChecker.isNewer(beta, than: $0) } ?? true
+                return pastRelease ? BuildInfo.label(forVersion: beta) : nil
+            }
             betaTarget = feed?.target
             channelChangelog = nil
             betaNotes = notes
