@@ -209,12 +209,19 @@ fi
 # Analyzers again.
 export SPAREHOLD_UPGRADE=1
 echo "→ rebuilding the app (this takes a minute)…"
+# The Pro overlay joins when its package is on this Mac (build.sh --pro's own
+# rule), so a channel install keeps what a local --pro build put in — without
+# it, every update would quietly strip the licence features back out.
+build_flags=()
+if [[ -d "$HOME/sparehold-pro" || -d "$HOME/mac-analyzers-pro" ]]; then
+  build_flags+=(--pro)
+fi
 # The build's full output goes to a file; the screen shows the result, or the
 # errors when it fails. Compiler warnings are NOT hidden: the project is meant
 # to build with none (scripts/check.sh enforces it), so if a build ever
 # reports any, this says how many and keeps the file.
 build_log="$(mktemp -t sparehold-build)"
-if ./app/build.sh >"$build_log" 2>&1; then
+if ./app/build.sh "${build_flags[@]}" >"$build_log" 2>&1; then
   grep -E '^(installed:|note: could not install)' "$build_log" | sed 's/^/  /' || true
   build_warnings="$(grep -c 'warning: ' "$build_log" || true)"
   if [[ "${build_warnings:-0}" -gt 0 ]]; then
