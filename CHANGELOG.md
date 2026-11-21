@@ -9,6 +9,7 @@ GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 Older entries below keep the name the app had when they shipped.
 
 ## v3.2.1 — The Panel Keeps Its Buttons
+<!-- wn: released=2026-11-20 -->
 
 - Fixed: the menu-bar panel could raise an "only this much space free" suggestion every time it opened, and that card squeezed the scheduled cleans, their Run Now buttons, and the cleanup shortcuts out of the panel — on any Mac whose free space was under ten percent of its disk, which is most of them. The suggestion now belongs to the scheduled scans that find things, at a genuinely critical size, and the panel is exactly the row of controls it was. <!-- wn: open=- icon=wrench title="The Panel Keeps Its Buttons" -->
 
