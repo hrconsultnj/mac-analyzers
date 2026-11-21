@@ -507,8 +507,19 @@ public actor ACPSession: AgentSession {
         continuation.finish()
     }
 
+    /// The vendor owns the model choice: no model is ever pinned here, so the
+    /// CLI's default follows its version and the subscription — always the
+    /// latest. A config that pins an unsupported model still surfaces the
+    /// vendor's error, with the fix attached.
+    static func withModelHint(_ message: String) -> String {
+        guard message.contains("not supported when using Codex with a ChatGPT account") else { return message }
+        return message + " Update Codex (codex update) — the model your subscription offers follows the CLI version."
+    }
+
     private func plain(_ error: Error) -> String {
-        if let acpError = error as? ACPRequestError { return acpError.message }
-        return error.localizedDescription
+        let text: String
+        if let acpError = error as? ACPRequestError { text = acpError.message }
+        else { text = error.localizedDescription }
+        return Self.withModelHint(text)
     }
 }

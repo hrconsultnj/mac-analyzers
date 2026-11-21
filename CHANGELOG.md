@@ -1,5 +1,3 @@
-## Next
-
 # What's New
 
 Every release of Sparehold, newest first, written for the people who use
@@ -9,6 +7,8 @@ without an entry here — see `scripts/cut-release.sh`. The app lists each
 bullet as a feature of its own, so every bullet ends with a short tag that
 GitHub does not show; `scripts/changelog-check.sh` says what it must hold.
 Older entries below keep the name the app had when they shipped.
+
+## Next
 
 ## v3.4.0 — The Machinery Speaks in Its Own Voice
 <!-- wn: released=2026-11-21 -->
