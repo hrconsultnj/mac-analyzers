@@ -57,3 +57,5 @@ dist/
 # local tool artifacts from agent sessions
 .video_agent/
 .v2c/
+# the agent's saved conversations, in the data root when it is this checkout
+/ask/
